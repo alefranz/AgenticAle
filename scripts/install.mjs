@@ -226,14 +226,15 @@ function configuredCopyContent(path, content, models, sourceRoot) {
   if (model === undefined) return content;
   const text = content.toString("utf8");
   const frontmatterEnd = text.indexOf("\n---", 4);
-  if (!text.startsWith("---\n") || frontmatterEnd < 0) {
+  const lineEnding = text.startsWith("---\r\n") ? "\r\n" : "\n";
+  if (!text.startsWith(`---${lineEnding}`) || frontmatterEnd < 0) {
     throw new Error(`Bundle agent has invalid frontmatter: ${path}.`);
   }
   const frontmatter = text.slice(0, frontmatterEnd);
-  if (!/^mode: subagent$/m.test(frontmatter) || /^model:/m.test(frontmatter)) {
+  if (!/^mode: subagent\r?$/m.test(frontmatter) || /^model:/m.test(frontmatter)) {
     throw new Error(`Bundle agent cannot accept a model override: ${path}.`);
   }
-  const rendered = `${frontmatter.replace(/^mode: subagent$/m, `mode: subagent\nmodel: ${model}`)}${text.slice(frontmatterEnd)}`;
+  const rendered = `${frontmatter.replace(/^mode: subagent\r?$/m, `mode: subagent${lineEnding}model: ${model}`)}${text.slice(frontmatterEnd)}`;
   return Buffer.from(rendered, "utf8");
 }
 

@@ -60,6 +60,19 @@ function writeState(root, state) {
   writeFileSync(join(root, stateName), `${JSON.stringify(state, null, 2)}\n`);
 }
 
+function createCrLfBundle() {
+  const root = target("crlf-bundle");
+  for (const directory of ["agents", "commands", "skills"]) {
+    cpSync(join(repositoryRoot, directory), join(root, directory), { recursive: true });
+  }
+  mkdirSync(join(root, "scripts"), { recursive: true });
+  const crlfInstaller = join(root, "scripts", "install.mjs");
+  cpSync(installer, crlfInstaller);
+  const agent = join(root, "agents", "autonomous", "consult.md");
+  writeFileSync(agent, readFileSync(agent, "utf8").replace(/\r?\n/g, "\r\n"));
+  return { root, installer: crlfInstaller };
+}
+
 function assertRejectedState(name, mutate) {
   const root = target(`invalid-state-${name}`);
   run(["--target", root, "--no-model"]);
@@ -161,6 +174,16 @@ try {
     "deep-review": "example/frontier-model#high",
   }));
   writeFileSync(modelConfigB, JSON.stringify({ review: "other-provider/new-model#xhigh" }));
+
+  const crlfBundle = createCrLfBundle();
+  const crlfModelConfig = join(crlfBundle.root, "models.json");
+  const crlfTarget = target("crlf-configured-models");
+  writeFileSync(crlfModelConfig, JSON.stringify({ consult: "example/consult-model#medium" }));
+  runWith(crlfBundle.installer, crlfBundle.root,
+    ["--target", crlfTarget, "--models", crlfModelConfig]);
+  assert(readFileSync(installedFile(crlfTarget, "agents/autonomous/consult.md"), "utf8")
+    .includes("mode: subagent\r\nmodel: example/consult-model#medium"),
+  "configured model installation must support CRLF agent frontmatter");
 
   const presets = [
     ["openai", "openai/gpt-5.6-terra"],
