@@ -101,8 +101,8 @@ try {
     "copy install should remind users to configure permissions separately");
   const stateBefore = readFileSync(join(copyTarget, stateName), "utf8");
   const state = JSON.parse(stateBefore);
-  assert(state.schema === 2 && state.mode === "copy" && state.entries.length === 10,
-    "copy state should own exactly ten files in schema v2");
+  assert(state.schema === 3 && state.mode === "copy" && state.entries.length === 11,
+    "copy state should own exactly eleven files in schema v3");
   for (const entry of state.entries) {
     assert(existsSync(installedFile(copyTarget, entry.path)), `copy install omitted ${entry.path}`);
   }
@@ -144,20 +144,39 @@ try {
   run(["--target", legacyTarget, "--no-model"]);
   const legacyState = JSON.parse(readFileSync(join(legacyTarget, stateName), "utf8"));
   legacyState.schema = 1;
-  legacyState.entries = legacyState.entries.filter((entry) => entry.path !== "skills/source-code-lookup/SKILL.md");
+  legacyState.entries = legacyState.entries.filter((entry) => ![
+    "skills/pull-request-description/SKILL.md",
+    "skills/source-code-lookup/SKILL.md",
+  ].includes(entry.path));
   rmSync(installedFile(legacyTarget, "skills/source-code-lookup"), { recursive: true });
   writeState(legacyTarget, legacyState);
   run(["--target", legacyTarget, "--no-model"]);
   const updatedState = JSON.parse(readFileSync(join(legacyTarget, stateName), "utf8"));
-  assert(updatedState.schema === 2 && updatedState.entries.length === 10,
+  assert(updatedState.schema === 3 && updatedState.entries.length === 11,
     "updating an older copy install should add the new skill and advance the state schema");
   run(["uninstall", "--target", legacyTarget]);
+
+  const versionTwoTarget = target("version-two-copy");
+  run(["--target", versionTwoTarget, "--no-model"]);
+  const versionTwoState = JSON.parse(readFileSync(join(versionTwoTarget, stateName), "utf8"));
+  versionTwoState.schema = 2;
+  versionTwoState.entries = versionTwoState.entries.filter((entry) => entry.path !== "skills/pull-request-description/SKILL.md");
+  rmSync(installedFile(versionTwoTarget, "skills/pull-request-description"), { recursive: true });
+  writeState(versionTwoTarget, versionTwoState);
+  run(["--target", versionTwoTarget, "--no-model"]);
+  const upgradedVersionTwoState = JSON.parse(readFileSync(join(versionTwoTarget, stateName), "utf8"));
+  assert(upgradedVersionTwoState.schema === 3 && upgradedVersionTwoState.entries.length === 11,
+    "updating a version-two copy install should add the PR skill and advance the state schema");
+  run(["uninstall", "--target", versionTwoTarget]);
 
   const legacyUninstallTarget = target("legacy-uninstall");
   run(["--target", legacyUninstallTarget, "--no-model"]);
   const oldState = JSON.parse(readFileSync(join(legacyUninstallTarget, stateName), "utf8"));
   oldState.schema = 1;
-  oldState.entries = oldState.entries.filter((entry) => entry.path !== "skills/source-code-lookup/SKILL.md");
+  oldState.entries = oldState.entries.filter((entry) => ![
+    "skills/pull-request-description/SKILL.md",
+    "skills/source-code-lookup/SKILL.md",
+  ].includes(entry.path));
   rmSync(installedFile(legacyUninstallTarget, "skills/source-code-lookup"), { recursive: true });
   writeState(legacyUninstallTarget, oldState);
   run(["uninstall", "--target", legacyUninstallTarget]);
@@ -354,7 +373,7 @@ try {
   }
   if (linksSupported) {
     const linkState = JSON.parse(readFileSync(join(linkTarget, stateName), "utf8"));
-    assert(linkState.mode === "link" && linkState.entries.length === 4, "link state should own four links");
+    assert(linkState.mode === "link" && linkState.entries.length === 5, "link state should own five links");
     for (const entry of linkState.entries) {
       assert(lstatSync(installedFile(linkTarget, entry.path)).isSymbolicLink(), `${entry.path} should be a link`);
     }

@@ -159,15 +159,21 @@ every child:
 - **Working tree (default):** do not commit or push. Leave verified changes in
   the working tree and identify them with `git status` and `git diff` evidence.
 - **Commit:** allowed only when the user explicitly requested commits or the
-  active repository instructions require them. Commit changed repositories in
-  dependency order and update any outer-repository pins.
+  active repository instructions require them. The workflow creates the
+  coherent commits for accepted slices itself; it does not leave commits for
+  the user to make. Commit changed repositories in dependency order and update
+  any outer-repository pins.
 - **Push:** allowed only when the user explicitly requested pushing. Repository
   instructions or an inferred desire for persistence are not enough.
 
 Review rounds follow the same policy for handoff-only changes. Later rounds
 refer to commit hashes when commits exist; otherwise they use the recorded
-baseline plus changed-file and diff evidence. Never change remotes, publish, or
-silently strengthen the persistence policy.
+baseline plus changed-file and diff evidence. Work on the already checked-out
+branch unless the user explicitly asks for a new branch or repository
+instructions require one; a request to commit does not imply creating a
+branch. Creating a branch, pushing, and opening a pull request are separate,
+explicit actions. Never change remotes, publish, or silently strengthen the
+persistence policy.
 
 ## Setup (round 0, done by the main loop)
 

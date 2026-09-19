@@ -27,7 +27,7 @@ const repositoryRoot = resolve(scriptDirectory, "..");
 const stateName = ".autonomous-mode-install.json";
 const backupDirectoryName = ".autonomous-mode-backups";
 const packageName = "opencode-autonomous-mode";
-const stateVersion = 2;
+const stateVersion = 3;
 
 const copyPaths = [
   "agents/autonomous/consult.md",
@@ -39,18 +39,22 @@ const copyPaths = [
   "agents/autonomous/review.md",
   "commands/autonomous.md",
   "skills/autonomous-mode/SKILL.md",
+  "skills/pull-request-description/SKILL.md",
   "skills/source-code-lookup/SKILL.md",
 ];
 
-const legacyCopyPaths = copyPaths.filter((path) => path !== "skills/source-code-lookup/SKILL.md");
+const versionTwoCopyPaths = copyPaths.filter((path) => path !== "skills/pull-request-description/SKILL.md");
+const legacyCopyPaths = versionTwoCopyPaths.filter((path) => path !== "skills/source-code-lookup/SKILL.md");
 
 const linkPaths = [
   "agents/autonomous",
   "commands/autonomous.md",
   "skills/autonomous-mode",
+  "skills/pull-request-description",
   "skills/source-code-lookup",
 ];
-const legacyLinkPaths = linkPaths.filter((path) => path !== "skills/source-code-lookup");
+const versionTwoLinkPaths = linkPaths.filter((path) => path !== "skills/pull-request-description");
+const legacyLinkPaths = versionTwoLinkPaths.filter((path) => path !== "skills/source-code-lookup");
 const roleNames = new Set(copyPaths
   .filter((path) => path.startsWith("agents/autonomous/"))
   .map((path) => basename(path, ".md")));
@@ -401,14 +405,14 @@ function validateState(value, statePath) {
   const topLevelKeys = ["entries", "installedAt", "mode", "package", "schema"];
   if (!value || typeof value !== "object" || Array.isArray(value)
       || JSON.stringify(Object.keys(value).sort()) !== JSON.stringify(topLevelKeys)
-      || ![1, stateVersion].includes(value.schema) || value.package !== packageName
+      || ![1, 2, stateVersion].includes(value.schema) || value.package !== packageName
       || !["copy", "link"].includes(value.mode) || !Array.isArray(value.entries)
       || typeof value.installedAt !== "string" || !Number.isFinite(Date.parse(value.installedAt))) {
     throw new Error(`Install state is invalid: ${statePath}. Move it aside and retry, or restore a valid package state file.`);
   }
   const expectedPaths = value.mode === "copy"
-    ? value.schema === 1 ? legacyCopyPaths : copyPaths
-    : value.schema === 1 ? legacyLinkPaths : linkPaths;
+    ? value.schema === 1 ? legacyCopyPaths : value.schema === 2 ? versionTwoCopyPaths : copyPaths
+    : value.schema === 1 ? legacyLinkPaths : value.schema === 2 ? versionTwoLinkPaths : linkPaths;
   const expectedKind = value.mode === "copy" ? "file" : "link";
   if (value.entries.length !== expectedPaths.length) {
     throw new Error(`Install state does not contain the exact ${value.mode} entry set: ${statePath}. Move it aside and retry.`);
@@ -666,6 +670,7 @@ async function installBundle(options) {
 async function removeEmptyPackageDirectories(target) {
   const directories = [
     "skills/autonomous-mode",
+    "skills/pull-request-description",
     "skills/source-code-lookup",
     "agents/autonomous",
   ];

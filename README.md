@@ -1,6 +1,6 @@
 # Development tools for OpenCode V2
 
-This repository provides two capabilities for [OpenCode V2](https://opencode.ai/v2/docs)
+This repository provides three capabilities for [OpenCode V2](https://opencode.ai/v2/docs)
 that you can use independently:
 
 - **[Source Code Lookup](#source-code-lookup)** finds the code behind a
@@ -9,9 +9,12 @@ that you can use independently:
 - **[Autonomous Mode](#autonomous-mode)** works through a large development goal
   in bounded steps with focused agents, independent review, and a durable
   handoff.
+- **[Pull Request Description](#pull-request-description)** writes concise PR
+  narratives that explain intent, operational context, and unresolved risks.
 
-The installer adds both to your OpenCode profile. Source Code Lookup also works
-in ordinary OpenCode conversations; you do not need to start `/autonomous`.
+The installer adds all three to your OpenCode profile. Source Code Lookup and
+Pull Request Description also work in ordinary OpenCode conversations; you do
+not need to start `/autonomous`.
 
 ## Source Code Lookup
 
@@ -69,8 +72,24 @@ It is designed around a simple cost and quality strategy:
 - preserve the next action on disk, so an interrupted session does not lose the
   plan.
 
-Nothing is pushed automatically. You remain in control of the final changes,
-commits, and releases.
+Nothing is pushed automatically. Autonomous Mode leaves changes in the working
+tree by default. Say **commit** when you want it to create the coherent commits
+for accepted work; say **create a branch**, **push**, or **open a PR** when you
+want each of those separate actions. Otherwise it works on the currently
+checked-out branch.
+
+## Pull Request Description
+
+Use the `pull-request-description` skill when drafting or revising a PR body.
+It is a writing convention, not a GitHub automation workflow: it does not
+create branches, commits, pushes, or pull requests.
+
+The skill keeps the summary short, then focuses on why the change exists, its
+goal, relevant operational or deployment notes, and unresolved limitations or
+gotchas. It avoids narrating obvious line-by-line implementation details.
+Ordinary automated-test results are omitted; mention validation only when a
+manual check, special environment, or non-obvious verification is useful to a
+reviewer.
 
 ## How the workflow works
 
@@ -153,6 +172,7 @@ For example, an isolated container might start with:
     { "action": "glob", "resource": "*", "effect": "allow" },
     { "action": "grep", "resource": "*", "effect": "allow" },
     { "action": "skill", "resource": "autonomous-mode", "effect": "allow" },
+    { "action": "skill", "resource": "pull-request-description", "effect": "allow" },
     { "action": "skill", "resource": "source-code-lookup", "effect": "allow" },
     { "action": "subagent", "resource": "autonomous/*", "effect": "allow" },
     { "action": "edit", "resource": "*", "effect": "allow" },

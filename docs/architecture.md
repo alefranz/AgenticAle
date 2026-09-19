@@ -1,9 +1,9 @@
 # Architecture
 
-This release packages two independent capabilities for OpenCode V2: an
-autonomous development workflow and a source lookup skill. The workflow has two
-boundaries: a portable orchestration protocol and the concrete OpenCode
-integration that runs that protocol today.
+This release packages three independent capabilities for OpenCode V2: an
+autonomous development workflow, a source lookup skill, and a pull-request
+description skill. The workflow has two boundaries: a portable orchestration
+protocol and the concrete OpenCode integration that runs that protocol today.
 
 ## Portable orchestration protocol
 
@@ -37,14 +37,17 @@ The OpenCode profile bundle contains:
 - `skills/source-code-lookup/SKILL.md` guides source inspection for dependencies
   and related codebases. It can be used in an ordinary OpenCode task without
   `/autonomous`, its agents, or its handoff files.
+- `skills/pull-request-description/SKILL.md` guides the content of a PR body.
+  It is deliberately independent of GitHub or other mechanical PR-creation
+  automation, so it can be applied wherever a PR description is written.
 
 The profile installer maps those paths into the user's OpenCode configuration.
 The autonomous-mode skill sets `metadata.opencode/autoinvoke: false` and `slash: false`, so
 OpenCode loads it through `/autonomous` without advertising it for ordinary
 requests or creating a second slash entry. The installer does not install
 repository contributor guidance, tests, handoffs, or documentation.
-`scripts/validate.mjs` enforces the exact seven
-agents, two skills, and one command as the complete bundle.
+`scripts/validate.mjs` enforces the exact seven agents, three skills, and one
+command as the complete bundle.
 
 OpenCode provides the child-session lifecycle, foreground subagent calls,
 permission enforcement, skill discovery, command discovery, and model
@@ -62,8 +65,8 @@ ordinary install state, so updates and removal retain the same collision,
 backup, and modified-file behavior. The source bundle stays provider-neutral.
 For copy installs, `--source-root` renders a local repository root into the
 lookup skill. Link installs use its portable `~/dev` default. The installer
-accepts the previous v1 nine-file copy state and three-link state so existing
-profiles can update or uninstall.
+accepts the previous v1 nine-file and v2 ten-file copy states, plus the prior
+three-link and four-link states, so existing profiles can update or uninstall.
 
 ## Future adapter boundaries
 

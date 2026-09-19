@@ -21,6 +21,7 @@ const expectedBundleFiles = [
   ...[...roles.keys()].map((role) => `agents/autonomous/${role}.md`),
   "commands/autonomous.md",
   "skills/autonomous-mode/SKILL.md",
+  "skills/pull-request-description/SKILL.md",
   "skills/source-code-lookup/SKILL.md",
 ].sort();
 
@@ -182,6 +183,19 @@ function validateSourceLookupSkill() {
   if (!fields.get("description")) fail(path, "description must not be empty", "describe when source lookup applies");
   if (body.split('Source root: "~/dev"').length !== 2) {
     fail(path, "skill must contain one installer source-root marker", 'keep one Source root: "~/dev" line');
+  }
+}
+
+function validatePullRequestDescriptionSkill() {
+  const path = "skills/pull-request-description/SKILL.md";
+  const { fields, body } = parseFrontmatter(path, readText(path));
+  requireExactKeys(path, fields, ["name", "description"]);
+  if (fields.get("name") !== "pull-request-description") {
+    fail(path, "skill name must match its folder", "set name: pull-request-description");
+  }
+  if (!fields.get("description")) fail(path, "description must not be empty", "describe when the skill applies");
+  if (!/why/i.test(body) || !/validation/i.test(body)) {
+    fail(path, "skill must cover intent and selective validation", "restore the PR narrative guidance");
   }
 }
 
@@ -359,6 +373,7 @@ for (const [role, contract] of roles) {
   if (existsSync(join(repositoryRoot, path)) && statSync(join(repositoryRoot, path)).isFile()) validateAgent(role, contract);
 }
 if (existsSync(join(repositoryRoot, "skills/autonomous-mode/SKILL.md"))) validateSkill();
+if (existsSync(join(repositoryRoot, "skills/pull-request-description/SKILL.md"))) validatePullRequestDescriptionSkill();
 if (existsSync(join(repositoryRoot, "skills/source-code-lookup/SKILL.md"))) validateSourceLookupSkill();
 if (existsSync(join(repositoryRoot, "commands/autonomous.md"))) validateCommand();
 validateNeutrality();

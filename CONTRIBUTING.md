@@ -7,7 +7,7 @@ changes with clear verification are easiest to review.
 
 - Read `AGENTS.md` when present, `docs/architecture.md`, and the relevant
   bundle files.
-- Keep the installable surface to the documented ten files unless a release
+- Keep the installable surface to the documented eleven files unless a release
   decision intentionally changes that contract.
 - Keep provider, model, machine, account, and project assumptions out of the
   installable bundle.
