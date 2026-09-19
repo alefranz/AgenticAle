@@ -1,0 +1,9 @@
+{
+  "explore": "openai/gpt-5.6-luna",
+  "implement": "openai/gpt-5.6-luna",
+  "implement-hard": "openai/gpt-5.6-terra",
+  "fix": "openai/gpt-5.6-luna",
+  "review": "openai/gpt-5.6-terra",
+  "deep-review": "openai/gpt-5.6-sol",
+  "consult": "openai/gpt-5.6-sol"
+}

@@ -1,0 +1,9 @@
+{
+  "explore": "local-llama/qwen3.8-27b#medium",
+  "implement": "local-llama/qwen3.8-27b#medium",
+  "implement-hard": "local-llama/qwen3.8-27b#xhigh",
+  "fix": "local-llama/qwen3.8-27b#medium",
+  "review": "local-llama/qwen3.8-27b#xhigh",
+  "deep-review": "openai/gpt-5.6-sol#high",
+  "consult": "openai/gpt-5.6-sol#high"
+}

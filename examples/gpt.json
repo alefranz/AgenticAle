@@ -1,0 +1,9 @@
+{
+  "explore": "opencode/gpt-5.6-luna",
+  "implement": "opencode/gpt-5.6-luna",
+  "implement-hard": "opencode/gpt-5.6-terra",
+  "fix": "opencode/gpt-5.6-luna",
+  "review": "opencode/gpt-5.6-terra",
+  "deep-review": "opencode/gpt-5.6-sol",
+  "consult": "opencode/gpt-5.6-sol"
+}
