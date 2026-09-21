@@ -1,55 +1,57 @@
-# Development tools for OpenCode V2
+# AgenticAle: my agentic development workflow for OpenCode V2
 
-This repository provides three capabilities for [OpenCode V2](https://opencode.ai/v2/docs)
-that you can use independently:
+AgenticAle is the shareable version of how I work with coding agents: the
+workflows, guardrails, and reusable skills that make up my development setup
+for [OpenCode V2](https://opencode.ai/v2/docs).
 
-- **[Source Code Lookup](#source-code-lookup)** finds the code behind a
-  dependency, HTTP service, or message producer or consumer, even when it lives
-  in another repository.
-- **[Autonomous Mode](#autonomous-mode)** works through a large development goal
-  in bounded steps with focused agents, independent review, and a durable
-  handoff.
-- **[Pull Request Description](#pull-request-description)** writes concise PR
-  narratives that explain intent, operational context, and unresolved risks.
+It currently has two layers:
 
-The installer adds all three to your OpenCode profile. Source Code Lookup and
-Pull Request Description also work in ordinary OpenCode conversations; you do
-not need to start `/autonomous`.
-
-## Source Code Lookup
-
-The [`source-code-lookup` skill](skills/source-code-lookup/SKILL.md) traces
-behavior across repository boundaries. It uses clues such as package references,
-API endpoints, and message names to identify the codebase that owns the behavior,
-then searches local checkouts and, when needed, upstream source repositories.
-When a matching revision is known, it inspects that revision.
-
-Use it directly in a normal OpenCode task, for example:
-
-```text
-Use the source-code-lookup skill to find the service that publishes this message and explain where its payload is built.
-```
-
-The skill searches `~/dev` for existing checkouts by default. You can set a
-different root with the installer's `--source-root` option, described under
-[Useful installer commands](#useful-installer-commands).
+- **[Autonomous Mode](#autonomous-mode)** is a complete operating mode for
+  taking a large development goal through exploration, implementation,
+  independent review, fixes, and a durable handoff.
+- **[Skills](#skills)** are smaller, focused practices that can be used in an
+  ordinary OpenCode conversation. The collection currently includes Source
+  Code Lookup and Pull Request Description, with more to come.
 
 ## Autonomous Mode
 
-Autonomous Mode gives [OpenCode V2](https://opencode.ai/v2/docs) a repeatable
-way to work through large development goals while keeping quality high without
-paying frontier-model prices for every step. It uses inexpensive or local
-models for the high-volume grunt work, then reserves stronger models for
-difficult reasoning, independent review, and decisions that are hard to
-settle.
+Autonomous Mode is a workflow in its own right. Give it a large development
+goal and it keeps a bounded explore, implement, review, and fix loop moving
+until the goal is complete or it reaches a clear stop condition.
 
-You describe the goal once. Autonomous Mode breaks it into small, verifiable
-steps, gives each step a focused agent, asks for an independent review when
-appropriate, and leaves a written handoff so the work can resume later.
+The coordinator is itself a model following an explicit process. It chooses
+one verifiable slice at a time, gives each agent a focused context, enforces
+budgets and review gates, and saves the evidence and next action in the
+repository. There is no separate orchestration service calling model APIs or
+shuffling messages between agents.
 
-The result is a practical “small development team” workflow inside OpenCode:
-exploration, implementation, review, fixes, and escalation are separate jobs
-with separate contexts.
+```mermaid
+flowchart LR
+    A[Large development goal] --> B[Model coordinator]
+    B --> C[Explore]
+    C --> D[Implement]
+    D --> E[Independent review]
+    E -->|blocking findings| F[Focused fix]
+    F --> E
+    E -->|accepted| G[Save evidence and next action]
+    G -->|more work| B
+    G -->|goal complete| H[Human inspection]
+```
+
+The high-volume work can run on inexpensive or local models while stronger
+models are reserved for difficult implementation, independent review, and
+stuck decisions. Every role is configurable, so the workflow can use the
+models available through your subscriptions, providers, or local setup.
+
+Exploration, implementation, review, fixes, and escalation are separate jobs
+with separate contexts, more like a small development team than one
+long-running chat.
+
+The agent that writes a change does not mark its own work. A fresh agent
+reviews the result, and blocking findings go through a focused fix and review
+loop up to a configured limit. Each accepted round leaves a durable handoff so
+another agent or a later session can continue without reconstructing the plan
+from chat history.
 
 ## Why use Autonomous Mode?
 
@@ -78,34 +80,7 @@ for accepted work; say **create a branch**, **push**, or **open a PR** when you
 want each of those separate actions. Otherwise it works on the currently
 checked-out branch.
 
-## Pull Request Description
-
-Use the `pull-request-description` skill when drafting or revising a PR body.
-It is a writing convention, not a GitHub automation workflow: it does not
-create branches, commits, pushes, or pull requests.
-
-The skill keeps the summary short, then focuses on why the change exists, its
-goal, relevant operational or deployment notes, and unresolved limitations or
-gotchas. It avoids narrating obvious line-by-line implementation details.
-Ordinary automated-test results are omitted; mention validation only when a
-manual check, special environment, or non-obvious verification is useful to a
-reviewer.
-
 ## How the workflow works
-
-```mermaid
-flowchart TD
-    A[You: start or resume /autonomous] --> B[Coordinator chooses one bounded next step]
-    B --> C[Explore if needed]
-    C --> D[Implement with a fast or local model]
-    D --> E[Independent review]
-    E -->|blocking finding| F[Focused fix]
-    F --> E
-    E -->|accepted| G[Save evidence and one NEXT action]
-    G --> H{More work?}
-    H -->|yes| B
-    H -->|no| I[You inspect the completed changes]
-```
 
 For implementation work, including a single-task goal, each task is followed
 by a fresh independent review; blocking findings are sent to a focused fix
@@ -140,10 +115,10 @@ node scripts/install.mjs --no-model
 
 Then restart OpenCode so it discovers the new command, agents, and skills.
 
-The installer adds both capabilities to your OpenCode user profile. It does not
-copy this repository's tests, documentation, scripts, or project handoff
-files into the profile. To use Source Code Lookup on its own, ask OpenCode to use
-the skill as shown above. The remaining steps set up Autonomous Mode.
+The installer adds Autonomous Mode and the included skills to your OpenCode
+user profile. It does not copy this repository's tests, documentation, scripts,
+or project handoff files into the profile. The remaining steps set up
+Autonomous Mode; the skills need no additional configuration.
 
 ### 3. Configure permissions for unattended Autonomous Mode
 
@@ -360,6 +335,45 @@ inherit the active session model:
 
 Model IDs use OpenCode's `provider/model[#variant]` format. Run `/models` to
 see what your connected providers actually make available.
+
+## Skills
+
+Skills capture smaller, reusable parts of how I work. They are installed
+alongside Autonomous Mode, but each can be used independently in a normal
+OpenCode conversation. This is a growing collection; the repository currently
+includes the following two skills.
+
+### Source Code Lookup
+
+The [`source-code-lookup` skill](skills/source-code-lookup/SKILL.md) traces
+behavior across repository boundaries. It uses clues such as package references,
+API endpoints, and message names to identify the codebase that owns the behavior,
+then searches local checkouts and, when needed, upstream source repositories.
+When a matching revision is known, it inspects that revision.
+
+Use it directly in a normal OpenCode task, for example:
+
+```text
+Use the source-code-lookup skill to find the service that publishes this message and explain where its payload is built.
+```
+
+The skill searches `~/dev` for existing checkouts by default. You can set a
+different root with the installer's `--source-root` option, described under
+[Useful installer commands](#useful-installer-commands).
+
+### Pull Request Description
+
+Use the [`pull-request-description` skill](skills/pull-request-description/SKILL.md)
+when drafting or revising a PR body. It is a writing convention, not a GitHub
+automation workflow: it does not create branches, commits, pushes, or pull
+requests.
+
+The skill keeps the summary short, then focuses on why the change exists, its
+goal, relevant operational or deployment notes, and unresolved limitations or
+gotchas. It avoids narrating obvious line-by-line implementation details.
+Ordinary automated-test results are omitted; mention validation only when a
+manual check, special environment, or non-obvious verification is useful to a
+reviewer.
 
 ## Useful installer commands
 
