@@ -1,9 +1,9 @@
 # Architecture
 
-This release packages three independent capabilities for OpenCode V2: an
-autonomous development workflow, a source lookup skill, and a pull-request
-description skill. The workflow has two boundaries: a portable orchestration
-protocol and the concrete OpenCode integration that runs that protocol today.
+This release packages three independent capabilities for OpenCode V2 and
+GitHub Copilot: an autonomous development workflow, a source lookup skill, and
+a pull-request description skill. The workflow has two boundaries: a portable
+orchestration protocol and generated client bindings.
 
 ## Portable orchestration protocol
 
@@ -68,10 +68,54 @@ lookup skill. Link installs use its portable `~/dev` default. The installer
 accepts the previous v1 nine-file and v2 ten-file copy states, plus the prior
 three-link and four-link states, so existing profiles can update or uninstall.
 
-## Future adapter boundaries
+## Shared-source build and Copilot binding
 
-Other coding harnesses are not supported by this release. A later adapter
-should preserve the protocol while translating only these integration points:
+The checked-in OpenCode bundle remains the authored source because its files
+contain the complete role bodies and protocol. `scripts/build.mjs` reads those
+eleven files and generates two disposable products beneath `dist/`:
+
+- `dist/opencode` preserves OpenCode paths and frontmatter, optionally adding
+  provider-qualified model assignments;
+- `dist/copilot/agenticale` is an Agent Plugins 1.0 package with portable
+  skills and Copilot-specific agents and commands beneath
+  `com.github.copilot/`.
+
+Generated artifacts are ignored and never edited by hand. The Copilot adapter
+translates role IDs, removes OpenCode-only skill metadata and step-limit
+claims, maps model identifiers by dropping the first provider prefix, and adds
+Copilot `model` and `reasoningEffort` frontmatter. It also generates a visible
+`agenticale-autonomous` coordinator and seven `agenticale-*` worker agents.
+`scripts/install-copilot.mjs` builds into a temporary directory and delegates
+installation to `copilot plugin install`; the same installed plugin is
+discovered by Copilot CLI and VS Code.
+
+Copilot CLI 1.0.87 still accepts local-path plugin installation but marks it
+deprecated in favor of marketplace installation. Keeping generated products
+out of source control therefore trades a clean single-source repository for a
+future packaging task: a release pipeline will eventually need to publish the
+generated plugin in a marketplace-consumable artifact. CLI-only development
+can also load the generated directory ephemerally with `--plugin-dir`.
+
+The default build reads `examples/gpt.json`, uses `high` effort for workers,
+and gives the coordinator the strongest configured role model at `low` effort.
+This accommodates VS Code's rule that a child model cannot exceed its parent
+model tier while keeping routine worker calls on Luna. Model fields are
+omitted entirely with `--no-model`, allowing session inheritance and native
+Copilot `/subagents` overrides.
+`reasoningEffort` is a Copilot CLI custom-agent field. VS Code's local-agent
+schema currently documents per-agent models but not per-agent effort, so the
+field may be ignored there and the session-level effort control applies.
+
+Copilot does not provide OpenCode's per-agent hard `steps` ceiling. The adapter
+therefore keeps bounded rounds through the protocol's round budget, task
+contract, reset triggers, and durable handoff. It emits `agents: []` for worker
+profiles so clients supporting that field block nested delegation; prompts
+retain the same prohibition for other clients. Tool permission equivalence is
+not claimed across clients because their tool identifiers and enforcement
+surfaces differ.
+
+Future adapters should preserve the protocol while translating only these
+integration points:
 
 1. role discovery and role-specific instructions;
 2. fresh child-context creation and sequential invocation;
@@ -81,10 +125,9 @@ should preserve the protocol while translating only these integration points:
 6. profile-level installation, update, and removal conventions.
 
 An adapter must document which guarantees are enforced by the harness and
-which are only prompt conventions. Shared prose or generated manifests may be
-worth extracting after a second working adapter establishes the real common
-contract; this v0.1 keeps one hand-maintained OpenCode implementation rather
-than adding speculative generation machinery.
+which are only prompt conventions. The Copilot adapter is the first generated
+binding; its transformation tests define the shared-source boundary for later
+clients.
 
 ## Safety and state boundaries
 

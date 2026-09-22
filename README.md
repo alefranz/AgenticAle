@@ -1,8 +1,9 @@
-# AgenticAle: my agentic development workflow for OpenCode V2
+# AgenticAle: my agentic development workflow
 
 AgenticAle is the shareable version of how I work with coding agents: the
 workflows, guardrails, and reusable skills that make up my development setup
-for [OpenCode V2](https://opencode.ai/v2/docs).
+for [OpenCode V2](https://opencode.ai/v2/docs), GitHub Copilot CLI, and the
+GitHub Copilot extension for VS Code.
 
 It currently has two layers:
 
@@ -91,7 +92,80 @@ not add useful value. The workflow records durable state in `BACKLOG.md` and
 
 ## Quick start
 
-### 1. Install OpenCode first
+### GitHub Copilot CLI and VS Code
+
+Install GitHub Copilot CLI, authenticate it, and verify that it is available:
+
+```sh
+copilot --version
+```
+
+Then run this from a checkout of AgenticAle:
+
+```sh
+node scripts/install-copilot.mjs
+```
+
+This generates an Agent Plugins 1.0 package in a temporary directory and
+installs it through `copilot plugin install`. VS Code automatically discovers
+plugins installed by Copilot CLI, so one installation serves both clients.
+Restart the relevant Copilot session after installing or updating it.
+
+The recommended default derives its role models from
+[`examples/gpt.json`](examples/gpt.json): the OpenCode provider prefix is
+removed for Copilot, every worker uses `high` reasoning effort, and the thin
+coordinator uses the strongest configured model at `low` effort. That makes
+the default routing in Copilot CLI and clients using its agent host:
+
+| Role | Copilot model | Effort |
+| --- | --- | --- |
+| Coordinator | `gpt-5.6-sol` | `low` |
+| Explore, implement, fix | `gpt-5.6-luna` | `high` |
+| Implement-hard, review | `gpt-5.6-terra` | `high` |
+| Deep-review, consult | `gpt-5.6-sol` | `high` |
+
+The coordinator uses the highest model tier because VS Code does not allow a
+subagent to exceed its parent agent's model cost tier. Most actual work still
+runs in the cheaper worker roles. Select **AgenticAle Autonomous** from the VS
+Code agent picker, or start Copilot CLI with:
+
+```sh
+copilot --agent agenticale-autonomous
+```
+
+Describe the goal in that session. The plugin also contributes an
+`/autonomous` command for clients that expose plugin commands.
+
+To inherit the active Copilot model and effort instead of applying per-role
+defaults:
+
+```sh
+node scripts/install-copilot.mjs --no-model
+```
+
+To use another existing role mapping or change effort:
+
+```sh
+node scripts/install-copilot.mjs --models /path/to/models.json --effort high
+```
+
+Copilot model IDs are derived by removing the first `provider/` prefix and an
+optional OpenCode `#variant` suffix. Check `copilot help config` or `/model`
+before installing a mapping whose resulting IDs might not be available in
+your Copilot plan. Per-agent choices can later be overridden with Copilot's
+`/subagents` settings. VS Code's local agent currently documents per-agent
+model selection but not per-agent reasoning effort; when that harness ignores
+`reasoningEffort`, use its session-level effort control instead.
+
+The installer itself makes no model request. To remove the plugin:
+
+```sh
+copilot plugin uninstall agenticale
+```
+
+### OpenCode V2
+
+#### 1. Install OpenCode first
 
 Follow the [official OpenCode V2 installation guide](https://opencode.ai/v2/docs),
 then verify that the command is available:
@@ -105,7 +179,7 @@ but does not interpret this bundle's V2 permission rules.
 
 The recommended installer below also needs [Node.js 20 or later](https://nodejs.org/en/download).
 
-### 2. Install the bundle
+#### 2. Install the bundle
 
 From a checkout of this repository, run:
 
@@ -120,7 +194,7 @@ user profile. It does not copy this repository's tests, documentation, scripts,
 or project handoff files into the profile. The remaining steps set up
 Autonomous Mode; the skills need no additional configuration.
 
-### 3. Configure permissions for unattended Autonomous Mode
+#### 3. Configure permissions for unattended Autonomous Mode
 
 The installer leaves `opencode.jsonc` unchanged. For unattended runs, the
 foreground agent must be able to launch `autonomous/*`, and child actions must
@@ -169,7 +243,7 @@ to resume after you manually approve an action. Pre-allow or pre-deny the
 actions needed by child sessions; if one stalls after approval, rerun
 `/autonomous` to continue from the handoff.
 
-### 4. Start an Autonomous Mode goal
+#### 4. Start an Autonomous Mode goal
 
 Open your project in OpenCode and run:
 
@@ -377,6 +451,17 @@ reviewer.
 
 ## Useful installer commands
 
+To generate inspectable OpenCode and Copilot packages without installing
+either one, run:
+
+```sh
+node scripts/build.mjs
+```
+
+The generated output is written beneath `dist/` and is intentionally ignored
+by Git. Both packages are rebuilt from the checked-in agents, commands, and
+skills; generated copies are not maintained by hand.
+
 The source lookup skill searches `~/dev` for existing checkouts by default.
 For a different local repository root, use a copy install with
 `--source-root`:
@@ -440,7 +525,18 @@ replacement. Modified files are preserved during uninstall.
 
 ## Limitations
 
-- Only OpenCode V2 is supported and tested in this release.
+- OpenCode can enforce the checked-in per-role step and permission rules.
+  Copilot has no equivalent per-role hard step ceiling, and some child-session
+  restrictions are prompt conventions when a client does not support the
+  corresponding custom-agent field.
+- The Copilot coordinator must run at least the cost tier of its strongest
+  child in VS Code. The generated default therefore uses Sol at low effort for
+  coordination while routing high-volume work to Luna.
+- Copilot CLI 1.0.87 accepts the local-path installation used by the script
+  but warns that direct plugin installs are deprecated. A published
+  marketplace package will be needed before that compatibility path is
+  removed; `--plugin-dir` remains suitable for ephemeral CLI-only use but is
+  not a shared VS Code installation.
 - A fresh child context provides independence, but it does not automatically
   mean a different model family; use `--models` for explicit model separation.
 - Prompt instructions complement OpenCode permissions; they cannot make an
@@ -454,6 +550,7 @@ Run the dependency-free checks:
 ```sh
 node scripts/validate.mjs
 node scripts/test-installer.mjs
+node scripts/test-build.mjs
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) before proposing changes. This project is

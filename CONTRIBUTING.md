@@ -1,14 +1,16 @@
 # Contributing
 
-This project is an experimental OpenCode V2 profile bundle. Small, focused
-changes with clear verification are easiest to review.
+This project is an experimental multi-client agent workflow bundle. Small,
+focused changes with clear verification are easiest to review.
 
 ## Before a change
 
 - Read `AGENTS.md` when present, `docs/architecture.md`, and the relevant
   bundle files.
-- Keep the installable surface to the documented eleven files unless a release
-  decision intentionally changes that contract.
+- Keep the authored OpenCode surface to the documented eleven files unless a
+  release decision intentionally changes that contract. Copilot artifacts are
+  generated from those sources and must not be edited or committed from
+  `dist/`.
 - Keep provider, model, machine, account, and project assumptions out of the
   installable bundle.
 - Update the README or architecture documentation when behavior or setup
@@ -21,6 +23,7 @@ Use Node.js 20 or later and run:
 ```sh
 node scripts/validate.mjs
 node scripts/test-installer.mjs
+node scripts/test-build.mjs
 git diff --check
 ```
 

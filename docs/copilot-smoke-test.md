@@ -1,0 +1,40 @@
+# GitHub Copilot plugin smoke test
+
+The normal automated checks do not make model requests. Use this checklist to
+verify plugin discovery with an isolated Copilot home before a release.
+
+## Static and isolated discovery checks
+
+```powershell
+node scripts/build.mjs
+node scripts/test-build.mjs
+
+$smokeRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("agenticale-copilot-smoke-" + [guid]::NewGuid())
+$env:COPILOT_HOME = $smokeRoot
+copilot --version
+copilot plugin install ./dist/copilot/agenticale
+copilot plugin list --json
+copilot plugin uninstall agenticale
+Remove-Item Env:COPILOT_HOME
+Remove-Item -LiteralPath $smokeRoot -Recurse -Force
+```
+
+Expected observations:
+
+- the CLI version exposes `gpt-5.6-luna`, `gpt-5.6-terra`, and
+  `gpt-5.6-sol` in `copilot help config`;
+- installation succeeds without a model request;
+- `copilot plugin list --json` contains an enabled `agenticale` entry;
+- a new CLI session exposes `agenticale-autonomous` and the seven worker
+  agents, plus the three skills;
+- VS Code discovers the same plugin under Agent Plugins after it is installed
+  in the real Copilot home and the Copilot session is restarted.
+
+## Optional paid end-to-end check
+
+Do this only when a real model call is warranted. Build an all-Luna custom
+mapping, use `low` effort, set Copilot's minimum 30-credit response ceiling,
+and give the coordinator a tiny read-only goal in a throwaway repository. Do
+not substitute Terra or Sol if Luna is unavailable. Confirm one child dispatch
+and a valid report, then stop; quality benchmarking is separate from plugin
+discovery.
