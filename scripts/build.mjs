@@ -36,6 +36,18 @@ const openCodeFiles = [
   "skills/source-code-lookup/SKILL.md",
 ];
 
+export const pluginManifest = {
+  $schema: "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  name: "agenticale",
+  version: "0.1.0",
+  description: "Sequential autonomous development with specialized implementation, review, and consultation agents.",
+  author: { name: "Ale Franz" },
+  homepage: "https://github.com/alefranz/AgenticAle",
+  repository: "https://github.com/alefranz/AgenticAle",
+  license: "MIT",
+  keywords: ["autonomous", "development", "review", "subagents"],
+};
+
 function usage() {
   return `Usage:
   node scripts/build.mjs [--output PATH] [--models PATH|PRESET | --no-model]
@@ -403,15 +415,7 @@ export async function buildBundles(options) {
     await writeText(join(openCodeRoot, path), contents);
   }
 
-  const manifest = {
-    $schema: "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
-    name: "agenticale",
-    version: "0.1.0",
-    description: "Sequential autonomous development with specialized implementation, review, and consultation agents.",
-    license: "MIT",
-    keywords: ["autonomous", "development", "review", "subagents"],
-  };
-  await writeText(join(copilotRoot, "plugin.json"), `${JSON.stringify(manifest, null, 2)}\n`);
+  await writeText(join(copilotRoot, "plugin.json"), `${JSON.stringify(pluginManifest, null, 2)}\n`);
 
   for (const role of roles) {
     await writeText(

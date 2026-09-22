@@ -80,21 +80,25 @@ eleven files and generates two disposable products beneath `dist/`:
   skills and Copilot-specific agents and commands beneath
   `com.github.copilot/`.
 
-Generated artifacts are ignored and never edited by hand. The Copilot adapter
-translates role IDs, removes OpenCode-only skill metadata and step-limit
-claims, maps model identifiers by dropping the first provider prefix, and adds
-Copilot `model` and `reasoningEffort` frontmatter. It also generates a visible
-`agenticale-autonomous` coordinator and seven `agenticale-*` worker agents.
+Disposable artifacts under `dist/` are ignored and never edited by hand. The
+Copilot adapter translates role IDs, removes OpenCode-only skill metadata and
+step-limit claims, maps model identifiers by dropping the first provider
+prefix, and adds Copilot `model` and `reasoningEffort` frontmatter. It also
+generates a visible `agenticale-autonomous` coordinator and seven
+`agenticale-*` worker agents.
 `scripts/install-copilot.mjs` builds into a temporary directory and delegates
 installation to `copilot plugin install`; the same installed plugin is
 discovered by Copilot CLI and VS Code.
 
 Copilot CLI 1.0.87 still accepts local-path plugin installation but marks it
-deprecated in favor of marketplace installation. Keeping generated products
-out of source control therefore trades a clean single-source repository for a
-future packaging task: a release pipeline will eventually need to publish the
-generated plugin in a marketplace-consumable artifact. CLI-only development
-can also load the generated directory ephemerally with `--plugin-dir`.
+deprecated in favor of marketplace installation. For no-clone installation,
+`scripts/publish-default-plugin.mjs` materializes the default generated package
+under `plugins/agenticale/` and creates `.github/plugin/marketplace.json`.
+Those files are committed but remain derived: CI regenerates them in memory
+and fails on any drift. The marketplace is the durable installation path;
+direct `OWNER/REPO:PATH` installation remains available while Copilot supports
+it. CLI-only development can also load a generated directory ephemerally with
+`--plugin-dir`.
 
 The default build reads `examples/gpt.json`, uses `high` effort for workers,
 and gives the coordinator the strongest configured role model at `low` effort.

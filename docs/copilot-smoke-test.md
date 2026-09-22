@@ -8,6 +8,7 @@ verify plugin discovery with an isolated Copilot home before a release.
 ```powershell
 node scripts/build.mjs
 node scripts/test-build.mjs
+node scripts/publish-default-plugin.mjs --check
 
 $smokeRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("agenticale-copilot-smoke-" + [guid]::NewGuid())
 $env:COPILOT_HOME = $smokeRoot
@@ -29,6 +30,19 @@ Expected observations:
   agents, plus the three skills;
 - VS Code discovers the same plugin under Agent Plugins after it is installed
   in the real Copilot home and the Copilot session is restarted.
+
+Before publishing, also verify the repository marketplace from an isolated
+Copilot home:
+
+```powershell
+$env:COPILOT_HOME = $smokeRoot
+copilot plugin marketplace add .
+copilot plugin marketplace browse agenticale --json
+copilot plugin install agenticale@agenticale
+copilot plugin list --json
+copilot plugin uninstall agenticale
+copilot plugin marketplace remove agenticale
+```
 
 ## Optional paid end-to-end check
 

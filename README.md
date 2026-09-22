@@ -100,16 +100,23 @@ Install GitHub Copilot CLI, authenticate it, and verify that it is available:
 copilot --version
 ```
 
-Then run this from a checkout of AgenticAle:
+For the recommended default routing, add the repository marketplace and install
+the published plugin:
 
 ```sh
-node scripts/install-copilot.mjs
+copilot plugin marketplace add alefranz/AgenticAle
+copilot plugin install agenticale@agenticale
 ```
 
-This generates an Agent Plugins 1.0 package in a temporary directory and
-installs it through `copilot plugin install`. VS Code automatically discovers
-plugins installed by Copilot CLI, so one installation serves both clients.
-Restart the relevant Copilot session after installing or updating it.
+VS Code automatically discovers plugins installed by Copilot CLI, so one
+installation serves both clients. Restart the relevant Copilot session after
+installing or updating it. Copilot CLI currently also accepts the shorter
+direct-repository form, although version 1.0.87 warns that direct installs are
+deprecated in favor of marketplaces:
+
+```sh
+copilot plugin install alefranz/AgenticAle:plugins/agenticale
+```
 
 The recommended default derives its role models from
 [`examples/gpt.json`](examples/gpt.json): the OpenCode provider prefix is
@@ -136,8 +143,8 @@ copilot --agent agenticale-autonomous
 Describe the goal in that session. The plugin also contributes an
 `/autonomous` command for clients that expose plugin commands.
 
-To inherit the active Copilot model and effort instead of applying per-role
-defaults:
+Clone the repository only when you want to customize the package. To inherit
+the active Copilot model and effort instead of applying per-role defaults:
 
 ```sh
 node scripts/install-copilot.mjs --no-model
@@ -157,7 +164,8 @@ your Copilot plan. Per-agent choices can later be overridden with Copilot's
 model selection but not per-agent reasoning effort; when that harness ignores
 `reasoningEffort`, use its session-level effort control instead.
 
-The installer itself makes no model request. To remove the plugin:
+The custom installer generates a temporary Agent Plugins 1.0 package and makes
+no model request. To remove the plugin:
 
 ```sh
 copilot plugin uninstall agenticale
@@ -462,6 +470,17 @@ The generated output is written beneath `dist/` and is intentionally ignored
 by Git. Both packages are rebuilt from the checked-in agents, commands, and
 skills; generated copies are not maintained by hand.
 
+The repository also commits the default Copilot package under
+`plugins/agenticale/` so users can install without cloning. Regenerate it and
+the repository marketplace manifest after changing canonical prompts, models,
+or plugin metadata:
+
+```sh
+node scripts/publish-default-plugin.mjs
+```
+
+CI runs the same command with `--check` and rejects stale generated files.
+
 The source lookup skill searches `~/dev` for existing checkouts by default.
 For a different local repository root, use a copy install with
 `--source-root`:
@@ -532,11 +551,10 @@ replacement. Modified files are preserved during uninstall.
 - The Copilot coordinator must run at least the cost tier of its strongest
   child in VS Code. The generated default therefore uses Sol at low effort for
   coordination while routing high-volume work to Luna.
-- Copilot CLI 1.0.87 accepts the local-path installation used by the script
-  but warns that direct plugin installs are deprecated. A published
-  marketplace package will be needed before that compatibility path is
-  removed; `--plugin-dir` remains suitable for ephemeral CLI-only use but is
-  not a shared VS Code installation.
+- Copilot CLI 1.0.87 accepts direct repository and local-path installations but
+  warns that they are deprecated. The checked-in marketplace is therefore the
+  recommended default distribution path; `--plugin-dir` remains suitable for
+  ephemeral CLI-only development but is not a shared VS Code installation.
 - A fresh child context provides independence, but it does not automatically
   mean a different model family; use `--models` for explicit model separation.
 - Prompt instructions complement OpenCode permissions; they cannot make an
@@ -551,6 +569,7 @@ Run the dependency-free checks:
 node scripts/validate.mjs
 node scripts/test-installer.mjs
 node scripts/test-build.mjs
+node scripts/publish-default-plugin.mjs --check
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) before proposing changes. This project is

@@ -337,6 +337,7 @@ function validateNeutrality() {
 }
 
 function validateSanitation() {
+  const publicRepository = `${"ale" + "franz"}/AgenticAle`;
   const forbidden = [
     "git" + "ea",
     "homehub" + ".casa",
@@ -353,8 +354,11 @@ function validateSanitation() {
     const contents = readFileSync(absolute);
     if (contents.includes(0)) continue;
     const text = contents.toString("utf8");
+    const screenedText = text.toLowerCase()
+      .replaceAll(`https://github.com/${publicRepository}`.toLowerCase(), "PUBLIC_REPOSITORY")
+      .replaceAll(publicRepository.toLowerCase(), "PUBLIC_REPOSITORY");
     for (const term of forbidden) {
-      if (text.toLowerCase().includes(term.toLowerCase())) {
+      if (screenedText.includes(term.toLowerCase())) {
         fail(path, `forbidden personal/environment reference '${term}'`, "replace it with portable public guidance");
       }
     }
