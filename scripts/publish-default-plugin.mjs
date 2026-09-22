@@ -60,7 +60,8 @@ async function fileMap(root) {
       const absolute = join(directory, entry.name);
       if (entry.isDirectory()) await visit(absolute);
       else if (entry.isFile()) {
-        result.set(relative(root, absolute).split(sep).join("/"), await readFile(absolute, "utf8"));
+        const contents = (await readFile(absolute, "utf8")).replace(/\r\n?/g, "\n");
+        result.set(relative(root, absolute).split(sep).join("/"), contents);
       }
     }
   }
@@ -93,7 +94,7 @@ async function main() {
       const differences = await pluginDifferences(build.copilotRoot, publishedPluginRoot);
       let actualMarketplace = null;
       try {
-        actualMarketplace = await readFile(marketplacePath, "utf8");
+        actualMarketplace = (await readFile(marketplacePath, "utf8")).replace(/\r\n?/g, "\n");
       } catch (error) {
         if (error.code !== "ENOENT") throw error;
       }
