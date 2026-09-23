@@ -100,10 +100,12 @@ direct `OWNER/REPO:PATH` installation remains available while Copilot supports
 it. CLI-only development can also load a generated directory ephemerally with
 `--plugin-dir`.
 
-The default build reads `examples/gpt.json`, uses `high` effort for workers,
-and gives the coordinator the strongest configured role model at `low` effort.
-This accommodates VS Code's rule that a child model cannot exceed its parent
-model tier while keeping routine worker calls on Luna. Model fields are
+The default build reads `examples/gpt.json`, applies each worker's mapped
+effort variant (with `high` as fallback), and gives the coordinator the
+strongest configured role model at `medium` effort. Use `--effort` to override
+the variant for every worker. This accommodates VS Code's rule that a child
+model cannot exceed its parent model tier while keeping routine worker calls
+on Luna. Model fields are
 omitted entirely with `--no-model`, allowing session inheritance and native
 Copilot `/subagents` overrides.
 `reasoningEffort` is a Copilot CLI custom-agent field. VS Code's local-agent

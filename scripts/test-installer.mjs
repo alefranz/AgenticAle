@@ -205,8 +205,8 @@ try {
   "configured model installation must support CRLF agent frontmatter");
 
   const presets = [
-    ["openai", "openai/gpt-5.6-terra"],
-    ["zen", "opencode/gpt-5.6-terra"],
+    ["openai", "openai/gpt-6-sol#high"],
+    ["zen", "opencode/gpt-6-sol#high"],
     ["local", "local-llama/qwen3.8-27b#xhigh"],
     ["example", "local-llama/qwen3.8-27b#xhigh"],
   ];

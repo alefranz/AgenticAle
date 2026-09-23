@@ -22,8 +22,8 @@ Remove-Item -LiteralPath $smokeRoot -Recurse -Force
 
 Expected observations:
 
-- the CLI version exposes `gpt-5.6-luna`, `gpt-5.6-terra`, and
-  `gpt-5.6-sol` in `copilot help config`;
+- the CLI version resolves `gpt-6-luna` and `gpt-6-sol` in `copilot help config`
+  or the `/model` picker;
 - installation succeeds without a model request;
 - `copilot plugin list --json` contains an enabled `agenticale` entry;
 - a new CLI session exposes **AgenticAle Autonomous** through `/agent` (or
@@ -49,9 +49,9 @@ copilot plugin marketplace remove agenticale
 
 ## Optional paid end-to-end check
 
-Do this only when a real model call is warranted. Build an all-Luna custom
+Do this only when a real model call is warranted. Build an all-GPT-6-Luna custom
 mapping, use `low` effort, set Copilot's minimum 30-credit response ceiling,
 select the coordinator with `--agent` or `/agent`, and give it a tiny read-only
-goal in a throwaway repository. Do not substitute Terra or Sol if Luna is
-unavailable. Confirm one child dispatch and a valid report, then stop; quality
-benchmarking is separate from plugin discovery.
+goal in a throwaway repository. Do not substitute Sol if Luna is unavailable.
+Confirm one child dispatch and a valid report, then stop; quality benchmarking
+is separate from plugin discovery.

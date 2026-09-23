@@ -5,8 +5,8 @@ tools: ["*"]
 agents: []
 user-invocable: false
 include-custom-instructions: true
-model: "gpt-5.6-luna"
-reasoningEffort: "high"
+model: "gpt-6-luna"
+reasoningEffort: "max"
 ---
 
 Answer the assigned question with concrete file, command, and commit evidence.

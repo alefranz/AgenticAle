@@ -118,18 +118,27 @@ deprecated in favor of marketplaces:
 copilot plugin install alefranz/AgenticAle:plugins/agenticale
 ```
 
-The recommended default derives its role models from
+The recommended default derives its role models and effort variants from
 [`examples/gpt.json`](examples/gpt.json): the OpenCode provider prefix is
-removed for Copilot, every worker uses `high` reasoning effort, and the thin
-coordinator uses the strongest configured model at `low` effort. That makes
-the default routing in Copilot CLI and clients using its agent host:
+removed for Copilot, and each model variant sets that worker's reasoning
+effort. The thin coordinator uses the strongest configured model at `medium`
+effort. The default routing in Copilot CLI and clients using its agent host is:
 
 | Role | Copilot model | Effort |
 | --- | --- | --- |
-| Coordinator | `gpt-5.6-sol` | `low` |
-| Explore, implement, fix | `gpt-5.6-luna` | `high` |
-| Implement-hard, review | `gpt-5.6-terra` | `high` |
-| Deep-review, consult | `gpt-5.6-sol` | `high` |
+| Coordinator | `gpt-6-sol` | `medium` |
+| Explore, implement, fix | `gpt-6-luna` | `max` |
+| Implement-hard, review | `gpt-6-sol` | `high` |
+| Deep-review, consult | `gpt-6-sol` | `xhigh` |
+
+The [published benchmark comparison](https://openai.com/index/introducing-gpt-6-sol-and-luna/)
+supports Luna `max` across routine roles: its FrontierCode score rises from
+37.1% at `xhigh` to 42.4% at `max`, its Agents' Last Exam score rises from
+43.6% at `high` to 50.9% at `max`, and its factual error rate on difficult
+prompts falls from 12.5% to 7.6%. Sol `medium` is a starting choice for
+coordination; Sol `high` handles hard implementation and recurring review,
+while `xhigh` is reserved for less frequent deep review and consultation.
+These benchmarks do not measure the AgenticAle roles directly.
 
 The coordinator uses the highest model tier because VS Code does not allow a
 subagent to exceed its parent agent's model cost tier. Most actual work still
@@ -167,14 +176,16 @@ the active Copilot model and effort instead of applying per-role defaults:
 node scripts/install-copilot.mjs --no-model
 ```
 
-To use another existing role mapping or change effort:
+To use another role mapping or override effort for every worker:
 
 ```sh
 node scripts/install-copilot.mjs --models /path/to/models.json --effort high
 ```
 
 Copilot model IDs are derived by removing the first `provider/` prefix and an
-optional OpenCode `#variant` suffix. Check `copilot help config` or `/model`
+optional OpenCode `#variant` suffix. Recognized variants (`low`, `medium`,
+`high`, `xhigh`, or `max`) set the matching Copilot worker effort; `--effort`
+overrides variants for all workers. Check `copilot help config` or `/model`
 before installing a mapping whose resulting IDs might not be available in
 your Copilot plan. Per-agent choices can later be overridden with Copilot's
 `/subagents` settings. VS Code's local agent currently documents per-agent
@@ -566,7 +577,7 @@ replacement. Modified files are preserved during uninstall.
   restrictions are prompt conventions when a client does not support the
   corresponding custom-agent field.
 - The Copilot coordinator must run at least the cost tier of its strongest
-  child in VS Code. The generated default therefore uses Sol at low effort for
+  child in VS Code. The generated default therefore uses Sol at medium effort for
   coordination while routing high-volume work to Luna.
 - Copilot CLI 1.0.87 accepts direct repository and local-path installations but
   warns that they are deprecated. The checked-in marketplace is therefore the

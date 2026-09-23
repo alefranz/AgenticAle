@@ -39,24 +39,33 @@ try {
   check(manifest.name === "agenticale", "plugin should use a portable lowercase name");
 
   const expectedModels = {
-    explore: "gpt-5.6-luna",
-    implement: "gpt-5.6-luna",
-    "implement-hard": "gpt-5.6-terra",
-    fix: "gpt-5.6-luna",
-    review: "gpt-5.6-terra",
-    "deep-review": "gpt-5.6-sol",
-    consult: "gpt-5.6-sol",
+    explore: "gpt-6-luna",
+    implement: "gpt-6-luna",
+    "implement-hard": "gpt-6-sol",
+    fix: "gpt-6-luna",
+    review: "gpt-6-sol",
+    "deep-review": "gpt-6-sol",
+    consult: "gpt-6-sol",
+  };
+  const expectedEfforts = {
+    explore: "max",
+    implement: "max",
+    "implement-hard": "high",
+    fix: "max",
+    review: "high",
+    "deep-review": "xhigh",
+    consult: "xhigh",
   };
   for (const role of roles) {
     const agent = await text(join(result.copilotRoot, "com.github.copilot", "agents", `agenticale-${role}.agent.md`));
     check(agent.includes(`model: "${expectedModels[role]}"`), `${role} should derive its Copilot model from examples/gpt.json`);
-    check(agent.includes('reasoningEffort: "high"'), `${role} should use high effort`);
+    check(agent.includes(`reasoningEffort: "${expectedEfforts[role]}"`), `${role} should derive its effort from examples/gpt.json`);
     check(agent.includes("agents: []"), `${role} should disable nested subagents where supported`);
   }
 
   const coordinator = await text(join(result.copilotRoot, "com.github.copilot", "agents", "agenticale-autonomous.agent.md"));
-  check(coordinator.includes('model: "gpt-5.6-sol"'), "coordinator should use the strongest configured role model");
-  check(coordinator.includes('reasoningEffort: "low"'), "coordinator should use low effort");
+  check(coordinator.includes('model: "gpt-6-sol"'), "coordinator should use the strongest configured role model");
+  check(coordinator.includes('reasoningEffort: "medium"'), "coordinator should use medium effort");
   for (const role of roles) check(coordinator.includes(`"agenticale-${role}"`), `coordinator should allow ${role}`);
   check(!coordinator.includes("autonomous/explore"), "Copilot protocol should not retain OpenCode role IDs");
   check(coordinator.includes("load the `autonomous-mode` skill by exact ID"), "coordinator should explicitly load the generated protocol skill");
@@ -73,7 +82,7 @@ try {
   check(!autonomousSkill.includes("question tool is denied"), "Copilot skill should not claim unsupported question-tool enforcement");
 
   const openCodeExplore = await text(join(result.openCodeRoot, "agents", "autonomous", "explore.md"));
-  check(/^model: opencode\/gpt-5\.6-luna$/m.test(openCodeExplore), "OpenCode build should preserve the provider-qualified model");
+  check(/^model: opencode\/gpt-6-luna#max$/m.test(openCodeExplore), "OpenCode build should preserve the provider-qualified model and effort variant");
 
   const neutralOutput = join(fixtureRoot, "neutral");
   const neutral = await buildBundles(parseArguments(["--output", neutralOutput, "--no-model"]));
