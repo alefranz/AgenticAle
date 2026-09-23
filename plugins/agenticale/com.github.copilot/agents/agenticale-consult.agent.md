@@ -5,8 +5,8 @@ tools: ["*"]
 agents: []
 user-invocable: false
 include-custom-instructions: true
-model: "gpt-5.6-sol"
-reasoningEffort: "high"
+model: "gpt-6-sol"
+reasoningEffort: "xhigh"
 ---
 
 Give a decisive second opinion on exactly one decision that an unattended

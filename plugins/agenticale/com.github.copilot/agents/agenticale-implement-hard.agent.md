@@ -5,7 +5,7 @@ tools: ["*"]
 agents: []
 user-invocable: false
 include-custom-instructions: true
-model: "gpt-5.6-terra"
+model: "gpt-6-sol"
 reasoningEffort: "high"
 ---
 

@@ -63,9 +63,10 @@ Options:
   --models PATH|PRESET  Role mapping (default: gpt; presets: gpt, openai,
                         zen, local, example)
   --no-model            Omit model and reasoning-effort defaults
-  --effort LEVEL        Copilot worker effort (default: high)
+  --effort LEVEL        Override effort for every Copilot worker
+                        (default: mapped variant or high)
   --coordinator-effort LEVEL
-                        Copilot coordinator effort (default: low)
+                        Copilot coordinator effort (default: medium)
   --source-root PATH    Render a different source-code-lookup root
   --help                Show this help`;
 }
@@ -82,7 +83,8 @@ export function parseArguments(argv) {
   let models = "gpt";
   let noModel = false;
   let effort = "high";
-  let coordinatorEffort = "low";
+  let effortOverride = false;
+  let coordinatorEffort = "medium";
   let sourceRoot = null;
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -101,9 +103,11 @@ export function parseArguments(argv) {
       noModel = true;
     } else if (argument === "--effort") {
       effort = requireValue(argv, index, argument);
+      effortOverride = true;
       index += 1;
     } else if (argument.startsWith("--effort=")) {
       effort = argument.slice("--effort=".length);
+      effortOverride = true;
     } else if (argument === "--coordinator-effort") {
       coordinatorEffort = requireValue(argv, index, argument);
       index += 1;
@@ -132,7 +136,7 @@ export function parseArguments(argv) {
     throw new Error("--output must not be the repository root.");
   }
 
-  return { output, models: noModel ? null : models, effort, coordinatorEffort, sourceRoot, help: false };
+  return { output, models: noModel ? null : models, effort, effortOverride, coordinatorEffort, sourceRoot, help: false };
 }
 
 function parseFrontmatter(path, text) {
@@ -185,6 +189,12 @@ function copilotModel(model) {
   const separator = model.indexOf("/");
   const withoutProvider = separator < 0 ? model : model.slice(separator + 1);
   return withoutProvider.replace(/#[A-Za-z0-9][A-Za-z0-9._-]*$/, "");
+}
+
+function copilotEffort(model, fallback, override) {
+  if (override) return fallback;
+  const variant = model.match(/#([A-Za-z0-9][A-Za-z0-9._-]*)$/)?.[1];
+  return effortLevels.has(variant) ? variant : fallback;
 }
 
 function renderOpenCodeAgent(path, text, models) {
@@ -420,7 +430,12 @@ export async function buildBundles(options) {
   for (const role of roles) {
     await writeText(
       join(copilotRoot, "com.github.copilot", "agents", `${roleId(role)}.agent.md`),
-      renderCopilotAgent(role, sources.get(`agents/autonomous/${role}.md`), models[role], options.effort),
+      renderCopilotAgent(
+        role,
+        sources.get(`agents/autonomous/${role}.md`),
+        models[role],
+        copilotEffort(models[role] ?? "", options.effort, options.effortOverride),
+      ),
     );
   }
 
@@ -469,7 +484,9 @@ async function main() {
     console.log(`Built OpenCode bundle: ${result.openCodeRoot}`);
     console.log(`Built Copilot plugin: ${result.copilotRoot}`);
     console.log(result.modelCount > 0
-      ? `Applied ${result.modelCount} role model assignments; Copilot workers use ${options.effort} effort.`
+      ? options.effortOverride
+        ? `Applied ${result.modelCount} role model assignments; Copilot workers use ${options.effort} effort.`
+        : `Applied ${result.modelCount} role model assignments with mapped worker effort (fallback: ${options.effort}).`
       : "Built model-neutral bundles; agents inherit the active session model and effort.");
   } catch (error) {
     console.error(`Build failed: ${error.message}`);

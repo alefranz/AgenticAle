@@ -15,8 +15,9 @@ function usage() {
 
 Builds a temporary Agent Plugins 1.0 package and installs it with
 'copilot plugin install'. GitHub Copilot in VS Code discovers the same install.
-The recommended default is the gpt preset, high worker effort, and low
-coordinator effort. No model request is made by this installer.`;
+The recommended default is the gpt preset, mapped per-role worker effort (with
+high as fallback), and medium coordinator effort. No model request is made by
+this installer.`;
 }
 
 function run(command, args) {

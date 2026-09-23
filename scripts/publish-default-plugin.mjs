@@ -18,7 +18,7 @@ function usage() {
 Without --check, regenerates the committed default Copilot plugin and its
 marketplace manifest from the canonical sources. With --check, exits nonzero
 if either committed artifact is stale. The published defaults are the gpt
-model preset, high worker effort, and low coordinator effort.`;
+model preset, mapped per-role worker effort, and medium coordinator effort.`;
 }
 
 function marketplaceManifest() {

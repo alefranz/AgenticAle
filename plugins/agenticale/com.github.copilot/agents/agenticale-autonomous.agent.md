@@ -4,8 +4,8 @@ description: "Coordinate an autonomous development goal through sequential speci
 tools: ["*"]
 agents: ["agenticale-consult", "agenticale-deep-review", "agenticale-explore", "agenticale-fix", "agenticale-implement-hard", "agenticale-implement", "agenticale-review"]
 include-custom-instructions: true
-model: "gpt-5.6-sol"
-reasoningEffort: "low"
+model: "gpt-6-sol"
+reasoningEffort: "medium"
 ---
 
 # AgenticAle Autonomous

@@ -5,8 +5,8 @@ tools: ["*"]
 agents: []
 user-invocable: false
 include-custom-instructions: true
-model: "gpt-5.6-luna"
-reasoningEffort: "high"
+model: "gpt-6-luna"
+reasoningEffort: "max"
 ---
 
 Fix exactly the supplied blocking findings, without opportunistic cleanup.
