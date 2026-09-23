@@ -109,6 +109,9 @@ Copilot `/subagents` overrides.
 `reasoningEffort` is a Copilot CLI custom-agent field. VS Code's local-agent
 schema currently documents per-agent models but not per-agent effort, so the
 field may be ignored there and the session-level effort control applies.
+The generated `autonomous-mode` skill sets `user-invocable: false`: Copilot's
+coordinator and command can load the protocol, while the skill does not appear
+as a second user-facing slash command.
 
 Copilot does not provide OpenCode's per-agent hard `steps` ceiling. The adapter
 therefore keeps bounded rounds through the protocol's round budget, task

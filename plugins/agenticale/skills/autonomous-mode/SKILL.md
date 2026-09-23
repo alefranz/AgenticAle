@@ -1,6 +1,7 @@
 ---
 name: autonomous-mode
 description: Run a long development goal in sequential worker and independent-review rounds with durable handoffs. Use only when the user explicitly asks for autonomous mode.
+user-invocable: false
 ---
 
 # Autonomous mode

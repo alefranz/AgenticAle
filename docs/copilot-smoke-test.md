@@ -29,6 +29,8 @@ Expected observations:
 - a new CLI session exposes **AgenticAle Autonomous** through `/agent` (or
   `copilot --agent agenticale:agenticale-autonomous`), the seven worker agents,
   the `/agenticale:autonomous` command, and the three skills;
+- `autonomous-mode` is visible in `/skills list` but does not appear as a slash
+  command in the autocomplete menu;
 - VS Code discovers the same plugin under Agent Plugins after it is installed
   in the real Copilot home and the Copilot session is restarted.
 

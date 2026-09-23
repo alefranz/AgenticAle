@@ -66,6 +66,7 @@ try {
 
   const autonomousSkill = await text(join(result.copilotRoot, "skills", "autonomous-mode", "SKILL.md"));
   check(/^name: autonomous-mode$/m.test(autonomousSkill), "Copilot skill name should match its directory");
+  check(/^user-invocable: false$/m.test(autonomousSkill), "Copilot protocol skill should stay loadable without appearing as a slash command");
   check(!/^slash:|^version:|^metadata:/m.test(autonomousSkill), "Copilot skill should omit OpenCode-only metadata");
   check(!autonomousSkill.includes("configured `steps` ceiling"), "Copilot skill should not promise OpenCode step ceilings");
   check(!autonomousSkill.includes("available to OpenCode"), "Copilot skill should not retain OpenCode routing language");

@@ -155,8 +155,10 @@ Autonomous** when you want to set a budget (for example,
 `/agenticale:autonomous 3 Add CSV export`) or resume the active handoff with
 `/agenticale:autonomous`. A plain goal works after selecting the coordinator.
 The `autonomous-mode` skill contains the workflow instructions that the
-coordinator loads; it is not a separate coordinator. The `/autonomous` examples
-in the OpenCode section below refer to OpenCode's command.
+coordinator loads. It is hidden from slash autocomplete so it cannot be
+mistaken for another starting command, but it remains available to the
+coordinator and visible in `/skills list`. The `/autonomous` examples in the
+OpenCode section below refer to OpenCode's command.
 
 Clone the repository only when you want to customize the package. To inherit
 the active Copilot model and effort instead of applying per-role defaults:

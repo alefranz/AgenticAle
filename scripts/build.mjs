@@ -291,7 +291,7 @@ function renderCopilotProtocol(source) {
 }
 
 function renderCopilotSkill(source) {
-  return `---\nname: autonomous-mode\ndescription: Run a long development goal in sequential worker and independent-review rounds with durable handoffs. Use only when the user explicitly asks for autonomous mode.\n---\n\n${renderCopilotProtocol(source).trimStart()}`;
+  return `---\nname: autonomous-mode\ndescription: Run a long development goal in sequential worker and independent-review rounds with durable handoffs. Use only when the user explicitly asks for autonomous mode.\nuser-invocable: false\n---\n\n${renderCopilotProtocol(source).trimStart()}`;
 }
 
 function renderCoordinator(instructions, models, coordinatorEffort) {
