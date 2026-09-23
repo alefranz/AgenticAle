@@ -1,0 +1,18 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "agenticale",
+  "version": "0.1.0",
+  "description": "Sequential autonomous development with specialized implementation, review, and consultation agents.",
+  "author": {
+    "name": "Ale Franz"
+  },
+  "homepage": "https://github.com/alefranz/AgenticAle",
+  "repository": "https://github.com/alefranz/AgenticAle",
+  "license": "MIT",
+  "keywords": [
+    "autonomous",
+    "development",
+    "review",
+    "subagents"
+  ]
+}

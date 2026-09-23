@@ -1,0 +1,37 @@
+{
+  "name": "agenticale",
+  "owner": {
+    "name": "Ale Franz"
+  },
+  "metadata": {
+    "description": "AgenticAle plugins for autonomous software development workflows.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "agenticale",
+      "source": "./plugins/agenticale",
+      "description": "Sequential autonomous development with specialized implementation, review, and consultation agents.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Ale Franz"
+      },
+      "homepage": "https://github.com/alefranz/AgenticAle",
+      "repository": "https://github.com/alefranz/AgenticAle",
+      "license": "MIT",
+      "keywords": [
+        "autonomous",
+        "development",
+        "review",
+        "subagents"
+      ],
+      "category": "development",
+      "tags": [
+        "autonomous",
+        "coding",
+        "review"
+      ],
+      "strict": true
+    }
+  ]
+}

@@ -30,3 +30,9 @@ jobs:
 
       - name: Test profile installer
         run: node scripts/test-installer.mjs
+
+      - name: Test multi-client build
+        run: node scripts/test-build.mjs
+
+      - name: Check published Copilot plugin
+        run: node scripts/publish-default-plugin.mjs --check
