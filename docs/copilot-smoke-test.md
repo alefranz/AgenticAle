@@ -26,8 +26,9 @@ Expected observations:
   `gpt-5.6-sol` in `copilot help config`;
 - installation succeeds without a model request;
 - `copilot plugin list --json` contains an enabled `agenticale` entry;
-- a new CLI session exposes `agenticale-autonomous` and the seven worker
-  agents, plus the three skills;
+- a new CLI session exposes **AgenticAle Autonomous** through `/agent` (or
+  `copilot --agent agenticale:agenticale-autonomous`), the seven worker agents,
+  the `/agenticale:autonomous` command, and the three skills;
 - VS Code discovers the same plugin under Agent Plugins after it is installed
   in the real Copilot home and the Copilot session is restarted.
 
@@ -48,7 +49,7 @@ copilot plugin marketplace remove agenticale
 
 Do this only when a real model call is warranted. Build an all-Luna custom
 mapping, use `low` effort, set Copilot's minimum 30-credit response ceiling,
-and give the coordinator a tiny read-only goal in a throwaway repository. Do
-not substitute Terra or Sol if Luna is unavailable. Confirm one child dispatch
-and a valid report, then stop; quality benchmarking is separate from plugin
-discovery.
+select the coordinator with `--agent` or `/agent`, and give it a tiny read-only
+goal in a throwaway repository. Do not substitute Terra or Sol if Luna is
+unavailable. Confirm one child dispatch and a valid report, then stop; quality
+benchmarking is separate from plugin discovery.

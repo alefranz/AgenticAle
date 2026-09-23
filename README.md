@@ -133,15 +133,30 @@ the default routing in Copilot CLI and clients using its agent host:
 
 The coordinator uses the highest model tier because VS Code does not allow a
 subagent to exceed its parent agent's model cost tier. Most actual work still
-runs in the cheaper worker roles. Select **AgenticAle Autonomous** from the VS
-Code agent picker, or start Copilot CLI with:
+runs in the cheaper worker roles.
+
+To start a goal in Copilot CLI, open the project directory and run:
 
 ```sh
-copilot --agent agenticale-autonomous
+copilot --agent agenticale:agenticale-autonomous
 ```
 
-Describe the goal in that session. The plugin also contributes an
-`/autonomous` command for clients that expose plugin commands.
+Then describe the goal in the session. Alternatively, start `copilot`, use
+Copilot's built-in `/agent` picker to select **AgenticAle Autonomous**, and
+describe the goal. In VS Code, select **AgenticAle Autonomous** from the Chat
+agent picker before sending the goal. Selecting the agent activates the
+coordinator's instructions and model, including its directions for assigning
+work to specialist agents. You only need to select it once per session.
+
+The plugin also provides `/agenticale:autonomous [worker-round-budget] [goal]`.
+This slash command supplies the goal and optional round budget to the *current*
+agent; it does not select the coordinator. Use it after selecting **AgenticAle
+Autonomous** when you want to set a budget (for example,
+`/agenticale:autonomous 3 Add CSV export`) or resume the active handoff with
+`/agenticale:autonomous`. A plain goal works after selecting the coordinator.
+The `autonomous-mode` skill contains the workflow instructions that the
+coordinator loads; it is not a separate coordinator. The `/autonomous` examples
+in the OpenCode section below refer to OpenCode's command.
 
 Clone the repository only when you want to customize the package. To inherit
 the active Copilot model and effort instead of applying per-role defaults:
