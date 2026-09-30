@@ -70,3 +70,19 @@ For workflow acceptance, use the everyday and autonomous scenarios in the
 In particular, check that `/agenticale:work --pr` passes its option to the
 already-selected everyday agent and that normal PR-feedback requests leave
 changes uncommitted. Live PR creation needs a disposable authorized remote.
+
+Check tool logs for skill loading, not just an agent's claim that it used one:
+
+- In a `/agenticale:work --pr` run, confirm that `pull-request-description` is
+  loaded by ID or its full `SKILL.md` is read before the first PR body draft.
+  Check that the body follows its selective-validation guidance.
+- In either mode, give a task whose answer requires a dependency or related
+  service's source, with a local fixture checkout available. Confirm that the
+  investigating child receives the loading rule and reads `source-code-lookup`
+  before the lookup, then returns source location/revision evidence under the
+  selected state policy.
+- A task needing only navigation in the current repository should not trigger
+  source lookup. A task without PR text should not need the PR-description skill.
+
+Static package checks verify packaging; these log checks establish whether
+the client and model actually follow the loading instructions.

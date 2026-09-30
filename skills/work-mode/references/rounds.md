@@ -4,6 +4,28 @@ Both reviewed task work and Autonomous Mode use this contract. The invoking
 workflow supplies state storage, interaction, Git policy, and the overall
 budget. Never infer durable files or Git authorization from a role's name.
 
+## Bundled skill use
+
+These workflows expect the bundled skills to be used when their tasks apply.
+Load the skill by exact ID, or read its full `SKILL.md` with the available file
+tool, before doing that part of the task. Seeing its discovery description or
+mentioning its name is not loading it.
+
+- `pull-request-description`: before drafting or revising a PR body, the agent
+  writing it reads [the skill](../../pull-request-description/SKILL.md) and
+  follows its narrative and selective-validation guidance, including for the
+  work mode's PR endpoint. The skill does not authorize Git hosting operations.
+- `source-code-lookup`: when behavior in a dependency, service, or another
+  codebase matters, the agent investigating it reads
+  [the skill](../../source-code-lookup/SKILL.md) before locating and inspecting
+  that source. Ordinary navigation in the current repository does not need it.
+  Keep lookup evidence in the invoking workflow's state: a child report for
+  session state, or the required task notes/handoff for durable state.
+
+If a required skill cannot be loaded, report that limitation rather than
+silently substituting remembered guidance. Respect the task's scope, state,
+and permissions while applying it.
+
 ## Task packet
 
 Give each fresh child everything needed for one bounded assignment:
@@ -11,6 +33,9 @@ Give each fresh child everything needed for one bounded assignment:
 - Repository path and branch; applicable repository instructions.
 - User outcome, this round's scope, acceptance checks, and stop boundary.
 - Relevant facts and file paths; failed approaches only when useful.
+- Applicable skill IDs and loading instructions. Pass the source-code-lookup
+  trigger above to each child so it can load the skill if the need emerges;
+  fresh children must not assume the coordinator's loaded skills are inherited.
 - Starting state and the exact commit range or working-tree changes to inspect,
   including pre-existing changes that must be preserved.
 - Git policy and its authorization; state policy and any explicitly required

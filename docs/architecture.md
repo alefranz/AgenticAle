@@ -25,6 +25,13 @@ profiles follow the supplied state and Git policies rather than loading a
 workflow implicitly. Their historical `autonomous/*` IDs remain stable for
 existing model mappings and permissions.
 
+The shared contract also requires reading `pull-request-description` before
+writing or revising PR bodies and `source-code-lookup` when another codebase's
+behavior matters. Commands reinforce these triggers, and task packets pass the
+loading rules to fresh children. Discovery metadata alone is insufficient;
+the responsible agent reads the full skill instructions. Lookup evidence uses
+the active state policy, including child reports for session-only work.
+
 `skills/work-mode/SKILL.md` supplies the everyday policy: optional exploration,
 meaningful questions through the coordinator, independent review, session-only
 state, and uncommitted changes by default. `/work --pr` (or an equivalent clear

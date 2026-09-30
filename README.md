@@ -135,7 +135,9 @@ and disposable sandbox setup. Existing `/autonomous` invocations still work.
 - **[Pull Request Description](skills/pull-request-description/SKILL.md)** writes
   a PR narrative around the problem, resulting behaviour, and useful validation.
 
-Both can be used outside these workflows.
+Both modes require agents to read and apply these skills when their tasks
+arise: PR descriptions use Pull Request Description, and investigations of
+another codebase use Source Code Lookup. Both can also be used independently.
 
 ## Customize or contribute
 

@@ -7,6 +7,8 @@ user-invocable: false
 # Autonomous mode
 
 Read the [shared round contract](../work-mode/references/rounds.md) before dispatching.
+Follow its bundled skill loading rules and pass them to fresh children in the
+task packet, including in the worker and reviewer templates below.
 This advanced workflow adds durable state and unattended continuation to that
 contract. Its state, reset, budget, and decision policies below remain in force.
 

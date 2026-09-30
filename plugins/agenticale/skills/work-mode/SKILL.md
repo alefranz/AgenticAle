@@ -9,8 +9,9 @@ user-invocable: false
 Complete the user's current task with focused, fresh subagents. The coordinator
 owns scope, user communication, and delivery; workers implement and independent
 reviewers inspect the result. Read [the shared round contract](references/rounds.md)
-before dispatching. Use the installed `agenticale-*` roles: these historical IDs
-are shared by both workflows and do not activate Autonomous Mode.
+before dispatching, including its bundled skill loading and task-packet rules.
+Use the installed `agenticale-*` roles: these historical IDs are shared by both
+workflows and do not activate Autonomous Mode.
 
 ## Start from the requested outcome
 
@@ -123,10 +124,12 @@ For the PR endpoint:
 3. Before pushing, inspect the full branch diff and outgoing commits against
    the intended base. Ensure they match the requested scope and final reviewed
    content; additional edits must be verified and reviewed as appropriate.
-4. Push the task branch with ordinary Git semantics. Use the installed
-   pull-request-description skill for the PR narrative and available GitHub
-   tools to open the PR. Check for an existing matching PR before creation,
-   including after an uncertain tool response. Never retry a creation blindly.
+4. Push the task branch with ordinary Git semantics. Before drafting the PR
+   body, load `pull-request-description` by exact ID or read its full
+   [SKILL.md](../pull-request-description/SKILL.md); apply it to the final
+   reviewed branch diff. Use available GitHub tools to open the PR. Check for
+   an existing matching PR before creation, including after an uncertain tool
+   response. Never retry a creation blindly.
 5. Return the PR URL and verification result. If publication is blocked, report
    exactly what succeeded and what remains; preserve the completed local work.
 

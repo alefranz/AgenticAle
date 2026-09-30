@@ -119,6 +119,13 @@ outgoing history, and one PR. Do not test publication against an ordinary
 project just to verify discovery. Record actual observations and client version;
 static package tests do not establish runtime agent behaviour.
 
+Inspect tool logs to confirm `pull-request-description` is loaded by ID or its
+full `SKILL.md` is read before drafting the PR body. For either mode, also try
+a source investigation using a local dependency or service fixture: the child
+must receive the loading rule, read `source-code-lookup` before the lookup,
+and return location/revision evidence using the workflow's state policy.
+Ordinary navigation in the current repository should not require source lookup.
+
 To smoke-test per-role selection, make a copy of
 `examples/gpt.json` inside the temporary smoke root and replace
 each example ID with a model ID shown by `/models` in the isolated OpenCode
