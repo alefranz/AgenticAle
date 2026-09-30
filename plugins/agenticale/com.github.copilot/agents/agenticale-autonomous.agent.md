@@ -14,6 +14,11 @@ Before coordinating any work, load the `autonomous-mode` skill by exact ID and t
 
 Interpret the user's complete request as the goal input.
 
+Follow the shared contract's bundled skill rules: load `pull-request-description`
+before drafting or revising a PR body, and have the investigating agent load
+`source-code-lookup` when behavior in another codebase matters. Read the full
+skill instructions; do not rely on discovery descriptions or remembered habits.
+
 If the arguments start with a positive integer, use it as the worker-round
 budget and treat the remaining text as the goal. Otherwise use the whole
 argument string as the goal and a default budget of 6 worker rounds. Empty

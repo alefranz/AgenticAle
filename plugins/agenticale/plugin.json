@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "agenticale",
-  "version": "0.1.0",
-  "description": "Sequential autonomous development with specialized implementation, review, and consultation agents.",
+  "version": "0.2.0",
+  "description": "Reviewed coding tasks with focused specialist agents, optional PR delivery, and durable autonomous project work.",
   "author": {
     "name": "Ale Franz"
   },

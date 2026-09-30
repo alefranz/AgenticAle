@@ -6,6 +6,12 @@ user-invocable: false
 
 # Autonomous mode
 
+Read the [shared round contract](../work-mode/references/rounds.md) before dispatching.
+Follow its bundled skill loading rules and pass them to fresh children in the
+task packet, including in the worker and reviewer templates below.
+This advanced workflow adds durable state and unattended continuation to that
+contract. Its state, reset, budget, and decision policies below remain in force.
+
 Work a long goal in short, **sequential rounds**. Each round is one
 foreground subagent call that receives everything it needs and returns a
 compact report. The main loop only coordinates: it defines each round's
@@ -78,8 +84,8 @@ Consequences for the coordinator:
 
 1. **The main loop is a coordinator, not a worker.** It does not implement.
    It reads just enough to define the next round, then delegates. The only
-   exception is a trivial coordination edit (e.g., one backlog checkbox)
-   that would otherwise block the next round.
+   exceptions are coordination edits (e.g., one backlog checkbox) and
+   persisting read-only child reports into the required durable state.
 2. **One subagent at a time, strictly sequential.** Never
    `background: true`, never parallel calls. Round N+1 starts only after
    round N's report has been read.
@@ -103,6 +109,10 @@ Consequences for the coordinator:
    subagent with that handoff; it never asks the old worker to keep exploring.
 
 ## Handoff storage and archival
+
+Read-only exploration and consultation agents return reports without writing
+files. The coordinator persists their relevant evidence and next action before
+dispatching the next round; never require a read-only child to edit a handoff.
 
 Keep current operational state separate from completed audit detail:
 
@@ -333,37 +343,17 @@ blocker to report, not noise to suppress.
 
 ## Review gate
 
-- **Blocking findings** — anything that must be addressed before moving on:
-  build or tests fail; the active persistence policy was not followed;
-  submodule pins do not match committed dependency changes when commits are
-  required; scope deviation beyond the task; an `AGENTS.md` convention is
-  violated; the handoff is not updated; or a report claim is contradicted by
-  verification.
-- **Nits** — style, naming, minor cleanup, "would be nice". The reviewer
-  records them in the handoff; they never block.
-- **Fix round.** One worker round per review pass, prompt: the original
-  task plus the blocking findings list, scope = fix exactly these, then follow
-  the active persistence policy. Then re-review.
-- **Cap: two fix cycles per task** (at most three review passes). If
-  blocking findings survive the third review, stop and ask the user — do
-  not burn rounds on a wall.
-- A review finding that is **pre-existing** (not caused by the task) and
-  small: the main loop may assign it a dedicated fix round. Otherwise
-  record it in the handoff and continue.
+Apply the shared round contract's independent review, finding classification,
+and two-fix-cycle limit. In strict mode every implementation slice must pass
+that gate before work advances. A violation of this workflow's required
+persistence, handoff, or submodule-pin policy is also blocking. Record verdicts
+and nits in the durable state as specified by the templates below.
 
-### Finding class: mechanical vs judgmental
-
-Classify each blocking finding before the fix round. A finding is
-**mechanical** iff it states or implies a locally re-runnable acceptance
-check — an exact-phrase grep, a build or test, a file-state or git-state
-check. A round whose findings are all mechanical is fixed, then verified
-by the coordinator with exactly that check; it closes within the current
-cycle and requires **no new review round** — reviewer budget
-is not spent re-confirming a deterministic edit. Any judgmental finding
-(correctness, behaviour, or design requires re-reasoning) makes the round
-judgmental: after the fix round a re-review is required, scoped to the fix
-commit range plus the consistency invariants the fix touched — not the
-whole slice range.
+A small pre-existing finding may receive a separately scoped fix round;
+otherwise preserve it in the backlog without expanding the current task.
+Mechanical findings close after the coordinator runs their sufficient acceptance
+check; judgmental findings require independent re-review of the fix and affected
+invariants. Consultation and the autonomy envelope below govern stuck decisions.
 
 **Standard drift.** If the same invariant is flagged in consecutive rounds
 at a stricter standard (e.g., list mismatch → missing scope → verbatim
@@ -419,6 +409,9 @@ Before you finish you must:
 - follow the stated git persistence policy in every repo you changed, in
   dependency order, then update applicable outer-repository pins;
 - update the handoff section so the next round starts from it.
+
+For a read-only exploration assignment, return the handoff facts in your report
+instead of editing files; the coordinator will persist them.
 
 Do not start any other task. Do not ask questions and do not wait for user
 input — you cannot reach the user (this child must not ask questions or wait for confirmation); make a reasonable

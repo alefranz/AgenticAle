@@ -20,7 +20,10 @@ const roles = new Map([
 const expectedBundleFiles = [
   ...[...roles.keys()].map((role) => `agents/autonomous/${role}.md`),
   "commands/autonomous.md",
+  "commands/work.md",
   "skills/autonomous-mode/SKILL.md",
+  "skills/work-mode/SKILL.md",
+  "skills/work-mode/references/rounds.md",
   "skills/pull-request-description/SKILL.md",
   "skills/source-code-lookup/SKILL.md",
 ].sort();
@@ -155,12 +158,12 @@ function validateAgent(role, contract) {
   if (!/Never use the\s+`question`\s+tool/i.test(body)) fail(path, "role body must forbid the question tool", "restore the explicit question-tool instruction");
 }
 
-function validateSkill() {
-  const path = "skills/autonomous-mode/SKILL.md";
+function validateSkill(id = "autonomous-mode", name = "Autonomous Mode") {
+  const path = `skills/${id}/SKILL.md`;
   const text = readText(path);
   const { fields, metadata, body } = parseFrontmatter(path, text);
   requireExactKeys(path, fields, ["name", "description", "version", "slash", "metadata"]);
-  if (fields.get("name") !== "Autonomous Mode") fail(path, "name must be 'Autonomous Mode'", "restore the public skill name");
+  if (fields.get("name") !== name) fail(path, `name must be '${name}'`, "restore the public skill name");
   if (!fields.get("description")) fail(path, "description must not be empty", "add the skill routing description");
   if (!/^[1-9]\d*$/.test(fields.get("version") ?? "")) fail(path, "version must be a positive integer", "use version: <integer>");
   if (fields.get("slash") !== "false") fail(path, "skill must not create a second slash entry", "set slash: false");
@@ -199,14 +202,14 @@ function validatePullRequestDescriptionSkill() {
   }
 }
 
-function validateCommand() {
-  const path = "commands/autonomous.md";
+function validateCommand(id = "autonomous", skill = "autonomous-mode") {
+  const path = `commands/${id}.md`;
   const text = readText(path);
   const { fields, body } = parseFrontmatter(path, text);
   requireExactKeys(path, fields, ["description", "agent"]);
   if (!fields.get("description")) fail(path, "description must not be empty", "describe the command in one scalar line");
   if (fields.get("agent") !== "build") fail(path, "agent must be 'build'", "restore agent: build");
-  if (!body.includes("autonomous-mode skill")) fail(path, "command does not route to the autonomous-mode skill", "restore the explicit skill invocation");
+  if (!body.includes(`${skill} skill`)) fail(path, `command does not route to the ${skill} skill`, "restore the explicit skill invocation");
   if (!body.includes("`autonomous/*`")) fail(path, "command does not route through the installed autonomous roles", "restore the autonomous/* routing instruction");
   if (!body.includes("$ARGUMENTS")) fail(path, "command does not accept the full goal text", "pass $ARGUMENTS to the coordinator");
 }
@@ -377,9 +380,11 @@ for (const [role, contract] of roles) {
   if (existsSync(join(repositoryRoot, path)) && statSync(join(repositoryRoot, path)).isFile()) validateAgent(role, contract);
 }
 if (existsSync(join(repositoryRoot, "skills/autonomous-mode/SKILL.md"))) validateSkill();
+if (existsSync(join(repositoryRoot, "skills/work-mode/SKILL.md"))) validateSkill("work-mode", "work-mode");
 if (existsSync(join(repositoryRoot, "skills/pull-request-description/SKILL.md"))) validatePullRequestDescriptionSkill();
 if (existsSync(join(repositoryRoot, "skills/source-code-lookup/SKILL.md"))) validateSourceLookupSkill();
 if (existsSync(join(repositoryRoot, "commands/autonomous.md"))) validateCommand();
+if (existsSync(join(repositoryRoot, "commands/work.md"))) validateCommand("work", "work-mode");
 validateNeutrality();
 validateSanitation();
 

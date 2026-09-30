@@ -1,28 +1,50 @@
 # Architecture
 
-This release packages three independent capabilities for OpenCode V2 and
-GitHub Copilot: an autonomous development workflow, a source lookup skill, and
-a pull-request description skill. The workflow has two boundaries: a portable
-orchestration protocol and generated client bindings.
+This release packages everyday reviewed task work, durable autonomous project
+work, source lookup, and PR description guidance for OpenCode V2 and GitHub
+Copilot. The workflows share a portable round contract and specialist roles,
+with generated client bindings.
 
 ## Portable orchestration protocol
 
 The protocol is the behavior that does not depend on a particular model:
 
-- split a long goal into one small, verifiable task at a time;
+- split work into small, verifiable tasks when needed;
 - run worker and independent reviewer rounds sequentially;
 - give each round a bounded, fresh context and a compact input contract;
-- persist decisions, evidence, acceptance state, and exactly one next action in
-  repository handoff files;
+- pass relevant facts, acceptance state, and one next action to each child;
 - use explicit reset, escalation, retry, and stop conditions;
 - keep implementation, review, deep audit, exploration, and consultation as
   separate responsibilities;
 - obey the user's and target repository's git persistence policy.
 
-`skills/autonomous-mode/SKILL.md` is the canonical executable description of
-that protocol in this release. The project being operated on owns its
+`skills/work-mode/references/rounds.md` defines the shared task packet, compact
+reports, reset criteria, and review/fix gate. Both coordinator skills explicitly
+load it; every build and install includes the reference. The seven worker
+profiles follow the supplied state and Git policies rather than loading a
+workflow implicitly. Their historical `autonomous/*` IDs remain stable for
+existing model mappings and permissions.
+
+The shared contract also requires reading `pull-request-description` before
+writing or revising PR bodies and `source-code-lookup` when another codebase's
+behavior matters. Commands reinforce these triggers, and task packets pass the
+loading rules to fresh children. Discovery metadata alone is insufficient;
+the responsible agent reads the full skill instructions. Lookup evidence uses
+the active state policy, including child reports for session-only work.
+
+`skills/work-mode/SKILL.md` supplies the everyday policy: optional exploration,
+meaningful questions through the coordinator, independent review, session-only
+state, and uncommitted changes by default. `/work --pr` (or an equivalent clear
+request) authorizes branch, coherent commits, push, and PR creation. Mentioning
+PR feedback alone does not. Publication follows review and checks the full
+outgoing scope; unrelated existing changes must be preserved.
+
+`skills/autonomous-mode/SKILL.md` adds durable backlog, handoff, archival,
+unattended decision, and continuation policies. The target project owns its
 `BACKLOG.md` and `docs/handoffs/active.md`; this source repository's files with
-those names are only its own development state.
+those names are only its own development state. Read-only child reports are
+persisted by the coordinator. Everyday work does not resume these files or
+promise recovery after loss of the host session.
 
 ## OpenCode V2 binding
 
@@ -32,6 +54,9 @@ The OpenCode profile bundle contains:
   limits, and tool permissions;
 - `skills/autonomous-mode/SKILL.md` supplies discovery metadata and routes
   rounds through the installed `autonomous/*` agent IDs;
+- `skills/work-mode/SKILL.md` and its `references/rounds.md` supply everyday task
+  coordination and the shared round contract;
+- `commands/work.md` binds `/work [--pr] [task]` to the built-in `build` agent;
 - `commands/autonomous.md` binds `/autonomous` to starting a supplied goal or
   resuming the active handoff with the built-in `build` agent.
 - `skills/source-code-lookup/SKILL.md` guides source inspection for dependencies
@@ -42,12 +67,12 @@ The OpenCode profile bundle contains:
   automation, so it can be applied wherever a PR description is written.
 
 The profile installer maps those paths into the user's OpenCode configuration.
-The autonomous-mode skill sets `metadata.opencode/autoinvoke: false` and `slash: false`, so
-OpenCode loads it through `/autonomous` without advertising it for ordinary
-requests or creating a second slash entry. The installer does not install
+Both coordinator skills set `metadata.opencode/autoinvoke: false` and `slash: false`,
+so their commands load them without creating duplicate slash entries or
+implicitly turning ordinary conversations into orchestrated sessions. The installer does not install
 repository contributor guidance, tests, handoffs, or documentation.
-`scripts/validate.mjs` enforces the exact seven agents, three skills, and one
-command as the complete bundle.
+`scripts/validate.mjs` enforces seven agents, four skills, one shared reference,
+and two commands: fourteen authored bundle files.
 
 OpenCode provides the child-session lifecycle, foreground subagent calls,
 permission enforcement, skill discovery, command discovery, and model
@@ -65,14 +90,15 @@ ordinary install state, so updates and removal retain the same collision,
 backup, and modified-file behavior. The source bundle stays provider-neutral.
 For copy installs, `--source-root` renders a local repository root into the
 lookup skill. Link installs use its portable `~/dev` default. The installer
-accepts the previous v1 nine-file and v2 ten-file copy states, plus the prior
-three-link and four-link states, so existing profiles can update or uninstall.
+uses schema v4 for fourteen-file copy or seven-link installs. It accepts the
+previous v1 nine-file, v2 ten-file, and v3 eleven-file copy states, and the prior
+three-, four-, and five-link states, so existing profiles can update or uninstall.
 
 ## Shared-source build and Copilot binding
 
 The checked-in OpenCode bundle remains the authored source because its files
 contain the complete role bodies and protocol. `scripts/build.mjs` reads those
-eleven files and generates two disposable products beneath `dist/`:
+fourteen files and generates two disposable products beneath `dist/`:
 
 - `dist/opencode` preserves OpenCode paths and frontmatter, optionally adding
   provider-qualified model assignments;
@@ -84,8 +110,10 @@ Disposable artifacts under `dist/` are ignored and never edited by hand. The
 Copilot adapter translates role IDs, removes OpenCode-only skill metadata and
 step-limit claims, maps model identifiers by dropping the first provider
 prefix, and adds Copilot `model` and `reasoningEffort` frontmatter. It also
-generates a visible `agenticale-autonomous` coordinator and seven
-`agenticale-*` worker agents.
+generates the visible `agenticale` (AgenticAle) and `agenticale-autonomous`
+(AgenticAle Autonomous) coordinators plus seven shared `agenticale-*` workers.
+The seventeen-file Copilot package includes both commands, four skills, the
+shared reference, nine agents, and its manifest.
 `scripts/install-copilot.mjs` builds into a temporary directory and delegates
 installation to `copilot plugin install`; the same installed plugin is
 discovered by Copilot CLI and VS Code.
@@ -111,13 +139,14 @@ Copilot `/subagents` overrides.
 `reasoningEffort` is a Copilot CLI custom-agent field. VS Code's local-agent
 schema currently documents per-agent models but not per-agent effort, so the
 field may be ignored there and the session-level effort control applies.
-The generated `autonomous-mode` skill sets `user-invocable: false`: Copilot's
-coordinator and command can load the protocol, while the skill does not appear
-as a second user-facing slash command.
+The generated `work` and `autonomous-mode` skills set `user-invocable: false`:
+their coordinator and command can load the protocol without duplicate slash
+commands. Select the corresponding coordinator before using its command;
+commands supply arguments but do not select an agent or model.
 
 Copilot does not provide OpenCode's per-agent hard `steps` ceiling. The adapter
 therefore keeps bounded rounds through the protocol's round budget, task
-contract, reset triggers, and durable handoff. It emits `agents: []` for worker
+contract, reset triggers, and the selected state policy. It emits `agents: []` for worker
 profiles so clients supporting that field block nested delegation; prompts
 retain the same prohibition for other clients. Tool permission equivalence is
 not claimed across clients because their tool identifiers and enforcement
@@ -140,9 +169,10 @@ clients.
 
 ## Safety and state boundaries
 
-The coordinator is intentionally thin: durable state is written to the target
-repository before a child context ends. The profile bundle never grants itself
-authority to push, publish, or override project instructions. The installer
+The coordinator is intentionally thin: children receive compact packets and
+return reports. Autonomous Mode persists those reports to the target repository;
+everyday work keeps them in session context. Git operations follow the user's
+requested endpoint and applicable repository instructions. The installer
 owns only paths recorded in `.autonomous-mode-install.json`, refuses unsafe
 profile/source overlap and linked managed ancestors, backs up explicit
 replacements, and preserves modified content during uninstall.
