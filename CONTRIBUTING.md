@@ -7,7 +7,7 @@ focused changes with clear verification are easiest to review.
 
 - Read `AGENTS.md` when present, `docs/architecture.md`, and the relevant
   bundle files.
-- Keep the authored OpenCode surface to the documented eleven files unless a
+- Keep the authored OpenCode surface to the documented fourteen files unless a
   release decision intentionally changes that contract. Do not edit generated
   Copilot files under `plugins/agenticale/` by hand; regenerate them with
   `node scripts/publish-default-plugin.mjs`. Disposable `dist/` output remains

@@ -31,7 +31,10 @@ const modelPresets = new Map([
 const openCodeFiles = [
   ...roles.map((role) => `agents/autonomous/${role}.md`),
   "commands/autonomous.md",
+  "commands/work.md",
   "skills/autonomous-mode/SKILL.md",
+  "skills/work/SKILL.md",
+  "skills/work/references/rounds.md",
   "skills/pull-request-description/SKILL.md",
   "skills/source-code-lookup/SKILL.md",
 ];
@@ -39,8 +42,8 @@ const openCodeFiles = [
 export const pluginManifest = {
   $schema: "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   name: "agenticale",
-  version: "0.1.0",
-  description: "Sequential autonomous development with specialized implementation, review, and consultation agents.",
+  version: "0.2.0",
+  description: "Reviewed coding tasks with focused specialist agents, optional PR delivery, and durable autonomous project work.",
   author: { name: "Ale Franz" },
   homepage: "https://github.com/alefranz/AgenticAle",
   repository: "https://github.com/alefranz/AgenticAle",
@@ -304,12 +307,17 @@ function renderCopilotSkill(source) {
   return `---\nname: autonomous-mode\ndescription: Run a long development goal in sequential worker and independent-review rounds with durable handoffs. Use only when the user explicitly asks for autonomous mode.\nuser-invocable: false\n---\n\n${renderCopilotProtocol(source).trimStart()}`;
 }
 
-function renderCoordinator(instructions, models, coordinatorEffort) {
+function renderCoordinator(instructions, models, coordinatorEffort, workflow = "autonomous") {
   const model = models.consult ?? models["deep-review"] ?? models.review;
+  const everyday = workflow === "work";
+  const name = everyday ? "AgenticAle" : "AgenticAle Autonomous";
+  const skill = everyday ? "work" : "autonomous-mode";
   const lines = [
     "---",
-    `name: ${yamlString("AgenticAle Autonomous")}`,
-    `description: ${yamlString("Coordinate an autonomous development goal through sequential specialist, review, and fix rounds.")}`,
+    `name: ${yamlString(name)}`,
+    `description: ${yamlString(everyday
+      ? "Complete an everyday coding task with focused agents, independent review, and optional PR delivery."
+      : "Coordinate an autonomous development goal through sequential specialist, review, and fix rounds.")}`,
     "tools: [\"*\"]",
     `agents: [${roles.map((role) => yamlString(roleId(role))).join(", ")}]`,
     "include-custom-instructions: true",
@@ -321,9 +329,9 @@ function renderCoordinator(instructions, models, coordinatorEffort) {
   lines.push(
     "---",
     "",
-    "# AgenticAle Autonomous",
+    `# ${name}`,
     "",
-    "Before coordinating any work, load the `autonomous-mode` skill by exact ID and treat it as the authoritative workflow. Do not substitute a similarly named built-in workflow.",
+    `Before coordinating any work, load the \`${skill}\` skill by exact ID and treat it as the authoritative workflow. Do not substitute a similarly named built-in workflow.`,
     "",
     instructions.trimStart(),
   );
@@ -460,6 +468,28 @@ export async function buildBundles(options) {
   await writeText(
     join(copilotRoot, "skills", "autonomous-mode", "SKILL.md"),
     renderCopilotSkill(sources.get("skills/autonomous-mode/SKILL.md")),
+  );
+  const workCommand = parseFrontmatter("commands/work.md", sources.get("commands/work.md"));
+  const workInstructions = renderCopilotBody(workCommand.body);
+  await writeText(
+    join(copilotRoot, "com.github.copilot", "commands", "work.md"),
+    `---\ndescription: ${yamlString(workCommand.fields.get("description"))}\nargument-hint: "[--pr] [task]"\n---\n\n${workInstructions.trimStart()}`,
+  );
+  await writeText(
+    join(copilotRoot, "com.github.copilot", "agents", "agenticale.agent.md"),
+    renderCoordinator(workInstructions.replace(
+      "Explicitly load the work skill by ID. Interpret the complete command\narguments as: $ARGUMENTS",
+      "Interpret the user's complete request as the task input.",
+    ), models, options.coordinatorEffort, "work"),
+  );
+  const workSkill = parseFrontmatter("skills/work/SKILL.md", sources.get("skills/work/SKILL.md"));
+  await writeText(
+    join(copilotRoot, "skills", "work", "SKILL.md"),
+    `---\nname: work\ndescription: ${yamlString(workSkill.fields.get("description"))}\nuser-invocable: false\n---\n\n${renderCopilotBody(workSkill.body).trimStart()}`,
+  );
+  await writeText(
+    join(copilotRoot, "skills", "work", "references", "rounds.md"),
+    sources.get("skills/work/references/rounds.md"),
   );
   await writeText(
     join(copilotRoot, "skills", "source-code-lookup", "SKILL.md"),

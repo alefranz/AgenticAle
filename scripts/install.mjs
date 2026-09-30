@@ -27,7 +27,7 @@ const repositoryRoot = resolve(scriptDirectory, "..");
 const stateName = ".autonomous-mode-install.json";
 const backupDirectoryName = ".autonomous-mode-backups";
 const packageName = "opencode-autonomous-mode";
-const stateVersion = 3;
+const stateVersion = 4;
 
 const copyPaths = [
   "agents/autonomous/consult.md",
@@ -38,22 +38,29 @@ const copyPaths = [
   "agents/autonomous/implement.md",
   "agents/autonomous/review.md",
   "commands/autonomous.md",
+  "commands/work.md",
   "skills/autonomous-mode/SKILL.md",
+  "skills/work/SKILL.md",
+  "skills/work/references/rounds.md",
   "skills/pull-request-description/SKILL.md",
   "skills/source-code-lookup/SKILL.md",
 ];
 
-const versionTwoCopyPaths = copyPaths.filter((path) => path !== "skills/pull-request-description/SKILL.md");
+const versionThreeCopyPaths = copyPaths.filter((path) => path !== "commands/work.md" && !path.startsWith("skills/work/"));
+const versionTwoCopyPaths = versionThreeCopyPaths.filter((path) => path !== "skills/pull-request-description/SKILL.md");
 const legacyCopyPaths = versionTwoCopyPaths.filter((path) => path !== "skills/source-code-lookup/SKILL.md");
 
 const linkPaths = [
   "agents/autonomous",
   "commands/autonomous.md",
+  "commands/work.md",
   "skills/autonomous-mode",
+  "skills/work",
   "skills/pull-request-description",
   "skills/source-code-lookup",
 ];
-const versionTwoLinkPaths = linkPaths.filter((path) => path !== "skills/pull-request-description");
+const versionThreeLinkPaths = linkPaths.filter((path) => !["commands/work.md", "skills/work"].includes(path));
+const versionTwoLinkPaths = versionThreeLinkPaths.filter((path) => path !== "skills/pull-request-description");
 const legacyLinkPaths = versionTwoLinkPaths.filter((path) => path !== "skills/source-code-lookup");
 const roleNames = new Set(copyPaths
   .filter((path) => path.startsWith("agents/autonomous/"))
@@ -80,7 +87,7 @@ Options:
                  JSON mapping or bundled preset (openai, zen, local, example)
                  for copy installs; unspecified roles inherit the session model
   --no-model      Explicitly make every installed role inherit the session model
-  --link         Link the four bundle units to this checkout instead of copying
+  --link         Link the seven bundle units to this checkout instead of copying
   --replace      Back up and replace differing destinations during install/update
   --dry-run      Print the planned operation without changing the filesystem
   --help         Show this help`;
@@ -405,14 +412,14 @@ function validateState(value, statePath) {
   const topLevelKeys = ["entries", "installedAt", "mode", "package", "schema"];
   if (!value || typeof value !== "object" || Array.isArray(value)
       || JSON.stringify(Object.keys(value).sort()) !== JSON.stringify(topLevelKeys)
-      || ![1, 2, stateVersion].includes(value.schema) || value.package !== packageName
+      || ![1, 2, 3, stateVersion].includes(value.schema) || value.package !== packageName
       || !["copy", "link"].includes(value.mode) || !Array.isArray(value.entries)
       || typeof value.installedAt !== "string" || !Number.isFinite(Date.parse(value.installedAt))) {
     throw new Error(`Install state is invalid: ${statePath}. Move it aside and retry, or restore a valid package state file.`);
   }
   const expectedPaths = value.mode === "copy"
-    ? value.schema === 1 ? legacyCopyPaths : value.schema === 2 ? versionTwoCopyPaths : copyPaths
-    : value.schema === 1 ? legacyLinkPaths : value.schema === 2 ? versionTwoLinkPaths : linkPaths;
+    ? value.schema === 1 ? legacyCopyPaths : value.schema === 2 ? versionTwoCopyPaths : value.schema === 3 ? versionThreeCopyPaths : copyPaths
+    : value.schema === 1 ? legacyLinkPaths : value.schema === 2 ? versionTwoLinkPaths : value.schema === 3 ? versionThreeLinkPaths : linkPaths;
   const expectedKind = value.mode === "copy" ? "file" : "link";
   if (value.entries.length !== expectedPaths.length) {
     throw new Error(`Install state does not contain the exact ${value.mode} entry set: ${statePath}. Move it aside and retry.`);
@@ -538,7 +545,7 @@ async function installBundle(options) {
   const existingState = await readState(options.target);
   const containerPlans = [];
   if (options.mode === "copy") {
-    for (const path of ["agents/autonomous", "skills/autonomous-mode", "skills/source-code-lookup"]) {
+    for (const path of ["agents/autonomous", "skills/autonomous-mode", "skills/work", "skills/pull-request-description", "skills/source-code-lookup"]) {
       const destination = join(options.target, path);
       const status = await pathStatus(destination);
       if (status && (!status.isDirectory() || status.isSymbolicLink())) {
@@ -663,12 +670,14 @@ async function installBundle(options) {
   }
 
   console.log(plans.every(({ action }) => action === "keep") ? "Already up to date." : "Installation complete.");
-  console.log("Next: configure OpenCode permissions for unattended child sessions; this installer leaves opencode.jsonc unchanged.");
-  console.log("See the README section 'Configure OpenCode permissions' before starting /autonomous.");
+  console.log("Next: restart OpenCode and use /work <task>; this installer leaves opencode.jsonc unchanged.");
+  console.log("See docs/setup.md for child-session permissions and docs/autonomous.md for unattended /autonomous runs.");
 }
 
 async function removeEmptyPackageDirectories(target) {
   const directories = [
+    "skills/work/references",
+    "skills/work",
     "skills/autonomous-mode",
     "skills/pull-request-description",
     "skills/source-code-lookup",

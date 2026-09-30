@@ -26,10 +26,11 @@ Expected observations:
   or the `/model` picker;
 - installation succeeds without a model request;
 - `copilot plugin list --json` contains an enabled `agenticale` entry;
-- a new CLI session exposes **AgenticAle Autonomous** through `/agent` (or
-  `copilot --agent agenticale:agenticale-autonomous`), the seven worker agents,
-  the `/agenticale:autonomous` command, and the three skills;
-- `autonomous-mode` is visible in `/skills list` but does not appear as a slash
+- a new CLI session exposes **AgenticAle** and **AgenticAle Autonomous** through
+  `/agent` (CLI IDs `agenticale:agenticale` and
+  `agenticale:agenticale-autonomous`), the seven shared worker agents,
+  `/agenticale:work` and `/agenticale:autonomous`, and four skills;
+- `work` and `autonomous-mode` are visible in `/skills list` but do not appear as slash
   command in the autocomplete menu;
 - VS Code discovers the same plugin under Agent Plugins after it is installed
   in the real Copilot home and the Copilot session is restarted.
@@ -55,3 +56,9 @@ select the coordinator with `--agent` or `/agent`, and give it a tiny read-only
 goal in a throwaway repository. Do not substitute Sol if Luna is unavailable.
 Confirm one child dispatch and a valid report, then stop; quality benchmarking
 is separate from plugin discovery.
+
+For workflow acceptance, use the everyday and autonomous scenarios in the
+[OpenCode checklist](smoke-test.md) with the matching Copilot coordinator.
+In particular, check that `/agenticale:work --pr` passes its option to the
+already-selected everyday agent and that normal PR-feedback requests leave
+changes uncommitted. Live PR creation needs a disposable authorized remote.

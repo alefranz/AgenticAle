@@ -26,7 +26,7 @@ function marketplaceManifest() {
     name: "agenticale",
     owner: { name: "Ale Franz" },
     metadata: {
-      description: "AgenticAle plugins for autonomous software development workflows.",
+      description: "AgenticAle workflows for reviewed coding tasks and autonomous projects.",
       version: pluginManifest.version,
     },
     plugins: [{

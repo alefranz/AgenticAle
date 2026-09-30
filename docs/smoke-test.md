@@ -92,19 +92,32 @@ rm -rf "$smoke_root"
 - `opencode debug agents` lists all seven `autonomous/*` roles as subagents
   with their configured step limits and permission denials. With `--no-model`,
   the resolved output may show each role's inherited session model;
-- the installed `autonomous-mode/SKILL.md` has `slash: false` and
+- the installed `work/SKILL.md` and `autonomous-mode/SKILL.md` have `slash: false` and
   `metadata.opencode/autoinvoke: false`, and OpenCode's command list shows
-  `/autonomous` using `build`;
-- uninstall removes the recorded ten-file copy installation and its state
+  `/work` and `/autonomous` using `build`; both skills' shared-round links resolve
+  to the installed `skills/work/references/rounds.md`;
+- uninstall removes the recorded fourteen-file copy installation and its state
   file while leaving the isolated profile directory safe to delete.
 
 The commands above verify discovery without making a model request. An
 end-to-end model run is intentionally manual because it consumes provider
 credentials and may modify the selected project. If performed, create a second
-throwaway repository beneath `workspaceRoot`/`workspace_root`, invoke
-`/autonomous` with a trivial documented edit as its goal, and confirm it
-creates the handoff files and routes at least one worker round. Delete that
-repository when finished.
+throwaway repository beneath `workspaceRoot`/`workspace_root` and try:
+
+- `/work` with a trivial verifiable code fix: confirm worker and independent
+  reviewer dispatch, uncommitted changes, and no operational files.
+- A vague investigation-only request: confirm focused exploration and findings
+  or a meaningful question without implementation.
+- Feedback on an existing branch with an unrelated staged edit: confirm the
+  requested fix is reviewed and the unrelated edit and index state are preserved.
+- `/autonomous` with a small goal: confirm durable handoff creation and resume
+  from its next action, including coordinator persistence of read-only findings.
+
+Use a disposable remote and an explicitly authorized PR for a live `/work --pr`
+check. Verify branch creation/reuse, coherent commits after review, task-only
+outgoing history, and one PR. Do not test publication against an ordinary
+project just to verify discovery. Record actual observations and client version;
+static package tests do not establish runtime agent behaviour.
 
 To smoke-test per-role selection, make a copy of
 `examples/gpt.json` inside the temporary smoke root and replace

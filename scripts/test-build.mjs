@@ -3,7 +3,7 @@
 import { strict as assert } from "node:assert";
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { buildBundles, parseArguments, roles } from "./build.mjs";
 
 const fixtureRoot = await mkdtemp(join(tmpdir(), "agenticale-build-test-"));
@@ -31,8 +31,8 @@ try {
   const options = parseArguments(["--output", output]);
   const result = await buildBundles(options);
 
-  check((await files(result.openCodeRoot)).length === 11, "OpenCode build should contain eleven bundle files");
-  check((await files(result.copilotRoot)).length === 13, "Copilot plugin should contain manifest, agents, command, and skills");
+  check((await files(result.openCodeRoot)).length === 14, "OpenCode build should contain fourteen bundle files");
+  check((await files(result.copilotRoot)).length === 17, "Copilot plugin should contain manifest, agents, command, and skills");
 
   const manifest = JSON.parse(await text(join(result.copilotRoot, "plugin.json")));
   check(manifest.$schema === "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json", "manifest should opt into Agent Plugins 1.0");
@@ -81,6 +81,28 @@ try {
   check(!autonomousSkill.includes("available to OpenCode"), "Copilot skill should not retain OpenCode routing language");
   check(!autonomousSkill.includes("question tool is denied"), "Copilot skill should not claim unsupported question-tool enforcement");
 
+  const everyday = await text(join(result.copilotRoot, "com.github.copilot", "agents", "agenticale.agent.md"));
+  check(/^name: "AgenticAle"$/m.test(everyday), "everyday coordinator should be selectable as AgenticAle");
+  check(everyday.includes('model: "gpt-6-sol"') && everyday.includes('reasoningEffort: "medium"'), "both coordinators should use the configured coordinator routing");
+  check(everyday.includes("load the `work` skill by exact ID") && !everyday.includes("$ARGUMENTS"), "everyday coordinator should consume direct requests through the work skill");
+  for (const role of roles) check(everyday.includes(`"agenticale-${role}"`), `everyday coordinator should allow ${role}`);
+  const workCommand = await text(join(result.copilotRoot, "com.github.copilot", "commands", "work.md"));
+  check(workCommand.includes("$ARGUMENTS") && /^argument-hint: "\[--pr\] \[task\]"$/m.test(workCommand), "work slash command should retain argument substitution and advertise PR delivery");
+  const workSkill = await text(join(result.copilotRoot, "skills", "work", "SKILL.md"));
+  check(/^name: work$/m.test(workSkill) && /^user-invocable: false$/m.test(workSkill), "work protocol should load by ID without a duplicate slash command");
+  check(!/^slash:|^version:|^metadata:/m.test(workSkill), "work protocol should omit OpenCode metadata in Copilot");
+  check(!workSkill.includes("autonomous/") && !workSkill.includes("OpenCode"), "work protocol should translate shared role IDs for Copilot");
+  for (const root of [result.openCodeRoot, result.copilotRoot]) {
+    for (const id of ["work", "autonomous-mode"]) {
+      const skillPath = join(root, "skills", id, "SKILL.md");
+      const skill = await text(skillPath);
+      const reference = skill.match(/\[.*?shared round contract\]\(([^)]+)\)/);
+      check(Boolean(reference), `${id} should link the shared round contract`);
+      const shared = await text(resolve(dirname(skillPath), reference[1]));
+      check(shared === await text(join(root, "skills", "work", "references", "rounds.md")), `${id} reference should resolve to the packaged shared contract`);
+    }
+  }
+
   const openCodeExplore = await text(join(result.openCodeRoot, "agents", "autonomous", "explore.md"));
   check(/^model: opencode\/gpt-6-luna#max$/m.test(openCodeExplore), "OpenCode build should preserve the provider-qualified model and effort variant");
 
@@ -88,6 +110,8 @@ try {
   const neutral = await buildBundles(parseArguments(["--output", neutralOutput, "--no-model"]));
   const neutralAgent = await text(join(neutral.copilotRoot, "com.github.copilot", "agents", "agenticale-review.agent.md"));
   check(!/^model:|^reasoningEffort:/m.test(neutralAgent), "model-neutral build should inherit session model and effort");
+  const neutralCoordinator = await text(join(neutral.copilotRoot, "com.github.copilot", "agents", "agenticale.agent.md"));
+  check(!/^model:|^reasoningEffort:/m.test(neutralCoordinator), "everyday coordinator should support session model inheritance");
 
   const customRoot = join(fixtureRoot, "source checkouts");
   const rooted = await buildBundles(parseArguments(["--output", join(fixtureRoot, "rooted"), "--source-root", customRoot]));

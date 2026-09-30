@@ -101,8 +101,8 @@ try {
     "copy install should remind users to configure permissions separately");
   const stateBefore = readFileSync(join(copyTarget, stateName), "utf8");
   const state = JSON.parse(stateBefore);
-  assert(state.schema === 3 && state.mode === "copy" && state.entries.length === 11,
-    "copy state should own exactly eleven files in schema v3");
+  assert(state.schema === 4 && state.mode === "copy" && state.entries.length === 14,
+    "copy state should own exactly fourteen files in schema v4");
   for (const entry of state.entries) {
     assert(existsSync(installedFile(copyTarget, entry.path)), `copy install omitted ${entry.path}`);
   }
@@ -145,6 +145,9 @@ try {
   const legacyState = JSON.parse(readFileSync(join(legacyTarget, stateName), "utf8"));
   legacyState.schema = 1;
   legacyState.entries = legacyState.entries.filter((entry) => ![
+    "commands/work.md",
+    "skills/work/SKILL.md",
+    "skills/work/references/rounds.md",
     "skills/pull-request-description/SKILL.md",
     "skills/source-code-lookup/SKILL.md",
   ].includes(entry.path));
@@ -152,7 +155,7 @@ try {
   writeState(legacyTarget, legacyState);
   run(["--target", legacyTarget, "--no-model"]);
   const updatedState = JSON.parse(readFileSync(join(legacyTarget, stateName), "utf8"));
-  assert(updatedState.schema === 3 && updatedState.entries.length === 11,
+  assert(updatedState.schema === 4 && updatedState.entries.length === 14,
     "updating an older copy install should add the new skill and advance the state schema");
   run(["uninstall", "--target", legacyTarget]);
 
@@ -160,20 +163,43 @@ try {
   run(["--target", versionTwoTarget, "--no-model"]);
   const versionTwoState = JSON.parse(readFileSync(join(versionTwoTarget, stateName), "utf8"));
   versionTwoState.schema = 2;
-  versionTwoState.entries = versionTwoState.entries.filter((entry) => entry.path !== "skills/pull-request-description/SKILL.md");
+  versionTwoState.entries = versionTwoState.entries.filter((entry) => !["commands/work.md", "skills/work/SKILL.md", "skills/work/references/rounds.md", "skills/pull-request-description/SKILL.md"].includes(entry.path));
   rmSync(installedFile(versionTwoTarget, "skills/pull-request-description"), { recursive: true });
   writeState(versionTwoTarget, versionTwoState);
   run(["--target", versionTwoTarget, "--no-model"]);
   const upgradedVersionTwoState = JSON.parse(readFileSync(join(versionTwoTarget, stateName), "utf8"));
-  assert(upgradedVersionTwoState.schema === 3 && upgradedVersionTwoState.entries.length === 11,
+  assert(upgradedVersionTwoState.schema === 4 && upgradedVersionTwoState.entries.length === 14,
     "updating a version-two copy install should add the PR skill and advance the state schema");
   run(["uninstall", "--target", versionTwoTarget]);
+
+  for (const operation of ["upgrade", "uninstall"]) {
+    const oldTarget = target(`version-three-${operation}`);
+    run(["--target", oldTarget, "--no-model"]);
+    const oldState = JSON.parse(readFileSync(join(oldTarget, stateName), "utf8"));
+    oldState.schema = 3;
+    oldState.entries = oldState.entries.filter((entry) => entry.path !== "commands/work.md" && !entry.path.startsWith("skills/work/"));
+    rmSync(installedFile(oldTarget, "commands/work.md"));
+    rmSync(installedFile(oldTarget, "skills/work"), { recursive: true });
+    writeState(oldTarget, oldState);
+    if (operation === "upgrade") {
+      run(["--target", oldTarget, "--no-model"]);
+      const upgraded = JSON.parse(readFileSync(join(oldTarget, stateName), "utf8"));
+      assert(upgraded.schema === 4 && upgraded.entries.length === 14, "v3 upgrade should add the everyday command, skill, and shared reference");
+      assert(existsSync(installedFile(oldTarget, "skills/work/references/rounds.md")), "shared round reference should be installed on upgrade");
+    }
+    run(["uninstall", "--target", oldTarget]);
+    assert(!existsSync(installedFile(oldTarget, "skills/autonomous-mode/SKILL.md")), "both old and upgraded state should uninstall");
+    assert(!existsSync(installedFile(oldTarget, "skills/work")), "uninstall should remove empty nested work skill directories");
+  }
 
   const legacyUninstallTarget = target("legacy-uninstall");
   run(["--target", legacyUninstallTarget, "--no-model"]);
   const oldState = JSON.parse(readFileSync(join(legacyUninstallTarget, stateName), "utf8"));
   oldState.schema = 1;
   oldState.entries = oldState.entries.filter((entry) => ![
+    "commands/work.md",
+    "skills/work/SKILL.md",
+    "skills/work/references/rounds.md",
     "skills/pull-request-description/SKILL.md",
     "skills/source-code-lookup/SKILL.md",
   ].includes(entry.path));
@@ -373,13 +399,30 @@ try {
   }
   if (linksSupported) {
     const linkState = JSON.parse(readFileSync(join(linkTarget, stateName), "utf8"));
-    assert(linkState.mode === "link" && linkState.entries.length === 5, "link state should own five links");
+    assert(linkState.mode === "link" && linkState.entries.length === 7, "link state should own seven links");
     for (const entry of linkState.entries) {
       assert(lstatSync(installedFile(linkTarget, entry.path)).isSymbolicLink(), `${entry.path} should be a link`);
     }
     run(["uninstall", "--target", linkTarget]);
     for (const entry of linkState.entries) {
       assert(!existsSync(installedFile(linkTarget, entry.path)), `uninstall should remove unchanged link ${entry.path}`);
+    }
+    for (const schema of [1, 2, 3]) {
+      const oldLinkTarget = target(`old-link-${schema}`);
+      run(["--target", oldLinkTarget, "--link", "--no-model"]);
+      const oldLinks = JSON.parse(readFileSync(join(oldLinkTarget, stateName), "utf8"));
+      const added = ["commands/work.md", "skills/work"];
+      if (schema < 3) added.push("skills/pull-request-description");
+      if (schema < 2) added.push("skills/source-code-lookup");
+      for (const path of added) rmSync(installedFile(oldLinkTarget, path));
+      oldLinks.schema = schema;
+      oldLinks.entries = oldLinks.entries.filter((entry) => !added.includes(entry.path));
+      writeState(oldLinkTarget, oldLinks);
+      run(["--target", oldLinkTarget, "--link", "--no-model"]);
+      const upgraded = JSON.parse(readFileSync(join(oldLinkTarget, stateName), "utf8"));
+      assert(upgraded.schema === 4 && upgraded.entries.length === 7, `v${schema} links should upgrade to all seven units`);
+      assert(existsSync(installedFile(oldLinkTarget, "skills/work/references/rounds.md")), "linked work skill should expose shared reference");
+      run(["uninstall", "--target", oldLinkTarget]);
     }
   }
 
