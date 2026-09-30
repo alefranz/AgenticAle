@@ -18,14 +18,14 @@ The protocol is the behavior that does not depend on a particular model:
   separate responsibilities;
 - obey the user's and target repository's git persistence policy.
 
-`skills/work/references/rounds.md` defines the shared task packet, compact
+`skills/work-mode/references/rounds.md` defines the shared task packet, compact
 reports, reset criteria, and review/fix gate. Both coordinator skills explicitly
 load it; every build and install includes the reference. The seven worker
 profiles follow the supplied state and Git policies rather than loading a
 workflow implicitly. Their historical `autonomous/*` IDs remain stable for
 existing model mappings and permissions.
 
-`skills/work/SKILL.md` supplies the everyday policy: optional exploration,
+`skills/work-mode/SKILL.md` supplies the everyday policy: optional exploration,
 meaningful questions through the coordinator, independent review, session-only
 state, and uncommitted changes by default. `/work --pr` (or an equivalent clear
 request) authorizes branch, coherent commits, push, and PR creation. Mentioning
@@ -47,7 +47,7 @@ The OpenCode profile bundle contains:
   limits, and tool permissions;
 - `skills/autonomous-mode/SKILL.md` supplies discovery metadata and routes
   rounds through the installed `autonomous/*` agent IDs;
-- `skills/work/SKILL.md` and its `references/rounds.md` supply everyday task
+- `skills/work-mode/SKILL.md` and its `references/rounds.md` supply everyday task
   coordination and the shared round contract;
 - `commands/work.md` binds `/work [--pr] [task]` to the built-in `build` agent;
 - `commands/autonomous.md` binds `/autonomous` to starting a supplied goal or

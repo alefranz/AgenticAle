@@ -40,13 +40,13 @@ const copyPaths = [
   "commands/autonomous.md",
   "commands/work.md",
   "skills/autonomous-mode/SKILL.md",
-  "skills/work/SKILL.md",
-  "skills/work/references/rounds.md",
+  "skills/work-mode/SKILL.md",
+  "skills/work-mode/references/rounds.md",
   "skills/pull-request-description/SKILL.md",
   "skills/source-code-lookup/SKILL.md",
 ];
 
-const versionThreeCopyPaths = copyPaths.filter((path) => path !== "commands/work.md" && !path.startsWith("skills/work/"));
+const versionThreeCopyPaths = copyPaths.filter((path) => path !== "commands/work.md" && !path.startsWith("skills/work-mode/"));
 const versionTwoCopyPaths = versionThreeCopyPaths.filter((path) => path !== "skills/pull-request-description/SKILL.md");
 const legacyCopyPaths = versionTwoCopyPaths.filter((path) => path !== "skills/source-code-lookup/SKILL.md");
 
@@ -55,11 +55,11 @@ const linkPaths = [
   "commands/autonomous.md",
   "commands/work.md",
   "skills/autonomous-mode",
-  "skills/work",
+  "skills/work-mode",
   "skills/pull-request-description",
   "skills/source-code-lookup",
 ];
-const versionThreeLinkPaths = linkPaths.filter((path) => !["commands/work.md", "skills/work"].includes(path));
+const versionThreeLinkPaths = linkPaths.filter((path) => !["commands/work.md", "skills/work-mode"].includes(path));
 const versionTwoLinkPaths = versionThreeLinkPaths.filter((path) => path !== "skills/pull-request-description");
 const legacyLinkPaths = versionTwoLinkPaths.filter((path) => path !== "skills/source-code-lookup");
 const roleNames = new Set(copyPaths
@@ -545,7 +545,7 @@ async function installBundle(options) {
   const existingState = await readState(options.target);
   const containerPlans = [];
   if (options.mode === "copy") {
-    for (const path of ["agents/autonomous", "skills/autonomous-mode", "skills/work", "skills/pull-request-description", "skills/source-code-lookup"]) {
+    for (const path of ["agents/autonomous", "skills/autonomous-mode", "skills/work-mode", "skills/pull-request-description", "skills/source-code-lookup"]) {
       const destination = join(options.target, path);
       const status = await pathStatus(destination);
       if (status && (!status.isDirectory() || status.isSymbolicLink())) {
@@ -676,6 +676,8 @@ async function installBundle(options) {
 
 async function removeEmptyPackageDirectories(target) {
   const directories = [
+    "skills/work-mode/references",
+    "skills/work-mode",
     "skills/work/references",
     "skills/work",
     "skills/autonomous-mode",

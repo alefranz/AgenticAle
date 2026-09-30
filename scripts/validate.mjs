@@ -22,8 +22,8 @@ const expectedBundleFiles = [
   "commands/autonomous.md",
   "commands/work.md",
   "skills/autonomous-mode/SKILL.md",
-  "skills/work/SKILL.md",
-  "skills/work/references/rounds.md",
+  "skills/work-mode/SKILL.md",
+  "skills/work-mode/references/rounds.md",
   "skills/pull-request-description/SKILL.md",
   "skills/source-code-lookup/SKILL.md",
 ].sort();
@@ -380,11 +380,11 @@ for (const [role, contract] of roles) {
   if (existsSync(join(repositoryRoot, path)) && statSync(join(repositoryRoot, path)).isFile()) validateAgent(role, contract);
 }
 if (existsSync(join(repositoryRoot, "skills/autonomous-mode/SKILL.md"))) validateSkill();
-if (existsSync(join(repositoryRoot, "skills/work/SKILL.md"))) validateSkill("work", "work");
+if (existsSync(join(repositoryRoot, "skills/work-mode/SKILL.md"))) validateSkill("work-mode", "work-mode");
 if (existsSync(join(repositoryRoot, "skills/pull-request-description/SKILL.md"))) validatePullRequestDescriptionSkill();
 if (existsSync(join(repositoryRoot, "skills/source-code-lookup/SKILL.md"))) validateSourceLookupSkill();
 if (existsSync(join(repositoryRoot, "commands/autonomous.md"))) validateCommand();
-if (existsSync(join(repositoryRoot, "commands/work.md"))) validateCommand("work", "work");
+if (existsSync(join(repositoryRoot, "commands/work.md"))) validateCommand("work", "work-mode");
 validateNeutrality();
 validateSanitation();
 

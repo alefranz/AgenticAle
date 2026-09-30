@@ -92,10 +92,10 @@ rm -rf "$smoke_root"
 - `opencode debug agents` lists all seven `autonomous/*` roles as subagents
   with their configured step limits and permission denials. With `--no-model`,
   the resolved output may show each role's inherited session model;
-- the installed `work/SKILL.md` and `autonomous-mode/SKILL.md` have `slash: false` and
+- the installed `work-mode/SKILL.md` and `autonomous-mode/SKILL.md` have `slash: false` and
   `metadata.opencode/autoinvoke: false`, and OpenCode's command list shows
   `/work` and `/autonomous` using `build`; both skills' shared-round links resolve
-  to the installed `skills/work/references/rounds.md`;
+  to the installed `skills/work-mode/references/rounds.md`;
 - uninstall removes the recorded fourteen-file copy installation and its state
   file while leaving the isolated profile directory safe to delete.
 

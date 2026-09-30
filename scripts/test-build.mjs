@@ -84,22 +84,22 @@ try {
   const everyday = await text(join(result.copilotRoot, "com.github.copilot", "agents", "agenticale.agent.md"));
   check(/^name: "AgenticAle"$/m.test(everyday), "everyday coordinator should be selectable as AgenticAle");
   check(everyday.includes('model: "gpt-6-sol"') && everyday.includes('reasoningEffort: "medium"'), "both coordinators should use the configured coordinator routing");
-  check(everyday.includes("load the `work` skill by exact ID") && !everyday.includes("$ARGUMENTS"), "everyday coordinator should consume direct requests through the work skill");
+  check(everyday.includes("load the `work-mode` skill by exact ID") && !everyday.includes("$ARGUMENTS"), "everyday coordinator should consume direct requests through the work-mode skill");
   for (const role of roles) check(everyday.includes(`"agenticale-${role}"`), `everyday coordinator should allow ${role}`);
   const workCommand = await text(join(result.copilotRoot, "com.github.copilot", "commands", "work.md"));
   check(workCommand.includes("$ARGUMENTS") && /^argument-hint: "\[--pr\] \[task\]"$/m.test(workCommand), "work slash command should retain argument substitution and advertise PR delivery");
-  const workSkill = await text(join(result.copilotRoot, "skills", "work", "SKILL.md"));
-  check(/^name: work$/m.test(workSkill) && /^user-invocable: false$/m.test(workSkill), "work protocol should load by ID without a duplicate slash command");
-  check(!/^slash:|^version:|^metadata:/m.test(workSkill), "work protocol should omit OpenCode metadata in Copilot");
-  check(!workSkill.includes("autonomous/") && !workSkill.includes("OpenCode"), "work protocol should translate shared role IDs for Copilot");
+  const workSkill = await text(join(result.copilotRoot, "skills", "work-mode", "SKILL.md"));
+  check(/^name: work-mode$/m.test(workSkill) && /^user-invocable: false$/m.test(workSkill), "work-mode protocol should load by ID without a duplicate slash command");
+  check(!/^slash:|^version:|^metadata:/m.test(workSkill), "work-mode protocol should omit OpenCode metadata in Copilot");
+  check(!workSkill.includes("autonomous/") && !workSkill.includes("OpenCode"), "work-mode protocol should translate shared role IDs for Copilot");
   for (const root of [result.openCodeRoot, result.copilotRoot]) {
-    for (const id of ["work", "autonomous-mode"]) {
+    for (const id of ["work-mode", "autonomous-mode"]) {
       const skillPath = join(root, "skills", id, "SKILL.md");
       const skill = await text(skillPath);
       const reference = skill.match(/\[.*?shared round contract\]\(([^)]+)\)/);
       check(Boolean(reference), `${id} should link the shared round contract`);
       const shared = await text(resolve(dirname(skillPath), reference[1]));
-      check(shared === await text(join(root, "skills", "work", "references", "rounds.md")), `${id} reference should resolve to the packaged shared contract`);
+      check(shared === await text(join(root, "skills", "work-mode", "references", "rounds.md")), `${id} reference should resolve to the packaged shared contract`);
     }
   }
 

@@ -3,7 +3,7 @@ description: "Implement and independently review a task, optionally through open
 argument-hint: "[--pr] [task]"
 ---
 
-Explicitly load the work skill by ID. Interpret the complete command
+Explicitly load the work-mode skill by ID. Interpret the complete command
 arguments as: $ARGUMENTS
 
 A leading --pr selects delivery through a GitHub pull request; the remaining
@@ -12,7 +12,7 @@ same endpoint. Otherwise use the current branch and leave changes uncommitted
 unless the user or applicable repository instructions specify otherwise.
 With empty arguments, use the unambiguous current task or ask what to work on.
 
-Use the installed `agenticale-*` roles with the work skill's session-state
+Use the installed `agenticale-*` roles with the work-mode skill's session-state
 policy and shared round contract. These role IDs do not activate Autonomous
 Mode. Independently review implementation changes and address blocking
 findings within the skill's limits. Ask meaningful questions from the

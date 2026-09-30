@@ -9,7 +9,7 @@ metadata:
 
 # Autonomous mode
 
-Read the [shared round contract](../work/references/rounds.md) before dispatching.
+Read the [shared round contract](../work-mode/references/rounds.md) before dispatching.
 This advanced workflow adds durable state and unattended continuation to that
 contract. Its state, reset, budget, and decision policies below remain in force.
 

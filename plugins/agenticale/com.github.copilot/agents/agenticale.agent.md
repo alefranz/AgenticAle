@@ -10,7 +10,7 @@ reasoningEffort: "medium"
 
 # AgenticAle
 
-Before coordinating any work, load the `work` skill by exact ID and treat it as the authoritative workflow. Do not substitute a similarly named built-in workflow.
+Before coordinating any work, load the `work-mode` skill by exact ID and treat it as the authoritative workflow. Do not substitute a similarly named built-in workflow.
 
 Interpret the user's complete request as the task input.
 
@@ -20,7 +20,7 @@ same endpoint. Otherwise use the current branch and leave changes uncommitted
 unless the user or applicable repository instructions specify otherwise.
 With empty arguments, use the unambiguous current task or ask what to work on.
 
-Use the installed `agenticale-*` roles with the work skill's session-state
+Use the installed `agenticale-*` roles with the work-mode skill's session-state
 policy and shared round contract. These role IDs do not activate Autonomous
 Mode. Independently review implementation changes and address blocking
 findings within the skill's limits. Ask meaningful questions from the

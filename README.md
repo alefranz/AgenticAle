@@ -37,10 +37,19 @@ Investigate why export is slow and suggest an approach.
 Add CSV export and open a PR.
 ```
 
-The optional `/agenticale:work [--pr] [task]` command supplies the same task
-and delivery choice. Select **AgenticAle** first: the slash command does not
-switch the current agent or its model. The underlying `work` skill is hidden
-from slash autocomplete to avoid a duplicate starting command.
+The optional work command supplies the same task and delivery choice:
+
+| Client | Invocation |
+| --- | --- |
+| Copilot CLI | `/agenticale:work [--pr] [task]` |
+| Copilot in VS Code | Select the work command from slash autocomplete, which may display `/agenticale work`, then append `[--pr] [task]` |
+
+Manually typing `/agenticale:work` has also been observed to work in VS Code.
+The autocomplete presentation can vary by client and version; use the suggested
+entry in VS Code. Select **AgenticAle** first: the slash command does not
+switch the current agent or its model. The underlying `work-mode` skill is named
+to avoid colliding with the `work` command, which the CLI hides when a skill
+and command share a name.
 
 ### OpenCode V2
 

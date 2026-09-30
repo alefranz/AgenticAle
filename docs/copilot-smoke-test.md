@@ -30,10 +30,18 @@ Expected observations:
   `/agent` (CLI IDs `agenticale:agenticale` and
   `agenticale:agenticale-autonomous`), the seven shared worker agents,
   `/agenticale:work` and `/agenticale:autonomous`, and four skills;
-- `work` and `autonomous-mode` are visible in `/skills list` but do not appear as slash
-  command in the autocomplete menu;
+- `work-mode` and `autonomous-mode` are visible in `/skills list` but do not
+  appear as slash commands in the autocomplete menu;
 - VS Code discovers the same plugin under Agent Plugins after it is installed
   in the real Copilot home and the Copilot session is restarted.
+
+In VS Code, record the client version and the work command's autocomplete
+label. It may display `/agenticale work` even though the CLI uses
+`/agenticale:work`. Select the autocomplete entry and confirm that the work
+prompt is loaded with the supplied task arguments. Separately check manually
+typing `/agenticale:work`, which has also been observed to work in VS Code.
+Successful execution alone is insufficient: confirm command expansion so a
+plain-text request is not mistaken for a recognized slash command.
 
 Before publishing, also verify the repository marketplace from an isolated
 Copilot home:

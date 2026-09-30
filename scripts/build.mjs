@@ -33,8 +33,8 @@ const openCodeFiles = [
   "commands/autonomous.md",
   "commands/work.md",
   "skills/autonomous-mode/SKILL.md",
-  "skills/work/SKILL.md",
-  "skills/work/references/rounds.md",
+  "skills/work-mode/SKILL.md",
+  "skills/work-mode/references/rounds.md",
   "skills/pull-request-description/SKILL.md",
   "skills/source-code-lookup/SKILL.md",
 ];
@@ -311,7 +311,7 @@ function renderCoordinator(instructions, models, coordinatorEffort, workflow = "
   const model = models.consult ?? models["deep-review"] ?? models.review;
   const everyday = workflow === "work";
   const name = everyday ? "AgenticAle" : "AgenticAle Autonomous";
-  const skill = everyday ? "work" : "autonomous-mode";
+  const skill = everyday ? "work-mode" : "autonomous-mode";
   const lines = [
     "---",
     `name: ${yamlString(name)}`,
@@ -478,18 +478,18 @@ export async function buildBundles(options) {
   await writeText(
     join(copilotRoot, "com.github.copilot", "agents", "agenticale.agent.md"),
     renderCoordinator(workInstructions.replace(
-      "Explicitly load the work skill by ID. Interpret the complete command\narguments as: $ARGUMENTS",
+      "Explicitly load the work-mode skill by ID. Interpret the complete command\narguments as: $ARGUMENTS",
       "Interpret the user's complete request as the task input.",
     ), models, options.coordinatorEffort, "work"),
   );
-  const workSkill = parseFrontmatter("skills/work/SKILL.md", sources.get("skills/work/SKILL.md"));
+  const workSkill = parseFrontmatter("skills/work-mode/SKILL.md", sources.get("skills/work-mode/SKILL.md"));
   await writeText(
-    join(copilotRoot, "skills", "work", "SKILL.md"),
-    `---\nname: work\ndescription: ${yamlString(workSkill.fields.get("description"))}\nuser-invocable: false\n---\n\n${renderCopilotBody(workSkill.body).trimStart()}`,
+    join(copilotRoot, "skills", "work-mode", "SKILL.md"),
+    `---\nname: work-mode\ndescription: ${yamlString(workSkill.fields.get("description"))}\nuser-invocable: false\n---\n\n${renderCopilotBody(workSkill.body).trimStart()}`,
   );
   await writeText(
-    join(copilotRoot, "skills", "work", "references", "rounds.md"),
-    sources.get("skills/work/references/rounds.md"),
+    join(copilotRoot, "skills", "work-mode", "references", "rounds.md"),
+    sources.get("skills/work-mode/references/rounds.md"),
   );
   await writeText(
     join(copilotRoot, "skills", "source-code-lookup", "SKILL.md"),

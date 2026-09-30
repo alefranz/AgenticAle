@@ -55,7 +55,7 @@ copilot plugin uninstall agenticale
 ## OpenCode permissions
 
 The installer leaves `opencode.jsonc` unchanged. The foreground agent needs
-permission to load `work` and launch `autonomous/*`; these historical worker
+permission to load `work-mode` and launch `autonomous/*`; these historical worker
 IDs are shared by both workflows. Child sessions cannot ask the user questions
 or launch nested agents. Configure the actions needed by your task to resolve
 without interactive child prompts, scoped to the project and your environment.

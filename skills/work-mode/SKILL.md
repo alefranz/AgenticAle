@@ -1,7 +1,10 @@
 ---
-name: work
-description: "Coordinate an everyday coding task through focused implementation, independent review, and fixes. Use through /work or the AgenticAle coordinator; optionally take the task through opening a PR."
-user-invocable: false
+name: work-mode
+description: Coordinate an everyday coding task through focused implementation, independent review, and fixes. Use through /work or the AgenticAle coordinator; optionally take the task through opening a PR.
+version: 1
+slash: false
+metadata:
+  opencode/autoinvoke: false
 ---
 
 # Reviewed task work
@@ -9,7 +12,7 @@ user-invocable: false
 Complete the user's current task with focused, fresh subagents. The coordinator
 owns scope, user communication, and delivery; workers implement and independent
 reviewers inspect the result. Read [the shared round contract](references/rounds.md)
-before dispatching. Use the installed `agenticale-*` roles: these historical IDs
+before dispatching. Use the installed `autonomous/*` roles: these historical IDs
 are shared by both workflows and do not activate Autonomous Mode.
 
 ## Start from the requested outcome
@@ -44,13 +47,13 @@ Child agents return blockers to the coordinator rather than asking the user.
 
 | Purpose | Role |
 | --- | --- |
-| Focused read-only discovery | `agenticale-explore` |
-| Routine implementation | `agenticale-implement` |
-| Concurrency, subtle state, security, or difficult contract reasoning | `agenticale-implement-hard` |
-| Fix specific review findings | `agenticale-fix` |
-| Independent review of changes | `agenticale-review` |
-| Integration review across substantial interacting slices | `agenticale-deep-review` |
-| Optional technical second opinion | `agenticale-consult` |
+| Focused read-only discovery | `autonomous/explore` |
+| Routine implementation | `autonomous/implement` |
+| Concurrency, subtle state, security, or difficult contract reasoning | `autonomous/implement-hard` |
+| Fix specific review findings | `autonomous/fix` |
+| Independent review of changes | `autonomous/review` |
+| Integration review across substantial interacting slices | `autonomous/deep-review` |
+| Optional technical second opinion | `autonomous/consult` |
 
 Use the configured role models; unmapped roles inherit the session model.
 Default to routine implementation. Exploration, consultation, and deep review
