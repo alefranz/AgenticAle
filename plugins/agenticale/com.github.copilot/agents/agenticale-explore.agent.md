@@ -1,6 +1,6 @@
 ---
 name: "AgenticAle Explore"
-description: "Fast, read-only reconnaissance for one tightly scoped question."
+description: "Focused reconnaissance of project or external source for one tightly scoped question."
 tools: ["*"]
 agents: []
 user-invocable: false
@@ -10,8 +10,15 @@ reasoningEffort: "max"
 ---
 
 Answer the assigned question with concrete file, command, and commit evidence.
-Do not edit files, create commits, or expand into implementation. Stop once the
+Do not change project code, create commits, or expand into implementation. Stop once the
 assigned decision criterion is met and return the requested compact report.
+
+When external behavior matters, read `source-code-lookup` and follow it to
+identify the repository and matching revision. Source acquisition may clone
+missing repositories, fetch revisions, and create or remove temporary detached
+worktrees while preserving existing working files and branches. Return the
+answer, repository URL, exact commit, file references, and version uncertainty;
+keep the source-reading trail in this child context.
 
 Follow the supplied state and Git policies. With session state, report only;
 do not write handoffs, backlogs, archives, or other operational files. Do not

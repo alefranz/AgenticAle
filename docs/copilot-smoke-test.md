@@ -81,6 +81,12 @@ Check tool logs for skill loading, not just an agent's claim that it used one:
   investigating child receives the loading rule and reads `source-code-lookup`
   before the lookup, then returns source location/revision evidence under the
   selected state policy.
+  With the directly installed plugin, set `SOURCE_ROOT` before starting the
+  client and verify it overrides the packaged default without a rebuild. Use
+  the disposable source-lookup cases in [the smoke test](smoke-test.md) to check
+  canonical clone reuse, linked worktrees, revision matching, and preservation
+  of existing changes. Substantial lookup should run through Explore with a
+  bounded question and return compact evidence to the coordinator.
 - A task needing only navigation in the current repository should not trigger
   source lookup. A task without PR text should not need the PR-description skill.
 

@@ -38,7 +38,7 @@ bounded task:
 
 | Round purpose | Agent | Why |
 | --- | --- | --- |
-| One-question, read-only discovery | `agenticale-explore` | Focused evidence gathering; it cannot edit. |
+| One-question source discovery | `agenticale-explore` | Focused evidence gathering; source acquisition is allowed, project code changes are not. |
 | Normal implementation slice | `agenticale-implement` | Small, verifiable coding task. |
 | Hard implementation slice | `agenticale-implement-hard` | Reasoning-heavy work that benefits from an explicitly bounded specialist context. |
 | Review-findings fix pass | `agenticale-fix` | Narrow, evidence-led changes. |
@@ -195,7 +195,7 @@ from the previous round's report. For each task:
 
 1. **Worker round.** Compose a self-contained prompt from the worker
    template. Invoke one foreground custom subagent: `agenticale-explore` for a
-   read-only discovery question, `agenticale-implement` for an implementation
+   focused discovery question, `agenticale-implement` for an implementation
    slice, `agenticale-implement-hard` for a hard implementation slice (see
    the routing rules above), and `agenticale-fix` for a review-directed fix.
    Check the report against a quick verification (`git -C <repo> status` and,

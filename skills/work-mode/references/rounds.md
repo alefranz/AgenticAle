@@ -21,6 +21,16 @@ mentioning its name is not loading it.
   that source. Ordinary navigation in the current repository does not need it.
   Keep lookup evidence in the invoking workflow's state: a child report for
   session state, or the required task notes/handoff for durable state.
+  Keep quick lookups inline; route substantial external-source investigation
+  through `autonomous/explore` to keep source-reading detail in a fresh context.
+  Supply the question and stop condition, known repository URL/path or discovery
+  evidence, target version/tag/commit or lockfile/configuration path, relevant
+  symbols and observed behavior, and constraints. Unknown repository or revision
+  details are part of the investigation. Require a concise answer with repository
+  URL, exact inspected commit, file references, and version uncertainty.
+  A worker needing a separate investigation returns the question and known facts
+  to the coordinator; the coordinator dispatches Explore and resumes the worker
+  with the findings. Children do not delegate to other children.
 
 If a required skill cannot be loaded, report that limitation rather than
 silently substituting remembered guidance. Respect the task's scope, state,

@@ -42,7 +42,7 @@ bounded task:
 
 | Round purpose | Agent | Why |
 | --- | --- | --- |
-| One-question, read-only discovery | `autonomous/explore` | Focused evidence gathering; it cannot edit. |
+| One-question source discovery | `autonomous/explore` | Focused evidence gathering; source acquisition is allowed, project code changes are not. |
 | Normal implementation slice | `autonomous/implement` | Small, verifiable coding task. |
 | Hard implementation slice | `autonomous/implement-hard` | Reasoning-heavy work that benefits from an explicitly bounded specialist context. |
 | Review-findings fix pass | `autonomous/fix` | Narrow, evidence-led changes. |
@@ -213,7 +213,7 @@ from the previous round's report. For each task:
 
 1. **Worker round.** Compose a self-contained prompt from the worker
    template. Call `subagent` (foreground): `autonomous/explore` for a
-   read-only discovery question, `autonomous/implement` for an implementation
+   focused discovery question, `autonomous/implement` for an implementation
    slice, `autonomous/implement-hard` for a hard implementation slice (see
    the routing rules above), and `autonomous/fix` for a review-directed fix.
    Check the report against a quick verification (`git -C <repo> status` and,

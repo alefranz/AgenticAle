@@ -139,6 +139,12 @@ Both modes require agents to read and apply these skills when their tasks
 arise: PR descriptions use Pull Request Description, and investigations of
 another codebase use Source Code Lookup. Both can also be used independently.
 
+Set `SOURCE_ROOT` to your source directory (for example, a Windows Dev Drive)
+to customize lookup without reinstalling the plugin; the default is `~/dev`.
+Existing checkouts are reused, and missing repositories are cloned into that
+root for later use. See [source lookup setup](docs/setup.md) for precedence and
+configuration examples.
+
 ## Customize or contribute
 
 - [Setup, model routing, updates, and troubleshooting](docs/setup.md)

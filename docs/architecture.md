@@ -31,6 +31,12 @@ behavior matters. Commands reinforce these triggers, and task packets pass the
 loading rules to fresh children. Discovery metadata alone is insufficient;
 the responsible agent reads the full skill instructions. Lookup evidence uses
 the active state policy, including child reports for session-only work.
+Substantial external-source questions use the existing Explore role, with a
+bounded task packet and compact revision-specific findings. Workers return such
+questions to the coordinator rather than nesting agents. Explore may acquire
+source and manage temporary inspection worktrees while preserving project code,
+existing working files, and branches. This is role guidance; no additional
+harness permission configuration is introduced.
 
 `skills/work-mode/SKILL.md` supplies the everyday policy: optional exploration,
 meaningful questions through the coordinator, independent review, session-only
@@ -88,8 +94,14 @@ availability. The mapping accepts only the seven known role names and safe
 `provider/model[#variant]` scalar values. Rendered file hashes enter the
 ordinary install state, so updates and removal retain the same collision,
 backup, and modified-file behavior. The source bundle stays provider-neutral.
-For copy installs, `--source-root` renders a local repository root into the
-lookup skill. Link installs use its portable `~/dev` default. The installer
+For copy installs, `--source-root` renders a default local repository root into
+the lookup skill. At lookup time, an explicit task override takes precedence,
+then `SOURCE_ROOT` from the execution environment, then the installed default
+(`~/dev` when unchanged). Environment customization also works with link installs
+and directly installed Copilot plugins. Lookup checks bounded candidate paths,
+reuses canonical clones, and uses temporary detached worktrees when a different
+revision needs checked-out files. It does not infer a source root from the
+active worktree's location. The installer
 uses schema v4 for fourteen-file copy or seven-link installs. It accepts the
 previous v1 nine-file, v2 ten-file, and v3 eleven-file copy states, and the prior
 three-, four-, and five-link states, so existing profiles can update or uninstall.
