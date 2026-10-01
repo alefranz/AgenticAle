@@ -45,7 +45,7 @@ Child agents return blockers to the coordinator rather than asking the user.
 
 | Purpose | Role |
 | --- | --- |
-| Focused read-only discovery | `agenticale-explore` |
+| Focused project or external-source discovery | `agenticale-explore` |
 | Routine implementation | `agenticale-implement` |
 | Concurrency, subtle state, security, or difficult contract reasoning | `agenticale-implement-hard` |
 | Fix specific review findings | `agenticale-fix` |

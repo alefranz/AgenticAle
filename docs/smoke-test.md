@@ -126,6 +126,19 @@ must receive the loading rule, read `source-code-lookup` before the lookup,
 and return location/revision evidence using the workflow's state policy.
 Ordinary navigation in the current repository should not require source lookup.
 
+For source lookup, use disposable fixture repositories and roots. Set
+`SOURCE_ROOT` to a directory different from the installed default and verify
+that Explore reuses a matching canonical checkout there. Repeat with an explicit
+task root, then with the variable unset, to check precedence. An unavailable
+configured root must produce a diagnostic without cloning into the fallback.
+Start one investigation from a linked worktree outside the source root; it must
+still use the configured root. Request an older fixture tag while the canonical
+checkout has uncommitted changes: verify exact-commit evidence and unchanged
+working files and local branches. If inspection needs a temporary detached
+worktree, confirm Git cleanup after use. For a missing fixture repo, confirm one
+canonical clone and reuse on a second lookup. Keep raw source output in the
+Explore child and verify the coordinator receives a compact, cited answer.
+
 To smoke-test per-role selection, make a copy of
 `examples/gpt.json` inside the temporary smoke root and replace
 each example ID with a model ID shown by `/models` in the isolated OpenCode

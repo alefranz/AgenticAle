@@ -48,7 +48,7 @@ Child agents return blockers to the coordinator rather than asking the user.
 
 | Purpose | Role |
 | --- | --- |
-| Focused read-only discovery | `autonomous/explore` |
+| Focused project or external-source discovery | `autonomous/explore` |
 | Routine implementation | `autonomous/implement` |
 | Concurrency, subtle state, security, or difficult contract reasoning | `autonomous/implement-hard` |
 | Fix specific review findings | `autonomous/fix` |

@@ -184,18 +184,42 @@ node scripts/publish-default-plugin.mjs
 
 CI runs the same command with `--check` and rejects stale generated files.
 
-The source lookup skill searches `~/dev` for existing checkouts by default.
-For a different local repository root, use a copy install with
-`--source-root`:
+Set `SOURCE_ROOT` to your local source directory to customize source lookup
+without rebuilding or reinstalling. This works with directly installed Copilot
+plugins as well as OpenCode copy and link installs. For example, in PowerShell:
+
+```powershell
+$env:SOURCE_ROOT = 'V:\dev'
+[Environment]::SetEnvironmentVariable('SOURCE_ROOT', 'V:\dev', 'User')
+```
+
+The first line sets the current shell's value; the second persists it for future
+processes. Restart an already-running editor or CLI to inherit the new value.
+On POSIX shells, use `export SOURCE_ROOT=/path/to/repos` and add it to your shell
+startup configuration if desired. Use an existing absolute directory.
+
+Lookup uses an explicit task override first, then a non-empty `SOURCE_ROOT`,
+then the installed default (`~/dev` unless customized). An invalid or unavailable
+configured root is reported rather than silently replaced with the default.
+
+Alternatively, embed a different default in an OpenCode copy install:
 
 ```sh
 node scripts/install.mjs --no-model --source-root /path/to/repos
 ```
 
-The installer writes that path into the installed skill. Reinstalling with a
+The installer writes that default into the installed skill; `SOURCE_ROOT` still
+takes precedence at lookup time. Reinstalling with a
 different path requires `--replace`, which backs up the previous copy.
-Linked installs use the checked-in `~/dev` default and cannot use
-`--source-root`.
+Linked installs cannot use `--source-root`, but can use `SOURCE_ROOT`.
+
+Lookup checks likely paths under the root and verifies repository identity.
+Missing repositories are cloned into `<source-root>/<owner>/<repo>` for future
+reuse, with the host added when needed to avoid a collision. Explicit layout
+instructions take precedence. Inspecting another revision preserves existing
+working files and branches: use Git object reads or a temporary detached
+worktree, removed through Git after inspection. Canonical clones remain available
+for later development; no separate persistent inspection clone cache is used.
 
 The default profile target is `$XDG_CONFIG_HOME/opencode` when
 `XDG_CONFIG_HOME` is set, otherwise `~/.config/opencode`. Use `--target` for a
