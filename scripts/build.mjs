@@ -511,8 +511,8 @@ async function writeText(path, contents) {
   await writeFile(path, contents.replace(/\r\n?/g, "\n"), "utf8");
 }
 
-function assertOutputLocationSafe(resolvedOutput, sourceDirectory, sourceRoot = repositoryRoot) {
-  const source = join(sourceRoot, sourceDirectory);
+async function assertOutputLocationSafe(resolvedOutput, sourceDirectory, sourceRoot = repositoryRoot) {
+  const source = await resolveRealPath(join(sourceRoot, sourceDirectory));
   const sourceDifference = relative(source, resolvedOutput);
   if (sourceDifference === "" || (!sourceDifference.startsWith("..") && !isAbsolute(sourceDifference))) {
     throw new Error(`Build output must not be inside the source directory ${sourceDirectory}.`);
@@ -587,7 +587,7 @@ async function assertSafeOutput(output) {
     throw new Error("Build output must not be the repository root.");
   }
   for (const sourceDirectory of ["agents", "commands", "skills", "scripts", "examples", ".git"]) {
-    assertOutputLocationSafe(resolvedOutput, sourceDirectory);
+    await assertOutputLocationSafe(resolvedOutput, sourceDirectory);
   }
 
   // Physical confinement: resolve any symlinks in the output path and re-apply
@@ -603,7 +603,7 @@ async function assertSafeOutput(output) {
       throw new Error("Build output must not be the repository root.");
     }
     for (const sourceDirectory of ["agents", "commands", "skills", "scripts", "examples", ".git"]) {
-      assertOutputLocationSafe(realOutput, sourceDirectory, realRepositoryRoot);
+      await assertOutputLocationSafe(realOutput, sourceDirectory, realRepositoryRoot);
     }
   }
 
