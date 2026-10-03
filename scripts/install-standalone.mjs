@@ -279,7 +279,12 @@ async function pathStatus(path) {
   try {
     return await lstat(path);
   } catch (error) {
-    if (error.code === "ENOENT") return null;
+    // ENOENT means the entry is absent. ENOTDIR means an ancestor is a file or
+    // a symlink-to-file, so the deeper path also does not exist as an entry
+    // (lstat resolves the name path through each parent; it cannot descend into
+    // one). On POSIX both mean "not present here", so treat ENOTDIR as absent
+    // too. Windows does not surface ENOTDIR for these name paths.
+    if (error.code === "ENOENT" || error.code === "ENOTDIR") return null;
     throw error;
   }
 }
