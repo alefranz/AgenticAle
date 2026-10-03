@@ -2,7 +2,7 @@
 
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { lstat, mkdir, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(scriptDirectory, "..");
@@ -597,11 +597,6 @@ async function assertSafeOutput(output) {
   // physically: a missing --output beneath a junction that points into a source
   // directory would otherwise compare two lexical fallbacks and slip through.
   const realOutput = await physicalPath(resolvedOutput);
-  if (process.env.AGENTICALE_DEBUG_BUILD_PATHS === "1") {
-    const realRepositoryRoot = await resolveRealPath(repositoryRoot);
-    const realSkills = await resolveRealPath(join(realRepositoryRoot, "skills"));
-    console.error(JSON.stringify({ repositoryRoot, resolvedOutput, realOutput, realRepositoryRoot, realSkills, difference: relative(realSkills, realOutput) }));
-  }
   if (realOutput !== resolvedOutput) {
     const realRepositoryRoot = await resolveRealPath(repositoryRoot);
     if (realOutput === repositoryRoot || realOutput === realRepositoryRoot) {
@@ -783,4 +778,6 @@ async function main() {
   }
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) await main();
+if (process.argv[1] && await realpath(process.argv[1]) === await realpath(fileURLToPath(import.meta.url))) {
+  await main();
+}
