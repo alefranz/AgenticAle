@@ -305,7 +305,10 @@ try {
     const before = (await listFiles(join(copyRoot, "skills"))).length;
     const copiedBuild = join(copyRoot, "scripts", "build.mjs");
     const requestedOutput = join(alias, "missing-output");
-    const missingOutput = spawnSync(process.execPath, [copiedBuild, "--output", requestedOutput], { encoding: "utf8" });
+    const missingOutput = spawnSync(process.execPath, [copiedBuild, "--output", requestedOutput], {
+      encoding: "utf8",
+      env: { ...process.env, AGENTICALE_DEBUG_BUILD_PATHS: "1" },
+    });
     const pathDiagnostics = JSON.stringify({
       copyRoot,
       realCopyRoot: await realpath(copyRoot),

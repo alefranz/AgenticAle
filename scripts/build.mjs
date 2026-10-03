@@ -597,6 +597,11 @@ async function assertSafeOutput(output) {
   // physically: a missing --output beneath a junction that points into a source
   // directory would otherwise compare two lexical fallbacks and slip through.
   const realOutput = await physicalPath(resolvedOutput);
+  if (process.env.AGENTICALE_DEBUG_BUILD_PATHS === "1") {
+    const realRepositoryRoot = await resolveRealPath(repositoryRoot);
+    const realSkills = await resolveRealPath(join(realRepositoryRoot, "skills"));
+    console.error(JSON.stringify({ repositoryRoot, resolvedOutput, realOutput, realRepositoryRoot, realSkills, difference: relative(realSkills, realOutput) }));
+  }
   if (realOutput !== resolvedOutput) {
     const realRepositoryRoot = await resolveRealPath(repositoryRoot);
     if (realOutput === repositoryRoot || realOutput === realRepositoryRoot) {
