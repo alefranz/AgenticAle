@@ -305,7 +305,10 @@ try {
     const before = (await listFiles(join(copyRoot, "skills"))).length;
     const copiedBuild = join(copyRoot, "scripts", "build.mjs");
     const missingOutput = spawnSync(process.execPath, [copiedBuild, "--output", join(alias, "missing-output")], { encoding: "utf8" });
-    check(missingOutput.status === 1 && /must not be inside the source directory skills/.test(missingOutput.stderr), "F12 missing output under a source-linked ancestor is refused");
+    check(
+      missingOutput.status === 1 && /must not be inside the source directory skills/.test(missingOutput.stderr),
+      `F12 missing output under a source-linked ancestor is refused (exit ${missingOutput.status}; stderr: ${missingOutput.stderr.trim()})`,
+    );
     check((await listFiles(join(copyRoot, "skills"))).length === before, "F12 refused build creates no new files in the source tree");
   }
 
