@@ -1,193 +1,177 @@
 # Architecture
 
-This release packages everyday reviewed task work, durable autonomous project
-work, source lookup, and PR description guidance for OpenCode V2 and GitHub
-Copilot. The workflows share a portable round contract and specialist roles,
-with generated client bindings.
+AgenticAle is a set of portable coding skills with explicit model routing,
+distributed as one Agent Plugins 1.0 package. It carries everyday reviewed task
+work (`work`), durable autonomous project work (`autonomous`), and two
+supporting skills (`source-code-lookup`, `pull-request-description`). Runtime
+specifics are kept out of the skills: Copilot and Codex dispatch native children
+with per-call model and effort, and OpenCode gets a generated set of routing
+profiles as a compatibility adapter.
 
-## Portable orchestration protocol
+Live runtime behavior is not asserted here; see
+[runtime-compatibility.md](runtime-compatibility.md), where every capability is
+**not tested** in this documentation-only pass.
 
-The protocol is the behavior that does not depend on a particular model:
+## The authored core
 
-- split work into small, verifiable tasks when needed;
-- run worker and independent reviewer rounds sequentially;
-- give each round a bounded, fresh context and a compact input contract;
-- pass relevant facts, acceptance state, and one next action to each child;
-- use explicit reset, escalation, retry, and stop conditions;
-- keep implementation, review, deep audit, exploration, and consultation as
-  separate responsibilities;
-- obey the user's and target repository's git persistence policy.
+Four concerns are separated so each can change independently:
 
-`skills/work-mode/references/rounds.md` defines the shared task packet, compact
-reports, reset criteria, and review/fix gate. Both coordinator skills explicitly
-load it; every build and install includes the reference. The seven worker
-profiles follow the supplied state and Git policies rather than loading a
-workflow implicitly. Their historical `autonomous/*` IDs remain stable for
-existing model mappings and permissions.
+| Concern | Where |
+| --- | --- |
+| Workflow skills | `skills/work/SKILL.md`, `skills/autonomous/SKILL.md` |
+| Task contracts | `skills/work/references/tasks/<role>.md` (six: `explore`, `implement`, `fix`, `review`, `deep-review`, `consult`) |
+| Routing policy | `skills/work/references/routing.json` |
+| Runtime bindings | `skills/work/references/runtimes/<host>.md` (four: `copilot`, `copilot-local`, `codex`, `opencode`) |
 
-The shared contract also requires reading `pull-request-description` before
-writing or revising PR bodies and `source-code-lookup` when another codebase's
-behavior matters. Commands reinforce these triggers, and task packets pass the
-loading rules to fresh children. Discovery metadata alone is insufficient;
-the responsible agent reads the full skill instructions. Lookup evidence uses
-the active state policy, including child reports for session-only work.
-Substantial external-source questions use the existing Explore role, with a
-bounded task packet and compact revision-specific findings. Workers return such
-questions to the coordinator rather than nesting agents. Explore may acquire
-source and manage temporary inspection worktrees while preserving project code,
-existing working files, and branches. This is role guidance; no additional
-harness permission configuration is introduced.
+The two workflow skills are explicit-only: each sets
+`copilot/disable-model-invocation: true` and `opencode/autoinvoke: false`, and
+the OpenAI metadata (`agents/openai.yaml`) disables implicit invocation. The
+invoking session is the coordinator; there is no selectable coordinator profile
+and no `commands/` entry. The session owns its own model and effort, and it
+dispatches fresh children using task-specific instructions and the caller
+selected or configured route.
 
-`skills/work-mode/SKILL.md` supplies the everyday policy: optional exploration,
-meaningful questions through the coordinator, independent review, session-only
-state, and uncommitted changes by default. `/work --pr` (or an equivalent clear
-request) authorizes branch, coherent commits, push, and PR creation. Mentioning
-PR feedback alone does not. Publication follows review and checks the full
-outgoing scope; unrelated existing changes must be preserved.
+`skills/work/references/rounds.md` is the shared round contract: the child task
+packet, compact reports, reset criteria, and the review/fix gate. Both workflows
+load it, and every build and install includes it. The six task contracts are
+capability-neutral: they carry only the role's instructions, with no
+host-specific protocol. `implement` and `implement-hard` share the same
+`implement` contract; `implement-hard` is a routing key, not a separate contract
+or profile.
 
-`skills/autonomous-mode/SKILL.md` adds durable backlog, handoff, archival,
-unattended decision, and continuation policies. The target project owns its
-`BACKLOG.md` and `docs/handoffs/active.md`; this source repository's files with
-those names are only its own development state. Read-only child reports are
-persisted by the coordinator. Everyday work does not resume these files or
-promise recovery after loss of the host session.
+`pull-request-description` is read before writing or revising a PR body;
+`source-code-lookup` is read when another codebase's behavior matters. Both are
+loaded in full when their task triggers apply. Lookup evidence uses the active
+state policy, and an unavailable configured source root is reported rather than
+silently replaced.
 
-## OpenCode V2 binding
+`skills/autonomous/SKILL.md` adds durable backlog, handoff, archival, and
+continuation policies. The target project owns `BACKLOG.md` and
+`docs/handoffs/active.md`; this repository's files with those names are only its
+own development state. Everyday `work` does not resume those files or promise
+recovery after loss of the host session.
 
-The OpenCode profile bundle contains:
+The authored source-of-truth layout is what `scripts/validate.mjs` asserts
+exists: the two workflow skills plus their `agents/openai.yaml`, the shared
+`rounds.md`, the `ROUTING.md` reference and `routing.json`, the four runtime
+bindings, the six task contracts, the `adapters/opencode/` metadata, and the two
+supporting skills, for 21 source-of-truth files. The retired layout
+(`commands/`, `agents/autonomous/`, `skills/work-mode`, `skills/autonomous-mode`)
+must be absent.
 
-- `agents/autonomous/*.md` binds protocol roles to OpenCode subagents, step
-  limits, and tool permissions;
-- `skills/autonomous-mode/SKILL.md` supplies discovery metadata and routes
-  rounds through the installed `autonomous/*` agent IDs;
-- `skills/work-mode/SKILL.md` and its `references/rounds.md` supply everyday task
-  coordination and the shared round contract;
-- `commands/work.md` binds `/work [--pr] [task]` to the built-in `build` agent;
-- `commands/autonomous.md` binds `/autonomous` to starting a supplied goal or
-  resuming the active handoff with the built-in `build` agent.
-- `skills/source-code-lookup/SKILL.md` guides source inspection for dependencies
-  and related codebases. It can be used in an ordinary OpenCode task without
-  `/autonomous`, its agents, or its handoff files.
-- `skills/pull-request-description/SKILL.md` guides the content of a PR body.
-  It is deliberately independent of GitHub or other mechanical PR-creation
-  automation, so it can be applied wherever a PR description is written.
+## The routing contract
 
-The profile installer maps those paths into the user's OpenCode configuration.
-Both coordinator skills set `metadata.opencode/autoinvoke: false` and `slash: false`,
-so their commands load them without creating duplicate slash entries or
-implicitly turning ordinary conversations into orchestrated sessions. The installer does not install
-repository contributor guidance, tests, handoffs, or documentation.
-`scripts/validate.mjs` enforces seven agents, four skills, one shared reference,
-and two commands: fourteen authored bundle files.
+Routing is an explicit, versioned policy, not a fallback chain.
+`skills/work/references/routing.json` (schemaVersion 1) names, for each of three
+runtimes (`copilot`, `codex`, `opencode`) and each of seven routing keys
+(`explore`, `implement`, `implement-hard`, `fix`, `review`, `deep-review`,
+`consult`), either an explicit model and effort or explicit inheritance. A route
+is either `mode: explicit` (a non-empty model and an optional supported effort)
+or `mode: inherit` (no model or effort, an explicit choice). There are no
+fallbacks, and a missing key in a complete policy is an error.
 
-OpenCode provides the child-session lifecycle, foreground subagent calls,
-permission enforcement, skill discovery, command discovery, and model
-inheritance used by this binding. Source agents omit a model so the active
-session's configured model is inherited when explicitly selected. For copy
-installs, a JSON role-to-model mapping lets the installer render `model`
-frontmatter into selected installed agents. Unmapped roles inherit the session
-model. The installer requires either that mapping or an explicit `--no-model`
-choice; link mode cannot render model overrides and also requires the explicit
-choice. `--models` accepts either a path or a bundled preset name; presets are
-just checked-in JSON mappings and do not detect provider credentials or model
-availability. The mapping accepts only the seven known role names and safe
-`provider/model[#variant]` scalar values. Rendered file hashes enter the
-ordinary install state, so updates and removal retain the same collision,
-backup, and modified-file behavior. The source bundle stays provider-neutral.
-For copy installs, `--source-root` renders a default local repository root into
-the lookup skill. At lookup time, an explicit task override takes precedence,
-then `SOURCE_ROOT` from the execution environment, then the installed default
-(`~/dev` when unchanged). Environment customization also works with link installs
-and directly installed Copilot plugins. Lookup checks bounded candidate paths,
-reuses canonical clones, and uses temporary detached worktrees when a different
-revision needs checked-out files. It does not infer a source root from the
-active worktree's location. The installer
-uses schema v4 for fourteen-file copy or seven-link installs. It accepts the
-previous v1 nine-file, v2 ten-file, and v3 eleven-file copy states, and the prior
-three-, four-, and five-link states, so existing profiles can update or uninstall.
+The packaged baseline is the `gpt-6` family, provider-qualified per host:
+`OpenAI/` for Copilot, `openai/` for Codex, `opencode/` for OpenCode. A
+top-level `provenance` note records that this baseline is an inventory derived
+from the `examples` mappings, unverified in the documentation-only pass, and that
+identifiers should be validated per host or overridden.
 
-## Shared-source build and Copilot binding
+Build and install options resolve the policy:
 
-The checked-in OpenCode bundle remains the authored source because its files
-contain the complete role bodies and protocol. `scripts/build.mjs` reads those
-fourteen files and generates two disposable products beneath `dist/`:
+- `--routing PATH` builds from a complete caller-supplied policy (conflicts with
+  `--models`).
+- `--models PATH|PRESET` imports a legacy `provider/model[#variant]` inventory
+  and converts it; omitted keys become explicit inheritance and are reported.
+- `--no-model` forces inheritance for every route.
+- `--effort LEVEL` is a route-wide reasoning-effort override.
+- `--coordinator-effort` is retired and reports a notice that the session now
+  owns the setting.
 
-- `dist/opencode` preserves OpenCode paths and frontmatter, optionally adding
-  provider-qualified model assignments;
-- `dist/copilot/agenticale` is an Agent Plugins 1.0 package with portable
-  skills and Copilot-specific agents and commands beneath
-  `com.github.copilot/`.
+Requested routing precedence at dispatch is: an explicit user/task override, then
+an explicitly selected project or user routing file, then the packaged preset.
 
-Disposable artifacts under `dist/` are ignored and never edited by hand. The
-Copilot adapter translates role IDs, removes OpenCode-only skill metadata and
-step-limit claims, maps model identifiers by dropping the first provider
-prefix, and adds Copilot `model` and `reasoningEffort` frontmatter. It also
-generates the visible `agenticale` (AgenticAle) and `agenticale-autonomous`
-(AgenticAle Autonomous) coordinators plus seven shared `agenticale-*` workers.
-The seventeen-file Copilot package includes both commands, four skills, the
-shared reference, nine agents, and its manifest.
-`scripts/install-copilot.mjs` builds into a temporary directory and delegates
-installation to `copilot plugin install`; the same installed plugin is
-discovered by Copilot CLI and VS Code.
+## Generated OpenCode binding
 
-Copilot CLI 1.0.87 still accepts local-path plugin installation but marks it
-deprecated in favor of marketplace installation. For no-clone installation,
-`scripts/publish-default-plugin.mjs` materializes the default generated package
-under `plugins/agenticale/` and creates `.github/plugin/marketplace.json`.
-Those files are committed but remain derived: CI regenerates them in memory
-and fails on any drift. The marketplace is the durable installation path;
-direct `OWNER/REPO:PATH` installation remains available while Copilot supports
-it. CLI-only development can also load a generated directory ephemerally with
-`--plugin-dir`.
+OpenCode V2 is the one runtime whose documented subagent interface selects a
+preconfigured profile with no documented per-call model override, so the resolved
+routes are materialized as **seven** generated profiles under
+`agents/autonomous/`: `explore`, `implement`, `implement-hard`, `fix`, `review`,
+`deep-review`, and `consult`. There is no coordinator profile. `implement-hard`
+is a distinct profile that reuses the `implement` task-contract body at a higher
+reasoning effort. Each generated profile carries the adapter's `mode`, `steps`, and
+`permissions` frontmatter plus the matching neutral task-contract body. An
+explicit route writes a `model:` line and reasoning effort into the profile
+frontmatter; an inherit route omits the `model:` line so the profile inherits the
+session model.
 
-The default build reads `examples/gpt.json`, applies each worker's mapped
-effort variant (with `high` as fallback), and gives the coordinator the
-strongest configured role model at `medium` effort. Use `--effort` to override
-the variant for every worker. This accommodates VS Code's rule that a child
-model cannot exceed its parent model tier while keeping routine worker calls
-on Luna. Model fields are
-omitted entirely with `--no-model`, allowing session inheritance and native
-Copilot `/subagents` overrides.
-`reasoningEffort` is a Copilot CLI custom-agent field. VS Code's local-agent
-schema currently documents per-agent models but not per-agent effort, so the
-field may be ignored there and the session-level effort control applies.
-The generated `work` and `autonomous-mode` skills set `user-invocable: false`:
-their coordinator and command can load the protocol without duplicate slash
-commands. Select the corresponding coordinator before using its command;
-commands supply arguments but do not select an agent or model.
+The adapter metadata lives at `adapters/opencode/` (`adapter.json` and
+`README.md`) and is the only machine-readable description the build reads to
+render the OpenCode binding. Step ceilings and permission denials are OpenCode
+adapter concerns; they are not claimed on the other hosts.
 
-Copilot does not provide OpenCode's per-agent hard `steps` ceiling. The adapter
-therefore keeps bounded rounds through the protocol's round budget, task
-contract, reset triggers, and the selected state policy. It emits `agents: []` for worker
-profiles so clients supporting that field block nested delegation; prompts
-retain the same prohibition for other clients. Tool permission equivalence is
-not claimed across clients because their tool identifiers and enforcement
-surfaces differ.
+## Distribution
 
-Future adapters should preserve the protocol while translating only these
-integration points:
+One modern Agent Plugins 1.0 package carries the four public skills, their
+task/routing resources, and optional OpenAI presentation metadata
+(`agents/openai.yaml`). Package identity: name `agenticale`, version `0.2.0`,
+author "Ale Franz", MIT license, schema
+`https://agent-plugins.org/schemas/1.0.0/plugin.schema.json`.
 
-1. role discovery and role-specific instructions;
-2. fresh child-context creation and sequential invocation;
-3. read-only/edit/subagent/question capability enforcement;
-4. per-role step or effort budgets and optional model selection;
-5. skill or command entry points;
-6. profile-level installation, update, and removal conventions.
+```text
+plugins/agenticale/                 committed generated default modern package
+.github/plugin/marketplace.json     Copilot catalog
+.agents/plugins/marketplace.json    OpenAI catalog
+```
 
-An adapter must document which guarantees are enforced by the harness and
-which are only prompt conventions. The Copilot adapter is the first generated
-binding; its transformation tests define the shared-source boundary for later
-clients.
+The two catalogs use their respective schemas but point to the same generated
+package. `scripts/publish-default-plugin.mjs` regenerates the package and both
+catalogs; `--check` verifies all artifacts are current.
+
+## Build output
+
+`scripts/build.mjs` reads the authored core and the OpenCode adapter and writes
+three output roots beneath `--output` (default `dist`):
+
+| Output root | Contents |
+| --- | --- |
+| `<output>/plugin/agenticale` | Agent Plugins 1.0 package (20 files: `plugin.json` + the four skills and their resources) |
+| `<output>/standalone/.agents/skills` | the four standalone skills (19 files), no plugin dependency |
+| `<output>/opencode` | the seven generated profiles plus the same skills (26 files) |
+
+The build writes `.agenticale-build.json` (schemaVersion 2) describing the
+package, the routing source, the effort mode, and the resolved profiles. Build
+output must not target the repository root or a source directory. Disposable
+`dist/` artifacts are ignored and never edited by hand.
+
+## Installers
+
+Each installer owns a distinct destination and records its own state so updates
+and removal touch only owned, unmodified files. Modified files are preserved and
+reported; replacements are backed up.
+
+| Installer | Installs | State |
+| --- | --- | --- |
+| `scripts/install-copilot.mjs` | the modern shared plugin, via `copilot plugin install` | managed by the Copilot plugin store |
+| `scripts/install-standalone.mjs` | the four standalone skills to project scope (`<cwd>/.agents/skills`, default) or user scope (`~/.agents/skills`) | `.agenticale-standalone-install.json` (schema 1) |
+| `scripts/install.mjs` | the generated OpenCode output (skills + seven profiles) | `.autonomous-mode-install.json` (schema 6, 26-file inventory) |
+
+The OpenCode installer is copy-only. It builds to a temporary root and copies the
+generated output into the OpenCode configuration directory; it does not link to
+the repository source. On install it migrates older copy installs (state schema
+1-4) and older link installs (schema 1-4) to the current generated copy layout.
+The standalone installer requires no native agent or plugin, which is the path
+for the official Codex VS Code extension.
 
 ## Safety and state boundaries
 
 The coordinator is intentionally thin: children receive compact packets and
 return reports. Autonomous Mode persists those reports to the target repository;
 everyday work keeps them in session context. Git operations follow the user's
-requested endpoint and applicable repository instructions. The installer
-owns only paths recorded in `.autonomous-mode-install.json`, refuses unsafe
-profile/source overlap and linked managed ancestors, backs up explicit
-replacements, and preserves modified content during uninstall.
+requested endpoint and applicable repository instructions, and default delivery
+is uncommitted.
 
-The target project's `AGENTS.md` is optional. When present, worker and review
-rounds read it for local conventions; when absent, round prompts skip it.
+Skills can request a model and effort but cannot prevent host-side fallback. An
+adapter documents which guarantees are enforced by the harness and which are
+only prompt conventions. The target project's `AGENTS.md` is optional; when
+present, worker and review rounds read it for local conventions, and when absent
+round prompts skip it.

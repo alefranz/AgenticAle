@@ -1,24 +1,21 @@
 # Autonomous Mode: durable project work
 
-Use `/work` for everyday tasks. Autonomous Mode is the advanced workflow for
-projects and milestones that must continue across many rounds and fresh sessions.
-See the [quick start](../README.md) for installation.
+Use `/work` for everyday tasks. The `autonomous` skill is the advanced workflow
+for projects and milestones that must continue across many rounds and fresh
+sessions. See the [quick start](../README.md) for installation.
 
 ## Autonomous Mode
 
-Autonomous Mode is a workflow in its own right. Give it a large development
-goal and it keeps a bounded explore, implement, review, and fix loop moving
-until the goal is complete or it reaches a clear stop condition.
-
-The coordinator is itself a model following an explicit process. It chooses
-one verifiable slice at a time, gives each agent a focused context, enforces
+`autonomous` is a skill, not a selectable profile. Invoking it makes the
+current session the coordinator: the session follows an explicit process, chooses
+one verifiable slice at a time, gives each fresh child a focused context, enforces
 budgets and review gates, and saves the evidence and next action in the
 repository. There is no separate orchestration service calling model APIs or
-shuffling messages between agents.
+shuffling messages between agents, and no `AgenticAle Autonomous` agent to pick.
 
 ```mermaid
 flowchart LR
-    A[Large development goal] --> B[Model coordinator]
+    A[Large development goal] --> B[Session coordinator]
     B --> C[Explore]
     C --> D[Implement]
     D --> E[Independent review]
@@ -82,11 +79,12 @@ not add useful value. The workflow records durable state in `BACKLOG.md` and
 
 ## Permissions for unattended runs
 
-The installer leaves `opencode.jsonc` unchanged. For unattended runs, the
-foreground agent must be able to launch `autonomous/*`, and child actions must
-resolve as `allow` or `deny` rather than waiting for approval. Configure this
-in the global file (`~/.config/opencode/opencode.jsonc`) or the project file
-(`opencode.jsonc` or `.opencode/opencode.jsonc`). See the [OpenCode V2
+The OpenCode installer leaves `opencode.jsonc` unchanged. For unattended runs,
+the foreground agent must be able to load the `autonomous` skill and launch the
+generated `autonomous/*` profiles, and child actions must resolve as `allow` or
+`deny` rather than waiting for approval. Configure this in the global file
+(`~/.config/opencode/opencode.jsonc`) or the project file (`opencode.jsonc` or
+`.opencode/opencode.jsonc`). See the [OpenCode V2
 permissions guide](https://opencode.ai/v2/docs/permissions) for the rule
 syntax.
 
@@ -106,7 +104,7 @@ For example, an isolated container might start with:
     { "action": "read", "resource": "*", "effect": "allow" },
     { "action": "glob", "resource": "*", "effect": "allow" },
     { "action": "grep", "resource": "*", "effect": "allow" },
-    { "action": "skill", "resource": "autonomous-mode", "effect": "allow" },
+    { "action": "skill", "resource": "autonomous", "effect": "allow" },
     { "action": "skill", "resource": "pull-request-description", "effect": "allow" },
     { "action": "skill", "resource": "source-code-lookup", "effect": "allow" },
     { "action": "subagent", "resource": "autonomous/*", "effect": "allow" },
@@ -204,17 +202,17 @@ work is continued instead of starting a different backlog item.
 
 ## Copilot entry point
 
-Select **AgenticAle Autonomous** in the agent picker, or start:
+There is no coordinator to select: invoke the `autonomous` skill and the current
+session coordinates. Start:
 
 ```sh
-copilot --agent agenticale:agenticale-autonomous
+/agenticale:autonomous 3 <goal>
 ```
 
-Then describe the goal. `/agenticale:autonomous 3 <goal>` supplies an optional
-worker-round budget; `/agenticale:autonomous` resumes the active handoff. Select
-the coordinator first: a slash command supplies instructions to the current
-agent and does not switch its model or agent profile. The everyday **AgenticAle**
-coordinator uses session state instead and does not resume autonomous work.
+`/agenticale:autonomous 3 <goal>` supplies an optional worker-round budget;
+`/agenticale:autonomous` resumes the active handoff. The skill is explicit-only
+(disable-model-invocation), so it only runs when you invoke it. The everyday
+`work` skill uses session state instead and does not resume autonomous work.
 
 ## Review and persistence
 

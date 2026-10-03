@@ -1,128 +1,161 @@
 # Setup and customization
 
-Start with the [README quick start](../README.md). This guide covers model
-routing, custom installs, and client limitations for both workflows.
+Start with the [README quick start](../README.md). This guide covers the three
+install paths, model routing, and client limitations. Live runtime behavior is
+tracked separately in [runtime-compatibility.md](runtime-compatibility.md);
+nothing in this file is a live test result.
 
-## Copilot models and custom installation
+The package exposes two public workflows, both explicit-only skills:
 
-The recommended default derives its role models and effort variants from
-[`examples/gpt.json`](../examples/gpt.json): the OpenCode provider prefix is
-removed for Copilot, and each model variant sets that worker's reasoning
-effort. The thin coordinator uses the strongest configured model at `medium`
-effort. The default routing in Copilot CLI and clients using its agent host is:
+- `/work [task]` (optionally `/work --pr <task>`) for a reviewed everyday task;
+- `/autonomous [budget] [goal]` for a durable, multi-round project.
 
-| Role | Copilot model | Effort |
-| --- | --- | --- |
-| Coordinator | `gpt-6-sol` | `medium` |
-| Explore, implement, fix | `gpt-6-luna` | `max` |
-| Implement-hard, review | `gpt-6-sol` | `high` |
-| Deep-review, consult | `gpt-6-sol` | `xhigh` |
+The other two skills, `source-code-lookup` and `pull-request-description`, are
+supporting and are loaded by the workflows when their tasks arise. There is no
+coordinator to select and no `commands/` entry: the session you invoke the
+skill in is the coordinator.
 
-The coordinator uses the highest model tier because VS Code does not allow a
-subagent to exceed its parent agent's model cost tier. Most actual work still
-runs in the cheaper worker roles.
+## Install: choose your client
 
-Clone the repository only when you want to customize the package. To inherit
-the active Copilot model and effort instead of applying per-role defaults:
+### GitHub Copilot (CLI and VS Code)
+
+Builds a temporary Agent Plugins 1.0 package and installs it with
+`copilot plugin install`. GitHub Copilot in VS Code discovers the same install.
+It makes no model request.
 
 ```sh
-node scripts/install-copilot.mjs --no-model
+node scripts/install-copilot.mjs
 ```
 
-To use another role mapping or override effort for every worker:
-
-```sh
-node scripts/install-copilot.mjs --models /path/to/models.json --effort high
-```
-
-Copilot model IDs are derived by removing the first `provider/` prefix and an
-optional OpenCode `#variant` suffix. Recognized variants (`low`, `medium`,
-`high`, `xhigh`, or `max`) set the matching Copilot worker effort; `--effort`
-overrides variants for all workers. Check `copilot help config` or `/model`
-before installing a mapping whose resulting IDs might not be available in
-your Copilot plan. Per-agent choices can later be overridden with Copilot's
-`/subagents` settings. VS Code's local agent currently documents per-agent
-model selection but not per-agent reasoning effort; when that harness ignores
-`reasoningEffort`, use its session-level effort control instead.
-
-The custom installer generates a temporary Agent Plugins 1.0 package and makes
-no model request. To remove the plugin:
+To inherit the active Copilot model and effort instead of applying per-route
+defaults, or to override routing, pass the routing options below. Remove the
+plugin with:
 
 ```sh
 copilot plugin uninstall agenticale
 ```
 
-## OpenCode permissions
+### Standalone skills (Codex VS Code and other clients)
 
-The installer leaves `opencode.jsonc` unchanged. The foreground agent needs
-permission to load `work-mode` and launch `autonomous/*`; these historical worker
-IDs are shared by both workflows. Child sessions cannot ask the user questions
-or launch nested agents. Configure the actions needed by your task to resolve
-without interactive child prompts, scoped to the project and your environment.
+Installs the four skill folders directly under a `.agents/skills` directory.
+It requires no native agent or plugin, which is the path for the official Codex
+VS Code extension (skills/subagents supported, plugins unsupported).
 
-See the [OpenCode V2 permissions guide](https://opencode.ai/v2/docs/permissions)
-for syntax. `/work` does not require the broad disposable-environment permissions
-used for unattended sandbox runs. A denied child action should return a blocker
-to the coordinator; do not bypass a denial or assume a paused child can resume.
-For unattended setup, see [Autonomous Mode](autonomous.md#permissions-for-unattended-runs).
-
-## Choosing models: cheap by default, strong when it matters
-
-The installer makes model routing an explicit choice. Use `--models` with a
-JSON mapping so different roles can use different models, or use `--no-model`
-if every role should inherit the model already active in your OpenCode
-session. The latter is useful for a quick trial, but it does not provide the
-workflow's intended model specialization.
-
-If you want the workflow to use different models for different jobs, pass a
-built-in preset name or a path to your own JSON file with `--models`. A preset
-is only shorthand for one of the checked-in example mappings; the installer
-does not probe your provider account or `/models` catalog.
-
-| Preset | Use it when | Mapping |
-| --- | --- | --- |
-| `openai` | You have OpenAI connected in OpenCode | [`examples/openai.json`](../examples/openai.json) |
-| `zen` | You have an OpenCode Zen subscription | [`examples/gpt.json`](../examples/gpt.json) |
-| `local` | You have a local provider and will adapt its model IDs | [`examples/local.json`](../examples/local.json) |
-| `example` | You want the mixed local/strong-model template | [`examples/example.json`](../examples/example.json) |
-
-Run `/models` first and make sure the preset's IDs exist in your setup. The
-`local` preset is intentionally a starting point: local provider names and
-model IDs vary between machines.
-
-### Customizing a mapping
-
-Use the `local` preset if you can run local models, or use the `example` preset
-as a mixed template that puts a cheap model on high-volume roles and reserves
-a stronger model for integration review and consultation.
-
-Open the file, replace the example model IDs with IDs shown by `/models` in
-your OpenCode project, and save it as your own file, for example
-`my-models.json`. Install that custom mapping with:
+A routing choice is required (`--no-model` for inheritance, `--models
+PATH|PRESET`, or `--routing PATH`); the examples below show each. The default
+destination is project scope, `<cwd>/.agents/skills`. Because of the overlap
+guard, running it from a checkout of this repository installs into the
+repository itself and is rejected, so from a checkout use user scope:
 
 ```sh
-node scripts/install.mjs --models /path/to/my-models.json
+node scripts/install-standalone.mjs --no-model --scope user
 ```
 
-For the bundled OpenCode Zen mapping instead:
+From another project, invoke the checkout's script by absolute path so the
+skills land in that project's own `<project>/.agents/skills`:
 
 ```sh
-node scripts/install.mjs --models zen
+node /path/to/AgenticAle/scripts/install-standalone.mjs --no-model
 ```
 
-To explicitly install without per-role model overrides instead:
+`--scope user` installs to `~/.agents/skills` (Codex's user-level skill
+discovery location; on Windows `%USERPROFILE%\.agents\skills`). `--target PATH`
+overrides the destination entirely. The state file is
+`.agenticale-standalone-install.json` (schema 1). Like the OpenCode
+installer, it prints a non-blocking `notice: another AgenticAle install
+appears present (<path>)` if the target already carries the other layout's
+marker.
+
+### OpenCode V2 (generated profiles)
+
+Installs the *generated* OpenCode binding: the four skills plus seven generated
+agent profiles under `agents/autonomous/`. It copies into the OpenCode
+configuration directory and does not link to the repository source. The default
+target is `$XDG_CONFIG_HOME/opencode` when set, otherwise `~/.config/opencode`.
 
 ```sh
 node scripts/install.mjs --no-model
 ```
 
-The example is a template, not a guarantee that those exact providers or
-models are configured on your machine. In particular, the `local-llama/...`
-IDs require a matching local provider setup.
+The install command requires either `--models PATH|PRESET` or `--no-model`.
+This installer is copy-only: it no longer offers a link mode. On install it
+migrates older copy installs (state schema 1-4), older link installs
+(schema 1-4), and older six-profile generated installs (schema 5) to the
+current generated copy layout (state `.autonomous-mode-install.json`,
+schema 6, a 26-file inventory).
 
-The intended routing looks like this:
+If the target already carries another AgenticAle marker (for example a
+standalone `.agenticale-standalone-install.json`), the installer surfaces a
+non-blocking `notice: another AgenticAle install appears present (<path>)`
+line instead of failing. Review it and remove the duplicate layout if the
+two installs were meant to be a single one.
 
-| Role | What it does | Good default |
+## Model routing
+
+Routing is an explicit per-route policy in
+[`skills/work/references/routing.json`](../skills/work/references/routing.json)
+(schemaVersion 1). For each of three runtimes (`copilot`, `codex`, `opencode`)
+and each of seven routing keys (`explore`, `implement`, `implement-hard`, `fix`,
+`review`, `deep-review`, `consult`), the policy names an explicit model and
+effort or explicit inheritance. There are no fallbacks. The packaged baseline is
+the `gpt-6` family, provider-qualified per host: `OpenAI/` for Copilot,
+`openai/` for Codex, `opencode/` for OpenCode. That baseline is an inventory,
+not a verified account mapping: check each host's `/models` or `/model` before
+relying on a strict route, or override any route (or use `--no-model` /
+`--routing PATH`).
+
+`implement` and `implement-hard` share the same implementation contract but
+route to different models and effort. OpenCode materializes the resolved routes
+as **seven** generated profiles (`explore`, `implement`, `implement-hard`,
+`fix`, `review`, `deep-review`, `consult`); `implement-hard` is a distinct
+profile rendering the `implement` contract at a higher reasoning effort.
+
+### Routing options
+
+All three installers accept the same routing options, passed through to the
+build:
+
+| Option | Effect |
+| --- | --- |
+| `--models PATH\|PRESET` | Legacy import. Reads an `examples` mapping (`gpt`, `openai`, `zen`, `local`, `example`) or a JSON file and converts it to the routing contract. Omitted roles become explicit inheritance and are reported. |
+| `--routing PATH` | Build from a complete caller-supplied routing file instead of the packaged `routing.json`. Conflicts with `--models`. |
+| `--no-model` | Omit model and effort for every route; each route inherits the session model. Conflicts with `--models`. |
+| `--effort LEVEL` | Route-wide reasoning-effort override (`low`/`medium`/`high`/`xhigh`/`max`); overrides the effort of every route. |
+
+`--coordinator-effort` is retired: the session now owns its own effort, so the
+option is ignored and a notice is reported.
+
+Examples:
+
+```sh
+# Copilot, packaged routing
+node scripts/install-copilot.mjs
+
+# Copilot, inherit the session model everywhere
+node scripts/install-copilot.mjs --no-model
+
+# Copilot, a complete caller policy
+node scripts/install-copilot.mjs --routing /path/to/routing.json --effort high
+
+# Standalone (Codex VS Code / other clients), project scope
+node scripts/install-standalone.mjs --scope project --models zen
+
+# OpenCode, isolated target and session inheritance
+node scripts/install.mjs --target /path/to/opencode --no-model
+```
+
+`--source-root PATH` on any installer writes a different default source-lookup
+root into the installed skill; `SOURCE_ROOT` still takes precedence at lookup
+time.
+
+## Choosing models: cheap by default, strong when it matters
+
+The intended routing keeps high-volume work (explore, routine implement, fix)
+on a fast, cheap, or local model and reserves a stronger model for
+`implement-hard`, `review`, `deep-review`, and `consult`. This split is the main
+reason to configure a mapping.
+
+| Route | What it does | Good default |
 | --- | --- | --- |
 | `explore` | Understands the project and gathers evidence | Fast, cheap, or local |
 | `implement` | Makes routine changes | Fast, cheap, or local |
@@ -132,19 +165,15 @@ The intended routing looks like this:
 | `deep-review` | Audits interactions across the whole slice | Best model, used sparingly |
 | `consult` | Gives a second opinion on one stuck decision | Best model, used sparingly |
 
-This split is the main reason to configure a JSON mapping: the models doing
-most of the work can be inexpensive and plentiful, while expensive or
-capacity-limited models are reserved for the moments where their extra
-reasoning is most valuable.
+Use a `--models` preset as shorthand for one of the checked-in example mappings
+(`openai`, `zen` from `examples/gpt.json`, `local`, `example`); a preset does
+not probe your provider account or `/models` catalog. To build your own, write a
+routing file and pass it with `--routing`, or start from a legacy
+`provider/model[#variant]` JSON and pass it with `--models`. Run `/models` first
+and confirm the IDs exist. The `local` preset is intentionally a starting point
+because local provider names and model IDs vary between machines.
 
-If you do not have local models, use `openai` or `zen` and replace any IDs that
-are not available after checking `/models`. The `gpt.json` file is the
-provider-specific template behind the `zen` preset.
-
-### JSON format
-
-You may assign only the roles you want to override; omitted roles continue to
-inherit the active session model:
+The legacy `--models` JSON names roles and omits ones to inherit:
 
 ```json
 {
@@ -157,36 +186,55 @@ inherit the active session model:
 }
 ```
 
-Model IDs use OpenCode's `provider/model[#variant]` format. Run `/models` to
-see what your connected providers actually make available.
+Values use the `provider/model[#variant]` form; an optional `#variant`
+(`low`/`medium`/`high`/`xhigh`/`max`) sets the effort for that route. Roles left
+out inherit the session model and the install reports the conversion.
 
-## Useful installer commands
+## OpenCode permissions
 
-To generate inspectable OpenCode and Copilot packages without installing
-either one, run:
+The OpenCode installer leaves `opencode.jsonc` unchanged. The foreground agent
+needs permission to load the `work` and `autonomous` skills and to launch the
+generated `autonomous/*` profiles; those profile IDs are shared by both
+workflows. Child sessions cannot ask the user questions or launch nested
+agents. Configure the actions your task needs so they resolve without
+interactive child prompts, scoped to the project and your environment. See the
+[OpenCode V2 permissions guide](https://opencode.ai/v2/docs/permissions) for
+syntax. A denied child action should return a blocker to the coordinator; do not
+bypass a denial or assume a paused child can resume. For unattended setup, see
+[Autonomous Mode](autonomous.md#permissions-for-unattended-runs).
+
+## Useful build and publish commands
+
+Generate inspectable plugin, standalone, and OpenCode output without installing:
 
 ```sh
 node scripts/build.mjs
 ```
 
-The generated output is written beneath `dist/` and is intentionally ignored
-by Git. Both packages are rebuilt from the checked-in agents, commands, and
-skills; generated copies are not maintained by hand.
+The three output roots are written beneath `--output` (default `dist`), which
+Git ignores: `plugin/agenticale` (the Agent Plugins 1.0 package),
+`standalone/.agents/skills` (the four standalone skills), and `opencode`
+(seven generated profiles plus the same skills). The build writes
+`.agenticale-build.json` (schemaVersion 2) describing what it produced. Build
+output must not target the repository root or a source directory.
 
-The repository also commits the default Copilot package under
-`plugins/agenticale/` so users can install without cloning. Regenerate it and
-the repository marketplace manifest after changing canonical prompts, models,
-or plugin metadata:
+Regenerate the committed plugin and both catalogs after changing the canonical
+skills, routing, or plugin metadata:
 
 ```sh
 node scripts/publish-default-plugin.mjs
 ```
 
-CI runs the same command with `--check` and rejects stale generated files.
+This regenerates `plugins/agenticale/` plus both catalogs,
+`.github/plugin/marketplace.json` (Copilot) and
+`.agents/plugins/marketplace.json` (OpenAI). CI runs the same command with
+`--check` and rejects stale artifacts.
 
-Set `SOURCE_ROOT` to your local source directory to customize source lookup
-without rebuilding or reinstalling. This works with directly installed Copilot
-plugins as well as OpenCode copy and link installs. For example, in PowerShell:
+## Source lookup configuration
+
+Set `SOURCE_ROOT` to your local source directory to customize lookup without
+rebuilding or reinstalling. This works with directly installed Copilot plugins
+as well as standalone and OpenCode copy installs. For example, in PowerShell:
 
 ```powershell
 $env:SOURCE_ROOT = 'V:\dev'
@@ -195,95 +243,89 @@ $env:SOURCE_ROOT = 'V:\dev'
 
 The first line sets the current shell's value; the second persists it for future
 processes. Restart an already-running editor or CLI to inherit the new value.
-On POSIX shells, use `export SOURCE_ROOT=/path/to/repos` and add it to your shell
-startup configuration if desired. Use an existing absolute directory.
+On POSIX shells, use `export SOURCE_ROOT=/path/to/repos` and add it to your
+shell startup configuration if desired. Use an existing absolute directory.
 
 Lookup uses an explicit task override first, then a non-empty `SOURCE_ROOT`,
-then the installed default (`~/dev` unless customized). An invalid or unavailable
-configured root is reported rather than silently replaced with the default.
-
-Alternatively, embed a different default in an OpenCode copy install:
-
-```sh
-node scripts/install.mjs --no-model --source-root /path/to/repos
-```
-
-The installer writes that default into the installed skill; `SOURCE_ROOT` still
-takes precedence at lookup time. Reinstalling with a
-different path requires `--replace`, which backs up the previous copy.
-Linked installs cannot use `--source-root`, but can use `SOURCE_ROOT`.
+then the installed default (`~/dev` unless customized). An invalid or
+unavailable configured root is reported rather than silently replaced with the
+default. Alternatively, embed a different default in an install with
+`--source-root /path/to/repos`; the installer writes that default into the
+installed skill and `SOURCE_ROOT` still takes precedence at lookup time.
+Reinstalling with a different path requires `--replace`, which backs up the
+previous copy.
 
 Lookup checks likely paths under the root and verifies repository identity.
 Missing repositories are cloned into `<source-root>/<owner>/<repo>` for future
 reuse, with the host added when needed to avoid a collision. Explicit layout
 instructions take precedence. Inspecting another revision preserves existing
 working files and branches: use Git object reads or a temporary detached
-worktree, removed through Git after inspection. Canonical clones remain available
-for later development; no separate persistent inspection clone cache is used.
+worktree, removed through Git after inspection. Canonical clones remain
+available for later development; no separate persistent inspection clone cache
+is used.
 
-The default profile target is `$XDG_CONFIG_HOME/opencode` when
-`XDG_CONFIG_HOME` is set, otherwise `~/.config/opencode`. Use `--target` for a
-different or isolated profile:
+## Preview, update, and uninstall
 
-```sh
-node scripts/install.mjs --target /path/to/opencode --no-model
-```
-
-The install command requires either `--models PATH|PRESET` or `--no-model`.
-
-Preview changes without touching the filesystem:
+Preview an OpenCode or standalone install without touching the filesystem:
 
 ```sh
 node scripts/install.mjs --dry-run --no-model
+node scripts/install-standalone.mjs --dry-run --no-model
 ```
 
-Update an existing installation after fetching a newer version (using explicit
-session-model inheritance here):
+Update an existing OpenCode install after fetching a newer version (explicit
+session-model inheritance shown here):
 
 ```sh
 node scripts/install.mjs --replace --no-model
 ```
 
-Uninstall only the files owned by this package:
+Uninstall removes only the files owned by the package and deletes its state
+file:
 
 ```sh
 node scripts/install.mjs uninstall
+node scripts/install-standalone.mjs uninstall
+copilot plugin uninstall agenticale
 ```
 
-The installer records its ownership, refuses to overwrite differing files by
-default, and creates a timestamped backup before an explicitly approved
-replacement. Modified files are preserved during uninstall.
+The installers record their ownership, refuse to overwrite differing files by
+default, and create a backup before an explicitly approved replacement.
+Modified files are preserved during uninstall.
 
 ## Troubleshooting
 
-- **`/work` or `/autonomous` is not found:** restart OpenCode after running the installer.
-- **A worker stops for approval or does not resume:** review the permission
-  setup above. Child sessions need deterministic `allow`/`deny` rules for the
-  actions they use; continue `/work` from its retained session, or rerun `/autonomous` to
-  resume its durable handoff. Only Autonomous Mode provides fresh-session recovery.
-- **A model cannot be found:** run `/models`, replace the unavailable ID in your
-  JSON file, and reinstall with `--replace`.
+- **`/work` or `/autonomous` is not found:** restart the client after running
+  the installer. For OpenCode, restart OpenCode; for Copilot, restart the
+  Copilot session.
+- **A worker stops for approval or does not resume (OpenCode):** review the
+  permission setup above. Child sessions need deterministic `allow`/`deny`
+  rules for the actions they use; continue `/work` from its retained session, or
+  rerun `/autonomous` to resume its durable handoff. Only the autonomous skill
+  provides fresh-session recovery.
+- **A model cannot be found:** run `/models`, update the routing file or legacy
+  JSON, and reinstall with `--replace`.
 - **You are unsure about model routing:** use `--no-model` for a quick trial,
-  then reinstall with `--models /path/to/my-models.json` when you are ready to
-  specialize roles.
+  then reinstall with `--models /path/to/my-models.json` or
+  `--routing /path/to/routing.json` when you are ready to specialize routes.
 - **You want to understand the implementation:** read the optional
   [technical architecture guide](architecture.md).
 
 ## Limitations
 
-- OpenCode can enforce the checked-in per-role step and permission rules.
-  Copilot has no equivalent per-role hard step ceiling, and some child-session
+- Live runtime support per client is recorded in
+  [runtime-compatibility.md](runtime-compatibility.md) and is **not tested** in
+  this pass. Do not treat the inspected client versions as verified.
+- OpenCode enforces the generated per-profile step and permission rules. Copilot
+  has no equivalent per-route hard step ceiling, and some child-session
   restrictions are prompt conventions when a client does not support the
   corresponding custom-agent field.
-- The Copilot coordinator must run at least the cost tier of its strongest
-  child in VS Code. The generated default therefore uses Sol at medium effort for
-  coordination while routing high-volume work to Luna.
-- Copilot CLI 1.0.87 accepts direct repository and local-path installations but
-  warns that they are deprecated. The checked-in marketplace is therefore the
-  recommended default distribution path; `--plugin-dir` remains suitable for
-  ephemeral CLI-only development but is not a shared VS Code installation.
+- Skills can request a model and effort but cannot prevent host-side fallback.
+  A host that silently substitutes a model without detection or control does not
+  get a strict-routing claim; that limitation is recorded per host, not here.
 - A fresh child context provides independence, but it does not automatically
-  mean a different model family; use `--models` for explicit model separation.
+  mean a different model family; use `--models` or `--routing` for explicit
+  model separation.
 - Prompt instructions complement OpenCode permissions; they cannot make an
   inherently irreversible operation safe.
 - Unattended operation still needs bounded budgets and final human inspection.

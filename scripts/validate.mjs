@@ -3,30 +3,66 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { strictValidateRouting } from "./build.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(scriptDirectory, "..");
 
-const roles = new Map([
-  ["consult", { steps: "20", readOnly: true }],
-  ["deep-review", { steps: "72", readOnly: false }],
-  ["explore", { steps: "24", readOnly: true }],
-  ["fix", { steps: "48", readOnly: false }],
-  ["implement-hard", { steps: "64", readOnly: false }],
-  ["implement", { steps: "64", readOnly: false }],
-  ["review", { steps: "56", readOnly: false }],
-]);
+// The seven routing keys that define every route across all three runtimes.
+const routes = [
+  "consult",
+  "deep-review",
+  "explore",
+  "fix",
+  "implement-hard",
+  "implement",
+  "review",
+];
 
-const expectedBundleFiles = [
-  ...[...roles.keys()].map((role) => `agents/autonomous/${role}.md`),
-  "commands/autonomous.md",
-  "commands/work.md",
-  "skills/autonomous-mode/SKILL.md",
-  "skills/work-mode/SKILL.md",
-  "skills/work-mode/references/rounds.md",
+// The six capability-neutral task contracts authored under skills/work/references/tasks.
+// implement-hard shares the `implement` contract, so there is no seventh file.
+const taskContracts = [
+  "consult",
+  "deep-review",
+  "explore",
+  "fix",
+  "implement",
+  "review",
+];
+
+const runtimes = ["codex", "copilot", "opencode"];
+const profileNames = ["consult", "deep-review", "explore", "fix", "implement", "implement-hard", "review"];
+const skillNames = ["work", "autonomous", "pull-request-description", "source-code-lookup"];
+const retiredSkillNames = ["work-mode", "autonomous-mode"];
+
+// The NEW authored source-of-truth layout validate.mjs must assert exists.
+const requiredPaths = [
+  "skills/work/SKILL.md",
+  "skills/work/agents/openai.yaml",
+  "skills/work/references/rounds.md",
+  "skills/work/references/ROUTING.md",
+  "skills/work/references/routing.json",
+  "skills/work/references/runtimes/copilot.md",
+  "skills/work/references/runtimes/copilot-local.md",
+  "skills/work/references/runtimes/codex.md",
+  "skills/work/references/runtimes/opencode.md",
+  ...taskContracts.map((name) => `skills/work/references/tasks/${name}.md`),
+  "skills/autonomous/SKILL.md",
+  "skills/autonomous/agents/openai.yaml",
   "skills/pull-request-description/SKILL.md",
   "skills/source-code-lookup/SKILL.md",
+  "adapters/opencode/adapter.json",
+  "adapters/opencode/README.md",
 ].sort();
+
+// The RETIRED layout that must be gone from the authored source tree.
+const retiredPaths = [
+  "commands",
+  "agents/autonomous",
+  "skills/work-mode",
+  "skills/autonomous-mode",
+  "plugins/agenticale/com.github.copilot",
+];
 
 const failures = [];
 
@@ -42,17 +78,25 @@ function readText(path) {
   return readFileSync(join(repositoryRoot, path), "utf8").replace(/^\uFEFF/, "");
 }
 
+function looksLikeUnquotedColonScalar(value) {
+  const trimmed = value.trim();
+  if (trimmed === "") return false;
+  const first = trimmed[0];
+  if (first === '"' || first === "'" || first === "|" || first === ">" || first === "{" || first === "[" || first === "-") return false;
+  return trimmed.includes(": ");
+}
+
 function parseFrontmatter(path, text) {
   const lines = text.replace(/\r\n?/g, "\n").split("\n");
   if (lines[0] !== "---") {
     fail(path, "missing opening frontmatter delimiter", "start the file with ---");
-    return { fields: new Map(), permissions: [], body: text };
+    return { fields: new Map(), permissions: [], metadata: new Map(), body: text };
   }
 
   const close = lines.indexOf("---", 1);
   if (close < 0) {
     fail(path, "missing closing frontmatter delimiter", "add --- before the Markdown body");
-    return { fields: new Map(), permissions: [], body: "" };
+    return { fields: new Map(), permissions: [], metadata: new Map(), body: "" };
   }
 
   const fields = new Map();
@@ -72,7 +116,11 @@ function parseFrontmatter(path, text) {
       if (fields.has(key)) {
         fail(path, `duplicate frontmatter key '${key}'`, "keep exactly one value");
       }
-      fields.set(key, rawValue.trim());
+      const value = rawValue.trim();
+      if (looksLikeUnquotedColonScalar(value)) {
+        fail(path, `frontmatter for '${key}' is invalid YAML (an unquoted scalar contains ": ")`, "quote the value or use a block scalar");
+      }
+      fields.set(key, value);
       inPermissions = key === "permissions";
       inMetadata = key === "metadata";
       currentPermission = null;
@@ -103,7 +151,7 @@ function parseFrontmatter(path, text) {
       }
     }
 
-    fail(path, `unsupported or malformed frontmatter line ${index + 1}: ${line.trim()}`, "use the documented scalar fields and permission-list indentation");
+    fail(path, `unsupported or malformed frontmatter line ${index + 1}: ${line.trim()}`, "use the documented scalar fields, permission list, and metadata keys");
   }
 
   return { fields, permissions, metadata, body: lines.slice(close + 1).join("\n") };
@@ -114,104 +162,324 @@ function requireExactKeys(path, fields, expected) {
     if (!fields.has(key)) fail(path, `missing required frontmatter key '${key}'`, `add ${key}: ...`);
   }
   for (const key of fields.keys()) {
-    if (!expected.includes(key)) fail(path, `unsupported frontmatter key '${key}'`, `remove it or update the public bundle contract intentionally`);
+    if (!expected.includes(key)) fail(path, `unsupported frontmatter key '${key}'`, "remove it or update the public skill contract intentionally");
   }
 }
 
-function validatePermission(path, permissions, action) {
-  const matching = permissions.filter((entry) => entry.action === action);
-  if (matching.length !== 1 || matching[0].resource !== "*" || matching[0].effect !== "deny") {
-    fail(path, `role must deny '${action}' for resource '*' exactly once`, `restore the ${action} deny permission`);
+function requireMetadataFlags(path, metadata) {
+  if (metadata.get("opencode/autoinvoke") !== "false") {
+    fail(path, "metadata must set opencode/autoinvoke to false", "add opencode/autoinvoke: false");
+  }
+  const expectedFlags = new Set(["opencode/autoinvoke"]);
+  for (const key of metadata.keys()) {
+    if (!expectedFlags.has(key)) fail(path, `unexpected metadata key '${key}'`, "keep only the explicit-only invocation metadata flag");
   }
 }
 
-function validateExactPermissions(path, permissions, expectedActions) {
-  const actualActions = permissions.map((entry) => entry.action).filter(Boolean).sort();
-  const expected = [...expectedActions].sort();
-  if (actualActions.join("\n") !== expected.join("\n")) {
-    fail(path, `permission actions must be exactly: ${expected.join(", ")}`, "remove extra entries and restore missing denies");
-  }
-}
-
-function validateAgent(role, contract) {
-  const path = `agents/autonomous/${role}.md`;
-  const text = readText(path);
-  const { fields, permissions, body } = parseFrontmatter(path, text);
-  requireExactKeys(path, fields, ["description", "mode", "steps", "permissions"]);
-
-  if (!fields.get("description")) fail(path, "description must not be empty", "describe the role in one scalar line");
-  if (fields.get("mode") !== "subagent") fail(path, "mode must be 'subagent'", "restore mode: subagent");
-  if (fields.get("steps") !== contract.steps) fail(path, `steps must be ${contract.steps} for this role`, `restore steps: ${contract.steps}`);
-  if (fields.get("permissions") !== "") fail(path, "permissions must be a block list", "put permission entries on indented lines");
-
-  for (const entry of permissions) {
-    if (!entry.action || !entry.resource || !entry.effect) {
-      fail(path, "each permission needs action, resource, and effect", "complete the permission entry");
-    }
-  }
-  validateExactPermissions(path, permissions, contract.readOnly ? ["subagent", "edit", "question"] : ["subagent", "question"]);
-  validatePermission(path, permissions, "subagent");
-  validatePermission(path, permissions, "question");
-  if (contract.readOnly) validatePermission(path, permissions, "edit");
-
-  if (!/unattended in a child session/i.test(body)) fail(path, "role body must state that the child is unattended", "restore the non-interactive child-session guard");
-  if (!/Never use the\s+`question`\s+tool/i.test(body)) fail(path, "role body must forbid the question tool", "restore the explicit question-tool instruction");
-}
-
-function validateSkill(id = "autonomous-mode", name = "Autonomous Mode") {
-  const path = `skills/${id}/SKILL.md`;
-  const text = readText(path);
-  const { fields, metadata, body } = parseFrontmatter(path, text);
-  requireExactKeys(path, fields, ["name", "description", "version", "slash", "metadata"]);
-  if (fields.get("name") !== name) fail(path, `name must be '${name}'`, "restore the public skill name");
+function validateSkillWork() {
+  const path = "skills/work/SKILL.md";
+  const { fields, metadata, body } = parseFrontmatter(path, readText(path));
+  requireExactKeys(path, fields, ["name", "description", "version", "slash", "disable-model-invocation", "metadata"]);
+  if (fields.get("name") !== "work") fail(path, "name must be 'work'", "set name: work");
   if (!fields.get("description")) fail(path, "description must not be empty", "add the skill routing description");
   if (!/^[1-9]\d*$/.test(fields.get("version") ?? "")) fail(path, "version must be a positive integer", "use version: <integer>");
-  if (fields.get("slash") !== "false") fail(path, "skill must not create a second slash entry", "set slash: false");
-  if (fields.get("metadata") !== "" || metadata.size !== 1 || metadata.get("opencode/autoinvoke") !== "false") {
-    fail(path, "skill must disable automatic invocation", "set metadata.opencode/autoinvoke to false");
+  if (fields.get("slash") !== "true") fail(path, "slash must be true", "set slash: true");
+  if (fields.get("disable-model-invocation") !== "true") {
+    fail(path, "disable-model-invocation must be true (explicit-only)", "set disable-model-invocation: true");
   }
-
-  for (const role of roles.keys()) {
-    if (!body.includes(`\`autonomous/${role}\``)) {
-      fail(path, `missing routing reference to autonomous/${role}`, `add the role to the agent-routing contract`);
-    }
+  requireMetadataFlags(path, metadata);
+  if (!body.includes("](references/rounds.md)")) {
+    fail(path, "body must link the shared round contract references/rounds.md", "link the shared round contract");
+  }
+  if (!body.includes("references/tasks/")) {
+    fail(path, "body must reference references/tasks/", "keep the task-contract routing reference");
   }
 }
 
-function validateSourceLookupSkill() {
+function validateSkillAutonomous() {
+  const path = "skills/autonomous/SKILL.md";
+  const { fields, metadata, body } = parseFrontmatter(path, readText(path));
+  requireExactKeys(path, fields, ["name", "description", "slash", "disable-model-invocation", "metadata"]);
+  if (fields.has("version")) fail(path, "must not declare a version key", "remove the version key");
+  if (fields.get("name") !== "autonomous") fail(path, "name must be 'autonomous'", "set name: autonomous");
+  if (!fields.get("description")) fail(path, "description must not be empty", "add the skill routing description");
+  if (fields.get("slash") !== "true") fail(path, "slash must be true", "set slash: true");
+  if (fields.get("disable-model-invocation") !== "true") {
+    fail(path, "disable-model-invocation must be true (explicit-only)", "set disable-model-invocation: true");
+  }
+  requireMetadataFlags(path, metadata);
+  if (!body.includes("](../work/references/rounds.md)")) {
+    fail(path, "body must link the shared round contract ../work/references/rounds.md", "link the shared round contract");
+  }
+}
+
+function validateSkillSourceLookup() {
   const path = "skills/source-code-lookup/SKILL.md";
   const { fields, body } = parseFrontmatter(path, readText(path));
   requireExactKeys(path, fields, ["name", "description"]);
   if (fields.get("name") !== "source-code-lookup") fail(path, "skill name must match its folder", "set name: source-code-lookup");
   if (!fields.get("description")) fail(path, "description must not be empty", "describe when source lookup applies");
   if (body.split('Source root: "~/dev"').length !== 2) {
-    fail(path, "skill must contain one installer source-root marker", 'keep one Source root: "~/dev" line');
+    fail(path, "skill must contain exactly one installer source-root marker", 'keep one Source root: "~/dev" line');
   }
 }
 
-function validatePullRequestDescriptionSkill() {
+function validateSkillPullRequest() {
   const path = "skills/pull-request-description/SKILL.md";
   const { fields, body } = parseFrontmatter(path, readText(path));
   requireExactKeys(path, fields, ["name", "description"]);
-  if (fields.get("name") !== "pull-request-description") {
-    fail(path, "skill name must match its folder", "set name: pull-request-description");
-  }
+  if (fields.get("name") !== "pull-request-description") fail(path, "skill name must match its folder", "set name: pull-request-description");
   if (!fields.get("description")) fail(path, "description must not be empty", "describe when the skill applies");
   if (!/why/i.test(body) || !/validation/i.test(body)) {
     fail(path, "skill must cover intent and selective validation", "restore the PR narrative guidance");
   }
 }
 
-function validateCommand(id = "autonomous", skill = "autonomous-mode") {
-  const path = `commands/${id}.md`;
-  const text = readText(path);
-  const { fields, body } = parseFrontmatter(path, text);
-  requireExactKeys(path, fields, ["description", "agent"]);
-  if (!fields.get("description")) fail(path, "description must not be empty", "describe the command in one scalar line");
-  if (fields.get("agent") !== "build") fail(path, "agent must be 'build'", "restore agent: build");
-  if (!body.includes(`${skill} skill`)) fail(path, `command does not route to the ${skill} skill`, "restore the explicit skill invocation");
-  if (!body.includes("`autonomous/*`")) fail(path, "command does not route through the installed autonomous roles", "restore the autonomous/* routing instruction");
-  if (!body.includes("$ARGUMENTS")) fail(path, "command does not accept the full goal text", "pass $ARGUMENTS to the coordinator");
+function validateRoutingContract() {
+  const path = "skills/work/references/routing.json";
+  let routing;
+  try {
+    routing = JSON.parse(readText(path));
+  } catch (error) {
+    fail(path, `routing contract is not valid JSON (${error.message})`, "restore a parseable routing contract");
+    return;
+  }
+  try {
+    strictValidateRouting(routing);
+  } catch (error) {
+    fail(path, `routing contract violates the shared strict schema (${error.message})`, "align routing.json with the documented contract in references/ROUTING.md");
+  }
+  if (routing.schemaVersion !== 1) {
+    fail(path, "schemaVersion must be 1", "bump the routing schemaVersion intentionally");
+  }
+  if (typeof routing.provenance !== "string" || routing.provenance.length === 0) {
+    fail(path, "provenance must be a non-empty string", "record where the routing values came from");
+  }
+  if (!routing.runtimes || typeof routing.runtimes !== "object" || Array.isArray(routing.runtimes)) {
+    fail(path, "routing must include a runtimes object", "add the runtimes object");
+    return;
+  }
+  const runtimeKeys = Object.keys(routing.runtimes).sort();
+  if (JSON.stringify(runtimeKeys) !== JSON.stringify(runtimes)) {
+    fail(path, `runtimes must be exactly ${runtimes.join(", ")}`, "keep one entry per supported runtime");
+  }
+  for (const runtime of runtimes) {
+    const map = routing.runtimes[runtime];
+    if (!map || typeof map !== "object" || Array.isArray(map)) {
+      fail(path, `missing runtime '${runtime}'`, `add the ${runtime} runtime`);
+      continue;
+    }
+    const keys = Object.keys(map);
+    if (JSON.stringify([...keys].sort()) !== JSON.stringify([...routes].sort())) {
+      fail(path, `runtime '${runtime}' must map exactly the ${routes.length} routes`, `map exactly: ${routes.join(", ")}`);
+    }
+    for (const route of routes) {
+      const entry = map[route];
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+        fail(path, `runtime '${runtime}' is missing route '${route}'`, `add the ${runtime}/${route} route`);
+        continue;
+      }
+      if (entry.mode !== "explicit") {
+        fail(path, `route ${runtime}/${route} must use mode "explicit"`, "restore mode: explicit (no fallbacks)");
+      }
+      if (typeof entry.model !== "string" || entry.model.length === 0) {
+        fail(path, `route ${runtime}/${route} must have a non-empty model string`, "set the provider-qualified model");
+      }
+      if (typeof entry.reasoningEffort !== "string" || entry.reasoningEffort.length === 0) {
+        fail(path, `route ${runtime}/${route} must have a non-empty reasoningEffort string`, "set the reasoning effort");
+      }
+      if (!Array.isArray(entry.fallbacks) || entry.fallbacks.length !== 0) {
+        fail(path, `route ${runtime}/${route} fallbacks must be an empty array (no fallbacks)`, "remove the fallbacks");
+      }
+    }
+  }
+}
+
+function denyActions(permissions) {
+  return permissions
+    .filter((permission) => permission && permission.action && permission.effect === "deny")
+    .map((permission) => permission.action)
+    .sort();
+}
+
+function validateAdapter() {
+  const path = "adapters/opencode/adapter.json";
+  let adapter;
+  try {
+    adapter = JSON.parse(readText(path));
+  } catch (error) {
+    fail(path, `adapter is not valid JSON (${error.message})`, "restore a parseable adapter");
+    return;
+  }
+  if (adapter.runtime !== "opencode") {
+    fail(path, "adapter runtime must be 'opencode'", "restore runtime: opencode");
+  }
+  const keyByRoute = adapter.keyByRoute;
+  if (!keyByRoute || typeof keyByRoute !== "object" || Array.isArray(keyByRoute)) {
+    fail(path, "adapter must include a keyByRoute map", "add the keyByRoute map");
+  } else {
+    if (JSON.stringify(Object.keys(keyByRoute).sort()) !== JSON.stringify([...routes].sort())) {
+      fail(path, "keyByRoute must map exactly the seven routes", `map exactly: ${routes.join(", ")}`);
+    }
+    for (const route of routes) {
+      if (keyByRoute[route] !== route) {
+        fail(path, `keyByRoute["${route}"] must be "${route}" (each route maps 1:1 to its own profile)`, `set keyByRoute["${route}"] = "${route}"`);
+      }
+    }
+  }
+  if (!Array.isArray(adapter.profiles)) {
+    fail(path, "adapter must include a profiles array", "add the profiles array");
+    return;
+  }
+  const names = adapter.profiles.map((profile) => profile.name).sort();
+  if (JSON.stringify(names) !== JSON.stringify([...profileNames].sort())) {
+    fail(path, `profiles must be exactly ${profileNames.join(", ")} (no coordinator)`, "remove the coordinator and any extra profile");
+  }
+  const expectedSteps = { explore: 24, implement: 64, "implement-hard": 64, fix: 48, review: 56, "deep-review": 72, consult: 20 };
+  const readOnlyDeny = ["edit", "question", "subagent"];
+  const standardDeny = ["question", "subagent"];
+  for (const profile of adapter.profiles) {
+    const profilePath = `${path}#profiles.${profile && profile.name}`;
+    if (!profile || typeof profile.name !== "string" || !profileNames.includes(profile.name)) {
+      fail(path, "every profile must be one of the seven route names", "use the documented profile names");
+      continue;
+    }
+    const profileKeys = Object.keys(profile).sort();
+    if (JSON.stringify(profileKeys) !== JSON.stringify(["description", "mode", "name", "outputPath", "permissions", "steps"].sort())) {
+      fail(profilePath, "profile must carry only metadata (no model/effort/body)", "remove model, reasoningEffort, and body text; keep metadata only");
+    }
+    if (profile.mode !== "subagent") fail(profilePath, "profile mode must be 'subagent'", "restore mode: subagent");
+    if (typeof profile.steps !== "number") {
+      fail(profilePath, "profile steps must be a number", "restore a numeric steps value");
+    } else if (profile.steps !== expectedSteps[profile.name]) {
+      fail(profilePath, `profile steps must be ${expectedSteps[profile.name]}`, `restore steps: ${expectedSteps[profile.name]}`);
+    }
+    if (typeof profile.description !== "string" || profile.description.length === 0) {
+      fail(profilePath, "profile description must be non-empty", "describe the profile in one line");
+    }
+    if (!Array.isArray(profile.permissions)) {
+      fail(profilePath, "profile must have a permissions array", "add the permission list");
+      continue;
+    }
+    for (const permission of profile.permissions) {
+      if (!permission || permission.resource !== "*" || permission.effect !== "deny") {
+        fail(profilePath, "every permission must deny resource '*'", "use effect: deny with resource: *");
+      }
+    }
+    const expectedDeny = profile.name === "explore" || profile.name === "consult" ? readOnlyDeny : standardDeny;
+    if (JSON.stringify(denyActions(profile.permissions)) !== JSON.stringify(expectedDeny)) {
+      fail(profilePath, `profile must deny exactly ${expectedDeny.join(", ")}`, "restore the exact deny permission set");
+    }
+  }
+  const adapterText = readText(path);
+  if (/task contract/i.test(adapterText)) {
+    fail(path, "adapter must not contain task-contract body text", "keep the adapter metadata-only; bodies come from skills/work/references/tasks");
+  }
+}
+
+function validateNeutralContracts() {
+  const providerPatterns = [
+    { pattern: /openai\//i, label: "openai/" },
+    { pattern: /anthropic\//i, label: "anthropic/" },
+    { pattern: /google\/gemini/i, label: "google/gemini" },
+    { pattern: /gpt-\d/i, label: "gpt-<n>" },
+    { pattern: /claude-/i, label: "claude-" },
+    { pattern: /gemini-/i, label: "gemini-" },
+  ];
+  const tasksDir = join(repositoryRoot, "skills", "work", "references", "tasks");
+  let actual = [];
+  if (existsSync(tasksDir) && statSync(tasksDir).isDirectory()) {
+    actual = readdirSync(tasksDir).sort();
+  }
+  const expectedFiles = taskContracts.map((name) => `${name}.md`).sort();
+  if (JSON.stringify(actual) !== JSON.stringify(expectedFiles)) {
+    fail("skills/work/references/tasks", `task contracts must be exactly ${taskContracts.join(", ")} (no implement-hard, no coordinator)`, "implement-hard shares the implement contract");
+  }
+  for (const name of taskContracts) {
+    const path = `skills/work/references/tasks/${name}.md`;
+    if (!existsSync(join(repositoryRoot, path))) {
+      fail(path, "required task contract is missing", "restore the capability-neutral task contract");
+      continue;
+    }
+    const text = readText(path);
+    for (const { pattern, label } of providerPatterns) {
+      if (pattern.test(text)) {
+        fail(path, `capability-neutral contract must not reference provider/model '${label}'`, "use capability-neutral wording; routing lives in routing.json");
+      }
+    }
+  }
+}
+
+// The OpenAI-hosted-agent policy file for each invocation skill must opt out of
+// implicit model invocation (plan: the skills are invoked by the user, not auto-run).
+function validateOpenaiPolicy(path) {
+  const text = readText(path).replace(/\r\n?/g, "\n");
+  const policy = text.match(/^policy:\s*\n(?:[ \t]+.*\n?)*?([ \t]+allow_implicit_invocation:\s*(true|false))/m);
+  if (!policy) {
+    fail(path, "missing policy.allow_implicit_invocation", "add policy: { allow_implicit_invocation: false }");
+    return;
+  }
+  if (policy[2] !== "false") {
+    fail(path, "policy.allow_implicit_invocation must be false", "set policy.allow_implicit_invocation: false");
+  }
+}
+
+function validateBundleSurface() {
+  for (const path of requiredPaths) {
+    if (!existsSync(join(repositoryRoot, path))) {
+      fail(path, "required source-of-truth file is missing", "restore it from the skills-first layout");
+    }
+  }
+  for (const policy of ["skills/work/agents/openai.yaml", "skills/autonomous/agents/openai.yaml"]) {
+    if (existsSync(join(repositoryRoot, policy))) validateOpenaiPolicy(policy);
+  }
+  for (const path of retiredPaths) {
+    if (existsSync(join(repositoryRoot, path))) {
+      fail(path, "retired layout path is still present", "remove the retired authored source");
+    }
+  }
+  if (existsSync(join(repositoryRoot, "commands")) && statSync(join(repositoryRoot, "commands")).isDirectory()) {
+    for (const file of readdirSync(join(repositoryRoot, "commands"))) {
+      if (file.endsWith(".md")) fail(`commands/${file}`, "retired command file is still present", "remove commands/*.md");
+    }
+  }
+
+  // Positive check on the committed shared package: it should contain plugin.json
+  // and the four skills, and none of the retired paths.
+  const packageRoot = "plugins/agenticale";
+  if (existsSync(join(repositoryRoot, packageRoot))) {
+    if (!existsSync(join(repositoryRoot, packageRoot, "plugin.json"))) {
+      fail(`${packageRoot}/plugin.json`, "committed package is missing plugin.json", "restore the Agent Plugins manifest");
+    }
+    for (const name of skillNames) {
+      if (!existsSync(join(repositoryRoot, packageRoot, "skills", name, "SKILL.md"))) {
+        fail(`${packageRoot}/skills/${name}/SKILL.md`, "committed package is missing a public skill", "restore the generated skill");
+      }
+    }
+    for (const name of ["work", "autonomous"]) {
+      const generated = join(packageRoot, "skills", name, "SKILL.md");
+      if (!existsSync(join(repositoryRoot, generated))) continue;
+      const { fields } = parseFrontmatter(generated, readText(generated));
+      for (const [key, value] of fields) {
+        if (looksLikeUnquotedColonScalar(value)) {
+          fail(generated, `generated frontmatter for '${key}' is invalid YAML (an unquoted scalar contains ": ")`, "quote the value in the authored source");
+        }
+      }
+    }
+    for (const name of retiredSkillNames) {
+      if (existsSync(join(repositoryRoot, packageRoot, "skills", name))) {
+        fail(`${packageRoot}/skills/${name}`, "committed package must not ship a retired skill", "remove the retired skill from the package");
+      }
+    }
+    if (existsSync(join(repositoryRoot, packageRoot, "com.github.copilot"))) {
+      fail(`${packageRoot}/com.github.copilot`, "committed package must not ship a per-role Copilot directory", "remove the retired Copilot catalog");
+    }
+  }
+
+  const obsoleteHelper = ["bin", `git-credential-${"git" + "ea"}`].join("/");
+  if (existsSync(join(repositoryRoot, obsoleteHelper))) {
+    fail(obsoleteHelper, "obsolete private credential helper is present", "remove it from the public source tree");
+  }
 }
 
 function walkFiles(directory) {
@@ -298,47 +566,6 @@ function validateEndpointDetectorContract() {
   }
 }
 
-function validateBundleSurface() {
-  const actual = ["agents", "skills", "commands"]
-    .flatMap((directory) => walkFiles(join(repositoryRoot, directory)))
-    .map((path) => portablePath(relative(repositoryRoot, path)))
-    .sort();
-
-  for (const path of expectedBundleFiles) {
-    if (!actual.includes(path)) fail(path, "required OpenCode V2 bundle file is missing", "restore it from the canonical public bundle");
-  }
-  for (const path of actual) {
-    if (!expectedBundleFiles.includes(path)) fail(path, "unexpected file in the installable bundle", "remove stale/generated files or add the file to the public contract intentionally");
-  }
-
-  const obsoleteHelper = ["bin", `git-credential-${"git" + "ea"}`].join("/");
-  if (existsSync(join(repositoryRoot, obsoleteHelper))) {
-    fail(obsoleteHelper, "obsolete private credential helper is present", "remove it from the public source tree");
-  }
-}
-
-function validateNeutrality() {
-  const providerPatterns = [
-    new RegExp(`${"open" + "ai"}/`, "i"),
-    new RegExp(`${"anth" + "ropic"}/`, "i"),
-    new RegExp(`${"google"}/(?:${"gem" + "ini"})`, "i"),
-    new RegExp(`${"gpt"}-\\d`, "i"),
-    new RegExp(`${"cla" + "ude"}-`, "i"),
-    new RegExp(`${"gem" + "ini"}-`, "i"),
-  ];
-
-  for (const path of expectedBundleFiles) {
-    if (!existsSync(join(repositoryRoot, path))) continue;
-    const text = readText(path);
-    const frontmatterEnd = text.indexOf("\n---", 4);
-    const frontmatter = frontmatterEnd >= 0 ? text.slice(0, frontmatterEnd) : text;
-    if (/^model\s*:/mi.test(frontmatter)) fail(path, "public defaults must not set a model", "remove model frontmatter so the active OpenCode model is inherited");
-    for (const pattern of providerPatterns) {
-      if (pattern.test(text)) fail(path, `provider-specific model reference matches ${pattern}`, "use capability-neutral wording and no provider/model identifier");
-    }
-  }
-}
-
 function validateSanitation() {
   const publicRepository = `${"ale" + "franz"}/AgenticAle`;
   const forbidden = [
@@ -374,18 +601,13 @@ function validateSanitation() {
 
 validateEndpointDetectorContract();
 validateBundleSurface();
-
-for (const [role, contract] of roles) {
-  const path = `agents/autonomous/${role}.md`;
-  if (existsSync(join(repositoryRoot, path)) && statSync(join(repositoryRoot, path)).isFile()) validateAgent(role, contract);
-}
-if (existsSync(join(repositoryRoot, "skills/autonomous-mode/SKILL.md"))) validateSkill();
-if (existsSync(join(repositoryRoot, "skills/work-mode/SKILL.md"))) validateSkill("work-mode", "work-mode");
-if (existsSync(join(repositoryRoot, "skills/pull-request-description/SKILL.md"))) validatePullRequestDescriptionSkill();
-if (existsSync(join(repositoryRoot, "skills/source-code-lookup/SKILL.md"))) validateSourceLookupSkill();
-if (existsSync(join(repositoryRoot, "commands/autonomous.md"))) validateCommand();
-if (existsSync(join(repositoryRoot, "commands/work.md"))) validateCommand("work", "work-mode");
-validateNeutrality();
+validateSkillWork();
+validateSkillAutonomous();
+validateSkillSourceLookup();
+validateSkillPullRequest();
+validateRoutingContract();
+validateAdapter();
+validateNeutralContracts();
 validateSanitation();
 
 if (failures.length > 0) {
@@ -393,5 +615,5 @@ if (failures.length > 0) {
   for (const failure of failures) console.error(`- ${failure}`);
   process.exitCode = 1;
 } else {
-  console.log(`Validation passed: ${expectedBundleFiles.length} OpenCode V2 bundle files, ${roles.size} role contracts, routing, neutrality, and sanitation.`);
+  console.log(`Validation passed: ${requiredPaths.length} source-of-truth files, ${taskContracts.length} neutral task contracts, routing contract, ${profileNames.length} adapter profiles, and sanitation.`);
 }

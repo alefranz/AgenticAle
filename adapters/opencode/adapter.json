@@ -1,0 +1,117 @@
+{
+  "runtime": "opencode",
+  "render": "For each profile, emit dist/opencode/agents/autonomous/<name>.md carrying the profile's `mode`, `steps`, and `permissions` frontmatter plus the matching neutral task-contract body copied from skills/work/references/tasks/<role>.md (implement and implement-hard both use implement.md). The model/effort for that route is taken from the resolved routing at build time: an explicit route writes a `model:` line (and reasoning effort) into the rendered profile frontmatter, while an inherit route omits the `model:` line so the profile inherits the session model. There are seven profiles, one per routing key; implement-hard is a distinct profile so its harder route is not silently dropped.",
+  "keyByRoute": {
+    "explore": "explore",
+    "implement": "implement",
+    "implement-hard": "implement-hard",
+    "fix": "fix",
+    "review": "review",
+    "deep-review": "deep-review",
+    "consult": "consult"
+  },
+  "profiles": [
+    {
+      "name": "explore",
+      "outputPath": "agents/autonomous/explore.md",
+      "mode": "subagent",
+      "steps": 24,
+      "description": "Focused reconnaissance of project or external source for one tightly scoped question.",
+      "permissions": [
+        { "action": "subagent", "resource": "*", "effect": "deny" },
+        { "action": "edit", "resource": "*", "effect": "deny" },
+        { "action": "question", "resource": "*", "effect": "deny" }
+      ]
+    },
+    {
+      "name": "implement",
+      "outputPath": "agents/autonomous/implement.md",
+      "mode": "subagent",
+      "steps": 64,
+      "description": "Implements one small, verifiable implementation slice.",
+      "permissions": [
+        { "action": "subagent", "resource": "*", "effect": "deny" },
+        { "action": "question", "resource": "*", "effect": "deny" }
+      ]
+    },
+    {
+      "name": "implement-hard",
+      "outputPath": "agents/autonomous/implement-hard.md",
+      "mode": "subagent",
+      "steps": 64,
+      "description": "Implements one reasoning-heavy implementation slice (hard-task routing context).",
+      "permissions": [
+        { "action": "subagent", "resource": "*", "effect": "deny" },
+        { "action": "question", "resource": "*", "effect": "deny" }
+      ]
+    },
+    {
+      "name": "fix",
+      "outputPath": "agents/autonomous/fix.md",
+      "mode": "subagent",
+      "steps": 48,
+      "description": "Addresses only the specified review findings in a fix pass.",
+      "permissions": [
+        { "action": "subagent", "resource": "*", "effect": "deny" },
+        { "action": "question", "resource": "*", "effect": "deny" }
+      ]
+    },
+    {
+      "name": "review",
+      "outputPath": "agents/autonomous/review.md",
+      "mode": "subagent",
+      "steps": 56,
+      "description": "Independent high-reasoning review of one completed implementation slice.",
+      "permissions": [
+        { "action": "subagent", "resource": "*", "effect": "deny" },
+        { "action": "question", "resource": "*", "effect": "deny" }
+      ]
+    },
+    {
+      "name": "deep-review",
+      "outputPath": "agents/autonomous/deep-review.md",
+      "mode": "subagent",
+      "steps": 72,
+      "description": "Expensive, integration-level audit of several accepted implementation slices.",
+      "permissions": [
+        { "action": "subagent", "resource": "*", "effect": "deny" },
+        { "action": "question", "resource": "*", "effect": "deny" }
+      ]
+    },
+    {
+      "name": "consult",
+      "outputPath": "agents/autonomous/consult.md",
+      "mode": "subagent",
+      "steps": 20,
+      "description": "Independent second opinion on one stuck technical decision; read-only, returns one recommendation.",
+      "permissions": [
+        { "action": "subagent", "resource": "*", "effect": "deny" },
+        { "action": "edit", "resource": "*", "effect": "deny" },
+        { "action": "question", "resource": "*", "effect": "deny" }
+      ]
+    }
+  ],
+  "skillDiscovery": {
+    "outputSkillsRoot": "skills",
+    "skills": [
+      {
+        "name": "work",
+        "source": "skills/work",
+        "frontmatter": {
+          "slash": true,
+          "opencode/autoinvoke": false,
+          "copilot/disable-model-invocation": true
+        }
+      },
+      {
+        "name": "autonomous",
+        "source": "skills/autonomous",
+        "frontmatter": {
+          "slash": true,
+          "opencode/autoinvoke": false,
+          "copilot/disable-model-invocation": true
+        }
+      }
+    ]
+  }
+}

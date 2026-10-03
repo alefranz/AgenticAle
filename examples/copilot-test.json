@@ -1,9 +1,0 @@
-{
-  "explore": "Qwen/Qwen3.8-27B:MEDIUM",
-  "implement": "Qwen/Qwen3.8-27B:MEDIUM",
-  "implement-hard": "Qwen/Qwen3.8-27B:XHIGH",
-  "fix": "Qwen/Qwen3.8-27B:MEDIUM",
-  "review": "Qwen/Qwen3.8-27B:XHIGH",
-  "deep-review": "Qwen/Qwen3.8-27B:XHIGH",
-  "consult": "Qwen/Qwen3.8-27B:XHIGH"
-}
