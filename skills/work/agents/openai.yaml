@@ -1,0 +1,5 @@
+interface:
+  display_name: Work
+  short_description: Reviewed coding task with independent review and optional PR delivery
+policy:
+  allow_implicit_invocation: false

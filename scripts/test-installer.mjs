@@ -1,543 +1,718 @@
-#!/usr/bin/env node
-
-import {
-  cpSync,
-  existsSync,
-  lstatSync,
-  mkdtempSync,
-  mkdirSync,
-  readFileSync,
-  readdirSync,
-  rmSync,
-  symlinkSync,
-  writeFileSync,
-} from "node:fs";
-import { homedir, tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+// Tests the two skills-first installers (install.mjs and install-standalone.mjs)
+// against a throwaway target directory. They install the GENERATED build output,
+// so these tests exercise the real install/update/migrate/collide/uninstall
+// behaviours end to end and assert on both the on-disk tree and the state file.
 import { spawnSync } from "node:child_process";
+import { mkdtemp, rm, readFile, writeFile, mkdir, symlink, access, readdir, cp, link, stat } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { fileURLToPath } from "node:url";
+import { tmpdir } from "node:os";
+import { join, resolve, dirname } from "node:path";
 
-const scriptDirectory = dirname(fileURLToPath(import.meta.url));
-const repositoryRoot = resolve(scriptDirectory, "..");
-const installer = join(scriptDirectory, "install.mjs");
-const stateName = ".autonomous-mode-install.json";
-const fixtureRoot = mkdtempSync(join(tmpdir(), "autonomous-mode-installer-test-"));
+const repo = resolve(import.meta.dirname, "..");
+const scriptsDir = join(repo, "scripts");
+const STATE = ".autonomous-mode-install.json";
+const STANDALONE_STATE = ".agenticale-standalone-install.json";
+const STATE_VERSION = 6;
+const LEGACY_GENERATED_SCHEMA = 5;
+const PACKAGE = "opencode-autonomous-mode";
+
+// The seven rendered OpenCode profiles the current (schema 6) build emits.
+const PROFILES = ["consult", "deep-review", "explore", "fix", "implement", "implement-hard", "review"];
+// The six profiles the retired schema-5 build emitted (no implement-hard).
+const LEGACY_PROFILES = PROFILES.filter((name) => name !== "implement-hard");
+
+const scratch = await mkdtemp(join(tmpdir(), "installer-test-"));
 let assertions = 0;
-
-function assert(condition, message) {
+function check(cond, label) {
+  if (!cond) throw new Error(`Assertion failed: ${label}`);
   assertions += 1;
-  if (!condition) throw new Error(message);
 }
-
-function runWith(installerPath, workingDirectory, arguments_, expectedStatus = 0) {
-  const result = spawnSync(process.execPath, [installerPath, ...arguments_], {
-    cwd: workingDirectory,
+const digest = (b) => createHash("sha256").update(b).digest("hex");
+const run = (script, args, { cwd = scratch, env } = {}) => {
+  const r = spawnSync(process.execPath, [join(scriptsDir, script), ...args], {
     encoding: "utf8",
+    cwd,
+    env: env ? { ...process.env, ...env } : process.env,
   });
-  assert(result.status === expectedStatus,
-    `Expected exit ${expectedStatus}, got ${result.status}.\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
-  return result;
-}
-
-function run(arguments_, expectedStatus = 0) {
-  return runWith(installer, repositoryRoot, arguments_, expectedStatus);
-}
-
-function target(name) {
-  return join(fixtureRoot, name);
-}
-
-function installedFile(root, path) {
-  return join(root, ...path.split("/"));
-}
-
-function createDirectoryLink(source, destination) {
-  symlinkSync(source, destination, process.platform === "win32" ? "junction" : "dir");
-}
-
-function writeState(root, state) {
-  writeFileSync(join(root, stateName), `${JSON.stringify(state, null, 2)}\n`);
-}
-
-function createCrLfBundle() {
-  const root = target("crlf-bundle");
-  for (const directory of ["agents", "commands", "skills"]) {
-    cpSync(join(repositoryRoot, directory), join(root, directory), { recursive: true });
+  return { exit: r.status, out: (r.stdout || "").trim(), err: (r.stderr || "").trim() };
+};
+async function listFiles(dir) {
+  const out = [];
+  const stack = [dir];
+  while (stack.length) {
+    const d = stack.pop();
+    let entries;
+    try {
+      entries = await readdir(d, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const e of entries) {
+      const p = join(d, e.name);
+      if (e.isDirectory()) stack.push(p);
+      else out.push(p);
+    }
   }
-  mkdirSync(join(root, "scripts"), { recursive: true });
-  const crlfInstaller = join(root, "scripts", "install.mjs");
-  cpSync(installer, crlfInstaller);
-  const agent = join(root, "agents", "autonomous", "consult.md");
-  writeFileSync(agent, readFileSync(agent, "utf8").replace(/\r?\n/g, "\r\n"));
-  return { root, installer: crlfInstaller };
+  return out.sort();
+}
+async function relFiles(dir) {
+  const files = await listFiles(dir);
+  return files.map((f) => f.slice(dir.length + 1).split(/[\\/]/).join("/")).sort();
+}
+async function exists(p) {
+  return access(p).then(() => true, () => false);
 }
 
-function assertRejectedState(name, mutate) {
-  const root = target(`invalid-state-${name}`);
-  run(["--target", root, "--no-model"]);
-  const statePath = join(root, stateName);
-  const state = JSON.parse(readFileSync(statePath, "utf8"));
-  mutate(state);
-  writeState(root, state);
-  const ownedPath = installedFile(root, "agents/autonomous/consult.md");
-  const result = run(["uninstall", "--target", root], 1);
-  assert(result.stderr.includes("Install state"), `${name} state rejection should identify install state`);
-  assert(existsSync(ownedPath), `${name} invalid state must be rejected before deleting owned files`);
-  assert(existsSync(statePath), `${name} invalid state must remain available for recovery`);
+// Retired (old layout) path inventories, kept in lockstep with install.mjs so we
+// can build schema 1-4 fixtures and assert the migration removes/preserves them.
+const copyPaths = [
+  "agents/autonomous/consult.md",
+  "agents/autonomous/deep-review.md",
+  "agents/autonomous/explore.md",
+  "agents/autonomous/fix.md",
+  "agents/autonomous/implement-hard.md",
+  "agents/autonomous/implement.md",
+  "agents/autonomous/review.md",
+  "commands/autonomous.md",
+  "commands/work.md",
+  "skills/autonomous-mode/SKILL.md",
+  "skills/work-mode/SKILL.md",
+  "skills/work-mode/references/rounds.md",
+  "skills/pull-request-description/SKILL.md",
+  "skills/source-code-lookup/SKILL.md",
+];
+const versionThreeCopyPaths = copyPaths.filter((p) => p !== "commands/work.md" && !p.startsWith("skills/work-mode/"));
+const versionTwoCopyPaths = versionThreeCopyPaths.filter((p) => p !== "skills/pull-request-description/SKILL.md");
+const legacyCopyPaths = versionTwoCopyPaths.filter((p) => p !== "skills/source-code-lookup/SKILL.md");
+const copySet = (schema) =>
+  schema === 1 ? legacyCopyPaths : schema === 2 ? versionTwoCopyPaths : schema === 3 ? versionThreeCopyPaths : copyPaths;
+const linkPaths = [
+  "agents/autonomous",
+  "commands/autonomous.md",
+  "commands/work.md",
+  "skills/autonomous-mode",
+  "skills/work-mode",
+  "skills/pull-request-description",
+  "skills/source-code-lookup",
+];
+
+async function readState(target) {
+  return JSON.parse(await readFile(join(target, STATE), "utf8"));
 }
+async function readStandaloneState(target) {
+  return JSON.parse(await readFile(join(target, STANDALONE_STATE), "utf8"));
+}
+
+async function makeCopyFixture(target, schema) {
+  const paths = copySet(schema);
+  const entries = [];
+  for (const p of paths) {
+    const dest = join(target, p);
+    await mkdir(dirname(dest), { recursive: true });
+    const content = `OLD ${schema} ${p}\n`;
+    await writeFile(dest, content);
+    entries.push({ path: p, kind: "file", digest: digest(Buffer.from(content)) });
+  }
+  entries.sort((a, b) => a.path.localeCompare(b.path));
+  await writeFile(join(target, STATE), JSON.stringify({
+    entries,
+    installedAt: new Date().toISOString(),
+    mode: "copy",
+    package: PACKAGE,
+    schema,
+  }, null, 2));
+  return entries;
+}
+
+// Build a valid generated (copy) state file with a chosen schema and profile
+// set. Files are created on disk with deterministic content so digests match.
+async function makeGeneratedFixture(target, schema, profiles, skillFiles) {
+  const entries = [];
+  for (const name of profiles) {
+    const p = `agents/autonomous/${name}.md`;
+    const content = `GEN ${schema} ${p}\n`;
+    await mkdir(dirname(join(target, p)), { recursive: true });
+    await writeFile(join(target, p), content, { encoding: "utf8" });
+    entries.push({ path: p, kind: "file", digest: digest(Buffer.from(content)) });
+  }
+  for (const p of skillFiles) {
+    const content = `GEN ${schema} ${p}\n`;
+    await mkdir(dirname(join(target, p)), { recursive: true });
+    await writeFile(join(target, p), content, { encoding: "utf8" });
+    entries.push({ path: p, kind: "file", digest: digest(Buffer.from(content)) });
+  }
+  entries.sort((a, b) => a.path.localeCompare(b.path));
+  await writeFile(join(target, STATE), JSON.stringify({
+    entries,
+    installedAt: new Date().toISOString(),
+    mode: "copy",
+    package: PACKAGE,
+    schema,
+  }, null, 2));
+  return entries;
+}
+
+const fourSkills = [
+  "skills/work/SKILL.md",
+  "skills/autonomous/SKILL.md",
+  "skills/pull-request-description/SKILL.md",
+  "skills/source-code-lookup/SKILL.md",
+];
 
 try {
-  const implicitModelChoiceTarget = target("implicit-model-choice");
-  const implicitModelChoice = run(["--target", implicitModelChoiceTarget], 1);
-  assert(implicitModelChoice.stderr.includes("requires --models PATH|PRESET or --no-model"),
-    "install should require an explicit model mapping or inheritance choice");
-  assert(!existsSync(implicitModelChoiceTarget), "missing model choice must not mutate the target");
-
-  const copyTarget = target("copy");
-  const firstCopy = run(["--target", copyTarget, "--no-model"]);
-  assert(firstCopy.stdout.includes("Installation complete."), "copy install should report completion");
-  assert(firstCopy.stdout.includes("leaves opencode.jsonc unchanged"),
-    "copy install should remind users to configure permissions separately");
-  const stateBefore = readFileSync(join(copyTarget, stateName), "utf8");
-  const state = JSON.parse(stateBefore);
-  assert(state.schema === 4 && state.mode === "copy" && state.entries.length === 14,
-    "copy state should own exactly fourteen files in schema v4");
-  for (const entry of state.entries) {
-    assert(existsSync(installedFile(copyTarget, entry.path)), `copy install omitted ${entry.path}`);
+  // ---------------------------------------------------------------------
+  // A. install.mjs — generated copy install, arg validation, and state.
+  // ---------------------------------------------------------------------
+  {
+    const t = join(scratch, "a-model-choice");
+    const r = run("install.mjs", ["install", "--target", t]);
+    check(r.exit === 1, "install: no model choice exits 1");
+    check(r.err.includes("Install requires --models PATH|PRESET, --routing PATH, or --no-model."), "install: no-model-choice message");
   }
-
-  const secondCopy = run(["install", `--target=${copyTarget}`, "--no-model"]);
-  assert(secondCopy.stdout.includes("Already up to date."), "second copy install should be idempotent");
-  assert(readFileSync(join(copyTarget, stateName), "utf8") === stateBefore,
-    "idempotent install should not rewrite state");
-
-  const defaultLookup = readFileSync(installedFile(copyTarget, "skills/source-code-lookup/SKILL.md"), "utf8");
-  assert(defaultLookup.includes('Source root: "~/dev"'), "default lookup skill should use ~/dev");
-  const customSourceRoot = target("source roots with spaces");
-  const customTarget = target("custom-source-root");
-  run(["--target", customTarget, "--no-model", "--source-root", customSourceRoot]);
-  const customLookup = readFileSync(installedFile(customTarget, "skills/source-code-lookup/SKILL.md"), "utf8");
-  assert(customLookup.includes(`Source root: ${JSON.stringify(resolve(customSourceRoot))}`),
-    "copy install should render the selected source root");
-  assert(run(["--target", customTarget, "--no-model", `--source-root=${customSourceRoot}`])
-    .stdout.includes("Already up to date."), "custom source root should be idempotent");
-  assert(run(["--target", customTarget, "--no-model"], 1).stderr.includes("--replace"),
-    "changing the source root should require explicit replacement");
-  const sourceRootUpdate = run(["--target", customTarget, "--no-model", "--replace"]);
-  assert(sourceRootUpdate.stdout.includes("backup created:"),
-    "changing the source root with --replace should back up the previous skill");
-  assert(readFileSync(installedFile(customTarget, "skills/source-code-lookup/SKILL.md"), "utf8")
-    .includes('Source root: "~/dev"'), "replacement should restore the default source root");
-  run(["uninstall", "--target", customTarget]);
-  assert(!existsSync(installedFile(customTarget, "skills/source-code-lookup/SKILL.md")),
-    "uninstall should remove the rendered lookup skill");
-
-  const homeSourceTarget = target("home-source-root");
-  run(["--target", homeSourceTarget, "--no-model", "--source-root", "~/source"]);
-  assert(readFileSync(installedFile(homeSourceTarget, "skills/source-code-lookup/SKILL.md"), "utf8")
-    .includes(`Source root: ${JSON.stringify(resolve(homedir(), "source"))}`),
-    "a tilde source root should resolve against the user's home directory");
-  run(["uninstall", "--target", homeSourceTarget]);
-
-  const legacyTarget = target("legacy-copy");
-  run(["--target", legacyTarget, "--no-model"]);
-  const legacyState = JSON.parse(readFileSync(join(legacyTarget, stateName), "utf8"));
-  legacyState.schema = 1;
-  legacyState.entries = legacyState.entries.filter((entry) => ![
-    "commands/work.md",
-    "skills/work-mode/SKILL.md",
-    "skills/work-mode/references/rounds.md",
-    "skills/pull-request-description/SKILL.md",
-    "skills/source-code-lookup/SKILL.md",
-  ].includes(entry.path));
-  rmSync(installedFile(legacyTarget, "skills/source-code-lookup"), { recursive: true });
-  writeState(legacyTarget, legacyState);
-  run(["--target", legacyTarget, "--no-model"]);
-  const updatedState = JSON.parse(readFileSync(join(legacyTarget, stateName), "utf8"));
-  assert(updatedState.schema === 4 && updatedState.entries.length === 14,
-    "updating an older copy install should add the new skill and advance the state schema");
-  run(["uninstall", "--target", legacyTarget]);
-
-  const versionTwoTarget = target("version-two-copy");
-  run(["--target", versionTwoTarget, "--no-model"]);
-  const versionTwoState = JSON.parse(readFileSync(join(versionTwoTarget, stateName), "utf8"));
-  versionTwoState.schema = 2;
-  versionTwoState.entries = versionTwoState.entries.filter((entry) => !["commands/work.md", "skills/work-mode/SKILL.md", "skills/work-mode/references/rounds.md", "skills/pull-request-description/SKILL.md"].includes(entry.path));
-  rmSync(installedFile(versionTwoTarget, "skills/pull-request-description"), { recursive: true });
-  writeState(versionTwoTarget, versionTwoState);
-  run(["--target", versionTwoTarget, "--no-model"]);
-  const upgradedVersionTwoState = JSON.parse(readFileSync(join(versionTwoTarget, stateName), "utf8"));
-  assert(upgradedVersionTwoState.schema === 4 && upgradedVersionTwoState.entries.length === 14,
-    "updating a version-two copy install should add the PR skill and advance the state schema");
-  run(["uninstall", "--target", versionTwoTarget]);
-
-  for (const operation of ["upgrade", "uninstall"]) {
-    const oldTarget = target(`version-three-${operation}`);
-    run(["--target", oldTarget, "--no-model"]);
-    const oldState = JSON.parse(readFileSync(join(oldTarget, stateName), "utf8"));
-    oldState.schema = 3;
-    oldState.entries = oldState.entries.filter((entry) => entry.path !== "commands/work.md" && !entry.path.startsWith("skills/work-mode/"));
-    rmSync(installedFile(oldTarget, "commands/work.md"));
-    rmSync(installedFile(oldTarget, "skills/work-mode"), { recursive: true });
-    writeState(oldTarget, oldState);
-    if (operation === "upgrade") {
-      run(["--target", oldTarget, "--no-model"]);
-      const upgraded = JSON.parse(readFileSync(join(oldTarget, stateName), "utf8"));
-      assert(upgraded.schema === 4 && upgraded.entries.length === 14, "v3 upgrade should add the everyday command, skill, and shared reference");
-      assert(existsSync(installedFile(oldTarget, "skills/work-mode/references/rounds.md")), "shared round reference should be installed on upgrade");
-    }
-    run(["uninstall", "--target", oldTarget]);
-    assert(!existsSync(installedFile(oldTarget, "skills/autonomous-mode/SKILL.md")), "both old and upgraded state should uninstall");
-    assert(!existsSync(installedFile(oldTarget, "skills/work-mode")), "uninstall should remove empty nested work-mode skill directories");
+  {
+    const t = join(scratch, "a-fresh");
+    const r = run("install.mjs", ["install", "--target", t, "--no-model"]);
+    check(r.exit === 0, "install fresh --no-model exits 0");
+    check(r.out.includes("Installation complete."), "install fresh: Installation complete");
+    const state = await readState(t);
+    check(state.schema === STATE_VERSION, "install fresh: state schema 6");
+    check(state.mode === "copy", "install fresh: state mode copy");
+    check(state.package === PACKAGE, "install fresh: state package");
+    check(state.entries.length === 26, "install fresh: 26 entries");
+    const profiles = state.entries.filter((e) => e.path.startsWith("agents/autonomous/"));
+    check(profiles.length === 7, "install fresh: 7 generated profiles");
+    check(state.entries.some((e) => e.path === "agents/autonomous/implement-hard.md"), "install fresh: implements implement-hard.md profile");
+    const files = (await relFiles(t)).filter((f) => f !== STATE);
+    check(files.length === 26, "install fresh: 26 files on disk");
+    check(!files.some((f) => f.startsWith("commands/")), "install fresh: no commands/");
+    const srcLookup = await readFile(join(t, "skills", "source-code-lookup", "SKILL.md"), "utf8");
+    check(srcLookup.includes('Source root: "~/dev"'), "install fresh: source root default marker");
+    check(await exists(join(t, "skills", "work", "references", "routing.json")), "install fresh: materializes work/references/routing.json");
   }
-
-  const legacyUninstallTarget = target("legacy-uninstall");
-  run(["--target", legacyUninstallTarget, "--no-model"]);
-  const oldState = JSON.parse(readFileSync(join(legacyUninstallTarget, stateName), "utf8"));
-  oldState.schema = 1;
-  oldState.entries = oldState.entries.filter((entry) => ![
-    "commands/work.md",
-    "skills/work-mode/SKILL.md",
-    "skills/work-mode/references/rounds.md",
-    "skills/pull-request-description/SKILL.md",
-    "skills/source-code-lookup/SKILL.md",
-  ].includes(entry.path));
-  rmSync(installedFile(legacyUninstallTarget, "skills/source-code-lookup"), { recursive: true });
-  writeState(legacyUninstallTarget, oldState);
-  run(["uninstall", "--target", legacyUninstallTarget]);
-  assert(!existsSync(installedFile(legacyUninstallTarget, "skills/autonomous-mode/SKILL.md")),
-    "uninstall should accept the older nine-file state");
-
-  const modelTarget = target("configured-models");
-  const modelConfigA = target("models-a.json");
-  const modelConfigB = target("models-b.json");
-  writeFileSync(modelConfigA, JSON.stringify({
-    explore: "example/fast-model#medium",
-    implement: "example/fast-model#medium",
-    review: "example/strong-model#high",
-    "deep-review": "example/frontier-model#high",
-  }));
-  writeFileSync(modelConfigB, JSON.stringify({ review: "other-provider/new-model#xhigh" }));
-
-  const crlfBundle = createCrLfBundle();
-  const crlfModelConfig = join(crlfBundle.root, "models.json");
-  const crlfTarget = target("crlf-configured-models");
-  writeFileSync(crlfModelConfig, JSON.stringify({ consult: "example/consult-model#medium" }));
-  runWith(crlfBundle.installer, crlfBundle.root,
-    ["--target", crlfTarget, "--models", crlfModelConfig]);
-  assert(readFileSync(installedFile(crlfTarget, "agents/autonomous/consult.md"), "utf8")
-    .includes("mode: subagent\r\nmodel: example/consult-model#medium"),
-  "configured model installation must support CRLF agent frontmatter");
-
-  const presets = [
-    ["openai", "openai/gpt-6-sol#high"],
-    ["zen", "opencode/gpt-6-sol#high"],
-    ["local", "local-llama/qwen3.8-27b#xhigh"],
-    ["example", "local-llama/qwen3.8-27b#xhigh"],
-  ];
-  for (const [preset, expectedReviewModel] of presets) {
-    const presetTarget = target(`preset-${preset}`);
-    run(["--target", presetTarget, "--models", preset]);
-    assert(readFileSync(installedFile(presetTarget, "agents/autonomous/review.md"), "utf8")
-      .includes(`model: ${expectedReviewModel}`),
-    `${preset} preset should render its bundled review model`);
-    run(["uninstall", "--target", presetTarget]);
+  {
+    // Idempotent re-install: no rewrites, same state.
+    const t = join(scratch, "a-fresh");
+    const before = await readFile(join(t, STATE), "utf8");
+    const r = run("install.mjs", ["install", "--target", t, "--no-model"]);
+    check(r.exit === 0, "install idempotent exits 0");
+    check(r.out.includes("Already up to date."), "install idempotent: Already up to date");
+    const after = await readFile(join(t, STATE), "utf8");
+    check(before === after, "install idempotent: state unchanged");
   }
-
-  run(["--target", modelTarget, "--no-model"]);
-  const modelReviewPath = installedFile(modelTarget, "agents/autonomous/review.md");
-  const originalReview = readFileSync(modelReviewPath, "utf8");
-  assert(!/^model:/m.test(originalReview), "default copy install should inherit the session model");
-  const modelUpdateRefusal = run(["--target", modelTarget, "--models", modelConfigA], 1);
-  assert(modelUpdateRefusal.stderr.includes("Differing content already exists"),
-    "adding model assignments must require explicit replacement");
-  assert(readFileSync(modelReviewPath, "utf8") === originalReview,
-    "refused model update must preserve installed agents");
-  const modelDryRun = run(["--target", modelTarget, "--models", modelConfigA, "--replace", "--dry-run"]);
-  assert(modelDryRun.stdout.includes("Dry run complete") && readFileSync(modelReviewPath, "utf8") === originalReview,
-    "configured dry run must not change the installed copy");
-  run(["--target", modelTarget, "--models", modelConfigA, "--replace"]);
-  const configuredReview = readFileSync(modelReviewPath, "utf8");
-  assert(/^model: example\/strong-model#high$/m.test(configuredReview),
-    "configured review agent should have its own model frontmatter");
-  assert(/^model: example\/fast-model#medium$/m.test(
-    readFileSync(installedFile(modelTarget, "agents/autonomous/explore.md"), "utf8")),
-  "configured fast role should use its assigned model");
-  assert(!/^model:/m.test(readFileSync(installedFile(modelTarget, "agents/autonomous/consult.md"), "utf8")),
-    "unassigned role should continue to inherit the session model");
-  const modelState = JSON.parse(readFileSync(join(modelTarget, stateName), "utf8"));
-  assert(modelState.entries.find((entry) => entry.path === "agents/autonomous/review.md").digest
-    === createHash("sha256").update(configuredReview).digest("hex"),
-  "install state must hash rendered agent content");
-  const modelStateBefore = readFileSync(join(modelTarget, stateName), "utf8");
-  assert(run(["--target", modelTarget, "--models", modelConfigA]).stdout.includes("Already up to date."),
-    "same model mapping should be idempotent");
-  assert(readFileSync(join(modelTarget, stateName), "utf8") === modelStateBefore,
-    "idempotent configured install should not rewrite state");
-  run(["--target", modelTarget, "--models", modelConfigB], 1);
-  assert(readFileSync(modelReviewPath, "utf8") === configuredReview,
-    "refused mapping change must keep the prior configured role");
-  run(["--target", modelTarget, "--models", modelConfigB, "--replace"]);
-  assert(/^model: other-provider\/new-model#xhigh$/m.test(readFileSync(modelReviewPath, "utf8")),
-    "explicit replacement should update a role model");
-  const modelBackups = readdirSync(join(modelTarget, ".autonomous-mode-backups")).sort();
-  assert(modelBackups.length === 2, "two model changes should create two backup directories");
-  assert(readFileSync(installedFile(
-    join(modelTarget, ".autonomous-mode-backups", modelBackups[1]),
-    "agents/autonomous/review.md",
-  ), "utf8") === configuredReview, "mapping replacement backup should preserve the previous configured agent");
-  assert(!/^model:/m.test(readFileSync(installedFile(modelTarget, "agents/autonomous/explore.md"), "utf8")),
-    "roles removed from the mapping should return to inheritance");
-  run(["--target", modelTarget, "--replace", "--no-model"]);
-  assert(readFileSync(modelReviewPath, "utf8") === originalReview,
-    "explicit replacement with --no-model should restore the public defaults");
-  run(["uninstall", "--target", modelTarget]);
-  assert(!existsSync(modelReviewPath), "uninstall should remove an unchanged formerly configured agent");
-
-  const invalidModels = [
-    ["not-json", "{", "not valid JSON"],
-    ["array", "[]", "JSON object"],
-    ["unknown", JSON.stringify({ unknown: "example/model" }), "Unknown autonomous role"],
-    ["number", JSON.stringify({ review: 42 }), "Invalid model"],
-    ["injection", JSON.stringify({ review: "example/model\nsteps: 999" }), "Invalid model"],
-    ["missing-provider", JSON.stringify({ review: "model-only" }), "Invalid model"],
-  ];
-  for (const [name, contents, errorText] of invalidModels) {
-    const file = target(`invalid-models-${name}.json`);
-    const destination = target(`invalid-models-${name}`);
-    writeFileSync(file, contents);
-    const result = run(["--target", destination, "--models", file], 1);
-    assert(result.stderr.includes(errorText), `${name} model mapping should be rejected clearly`);
-    assert(!existsSync(destination), `${name} model mapping must fail before target mutation`);
+  {
+    // --source-root renders into source-code-lookup; then a real change needs --replace.
+    const t = join(scratch, "a-sourcroot");
+    const src = join(scratch, "a-sourcroot-src");
+    await mkdir(src, { recursive: true });
+    const first = run("install.mjs", ["install", "--target", t, "--no-model", "--source-root", src]);
+    check(first.exit === 0, "source-root install exits 0");
+    let sk = await readFile(join(t, "skills", "source-code-lookup", "SKILL.md"), "utf8");
+    check(sk.includes(`Source root: ${JSON.stringify(src)}`), "source-root install: rendered JSON-encoded path");
+    const dest = join(t, "skills", "source-code-lookup", "SKILL.md");
+    await writeFile(dest, "HACKED\n");
+    const blocked = run("install.mjs", ["install", "--target", t, "--no-model", "--source-root", src]);
+    check(blocked.exit === 1, "source-root re-install w/o --replace exits 1");
+    check(blocked.err.includes("Differing content already exists at:"), "source-root collision message");
+    check(blocked.err.includes("--replace"), "source-root collision mentions --replace");
+    check((await readFile(dest, "utf8")) === "HACKED\n", "source-root: file untouched on blocked re-install");
+    const replaced = run("install.mjs", ["install", "--target", t, "--no-model", "--source-root", src, "--replace"]);
+    check(replaced.exit === 0, "source-root --replace exits 0");
+    check(replaced.out.includes("backup created:"), "source-root --replace: backup created");
+    sk = await readFile(dest, "utf8");
+    check(sk.includes(`Source root: ${JSON.stringify(src)}`), "source-root --replace: file restored");
   }
-  assert(run(["--target", target("missing-models-option"), "--models", "--dry-run"], 1)
-    .stderr.includes("--models requires a path"), "missing --models value must not consume an option");
-  assert(run(["--target", target("conflicting-model-options"), "--models", modelConfigA, "--no-model"], 1)
-    .stderr.includes("cannot be used together"), "model mapping and inheritance opt-out must be exclusive");
-  assert(run(["--target", target("linked-models"), "--link", "--models", modelConfigA], 1)
-    .stderr.includes("requires a copy install"), "link installs must reject model rendering");
-  assert(run(["--target", target("linked-source-root"), "--link", "--no-model", "--source-root", customSourceRoot], 1)
-    .stderr.includes("requires a copy install"), "link installs must reject source-root rendering");
-  assert(run(["--target", target("missing-source-root"), "--no-model", "--source-root", "--dry-run"], 1)
-    .stderr.includes("--source-root requires a path"), "source root must not consume another option");
-  assert(run(["uninstall", "--target", copyTarget, "--source-root", customSourceRoot], 1)
-    .stderr.includes("only to install/update"), "uninstall must reject source-root input");
-  assert(run(["--target", target("unselected-link"), "--link"], 1)
-    .stderr.includes("requires --models PATH|PRESET or --no-model"), "link installs should require an explicit model choice");
-  assert(run(["uninstall", "--target", copyTarget, "--models", modelConfigA], 1)
-    .stderr.includes("only to install/update"), "uninstall must reject model mapping input");
-  assert(run(["uninstall", "--target", copyTarget, "--no-model"], 1)
-    .stderr.includes("only to install/update"), "uninstall must reject model inheritance input");
-
-  const updatePath = installedFile(copyTarget, "agents/autonomous/consult.md");
-  writeFileSync(updatePath, "locally customized model configuration\n");
-  run(["--target", copyTarget, "--no-model"], 1);
-  const update = run(["--target", copyTarget, "--replace", "--no-model"]);
-  assert(update.stdout.includes("backup created:"), "explicit update replacement should create a backup");
-  const updateBackups = readdirSync(join(copyTarget, ".autonomous-mode-backups"));
-  assert(updateBackups.length === 1, "update should create one backup directory");
-  const updateBackupPath = installedFile(
-    join(copyTarget, ".autonomous-mode-backups", updateBackups[0]),
-    "agents/autonomous/consult.md",
-  );
-  assert(readFileSync(updateBackupPath, "utf8") === "locally customized model configuration\n",
-    "update backup should preserve a customized installed file");
-  assert(readFileSync(updatePath, "utf8") !== "locally customized model configuration\n",
-    "explicit update should restore current bundle content");
-
-  const dryTarget = target("dry-run");
-  const dryRun = run(["--target", dryTarget, "--dry-run", "--no-model"]);
-  assert(dryRun.stdout.includes("Dry run complete"), "dry run should identify itself");
-  assert(!existsSync(dryTarget), "dry run must not create the target");
-
-  const collisionTarget = target("collision");
-  const collisionPath = installedFile(collisionTarget, "commands/autonomous.md");
-  mkdirSync(dirname(collisionPath), { recursive: true });
-  writeFileSync(collisionPath, "user content\n");
-  const collision = run(["--target", collisionTarget, "--no-model"], 1);
-  assert(collision.stderr.includes("Differing content already exists"), "collision should be actionable");
-  assert(readFileSync(collisionPath, "utf8") === "user content\n", "refused collision must remain unchanged");
-  assert(!existsSync(join(collisionTarget, stateName)), "refused collision must not create install state");
-
-  const replacement = run(["--target", collisionTarget, "--replace", "--no-model"]);
-  assert(replacement.stdout.includes("backup created:"), "replacement should report its backup");
-  const backupRoot = join(collisionTarget, ".autonomous-mode-backups");
-  const backupDirectories = readdirSync(backupRoot);
-  assert(backupDirectories.length === 1, "replacement should create one backup directory");
-  const backedUpCollision = installedFile(join(backupRoot, backupDirectories[0]), "commands/autonomous.md");
-  assert(readFileSync(backedUpCollision, "utf8") === "user content\n", "backup should preserve replaced content");
-  assert(readFileSync(collisionPath, "utf8") !== "user content\n", "replacement should install bundle content");
-
-  const modifiedTarget = target("uninstall-modified");
-  const unrelatedPath = installedFile(modifiedTarget, "commands/user-command.md");
-  mkdirSync(dirname(unrelatedPath), { recursive: true });
-  writeFileSync(unrelatedPath, "unrelated profile content\n");
-  run(["--target", modifiedTarget, "--no-model"]);
-  const modifiedPath = installedFile(modifiedTarget, "agents/autonomous/implement.md");
-  const unchangedPath = installedFile(modifiedTarget, "agents/autonomous/review.md");
-  writeFileSync(modifiedPath, `${readFileSync(modifiedPath, "utf8")}\nuser customization\n`);
-  const uninstall = run(["uninstall", "--target", modifiedTarget]);
-  assert(uninstall.stdout.includes("Preserved 1 modified destination"), "uninstall should report preserved modifications");
-  assert(existsSync(modifiedPath), "uninstall must preserve a modified installed file");
-  assert(!existsSync(unchangedPath), "uninstall should remove an unchanged owned file");
-  assert(!existsSync(join(modifiedTarget, stateName)), "uninstall should release package ownership state");
-  assert(readFileSync(unrelatedPath, "utf8") === "unrelated profile content\n",
-    "install and uninstall must not alter unrelated profile content");
-
-  const linkTarget = target("link");
-  let linksSupported = true;
-  const linkInstall = spawnSync(process.execPath, [installer, "--target", linkTarget, "--link", "--no-model"], {
-    cwd: repositoryRoot,
-    encoding: "utf8",
-  });
-  if (linkInstall.status !== 0 && /privilege|operation not permitted|not permitted|EPERM/i.test(linkInstall.stderr)) {
-    linksSupported = false;
-    console.log("Link test skipped: this environment does not permit symbolic links/junctions.");
-  } else {
-    assert(linkInstall.status === 0, `link install failed unexpectedly:\n${linkInstall.stderr}`);
+  {
+    // --models subset renders model lines only for the roles present.
+    const t = join(scratch, "a-models");
+    const map = join(scratch, "a-models.json");
+    await writeFile(map, JSON.stringify({ review: "acme/rev#high" }));
+    const r = run("install.mjs", ["install", "--target", t, "--models", map]);
+    check(r.exit === 0, "models install exits 0");
+    const review = await readFile(join(t, "agents", "autonomous", "review.md"), "utf8");
+    check(review.includes("model: acme/rev"), "models: review.md has model line");
+    const consult = await readFile(join(t, "agents", "autonomous", "consult.md"), "utf8");
+    check(!consult.includes("model: "), "models: consult.md has no model line");
   }
-  if (linksSupported) {
-    const linkState = JSON.parse(readFileSync(join(linkTarget, stateName), "utf8"));
-    assert(linkState.mode === "link" && linkState.entries.length === 7, "link state should own seven links");
-    for (const entry of linkState.entries) {
-      assert(lstatSync(installedFile(linkTarget, entry.path)).isSymbolicLink(), `${entry.path} should be a link`);
-    }
-    run(["uninstall", "--target", linkTarget]);
-    for (const entry of linkState.entries) {
-      assert(!existsSync(installedFile(linkTarget, entry.path)), `uninstall should remove unchanged link ${entry.path}`);
-    }
-    for (const schema of [1, 2, 3]) {
-      const oldLinkTarget = target(`old-link-${schema}`);
-      run(["--target", oldLinkTarget, "--link", "--no-model"]);
-      const oldLinks = JSON.parse(readFileSync(join(oldLinkTarget, stateName), "utf8"));
-      const added = ["commands/work.md", "skills/work-mode"];
-      if (schema < 3) added.push("skills/pull-request-description");
-      if (schema < 2) added.push("skills/source-code-lookup");
-      for (const path of added) rmSync(installedFile(oldLinkTarget, path));
-      oldLinks.schema = schema;
-      oldLinks.entries = oldLinks.entries.filter((entry) => !added.includes(entry.path));
-      writeState(oldLinkTarget, oldLinks);
-      run(["--target", oldLinkTarget, "--link", "--no-model"]);
-      const upgraded = JSON.parse(readFileSync(join(oldLinkTarget, stateName), "utf8"));
-      assert(upgraded.schema === 4 && upgraded.entries.length === 7, `v${schema} links should upgrade to all seven units`);
-      assert(existsSync(installedFile(oldLinkTarget, "skills/work-mode/references/rounds.md")), "linked work-mode skill should expose shared reference");
-      run(["uninstall", "--target", oldLinkTarget]);
+  {
+    // Invalid model mappings are rejected before anything is written.
+    const notJson = join(scratch, "bad1.json");
+    await writeFile(notJson, "{nope");
+    let r = run("install.mjs", ["install", "--target", join(scratch, "bad1"), "--models", notJson]);
+    check(r.exit === 1 && r.err.includes("Model mapping is not valid JSON"), "models: not-valid-JSON rejected");
+    check(!(await exists(join(scratch, "bad1"))), "models: bad JSON writes nothing");
+
+    const arr = join(scratch, "bad2.json");
+    await writeFile(arr, "[]");
+    r = run("install.mjs", ["install", "--target", join(scratch, "bad2"), "--models", arr]);
+    check(r.exit === 1 && r.err.includes("Model mapping must be a JSON object keyed by role name"), "models: array rejected");
+
+    const unknown = join(scratch, "bad3.json");
+    await writeFile(unknown, JSON.stringify({ bogus: "x/y#low" }));
+    r = run("install.mjs", ["install", "--target", join(scratch, "bad3"), "--models", unknown]);
+    check(r.exit === 1 && r.err.includes("Unknown role in model mapping"), "models: unknown role rejected");
+  }
+  {
+    // Arg-shape errors.
+    const missing = run("install.mjs", ["install", "--target", join(scratch, "x1"), "--models"]);
+    check(missing.exit === 1 && missing.err.includes("--models requires a value that is not another option."), "models: missing value");
+    const both = run("install.mjs", ["install", "--target", join(scratch, "x2"), "--models", join(scratch, "m.json"), "--no-model"]);
+    check(both.exit === 1 && both.err.includes("--models and --no-model cannot be used together."), "models+no-model rejected");
+    const routingMap = join(scratch, "r.json");
+    await writeFile(routingMap, JSON.stringify({}));
+    const both2 = run("install.mjs", ["install", "--target", join(scratch, "x3"), "--models", join(scratch, "m.json"), "--routing", routingMap]);
+    check(both2.exit === 1 && both2.err.includes("--routing and --models cannot be used together."), "models+routing rejected");
+  }
+  {
+    // Collision on an already-installed tree: blocked, then --replace.
+    const t = join(scratch, "a-collide");
+    const fresh = run("install.mjs", ["install", "--target", t, "--no-model"]);
+    check(fresh.exit === 0, "collision setup fresh exits 0");
+    const dest = join(t, "skills", "work", "SKILL.md");
+    await writeFile(dest, "HACKED\n");
+    const blocked = run("install.mjs", ["install", "--target", t, "--no-model"]);
+    check(blocked.exit === 1 && blocked.err.includes("Differing content already exists at:"), "collision: blocked");
+    const replaced = run("install.mjs", ["install", "--target", t, "--no-model", "--replace"]);
+    check(replaced.exit === 0 && replaced.out.includes("backup created:"), "collision: --replace restores");
+    check((await readFile(dest, "utf8")) !== "HACKED\n", "collision: file restored");
+  }
+  {
+    // Dry-run writes nothing.
+    const t = join(scratch, "a-dry");
+    const r = run("install.mjs", ["install", "--target", t, "--no-model", "--dry-run"]);
+    check(r.exit === 0 && r.out.includes("Dry run complete; no files were changed."), "dry-run: no files changed message");
+    check(!(await exists(join(t, STATE))), "dry-run: no state file");
+    check(!(await exists(join(t, "skills"))), "dry-run: no files created");
+  }
+  {
+    // Uninstall preserves a modified destination and removes owned files + state.
+    const t = join(scratch, "a-uninstall");
+    const fresh = run("install.mjs", ["install", "--target", t, "--no-model"]);
+    check(fresh.exit === 0, "uninstall setup fresh exits 0");
+    const dest = join(t, "skills", "work", "SKILL.md");
+    await writeFile(dest, "USER-EDITED\n");
+    const r = run("install.mjs", ["uninstall", "--target", t]);
+    check(r.exit === 0 && r.out.includes("Uninstall complete. Preserved 1 modified destination(s)."), "uninstall: preserved modified");
+    check((await readFile(dest, "utf8")) === "USER-EDITED\n", "uninstall: modified file preserved");
+    check(!(await exists(join(t, STATE))), "uninstall: state removed");
+    check(!(await exists(join(t, "skills", "source-code-lookup", "SKILL.md"))), "uninstall: owned file removed");
+  }
+  {
+    // Non-overlap: target == repo and target inside repo are both rejected pre-write.
+    const r1 = run("install.mjs", ["install", "--target", repo, "--no-model"]);
+    check(r1.exit === 1 && r1.err.includes("The target and this checkout must not overlap:"), "non-overlap: target==repo");
+    const r2 = run("install.mjs", ["install", "--target", join(repo, "nested-profile"), "--no-model"]);
+    check(r2.exit === 1 && r2.err.includes("The target and this checkout must not overlap:"), "non-overlap: target inside repo");
+    check(!(await exists(join(repo, "nested-profile"))), "non-overlap: nothing written for inside-repo target");
+  }
+  {
+    // State-rejection matrix: mutate a valid schema-6 state, expect exit 1 + message.
+    const valid = join(scratch, "a-state-valid");
+    const fresh = run("install.mjs", ["install", "--target", valid, "--no-model"]);
+    check(fresh.exit === 0, "state matrix: valid base install exits 0");
+    const base = await readState(valid);
+    const statePath = join(valid, STATE);
+    const cases = [
+      ["wrong top-level keys", (s) => { s.extra = 1; }, "Install state is invalid:"],
+      ["wrong package", (s) => { s.package = "nope"; }, "Install state is invalid:"],
+      ["schema 6 link mode", (s) => { s.mode = "link"; }, `Schema ${STATE_VERSION} install state must be a copy install:`],
+      ["path outside bundle", (s) => { s.entries.push({ path: "commands/work.md", kind: "file", digest: digest(Buffer.from("x")) }); }, "Install state has a generated path outside the bundle:"],
+      ["unexpected profile", (s) => { s.entries = s.entries.filter((e) => e.path !== "agents/autonomous/consult.md"); s.entries.push({ path: "agents/autonomous/implhard.md", kind: "file", digest: digest(Buffer.from("x")) }); s.entries.push({ path: "agents/autonomous/consult.md", kind: "file", digest: digest(Buffer.from("y")) }); }, "Install state has an unexpected generated profile:"],
+    ];
+    for (const [label, mutate, expect] of cases) {
+      const s = JSON.parse(JSON.stringify(base));
+      mutate(s);
+      await writeFile(statePath, JSON.stringify(s, null, 2));
+      const r = run("install.mjs", ["install", "--target", valid, "--no-model"]);
+      check(r.exit === 1 && r.err.includes(expect), `state matrix: ${label} rejected`);
     }
   }
 
-  const missingTargetWorkingDirectory = target("missing-target-working-directory");
-  mkdirSync(missingTargetWorkingDirectory, { recursive: true });
-  const missingTarget = runWith(installer, missingTargetWorkingDirectory, ["--target", "--dry-run"], 1);
-  assert(missingTarget.stderr.includes("--target requires a path"), "an option cannot be consumed as --target's value");
-  assert(!existsSync(join(missingTargetWorkingDirectory, "--dry-run")),
-    "a missing --target value must fail without creating an option-named directory");
-  const inlineMissingTarget = runWith(installer, missingTargetWorkingDirectory, ["--target=--dry-run"], 1);
-  assert(inlineMissingTarget.stderr.includes("--target requires a path"),
-    "an option-looking inline --target value should be rejected");
-
-  const physicalSelectedProfile = target("physical-selected-profile");
-  const selectedProfileLink = target("selected-profile-link");
-  mkdirSync(physicalSelectedProfile, { recursive: true });
-  createDirectoryLink(physicalSelectedProfile, selectedProfileLink);
-  run(["--target", selectedProfileLink, "--no-model"]);
-  assert(existsSync(join(physicalSelectedProfile, stateName)),
-    "an explicitly selected profile link should install into its physical directory");
-  run(["uninstall", "--target", selectedProfileLink]);
-  assert(!existsSync(join(physicalSelectedProfile, stateName)),
-    "an explicitly selected profile link should uninstall from its physical directory");
-
-  const externalCommands = target("external-commands");
-  const linkedAncestorTarget = target("linked-ancestor");
-  mkdirSync(externalCommands, { recursive: true });
-  mkdirSync(linkedAncestorTarget, { recursive: true });
-  createDirectoryLink(externalCommands, join(linkedAncestorTarget, "commands"));
-  const linkedAncestorInstall = run(["--target", linkedAncestorTarget, "--no-model"], 1);
-  assert(linkedAncestorInstall.stderr.includes("linked ancestor"), "install should reject a managed linked ancestor");
-  assert(!existsSync(join(externalCommands, "autonomous.md")), "install must not write through a linked ancestor");
-  assert(!existsSync(join(linkedAncestorTarget, stateName)), "linked-ancestor refusal must not create state");
-
-  const externalBackups = target("external-backups");
-  const linkedBackupTarget = target("linked-backup");
-  mkdirSync(externalBackups, { recursive: true });
-  mkdirSync(linkedBackupTarget, { recursive: true });
-  createDirectoryLink(externalBackups, join(linkedBackupTarget, ".autonomous-mode-backups"));
-  const linkedBackupInstall = run(["--target", linkedBackupTarget, "--no-model"], 1);
-  assert(linkedBackupInstall.stderr.includes("linked ancestor"), "install should reject a linked backup root");
-  assert(readdirSync(externalBackups).length === 0, "install must not write through a linked backup root");
-
-  const redirectedUninstallTarget = target("redirected-uninstall");
-  const redirectedUninstallExternal = target("redirected-uninstall-external");
-  run(["--target", redirectedUninstallTarget, "--no-model"]);
-  mkdirSync(redirectedUninstallExternal, { recursive: true });
-  const installedCommand = installedFile(redirectedUninstallTarget, "commands/autonomous.md");
-  const externalCommand = join(redirectedUninstallExternal, "autonomous.md");
-  writeFileSync(externalCommand, readFileSync(installedCommand));
-  rmSync(join(redirectedUninstallTarget, "commands"), { recursive: true });
-  createDirectoryLink(redirectedUninstallExternal, join(redirectedUninstallTarget, "commands"));
-  const redirectedUninstall = run(["uninstall", "--target", redirectedUninstallTarget], 1);
-  assert(redirectedUninstall.stderr.includes("linked ancestor"), "uninstall should reject a redirected managed ancestor");
-  assert(existsSync(externalCommand), "uninstall must not remove a matching file outside the selected profile");
-  assert(existsSync(join(redirectedUninstallTarget, stateName)), "redirected uninstall must retain install state");
-
-  assertRejectedState("schema", (value) => { value.schema += 1; });
-  assertRejectedState("package", (value) => { value.package = "another-package"; });
-  assertRejectedState("mode-kind", (value) => { value.mode = "link"; });
-  assertRejectedState("duplicate", (value) => { value.entries[1] = { ...value.entries[0] }; });
-  assertRejectedState("missing", (value) => { value.entries.pop(); });
-  assertRejectedState("extra", (value) => {
-    value.entries.push({ path: "commands/extra.md", kind: "file", digest: "0".repeat(64) });
-  });
-  assertRejectedState("traversal", (value) => { value.entries[0].path = "../outside.md"; });
-  assertRejectedState("noncanonical", (value) => { value.entries[0].path = "agents/../outside.md"; });
-  assertRejectedState("kind", (value) => { value.entries[0].kind = "link"; });
-  assertRejectedState("digest", (value) => { value.entries[0].digest = "not-a-sha256"; });
-
-  const overlapParent = target("overlap-parent");
-  const isolatedCheckout = join(overlapParent, "checkout");
-  mkdirSync(join(isolatedCheckout, "scripts"), { recursive: true });
-  cpSync(installer, join(isolatedCheckout, "scripts", "install.mjs"));
-  for (const bundlePath of ["agents", "commands", "skills"]) {
-    cpSync(join(repositoryRoot, bundlePath), join(isolatedCheckout, bundlePath), { recursive: true });
+  // ---------------------------------------------------------------------
+  // B. Migration fixtures (schema 1-4 copy, schema 4 link, schema 5 generated).
+  // ---------------------------------------------------------------------
+  for (const schema of [1, 2, 3, 4]) {
+    const t = join(scratch, `b-copy${schema}`);
+    await mkdir(t, { recursive: true });
+    await makeCopyFixture(t, schema);
+    // Modify one retired file that is NOT reused by the new inventory (commands/autonomous.md).
+    const modPath = join(t, "commands", "autonomous.md");
+    await writeFile(modPath, "USER-EDITED\n");
+    const r = run("install.mjs", ["install", "--target", t, "--no-model"]);
+    check(r.exit === 0, `migration copy schema ${schema}: exits 0`);
+    check(r.out.includes(`  migrating from schema ${schema} copy install`), `migration copy schema ${schema}: migrating message`);
+    const state = await readState(t);
+    check(state.schema === STATE_VERSION, `migration copy schema ${schema}: advanced to schema ${STATE_VERSION}`);
+    check(state.entries.length === 26, `migration copy schema ${schema}: 26 entries`);
+    check((await readFile(modPath, "utf8")) === "USER-EDITED\n", `migration copy schema ${schema}: modified retired file preserved`);
+    // An unmodified retired file that is not in the new inventory is removed.
+    check(!(await exists(join(t, "commands", "work.md"))), `migration copy schema ${schema}: unmodified retired commands/work.md removed`);
   }
-  const isolatedInstaller = join(isolatedCheckout, "scripts", "install.mjs");
-  const sourceBefore = readFileSync(join(isolatedCheckout, "commands", "autonomous.md"), "utf8");
-  const equalOverlap = runWith(isolatedInstaller, fixtureRoot, ["--target", isolatedCheckout, "--no-model"], 1);
-  assert(equalOverlap.stderr.includes("must not overlap"), "target equal to checkout should be rejected");
-  assert(!existsSync(join(isolatedCheckout, stateName)), "equal overlap must not adopt checkout sources as installed files");
-  assert(readFileSync(join(isolatedCheckout, "commands", "autonomous.md"), "utf8") === sourceBefore,
-    "equal overlap must not modify checkout sources");
-
-  const containingOverlap = runWith(isolatedInstaller, fixtureRoot, ["--target", overlapParent, "--no-model"], 1);
-  assert(containingOverlap.stderr.includes("must not overlap"), "target containing checkout should be rejected");
-  assert(!existsSync(join(overlapParent, stateName)), "containing overlap must not create install state");
-
-  const resolvedOverlapLink = target("resolved-overlap-link");
-  createDirectoryLink(isolatedCheckout, resolvedOverlapLink);
-  const resolvedOverlap = runWith(isolatedInstaller, fixtureRoot, ["--target", resolvedOverlapLink, "--link", "--replace", "--no-model"], 1);
-  assert(resolvedOverlap.stderr.includes("must not overlap"), "resolved target links into checkout should be rejected");
-  assert(readFileSync(join(isolatedCheckout, "commands", "autonomous.md"), "utf8") === sourceBefore,
-    "resolved overlap must not replace sources with self-links");
-
-  const linkedSourceCheckout = target("linked-source-checkout");
-  mkdirSync(join(linkedSourceCheckout, "scripts"), { recursive: true });
-  cpSync(installer, join(linkedSourceCheckout, "scripts", "install.mjs"));
-  for (const bundlePath of ["agents", "commands", "skills"]) {
-    cpSync(join(repositoryRoot, bundlePath), join(linkedSourceCheckout, bundlePath), { recursive: true });
+  {
+    // Schema 5 (six-profile generated) → schema 6 adds the implement-hard profile.
+    const t = join(scratch, "b-gen5");
+    await mkdir(t, { recursive: true });
+    await makeGeneratedFixture(t, LEGACY_GENERATED_SCHEMA, LEGACY_PROFILES, fourSkills);
+    const r = run("install.mjs", ["install", "--target", t, "--no-model"]);
+    check(r.exit === 0, "migration generated schema 5: exits 0");
+    check(r.out.includes(`  migrating from schema ${LEGACY_GENERATED_SCHEMA} copy install`), "migration generated schema 5: migrating message");
+    const state = await readState(t);
+    check(state.schema === STATE_VERSION, "migration generated schema 5: advanced to schema 6");
+    check(state.entries.length === 26, "migration generated schema 5: 26 entries");
+    check(await exists(join(t, "agents", "autonomous", "implement-hard.md")), "migration generated schema 5: implement-hard profile now present");
+    check(state.entries.some((e) => e.path === "agents/autonomous/implement-hard.md"), "migration generated schema 5: implement-hard in state");
   }
-  const linkedSourceTarget = target("linked-source-target");
-  const externalAgentSource = join(linkedSourceTarget, "source-agents");
-  mkdirSync(linkedSourceTarget, { recursive: true });
-  cpSync(join(linkedSourceCheckout, "agents", "autonomous"), externalAgentSource, { recursive: true });
-  rmSync(join(linkedSourceCheckout, "agents", "autonomous"), { recursive: true });
-  createDirectoryLink(externalAgentSource, join(linkedSourceCheckout, "agents", "autonomous"));
-  const linkedSourceInstaller = join(linkedSourceCheckout, "scripts", "install.mjs");
-  const linkedSourceOverlap = runWith(linkedSourceInstaller, fixtureRoot, ["--target", linkedSourceTarget, "--no-model"], 1);
-  assert(linkedSourceOverlap.stderr.includes("resolved bundle sources must not overlap"),
-    "a source link resolving inside the target should be rejected");
-  assert(!existsSync(join(linkedSourceTarget, stateName)), "resolved source overlap must not create install state");
+  {
+    // Modified-but-REUSED file (consult.md is in the new inventory) collides without --replace.
+    const t = join(scratch, "b-collide-reused");
+    await mkdir(t, { recursive: true });
+    await makeCopyFixture(t, 4);
+    await writeFile(join(t, "agents", "autonomous", "consult.md"), "USER-EDITED-CONSULT\n");
+    const r = run("install.mjs", ["install", "--target", t, "--no-model"]);
+    check(r.exit === 1 && r.err.includes("Differing content already exists at:"), "migration: modified reused file collides without --replace");
+    const r2 = run("install.mjs", ["install", "--target", t, "--no-model", "--replace"]);
+    check(r2.exit === 0 && r2.out.includes("preserve-modified: agents/autonomous/consult.md"), "migration: modified reused file reported with --replace");
+  }
+  {
+    // Link schema 4 → converted to copy.
+    const t = join(scratch, "b-link4");
+    const srcDir = join(scratch, "b-link4-src");
+    await mkdir(srcDir, { recursive: true });
+    const entries = [];
+    for (const p of linkPaths) {
+      const dest = join(t, p);
+      const target = join(srcDir, p.replace(/\//g, "_").replace(/\.md$/, ".txt"));
+      await mkdir(dirname(dest), { recursive: true });
+      await writeFile(target, "linked\n");
+      await symlink(target, dest, "file");
+      entries.push({ path: p, kind: "link", linkTarget: target });
+    }
+    entries.sort((a, b) => a.path.localeCompare(b.path));
+    await writeFile(join(t, STATE), JSON.stringify({
+      entries, installedAt: new Date().toISOString(), mode: "link", package: PACKAGE, schema: 4,
+    }, null, 2));
+    const r = run("install.mjs", ["install", "--target", t, "--no-model"]);
+    check(r.exit === 0, "migration link schema 4: exits 0");
+    check(r.out.includes("  migrating from schema 4 link install"), "migration link schema 4: migrating message");
+    check(r.out.includes("  converted: the previous link install was converted to a copy install of the generated bundle."), "migration link schema 4: converted message");
+    const state = await readState(t);
+    check(state.schema === STATE_VERSION && state.mode === "copy" && state.entries.length === 26, "migration link schema 4: now schema 6 copy 26 entries");
+  }
+  // Build the full schema-4 link inventory (the validator requires the exact set).
+  async function makeLinkFixture(target, srcDir) {
+    await mkdir(srcDir, { recursive: true });
+    const entries = [];
+    for (const p of linkPaths) {
+      const dest = join(target, p);
+      const stored = join(srcDir, p.replace(/\//g, "_").replace(/\.md$/, ".txt"));
+      await mkdir(dirname(dest), { recursive: true });
+      await writeFile(stored, "linked\n");
+      await symlink(stored, dest, "file");
+      entries.push({ path: p, kind: "link", linkTarget: stored });
+    }
+    entries.sort((a, b) => a.path.localeCompare(b.path));
+    await writeFile(join(target, STATE), JSON.stringify({
+      entries, installedAt: new Date().toISOString(), mode: "link", package: PACKAGE, schema: 4,
+    }, null, 2));
+  }
+  {
+    // R6 + physical boundary: the profile home (agents/autonomous) is a symlink the
+    // installer does NOT own (live target differs from the stored one). It must never
+    // be deleted, and the profile copies must not be written THROUGH it — the install
+    // fails safely and rolls back rather than writing outside the managed root.
+    const t = join(scratch, "b-link4-repoint");
+    const srcDir = join(scratch, "b-link4-repoint-src");
+    await makeLinkFixture(t, srcDir);
+    const dest = join(t, "agents/autonomous");
+    const otherTarget = join(srcDir, "elsewhere.txt");
+    await writeFile(otherTarget, "other\n");
+    await rm(dest);
+    await symlink(otherTarget, dest, "file");
+    const r = run("install.mjs", ["install", "--target", t, "--no-model"]);
+    check(r.exit === 1, "R6 link repoint: non-owned profile link fails the install safely");
+    check(r.out.includes("preserve-modified: agents/autonomous"), "R6 link repoint: repointed link reported as preserved");
+    check(await exists(dest), "R6 link repoint: repointed link NOT deleted");
+    check(!(await exists(join(t, "agents", "autonomous", "consult.md"))), "R6 link repoint: no profile copies written through the link (rollback)");
+  }
+  {
+    // R6: a link replaced by a plain directory is preserved (ownership of the bytes
+    // cannot be proven), and — unlike a symlink — a real directory is inside the
+    // managed root, so the profile copies write into it and the install completes.
+    const t = join(scratch, "b-link4-dir");
+    const srcDir = join(scratch, "b-link4-dir-src");
+    await makeLinkFixture(t, srcDir);
+    const dest = join(t, "agents/autonomous");
+    await rm(dest);
+    await mkdir(dest, { recursive: true });
+    const r = run("install.mjs", ["install", "--target", t, "--no-model"]);
+    check(r.exit === 0, "R6 link→dir: exits 0");
+    check(r.out.includes("preserve-modified: agents/autonomous"), "R6 link→dir: replaced-by-directory preserved");
+    const state = await readState(t);
+    check(state.schema === STATE_VERSION && state.mode === "copy" && state.entries.length === 26, "R6 link→dir: converted to schema 6 copy 26 entries");
+    check(await exists(join(t, "agents", "autonomous", "consult.md")), "R6 link→dir: profile copies written into the preserved directory");
+  }
 
-  console.log(`Installer tests passed: ${assertions} assertions${linksSupported ? "" : ", link coverage skipped"}.`);
+  // ---------------------------------------------------------------------
+  // B2. Same-schema (R12) retirement: an owned file no longer in the inventory
+  //     is removed on a schema-6 → schema-6 update.
+  // ---------------------------------------------------------------------
+  {
+    const t = join(scratch, "b2-retire");
+    const fresh = run("install.mjs", ["install", "--target", t, "--no-model"]);
+    check(fresh.exit === 0, "R12 retirement setup exits 0");
+    // Add an owned, unmodified extra file under skills/work/ that the new
+    // inventory does not carry, plus its matching state entry.
+    const extraRel = "skills/work/references/legacy-note.md";
+    const extra = join(t, extraRel);
+    const content = "legacy note\n";
+    await writeFile(extra, content, "utf8");
+    const state = await readState(t);
+    state.entries.push({ path: extraRel, kind: "file", digest: digest(Buffer.from(content)) });
+    state.entries.sort((a, b) => a.path.localeCompare(b.path));
+    await writeFile(join(t, STATE), JSON.stringify(state, null, 2));
+    const r = run("install.mjs", ["install", "--target", t, "--no-model"]);
+    check(r.exit === 0, "R12 retirement: exits 0");
+    check(r.out.includes(`  migrate-remove: ${extraRel}`), "R12 retirement: extra owned file migrated away");
+    check(!(await exists(extra)), "R12 retirement: extra owned file removed");
+    const state2 = await readState(t);
+    check(!state2.entries.some((e) => e.path === extraRel), "R12 retirement: extra file no longer in state");
+  }
+
+  // ---------------------------------------------------------------------
+  // B3. R11 duplicate-source detection: a fresh install into a target that also
+  //     carries a standalone marker surfaces a non-blocking notice.
+  // ---------------------------------------------------------------------
+  {
+    const t = join(scratch, "b3-dup");
+    await mkdir(t, { recursive: true });
+    await writeFile(join(t, STANDALONE_STATE), JSON.stringify({ schema: 1, entries: [] }, null, 2));
+    const r = run("install.mjs", ["install", "--target", t, "--no-model"]);
+    check(r.exit === 0, "R11 duplicate: exits 0 (non-blocking)");
+    check(r.out.includes("notice: another AgenticAle install appears present"), "R11 duplicate: notice printed");
+    // Re-running against an OWNED install must not re-emit the duplicate notice.
+    const r2 = run("install.mjs", ["install", "--target", t, "--no-model"]);
+    check(r2.exit === 0, "R11 duplicate: re-run exits 0");
+    check(!r2.out.includes("notice: another AgenticAle install appears present"), "R11 duplicate: no notice on owned re-run");
+  }
+
+  // ---------------------------------------------------------------------
+  // C. install-standalone.mjs
+  // ---------------------------------------------------------------------
+  {
+    const t = join(scratch, "c-model-choice");
+    const r = run("install-standalone.mjs", ["install", "--target", t]);
+    check(r.exit === 1 && r.err.includes("Install requires --models PATH|PRESET, --routing PATH, or --no-model."), "standalone: no model choice exits 1");
+  }
+  {
+    const t = join(scratch, "c-fresh");
+    const r = run("install-standalone.mjs", ["install", "--target", t, "--no-model"]);
+    check(r.exit === 0 && r.out.includes("Installation complete."), "standalone fresh: exits 0 + complete");
+    const state = await readStandaloneState(t);
+    check(state.schema === 1, "standalone fresh: schema 1");
+    check(state.scope === "project", "standalone fresh: scope project");
+    check(state.sourceLayout === "autonomous,pull-request-description,source-code-lookup,work", "standalone fresh: sourceLayout string");
+    check(state.entries.length === 19, "standalone fresh: 19 entries");
+    const files = (await relFiles(t)).filter((f) => f !== STANDALONE_STATE);
+    check(files.length === 19, "standalone fresh: 19 files on disk");
+    check(!files.some((f) => f.startsWith("agents/")), "standalone fresh: no agents/");
+    check(!files.some((f) => f.startsWith("commands/")), "standalone fresh: no commands/");
+    check(await exists(join(t, "work", "references", "routing.json")), "standalone fresh: materializes work/references/routing.json");
+    // Idempotent.
+    const before = await readFile(join(t, STANDALONE_STATE), "utf8");
+    const r2 = run("install-standalone.mjs", ["install", "--target", t, "--no-model"]);
+    check(r2.exit === 0 && r2.out.includes("Already up to date."), "standalone idempotent: Already up to date");
+    check(before === await readFile(join(t, STANDALONE_STATE), "utf8"), "standalone idempotent: state unchanged");
+  }
+  {
+    // Collision ± --replace.
+    const t = join(scratch, "c-collide");
+    const fresh = run("install-standalone.mjs", ["install", "--target", t, "--no-model"]);
+    check(fresh.exit === 0, "standalone collision setup exits 0");
+    const dest = join(t, "work", "SKILL.md");
+    await writeFile(dest, "HACKED\n");
+    const blocked = run("install-standalone.mjs", ["install", "--target", t, "--no-model"]);
+    check(blocked.exit === 1 && blocked.err.includes("Differing content already exists at:"), "standalone collision: blocked");
+    const replaced = run("install-standalone.mjs", ["install", "--target", t, "--no-model", "--replace"]);
+    check(replaced.exit === 0 && replaced.out.includes("backup created:"), "standalone collision: --replace restores + backup");
+    check((await readFile(dest, "utf8")) !== "HACKED\n", "standalone collision: file restored");
+  }
+  {
+    // Dry-run writes nothing.
+    const t = join(scratch, "c-dry");
+    const r = run("install-standalone.mjs", ["install", "--target", t, "--no-model", "--dry-run"]);
+    check(r.exit === 0 && r.out.includes("Dry run complete; no files were changed."), "standalone dry-run: no files changed");
+    check(!(await exists(join(t, STANDALONE_STATE))), "standalone dry-run: no state");
+    check(!(await exists(join(t, "work", "SKILL.md"))), "standalone dry-run: no files");
+  }
+  {
+    // Uninstall removes owned files + state, preserves a modified one.
+    const t = join(scratch, "c-uninstall");
+    const fresh = run("install-standalone.mjs", ["install", "--target", t, "--no-model"]);
+    check(fresh.exit === 0, "standalone uninstall setup exits 0");
+    const dest = join(t, "work", "SKILL.md");
+    await writeFile(dest, "USER-EDITED\n");
+    const r = run("install-standalone.mjs", ["uninstall", "--target", t]);
+    check(r.exit === 0 && r.out.includes("Uninstall complete. Preserved 1 modified destination(s)."), "standalone uninstall: preserved modified");
+    check((await readFile(dest, "utf8")) === "USER-EDITED\n", "standalone uninstall: modified preserved");
+    check(!(await exists(join(t, STANDALONE_STATE))), "standalone uninstall: state removed");
+    check(!(await exists(join(t, "source-code-lookup", "SKILL.md"))), "standalone uninstall: owned removed");
+  }
+  {
+    // Non-overlap: target == repo rejected pre-write.
+    const r = run("install-standalone.mjs", ["install", "--target", repo, "--no-model"]);
+    check(r.exit === 1 && r.err.includes("The target and this checkout must not overlap:") && r.err.includes("standalone skills folder"), "standalone non-overlap: target==repo");
+    check(!(await exists(join(repo, STANDALONE_STATE))), "standalone non-overlap: nothing written");
+  }
+  {
+    // F2: a failed missing-file repair (junction over a reference directory) must
+    // not delete the ownership state file on rollback.
+    const t = join(scratch, "a-f2");
+    const fresh = run("install.mjs", ["install", "--target", t, "--no-model"]);
+    check(fresh.exit === 0, "F2 opencode setup fresh exits 0");
+    const before = await readFile(join(t, STATE), "utf8");
+    const refDir = join(t, "skills", "work", "references", "runtimes");
+    const empty = join(scratch, "a-f2-empty");
+    await mkdir(empty, { recursive: true });
+    await rm(refDir, { recursive: true });
+    await symlink(empty, refDir, "junction");
+    const failed = run("install.mjs", ["install", "--target", t, "--no-model"]);
+    check(failed.exit === 1 && /linked ancestor/.test(failed.err), "F2 opencode failed repair is refused");
+    const after = await readFile(join(t, STATE), "utf8");
+    check(after === before, "F2 opencode state file preserved after failed repair (ownership intact)");
+  }
+  {
+    // F2 (standalone): same missing-file-repair rollback must preserve state.
+    const t = join(scratch, "c-f2");
+    const fresh = run("install-standalone.mjs", ["install", "--target", t, "--no-model"]);
+    check(fresh.exit === 0, "F2 standalone setup fresh exits 0");
+    const before = await readFile(join(t, STANDALONE_STATE), "utf8");
+    const refDir = join(t, "work", "references", "runtimes");
+    const empty = join(scratch, "c-f2-empty");
+    await mkdir(empty, { recursive: true });
+    await rm(refDir, { recursive: true });
+    await symlink(empty, refDir, "junction");
+    const failed = run("install-standalone.mjs", ["install", "--target", t, "--no-model"]);
+    check(failed.exit === 1 && /linked ancestor/.test(failed.err), "F2 standalone failed repair is refused");
+    const after = await readFile(join(t, STANDALONE_STATE), "utf8");
+    check(after === before, "F2 standalone state file preserved after failed repair (ownership intact)");
+  }
+  {
+    // F10: a stale owned entry whose file is already absent must be reconciled
+    // out of state on rerun, not reported "Already up to date".
+    const t = join(scratch, "a-f10");
+    const fresh = run("install.mjs", ["install", "--target", t, "--no-model"]);
+    check(fresh.exit === 0, "F10 setup fresh exits 0");
+    const state = JSON.parse(await readFile(join(t, STATE), "utf8"));
+    state.entries.push({ path: "skills/work/references/runtimes/claude.md", kind: "file", digest: digest(Buffer.from("stale\n")) });
+    await writeFile(join(t, STATE), JSON.stringify(state, null, 2));
+    const rerun = run("install.mjs", ["install", "--target", t, "--no-model"]);
+    check(rerun.exit === 0, "F10 rerun exits 0");
+    check(!rerun.out.includes("Already up to date"), "F10 rerun reconciles instead of reporting up-to-date");
+    const reconciled = JSON.parse(await readFile(join(t, STATE), "utf8"));
+    check(!reconciled.entries.some((e) => e.path === "skills/work/references/runtimes/claude.md"), "F10 stale entry reconciled out of state");
+  }
+
+  // F11: a POPULATED external junction over a reference directory. Unlike the
+  // empty F2 fixture, the external directory holds a real codex.md that is also
+  // hard-linked outside the install. A refused update must not delete/recreate
+  // that external file: its content, identity (ino), and link count must all be
+  // preserved, and the ownership state bytes must be unchanged.
+  async function f11Fixture(script, refRel, stateName, label) {
+    const t = join(scratch, label);
+    const fresh = run(script, ["install", "--target", t, "--no-model"]);
+    check(fresh.exit === 0, `F11 ${label}: fresh install exits 0`);
+    const beforeState = await readFile(join(t, stateName), "utf8");
+    const refDir = join(t, refRel);
+    const external = join(scratch, `${label}-ext`);
+    await cp(refDir, external, { recursive: true });
+    const codex = join(external, "codex.md");
+    await writeFile(codex, "external-custom-content\n", "utf8");
+    // Second hard link to the external file, outside the install, so a
+    // delete/recreate would drop the link count from 2 to 1 and be observable.
+    const secondLink = join(scratch, `${label}-second-link`);
+    await link(codex, secondLink);
+    await rm(refDir, { recursive: true });
+    await symlink(external, refDir, "junction");
+    const failed = run(script, ["install", "--target", t, "--no-model", "--replace"]);
+    check(failed.exit === 1 && /linked ancestor/.test(failed.err), `F11 ${label}: populated-junction update is refused`);
+    const before = await stat(codex);
+    const afterStat = await stat(codex);
+    check(afterStat.nlink === 2, `F11 ${label}: external codex.md link count stays 2 (not deleted/recreated)`);
+    check((await readFile(codex, "utf8")) === "external-custom-content\n", `F11 ${label}: external codex.md content unchanged`);
+    check(afterStat.ino === before.ino, `F11 ${label}: external codex.md identity (ino) unchanged`);
+    check(await readFile(join(t, stateName), "utf8") === beforeState, `F11 ${label}: ownership state bytes unchanged`);
+  }
+  await f11Fixture("install.mjs", "skills/work/references/runtimes", STATE, "a-f11");
+  await f11Fixture("install-standalone.mjs", "work/references/runtimes", STANDALONE_STATE, "c-f11");
+
+  // F13: a replacement write that fails (ENOSPC) after the destination has been
+  // removed must still be rolled back. The installer registers a replacement in
+  // the rollback set before the write, so a failing write leaves the pre-existing
+  // content restored and the ownership state untouched, never a missing/partial
+  // destination. A one-shot write failure is injected via a --require hook that
+  // wraps fs.promises.writeFile for a single destination path.
+  const f13Hook = join(scratch, "f13-fail-write.cjs");
+  await writeFile(f13Hook,
+    'const fs = require("fs");\n' +
+    'const orig = fs.promises.writeFile;\n' +
+    'fs.promises.writeFile = async function (path, ...args) {\n' +
+    '  const target = process.env.F13_FAIL_WRITE;\n' +
+    '  if (target && String(path) === target) {\n' +
+    '    const err = new Error("ENOSPC: no space left on device, open \'" + path + "\'");\n' +
+    '    err.code = "ENOSPC";\n' +
+    '    throw err;\n' +
+    '  }\n' +
+    '  return orig(path, ...args);\n' +
+    '};\n');
+  async function f13Fixture(script, skillRel, stateName, label) {
+    const t = join(scratch, label);
+    const fresh = run(script, ["install", "--target", t, "--no-model"]);
+    check(fresh.exit === 0, `F13 ${label}: fresh install exits 0`);
+    const beforeState = await readFile(join(t, stateName), "utf8");
+    const skill = join(t, skillRel);
+    const custom = "F13 custom work content\n";
+    await writeFile(skill, custom, "utf8");
+    const failed = run(script, ["install", "--target", t, "--no-model", "--replace"], {
+      env: { NODE_OPTIONS: `--require ${f13Hook}`, F13_FAIL_WRITE: skill },
+    });
+    check(failed.exit === 1, `F13 ${label}: injected replacement-write failure exits 1`);
+    check(/rolled back/.test(failed.err), `F13 ${label}: reports a rollback`);
+    check((await readFile(skill, "utf8")) === custom, `F13 ${label}: destination restored to pre-existing content (not missing/partial)`);
+    check(await readFile(join(t, stateName), "utf8") === beforeState, `F13 ${label}: ownership state bytes unchanged`);
+  }
+  await f13Fixture("install.mjs", "skills/work/SKILL.md", STATE, "a-f13");
+  await f13Fixture("install-standalone.mjs", "work/SKILL.md", STANDALONE_STATE, "c-f13");
+
+  // F7: duplicate-source detection must span the scopes Codex actually
+  //     discovers. A fresh install into the user scope leaves a marker that an
+  //     unrelated project-scope install elsewhere should notice, and vice
+  //     versa. Run both under an isolated fake home so the real user home and
+  //     repo are untouched, with the two scopes pointing at separate trees.
+  {
+    const fakeHome = await mkdtemp(join(scratch, "f7-home-"));
+    const fakeEnv = { USERPROFILE: fakeHome, HOME: fakeHome, APPDATA: join(fakeHome, "AppData", "Roaming"), LOCALAPPDATA: join(fakeHome, "AppData", "Local") };
+    const projectDir = await mkdtemp(join(scratch, "f7-project-"));
+    const userTarget = join(fakeHome, ".agents", "skills");
+    const projectTarget = join(projectDir, ".agents", "skills");
+
+    // Install into the user scope (fake home) — no competing install exists yet.
+    const rUser = run("install-standalone.mjs", ["install", "--no-model", "--target", userTarget], { cwd: scratch, env: fakeEnv });
+    check(rUser.exit === 0, "F7 standalone: user-scope install exits 0");
+    check(!rUser.out.includes("notice: another AgenticAle install appears present"), "F7 standalone: no duplicate notice on first install");
+
+    // A project-scope install elsewhere (different cwd, different target) should
+    // still notice the user-scope install in the discoverable home root.
+    const rProject = run("install-standalone.mjs", ["install", "--no-model", "--target", projectTarget], { cwd: projectDir, env: fakeEnv });
+    check(rProject.exit === 0, "F7 standalone: project-scope install exits 0 (non-blocking)");
+    check(rProject.out.includes("notice: another AgenticAle install appears present"), "F7 standalone: duplicate notice spans scopes");
+    check(rProject.out.includes("Pick one source of truth"), "F7 standalone: notice documents the explicit choice");
+
+    // The already-owned project re-run must not re-emit the notice.
+    const rProjectAgain = run("install-standalone.mjs", ["install", "--no-model", "--target", projectTarget], { cwd: projectDir, env: fakeEnv });
+    check(rProjectAgain.exit === 0, "F7 standalone: owned project re-run exits 0");
+    check(!rProjectAgain.out.includes("notice: another AgenticAle install appears present"), "F7 standalone: no duplicate notice on owned re-run");
+  }
+
+  console.log(`Installer tests passed: ${assertions} assertions.`);
 } finally {
-  rmSync(fixtureRoot, { recursive: true, force: true });
+  await rm(scratch, { recursive: true, force: true });
 }

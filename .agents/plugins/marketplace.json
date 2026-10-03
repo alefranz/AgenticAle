@@ -1,0 +1,40 @@
+{
+  "name": "agenticale",
+  "owner": {
+    "name": "Ale Franz"
+  },
+  "metadata": {
+    "description": "AgenticAle workflows for reviewed coding tasks and autonomous projects.",
+    "version": "0.3.0"
+  },
+  "plugins": [
+    {
+      "name": "agenticale",
+      "source": "./plugins/agenticale",
+      "description": "Reviewed coding tasks with focused specialist agents, optional PR delivery, and durable autonomous project work.",
+      "version": "0.3.0",
+      "author": {
+        "name": "Ale Franz"
+      },
+      "homepage": "https://github.com/alefranz/AgenticAle",
+      "repository": "https://github.com/alefranz/AgenticAle",
+      "license": "MIT",
+      "keywords": [
+        "autonomous",
+        "development",
+        "review",
+        "subagents"
+      ],
+      "category": "development",
+      "tags": [
+        "autonomous",
+        "coding",
+        "review"
+      ],
+      "policy": {
+        "installation": "INSTALLED_BY_DEFAULT",
+        "authentication": "ON_USE"
+      }
+    }
+  ]
+}
