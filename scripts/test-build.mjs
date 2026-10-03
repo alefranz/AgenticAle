@@ -2,7 +2,7 @@
 
 import { existsSync } from "node:fs";
 import { createHash } from "node:crypto";
-import { mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile, cp } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile, cp, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, relative, resolve, sep } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -304,10 +304,21 @@ try {
     await symlink(join(copyRoot, "skills"), alias, "junction");
     const before = (await listFiles(join(copyRoot, "skills"))).length;
     const copiedBuild = join(copyRoot, "scripts", "build.mjs");
-    const missingOutput = spawnSync(process.execPath, [copiedBuild, "--output", join(alias, "missing-output")], { encoding: "utf8" });
+    const requestedOutput = join(alias, "missing-output");
+    const missingOutput = spawnSync(process.execPath, [copiedBuild, "--output", requestedOutput], { encoding: "utf8" });
+    const pathDiagnostics = JSON.stringify({
+      copyRoot,
+      realCopyRoot: await realpath(copyRoot),
+      skills: join(copyRoot, "skills"),
+      realSkills: await realpath(join(copyRoot, "skills")),
+      alias,
+      realAlias: await realpath(alias),
+      requestedOutput,
+      stdout: missingOutput.stdout.trim(),
+    });
     check(
       missingOutput.status === 1 && /must not be inside the source directory skills/.test(missingOutput.stderr),
-      `F12 missing output under a source-linked ancestor is refused (exit ${missingOutput.status}; stderr: ${missingOutput.stderr.trim()})`,
+      `F12 missing output under a source-linked ancestor is refused (exit ${missingOutput.status}; stderr: ${missingOutput.stderr.trim()}; paths: ${pathDiagnostics})`,
     );
     check((await listFiles(join(copyRoot, "skills"))).length === before, "F12 refused build creates no new files in the source tree");
   }
