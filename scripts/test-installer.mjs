@@ -656,7 +656,8 @@ try {
     'const orig = fs.promises.writeFile;\n' +
     'fs.promises.writeFile = async function (path, ...args) {\n' +
     '  const target = process.env.F13_FAIL_WRITE;\n' +
-    '  if (target && String(path) === target) {\n' +
+    '  const normalizedPath = String(path).replace(/\\\\/g, "/");\n' +
+    '  if (target && normalizedPath.endsWith("/" + target)) {\n' +
     '    const err = new Error("ENOSPC: no space left on device, open \'" + path + "\'");\n' +
     '    err.code = "ENOSPC";\n' +
     '    throw err;\n' +
@@ -672,9 +673,11 @@ try {
     const custom = "F13 custom work content\n";
     await writeFile(skill, custom, "utf8");
     const failed = run(script, ["install", "--target", t, "--no-model", "--replace"], {
-      env: { NODE_OPTIONS: `--require ${f13Hook}`, F13_FAIL_WRITE: skill },
+      // Match the managed path suffix because installers canonicalize target
+      // roots; temp-directory symlinks differ between Linux, macOS, and Windows.
+      env: { NODE_OPTIONS: `--require ${f13Hook}`, F13_FAIL_WRITE: `${label}/${skillRel}` },
     });
-    check(failed.exit === 1, `F13 ${label}: injected replacement-write failure exits 1`);
+    check(failed.exit === 1 && /ENOSPC/.test(failed.err), `F13 ${label}: injected replacement-write failure exits 1`);
     check(/rolled back/.test(failed.err), `F13 ${label}: reports a rollback`);
     check((await readFile(skill, "utf8")) === custom, `F13 ${label}: destination restored to pre-existing content (not missing/partial)`);
     check(await readFile(join(t, stateName), "utf8") === beforeState, `F13 ${label}: ownership state bytes unchanged`);
