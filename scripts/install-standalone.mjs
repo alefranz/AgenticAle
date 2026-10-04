@@ -53,13 +53,13 @@ does not require any native agent or plugin. The four skill folders (work,
 autonomous, pull-request-description, source-code-lookup) are written directly
 under the destination.
 
-This installer serves Codex in VS Code and optional repository-local use in
-other clients that read a .agents/skills directory.
+This installer serves Codex CLI, the VS Code extension, Codex in the ChatGPT
+desktop app, and other clients that read a .agents/skills directory.
 
 Scopes (used to pick the default destination; --target overrides both):
   project  <current working directory>/.agents/skills
   user     ~/.agents/skills, Codex's user-level skill discovery location
-           (on Windows, %USERPROFILE%\.agents\skills)
+           (on Windows, %USERPROFILE%\\.agents\\skills)
 
 Options:
   --target PATH  Explicit destination; the .agents/skills folder the four

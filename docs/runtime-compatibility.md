@@ -42,8 +42,9 @@ are inputs to the matrix, not verified working versions.
 | 2 | Copilot Agent Host / standalone Copilot app | Copilot SDK-aligned runtime; same binding, verify bundled runtime/version |
 | 3 | VS Code Local harness | `runSubagent` with an explicit model argument; separate restrictions and controls |
 | 4 | Codex CLI | Direct skill invocation plus per-spawn model/reasoning dispatch |
-| 5 | Official Codex VS Code extension | Skills/subagents supported; plugins unsupported, so the standalone skill folders are installed |
-| 6 | OpenCode V2 | Generated model-routing profiles plus direct skill invocation |
+| 5 | Official Codex VS Code extension | Shared plugin through the Codex marketplace, or standalone skill folders |
+| 6 | Codex in the ChatGPT desktop app | Shared plugin through the Codex marketplace, or standalone skill folders |
+| 7 | OpenCode V2 | Generated model-routing profiles plus direct skill invocation |
 
 ## Capabilities to record per runtime
 

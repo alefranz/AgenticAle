@@ -152,6 +152,7 @@ reported; replacements are backed up.
 | Installer | Installs | State |
 | --- | --- | --- |
 | `scripts/install-copilot.mjs` | the modern shared plugin, via `copilot plugin install` | managed by the Copilot plugin store |
+| `codex plugin marketplace add` + `codex plugin add` | the shared plugin from `.agents/plugins/marketplace.json` | managed by the Codex plugin store |
 | `scripts/install-standalone.mjs` | the four standalone skills to project scope (`<cwd>/.agents/skills`, default) or user scope (`~/.agents/skills`) | `.agenticale-standalone-install.json` (schema 1) |
 | `scripts/install.mjs` | the generated OpenCode output (skills + seven profiles) | `.autonomous-mode-install.json` (schema 6, 26-file inventory) |
 
@@ -159,8 +160,8 @@ The OpenCode installer is copy-only. It builds to a temporary root and copies th
 generated output into the OpenCode configuration directory; it does not link to
 the repository source. On install it migrates older copy installs (state schema
 1-4) and older link installs (schema 1-4) to the current generated copy layout.
-The standalone installer requires no native agent or plugin, which is the path
-for the official Codex VS Code extension.
+The standalone installer provides an alternative local skill install for Codex
+CLI, the VS Code extension, and Codex in the ChatGPT desktop app.
 
 ## Safety and state boundaries
 

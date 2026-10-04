@@ -1,7 +1,7 @@
 # Setup and customization
 
-Start with the [README quick start](../README.md). This guide covers the three
-install paths, model routing, and client limitations. Live runtime behavior is
+Start with the [README quick start](../README.md). This guide covers the plugin
+and standalone install paths, model routing, and client limitations. Live runtime behavior is
 tracked separately in [runtime-compatibility.md](runtime-compatibility.md);
 nothing in this file is a live test result.
 
@@ -35,11 +35,37 @@ plugin with:
 copilot plugin uninstall agenticale
 ```
 
-### Standalone skills (Codex VS Code and other clients)
+### Codex plugin (CLI, VS Code extension, and ChatGPT desktop app)
+
+The published `plugins/agenticale` package contains all four skills, including
+`agents/openai.yaml` metadata for the `work` and `autonomous` workflows. The
+repository also contains a Codex marketplace at
+`.agents/plugins/marketplace.json`. Install it with the Codex CLI:
+
+```sh
+codex plugin marketplace add alefranz/AgenticAle
+codex plugin add agenticale@agenticale
+```
+
+For a local checkout during development, use `codex plugin marketplace add
+/absolute/path/to/AgenticAle` instead of the GitHub source. Then install with
+the same `codex plugin add` command. You can also open Plugins in the ChatGPT
+desktop app, select the AgenticAle marketplace, and install the plugin there.
+Start a new chat or session afterward. In CLI and VS Code, use `/skills` or
+mention `$work` or `$autonomous`; in the desktop app, open Skills or mention
+the skill in your prompt.
+
+Refresh a Git-backed marketplace with `codex plugin marketplace upgrade
+agenticale`. Inspect installs with `codex plugin list` and remove this plugin
+with `codex plugin remove agenticale@agenticale`. See the [official Codex plugin
+commands](https://learn.chatgpt.com/docs/developer-commands#codex-plugin).
+
+### Alternative: standalone Codex skills
 
 Installs the four skill folders directly under a `.agents/skills` directory.
-It requires no native agent or plugin, which is the path for the official Codex
-VS Code extension (skills/subagents supported, plugins unsupported).
+Codex CLI, the official VS Code extension, and Codex mode in the ChatGPT
+desktop app can discover these standalone skills. The installer requires no
+native agent or plugin.
 
 A routing choice is required (`--no-model` for inheritance, `--models
 PATH|PRESET`, or `--routing PATH`); the examples below show each. The default
@@ -65,6 +91,17 @@ overrides the destination entirely. The state file is
 installer, it prints a non-blocking `notice: another AgenticAle install
 appears present (<path>)` if the target already carries the other layout's
 marker.
+
+After installation, start a new chat or session in the chosen client. In Codex
+CLI and the VS Code extension, type `$work Fix the date filtering bug` or
+`$autonomous 10 Improve the export workflow`; `/skills` also lists available
+skills. In the ChatGPT desktop app's Codex mode, open Skills in the sidebar or
+mention the skill in your prompt. Use one install scope for the same machine
+unless you intentionally want separate copies: Codex may show both skills if
+their names occur in user and project scopes. The plugin install can also
+duplicate a standalone install. See the [official OpenAI skill
+documentation](https://learn.chatgpt.com/docs/build-skills) for discovery and
+invocation details.
 
 ### OpenCode V2 (generated profiles)
 
@@ -137,7 +174,7 @@ node scripts/install-copilot.mjs --no-model
 # Copilot, a complete caller policy
 node scripts/install-copilot.mjs --routing /path/to/routing.json --effort high
 
-# Standalone (Codex VS Code / other clients), project scope
+# Standalone Codex skills, project scope
 node scripts/install-standalone.mjs --scope project --models zen
 
 # OpenCode, isolated target and session inheritance
