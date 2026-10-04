@@ -1,0 +1,138 @@
+{
+  "schemaVersion": 1,
+  "provenance": "Baseline-inventory defaults derived from examples/gpt.json and examples/openai.json (gpt-6 family). These are NOT verified against any live account or runtime in this documentation-only pass. Exact native model field names and supported effort values are adapter concerns; validate identifiers per host before relying on a strict route, or override any route (or use --no-model / --routing PATH).",
+  "runtimes": {
+    "copilot": {
+      "consult": {
+        "mode": "explicit",
+        "model": "OpenAI/gpt-6-sol",
+        "fallbacks": [],
+        "reasoningEffort": "xhigh"
+      },
+      "deep-review": {
+        "mode": "explicit",
+        "model": "OpenAI/gpt-6-sol",
+        "fallbacks": [],
+        "reasoningEffort": "xhigh"
+      },
+      "explore": {
+        "mode": "explicit",
+        "model": "OpenAI/gpt-6-luna",
+        "fallbacks": [],
+        "reasoningEffort": "max"
+      },
+      "fix": {
+        "mode": "explicit",
+        "model": "OpenAI/gpt-6-luna",
+        "fallbacks": [],
+        "reasoningEffort": "max"
+      },
+      "implement-hard": {
+        "mode": "explicit",
+        "model": "OpenAI/gpt-6-sol",
+        "fallbacks": [],
+        "reasoningEffort": "high"
+      },
+      "implement": {
+        "mode": "explicit",
+        "model": "OpenAI/gpt-6-luna",
+        "fallbacks": [],
+        "reasoningEffort": "max"
+      },
+      "review": {
+        "mode": "explicit",
+        "model": "OpenAI/gpt-6-sol",
+        "fallbacks": [],
+        "reasoningEffort": "high"
+      }
+    },
+    "codex": {
+      "consult": {
+        "mode": "explicit",
+        "model": "openai/gpt-6-sol",
+        "fallbacks": [],
+        "reasoningEffort": "xhigh"
+      },
+      "deep-review": {
+        "mode": "explicit",
+        "model": "openai/gpt-6-sol",
+        "fallbacks": [],
+        "reasoningEffort": "xhigh"
+      },
+      "explore": {
+        "mode": "explicit",
+        "model": "openai/gpt-6-luna",
+        "fallbacks": [],
+        "reasoningEffort": "max"
+      },
+      "fix": {
+        "mode": "explicit",
+        "model": "openai/gpt-6-luna",
+        "fallbacks": [],
+        "reasoningEffort": "max"
+      },
+      "implement-hard": {
+        "mode": "explicit",
+        "model": "openai/gpt-6-sol",
+        "fallbacks": [],
+        "reasoningEffort": "high"
+      },
+      "implement": {
+        "mode": "explicit",
+        "model": "openai/gpt-6-luna",
+        "fallbacks": [],
+        "reasoningEffort": "max"
+      },
+      "review": {
+        "mode": "explicit",
+        "model": "openai/gpt-6-sol",
+        "fallbacks": [],
+        "reasoningEffort": "high"
+      }
+    },
+    "opencode": {
+      "consult": {
+        "mode": "explicit",
+        "model": "opencode/gpt-6-sol",
+        "fallbacks": [],
+        "reasoningEffort": "xhigh"
+      },
+      "deep-review": {
+        "mode": "explicit",
+        "model": "opencode/gpt-6-sol",
+        "fallbacks": [],
+        "reasoningEffort": "xhigh"
+      },
+      "explore": {
+        "mode": "explicit",
+        "model": "opencode/gpt-6-luna",
+        "fallbacks": [],
+        "reasoningEffort": "max"
+      },
+      "fix": {
+        "mode": "explicit",
+        "model": "opencode/gpt-6-luna",
+        "fallbacks": [],
+        "reasoningEffort": "max"
+      },
+      "implement-hard": {
+        "mode": "explicit",
+        "model": "opencode/gpt-6-sol",
+        "fallbacks": [],
+        "reasoningEffort": "high"
+      },
+      "implement": {
+        "mode": "explicit",
+        "model": "opencode/gpt-6-luna",
+        "fallbacks": [],
+        "reasoningEffort": "max"
+      },
+      "review": {
+        "mode": "explicit",
+        "model": "opencode/gpt-6-sol",
+        "fallbacks": [],
+        "reasoningEffort": "high"
+      }
+    }
+  }
+}

@@ -1,2 +1,6 @@
+# Force LF line endings for all text files so committed and generated
+# artifacts stay consistent across platforms.
+* text=auto eol=lf
+
 plugins/agenticale/** linguist-generated=true
 .github/plugin/marketplace.json linguist-generated=true

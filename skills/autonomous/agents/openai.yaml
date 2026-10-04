@@ -1,0 +1,5 @@
+interface:
+  display_name: Autonomous
+  short_description: Sequential autonomous goal with durable handoffs and independent review gates
+policy:
+  allow_implicit_invocation: false

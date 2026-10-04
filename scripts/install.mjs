@@ -6,7 +6,9 @@ import {
   cp,
   lstat,
   mkdir,
+  mkdtemp,
   readFile,
+  readdir,
   readlink,
   realpath,
   rename,
@@ -18,17 +20,36 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, posix, relative, resolve, win32 } from "node:path";
 import { fileURLToPath } from "node:url";
+import { buildBundles } from "./build.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(scriptDirectory, "..");
 const stateName = ".autonomous-mode-install.json";
 const backupDirectoryName = ".autonomous-mode-backups";
 const packageName = "opencode-autonomous-mode";
-const stateVersion = 4;
+const stateVersion = 6;
+// Schema 5 was the first generated-copy schema, but it carried only the six
+// pre-`implement-hard` profiles. Schema 6 adds the seventh `implement-hard`
+// profile, so schema-5 generated states are migrated like the older schemas.
+const legacyGeneratedSchema = 5;
 
+// The current (schema 6) copy inventory installs the GENERATED OpenCode output,
+// not the authored repo source. The destination layout is fixed; the exact set
+// of files is discovered by walking the build output so it always matches what
+// the build produced.
+const generatedRoots = ["agents", "skills"];
+const retiredCopyRoots = ["agents", "commands", "skills/autonomous-mode", "skills/work-mode"];
+
+// The seven rendered OpenCode profiles the build emits (no coordinator).
+const profileNames = new Set(["consult", "deep-review", "explore", "fix", "implement", "implement-hard", "review"]);
+// The six profiles the retired schema-5 build emitted (no implement-hard).
+const legacyProfileNames = new Set(["consult", "deep-review", "explore", "fix", "implement", "review"]);
+
+// Retired (old install) path inventories, kept so older states (schema 1-4) can
+// be validated and migrated. These are relative to the OpenCode target.
 const copyPaths = [
   "agents/autonomous/consult.md",
   "agents/autonomous/deep-review.md",
@@ -45,7 +66,6 @@ const copyPaths = [
   "skills/pull-request-description/SKILL.md",
   "skills/source-code-lookup/SKILL.md",
 ];
-
 const versionThreeCopyPaths = copyPaths.filter((path) => path !== "commands/work.md" && !path.startsWith("skills/work-mode/"));
 const versionTwoCopyPaths = versionThreeCopyPaths.filter((path) => path !== "skills/pull-request-description/SKILL.md");
 const legacyCopyPaths = versionTwoCopyPaths.filter((path) => path !== "skills/source-code-lookup/SKILL.md");
@@ -62,32 +82,33 @@ const linkPaths = [
 const versionThreeLinkPaths = linkPaths.filter((path) => !["commands/work.md", "skills/work-mode"].includes(path));
 const versionTwoLinkPaths = versionThreeLinkPaths.filter((path) => path !== "skills/pull-request-description");
 const legacyLinkPaths = versionTwoLinkPaths.filter((path) => path !== "skills/source-code-lookup");
-const roleNames = new Set(copyPaths
-  .filter((path) => path.startsWith("agents/autonomous/"))
-  .map((path) => basename(path, ".md")));
-const modelPresets = new Map([
-  ["example", "examples/example.json"],
-  ["local", "examples/local.json"],
-  ["openai", "examples/openai.json"],
-  ["zen", "examples/gpt.json"],
-]);
 
 function usage() {
   return `Usage:
-  node scripts/install.mjs [install] [--target PATH] [--source-root PATH] (--models PATH|PRESET | --no-model) [--link] [--replace] [--dry-run]
+  node scripts/install.mjs [install] [--target PATH] [--source-root PATH]
+                           (--models PATH|PRESET | --no-model) [--effort LEVEL]
+                           [--routing PATH] [--replace] [--dry-run]
   node scripts/install.mjs uninstall [--target PATH] [--dry-run]
+
+Installs the GENERATED OpenCode bundle (built to a temp root, then copied) into
+the OpenCode configuration directory. It does not link or point at the authored
+repository source. Older copy installs (schema 1-4) and link installs are
+migrated to the generated copy layout on install.
 
 Options:
   --target PATH  OpenCode configuration directory (default: XDG_CONFIG_HOME/opencode
                  when set, otherwise ~/.config/opencode)
   --source-root PATH
                  Local source checkout root for the source-code-lookup skill
-                 (copy installs only; default in the skill: ~/dev)
+                 (default in the skill: ~/dev)
   --models PATH|PRESET
                  JSON mapping or bundled preset (openai, zen, local, example)
-                 for copy installs; unspecified roles inherit the session model
-  --no-model      Explicitly make every installed role inherit the session model
-  --link         Link the seven bundle units to this checkout instead of copying
+                 converted to the routing contract; unspecified roles inherit
+                 the session model
+  --no-model      Explicitly make every route inherit the session model
+  --effort LEVEL  Route-wide reasoning-effort override (low/medium/high/xhigh/max)
+  --routing PATH  Build from a caller-supplied routing file instead of the
+                  packaged skills/work/references/routing.json
   --replace      Back up and replace differing destinations during install/update
   --dry-run      Print the planned operation without changing the filesystem
   --help         Show this help`;
@@ -97,12 +118,21 @@ function parseArguments(argv) {
   let command = "install";
   let target;
   let sourceRoot;
-  let modelsPath;
+  let models;
+  let routing;
   let noModel = false;
-  let link = false;
+  let effort;
+  let effortOverride = false;
   let replace = false;
   let dryRun = false;
   let commandSeen = false;
+
+  const requireValue = (index, option) => {
+    if (index + 1 >= argv.length || !argv[index + 1] || argv[index + 1].startsWith("-")) {
+      throw new Error(`${option} requires a value that is not another option.`);
+    }
+    return argv[index + 1];
+  };
 
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
@@ -111,37 +141,44 @@ function parseArguments(argv) {
       command = argument;
       commandSeen = true;
     } else if (argument === "--target") {
-      if (index + 1 >= argv.length) throw new Error("--target requires a path.");
-      target = argv[index + 1];
-      if (!target || target.startsWith("-")) throw new Error("--target requires a path, not another option.");
+      target = requireValue(index, "--target");
       index += 1;
     } else if (argument.startsWith("--target=")) {
       target = argument.slice("--target=".length);
       if (!target || target.startsWith("-")) throw new Error("--target requires a path, not another option.");
     } else if (argument === "--source-root") {
       if (sourceRoot !== undefined) throw new Error("--source-root may be supplied only once.");
-      if (index + 1 >= argv.length) throw new Error("--source-root requires a path.");
-      sourceRoot = argv[index + 1];
-      if (!sourceRoot || sourceRoot.startsWith("-")) throw new Error("--source-root requires a path, not another option.");
+      sourceRoot = requireValue(index, "--source-root");
       index += 1;
     } else if (argument.startsWith("--source-root=")) {
       if (sourceRoot !== undefined) throw new Error("--source-root may be supplied only once.");
       sourceRoot = argument.slice("--source-root=".length);
       if (!sourceRoot || sourceRoot.startsWith("-")) throw new Error("--source-root requires a path, not another option.");
     } else if (argument === "--models") {
-      if (modelsPath !== undefined) throw new Error("--models may be supplied only once.");
-      if (index + 1 >= argv.length) throw new Error("--models requires a path.");
-      modelsPath = argv[index + 1];
-      if (!modelsPath || modelsPath.startsWith("-")) throw new Error("--models requires a path, not another option.");
+      if (models !== undefined) throw new Error("--models may be supplied only once.");
+      models = requireValue(index, "--models");
       index += 1;
     } else if (argument.startsWith("--models=")) {
-      if (modelsPath !== undefined) throw new Error("--models may be supplied only once.");
-      modelsPath = argument.slice("--models=".length);
-      if (!modelsPath || modelsPath.startsWith("-")) throw new Error("--models requires a path, not another option.");
+      if (models !== undefined) throw new Error("--models may be supplied only once.");
+      models = argument.slice("--models=".length);
+    } else if (argument === "--routing") {
+      if (routing !== undefined) throw new Error("--routing may be supplied only once.");
+      routing = requireValue(index, "--routing");
+      index += 1;
+    } else if (argument.startsWith("--routing=")) {
+      if (routing !== undefined) throw new Error("--routing may be supplied only once.");
+      routing = argument.slice("--routing=".length);
     } else if (argument === "--no-model") {
       noModel = true;
-    } else if (argument === "--link") {
-      link = true;
+    } else if (argument === "--effort") {
+      if (effort !== undefined) throw new Error("--effort may be supplied only once.");
+      effort = requireValue(index, "--effort");
+      effortOverride = true;
+      index += 1;
+    } else if (argument.startsWith("--effort=")) {
+      if (effort !== undefined) throw new Error("--effort may be supplied only once.");
+      effort = argument.slice("--effort=".length);
+      effortOverride = true;
     } else if (argument === "--replace") {
       replace = true;
     } else if (argument === "--dry-run") {
@@ -153,20 +190,17 @@ function parseArguments(argv) {
     }
   }
 
-  if (command === "uninstall" && (link || replace || modelsPath !== undefined || noModel || sourceRoot !== undefined)) {
-    throw new Error("--link, --replace, --models, --no-model, and --source-root apply only to install/update, not uninstall.");
+  if (command === "uninstall" && (replace || models !== undefined || routing !== undefined || noModel || effortOverride || sourceRoot !== undefined)) {
+    throw new Error("--replace, --models, --routing, --effort, --no-model, and --source-root apply only to install/update, not uninstall.");
   }
-  if (modelsPath !== undefined && noModel) {
+  if (models !== undefined && noModel) {
     throw new Error("--models and --no-model cannot be used together.");
   }
-  if (command === "install" && modelsPath === undefined && !noModel) {
-    throw new Error("Install requires --models PATH|PRESET or --no-model.");
+  if (routing !== undefined && models !== undefined) {
+    throw new Error("--routing and --models cannot be used together.");
   }
-  if (link && modelsPath !== undefined) {
-    throw new Error("--models requires a copy install; --link uses the source files directly.");
-  }
-  if (link && sourceRoot !== undefined) {
-    throw new Error("--source-root requires a copy install; --link uses the source skill directly.");
+  if (command === "install" && models === undefined && routing === undefined && !noModel) {
+    throw new Error("Install requires --models PATH|PRESET, --routing PATH, or --no-model.");
   }
 
   const defaultBase = process.env.XDG_CONFIG_HOME
@@ -176,45 +210,16 @@ function parseArguments(argv) {
   return {
     command,
     target: resolve(target ?? join(defaultBase, "opencode")),
-    mode: link ? "link" : "copy",
-    modelsPath: modelsPath === undefined ? null : resolveModelsPath(modelsPath),
+    models,
+    routing: routing === undefined ? null : resolve(routing),
     sourceRoot: sourceRoot === undefined ? null : resolveSourceRoot(sourceRoot),
     noModel,
+    effort,
+    effortOverride,
     replace,
     dryRun,
     help: false,
   };
-}
-
-async function readModelAssignments(path) {
-  if (path === null) return {};
-  const status = await pathStatus(path);
-  if (!status?.isFile() || status.size > 65536) {
-    throw new Error(`--models must name a JSON file no larger than 64 KiB: ${path}.`);
-  }
-  let value;
-  try {
-    value = JSON.parse(await readFile(path, "utf8"));
-  } catch (error) {
-    if (error instanceof SyntaxError) throw new Error(`--models is not valid JSON: ${path}.`);
-    throw error;
-  }
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error("--models must contain a JSON object keyed by autonomous role name.");
-  }
-  for (const [role, model] of Object.entries(value)) {
-    if (!roleNames.has(role)) throw new Error(`Unknown autonomous role in --models: ${role}.`);
-    if (typeof model !== "string" || model.length > 256
-        || !/^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._:/@+-]*(?:#[A-Za-z0-9][A-Za-z0-9._-]*)?$/.test(model)) {
-      throw new Error(`Invalid model for autonomous/${role}; expected provider/model[#variant] without whitespace.`);
-    }
-  }
-  return value;
-}
-
-function resolveModelsPath(value) {
-  const presetPath = modelPresets.get(value.toLowerCase());
-  return presetPath === undefined ? resolve(value) : join(repositoryRoot, presetPath);
 }
 
 function resolveSourceRoot(value) {
@@ -223,30 +228,55 @@ function resolveSourceRoot(value) {
   return resolve(value);
 }
 
-function configuredCopyContent(path, content, models, sourceRoot) {
-  if (path === "skills/source-code-lookup/SKILL.md" && sourceRoot !== null) {
-    const text = content.toString("utf8");
-    const defaultLine = 'Source root: "~/dev"';
-    if (text.split(defaultLine).length !== 2) {
-      throw new Error(`Bundle source root marker is missing or ambiguous: ${path}.`);
+// Build the OpenCode bundle into a TEMP root and return the copy entries for
+// every generated file. This installs generated output, never authored source:
+// the build renders the seven profiles and copies the four public skills, and we
+// walk the produced tree so the inventory always matches what the build made.
+// File contents are read into memory before the temp root is removed.
+async function buildOpenCodeEntries(options) {
+  const tempRoot = await mkdtemp(join(tmpdir(), "agenticale-opencode-"));
+  try {
+    await buildBundles({
+      output: tempRoot,
+      models: options.models ?? null,
+      routing: options.routing ?? null,
+      noModel: options.noModel,
+      effort: options.effort ?? "high",
+      effortOverride: options.effortOverride,
+      sourceRoot: options.sourceRoot,
+    });
+    return await readGeneratedEntries(join(tempRoot, "opencode"));
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+}
+
+async function readGeneratedEntries(openCodeRoot) {
+  const rootStatus = await pathStatus(openCodeRoot);
+  if (!rootStatus?.isDirectory()) throw new Error(`Generated OpenCode output is missing: ${openCodeRoot}.`);
+  const entries = [];
+  const walk = async (directory) => {
+    for (const item of await readdir(directory, { withFileTypes: true })) {
+      const absolute = join(directory, item.name);
+      if (item.isDirectory()) await walk(absolute);
+      else if (item.isFile()) {
+        const relativePosix = relative(openCodeRoot, absolute).split(/[\\/]/).join("/");
+        const root = relativePosix.split("/")[0];
+        if (!generatedRoots.includes(root)) throw new Error(`Unexpected generated path outside bundle roots: ${relativePosix}.`);
+        const content = await readFile(absolute);
+        entries.push({
+          path: relativePosix,
+          kind: "file",
+          content,
+          digest: digest(content),
+        });
+      }
     }
-    return Buffer.from(text.replace(defaultLine, `Source root: ${JSON.stringify(sourceRoot)}`), "utf8");
-  }
-  if (!path.startsWith("agents/autonomous/")) return content;
-  const model = models[basename(path, ".md")];
-  if (model === undefined) return content;
-  const text = content.toString("utf8");
-  const frontmatterEnd = text.indexOf("\n---", 4);
-  const lineEnding = text.startsWith("---\r\n") ? "\r\n" : "\n";
-  if (!text.startsWith(`---${lineEnding}`) || frontmatterEnd < 0) {
-    throw new Error(`Bundle agent has invalid frontmatter: ${path}.`);
-  }
-  const frontmatter = text.slice(0, frontmatterEnd);
-  if (!/^mode: subagent\r?$/m.test(frontmatter) || /^model:/m.test(frontmatter)) {
-    throw new Error(`Bundle agent cannot accept a model override: ${path}.`);
-  }
-  const rendered = `${frontmatter.replace(/^mode: subagent\r?$/m, `mode: subagent${lineEnding}model: ${model}`)}${text.slice(frontmatterEnd)}`;
-  return Buffer.from(rendered, "utf8");
+  };
+  await walk(openCodeRoot);
+  if (entries.length === 0) throw new Error("Generated OpenCode output contains no files.");
+  entries.sort((a, b) => a.path.localeCompare(b.path));
+  return entries;
 }
 
 function digest(buffer) {
@@ -257,7 +287,12 @@ async function pathStatus(path) {
   try {
     return await lstat(path);
   } catch (error) {
-    if (error.code === "ENOENT") return null;
+    // ENOENT means the entry is absent. ENOTDIR means an ancestor is a file or
+    // a symlink-to-file, so the deeper path also does not exist as an entry
+    // (lstat resolves the name path through each parent; it cannot descend into
+    // one). On POSIX both mean "not present here", so treat ENOTDIR as absent
+    // too. Windows does not surface ENOTDIR for these name paths.
+    if (error.code === "ENOENT" || error.code === "ENOTDIR") return null;
     throw error;
   }
 }
@@ -309,7 +344,7 @@ async function selectPhysicalTarget(target) {
   return physicalTarget;
 }
 
-async function assertManagedParentSafe(target, path) {
+async function assertManagedParentSafe(target, path, allowedLinkedAncestors = null) {
   if (!pathIsWithin(target, path)) {
     throw new Error(`Managed path escapes the selected profile: ${path}.`);
   }
@@ -322,6 +357,12 @@ async function assertManagedParentSafe(target, path) {
     const status = await pathStatus(current);
     if (!status) break;
     if (status.isSymbolicLink()) {
+      // F11: an owned link that this run's migration/retirement removes is
+      // exempt. It will be replaced by a real directory inside the profile, so
+      // it is not an external confinement hazard the way a foreign junction is.
+      if (allowedLinkedAncestors && allowedLinkedAncestors.has(normalizedPath(current))) {
+        continue;
+      }
       throw new Error(`Managed path has a linked ancestor outside the physical profile boundary: ${current}.`);
     }
     if (!status.isDirectory()) {
@@ -354,43 +395,6 @@ async function currentLinkTarget(destination) {
   return normalizedLinkTarget(resolve(dirname(destination), value));
 }
 
-async function desiredEntries(mode, target, models, sourceRoot) {
-  if (mode === "copy") {
-    return Promise.all(copyPaths.map(async (path) => {
-      const source = join(repositoryRoot, path);
-      const sourceStatus = await pathStatus(source);
-      if (!sourceStatus?.isFile()) {
-        throw new Error(`Bundle source is missing or not a file: ${source}. Run from a complete checkout.`);
-      }
-      const content = configuredCopyContent(path, await readFile(source), models, sourceRoot);
-      return {
-        path,
-        kind: "file",
-        source,
-        content,
-        destination: join(target, path),
-        digest: digest(content),
-      };
-    }));
-  }
-
-  return Promise.all(linkPaths.map(async (path) => {
-    const source = join(repositoryRoot, path);
-    const sourceStatus = await pathStatus(source);
-    if (!sourceStatus) {
-      throw new Error(`Bundle source is missing: ${source}. Run from a complete checkout.`);
-    }
-    return {
-      path,
-      kind: "link",
-      source,
-      destination: join(target, path),
-      linkTarget: resolve(source),
-      directory: sourceStatus.isDirectory(),
-    };
-  }));
-}
-
 async function entryMatches(entry) {
   const destinationStatus = await pathStatus(entry.destination);
   if (!destinationStatus) return false;
@@ -408,15 +412,79 @@ function storedEntry(entry) {
     : { path: entry.path, kind: entry.kind, linkTarget: entry.linkTarget };
 }
 
+function safeStatePath(path) {
+  return typeof path === "string" && path.length > 0
+    && !path.includes("\\") && !posix.isAbsolute(path) && !win32.isAbsolute(path)
+    && posix.normalize(path) === path
+    && !path.split("/").some((part) => part === "." || part === "..");
+}
+
+// Schema 5 (the generated-output install) has a dynamic file set because the
+// skill files are walked from the build. It is still fully constrained: exactly
+// the six rendered profiles plus only the four public skill directories, all as
+// regular files with a digest.
+function validateGeneratedEntries(entries, statePath, expectedProfiles) {
+  if (!Array.isArray(entries) || entries.length === 0) {
+    throw new Error(`Install state does not contain the generated entry set: ${statePath}. Move it aside and retry.`);
+  }
+  const profiles = new Set();
+  const skills = new Set();
+  for (const entry of entries) {
+    const validPayload = entry?.kind === "file"
+      && typeof entry?.digest === "string" && /^[0-9a-f]{64}$/.test(entry.digest);
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)
+        || JSON.stringify(Object.keys(entry).sort()) !== JSON.stringify(["digest", "kind", "path"])
+        || !safeStatePath(entry.path) || !validPayload) {
+      throw new Error(`Install state contains an invalid entry: ${statePath}. Move it aside and retry, or restore a valid package state file.`);
+    }
+    const parts = entry.path.split("/");
+    if (parts[0] === "agents") {
+      if (parts.length !== 3 || parts[1] !== "autonomous" || !parts[2].endsWith(".md") || !expectedProfiles.has(parts[2].replace(/\.md$/, ""))) {
+        throw new Error(`Install state has an unexpected generated profile: ${statePath}. Move it aside and retry.`);
+      }
+      if (profiles.has(parts[2])) throw new Error(`Install state duplicates generated profile: ${statePath}.`);
+      profiles.add(parts[2]);
+    } else if (parts[0] === "skills") {
+      if (!["work", "autonomous", "pull-request-description", "source-code-lookup"].includes(parts[1])) {
+        throw new Error(`Install state has an unexpected generated skill: ${statePath}. Move it aside and retry.`);
+      }
+      skills.add(parts[1]);
+    } else {
+      throw new Error(`Install state has a generated path outside the bundle: ${statePath}.`);
+    }
+  }
+  if (profiles.size !== expectedProfiles.size) {
+    throw new Error(`Install state does not contain all expected generated profiles: ${statePath}. Move it aside and retry.`);
+  }
+  if (skills.size !== 4) {
+    throw new Error(`Install state does not contain all four generated skills: ${statePath}. Move it aside and retry.`);
+  }
+}
+
 function validateState(value, statePath) {
   const topLevelKeys = ["entries", "installedAt", "mode", "package", "schema"];
   if (!value || typeof value !== "object" || Array.isArray(value)
       || JSON.stringify(Object.keys(value).sort()) !== JSON.stringify(topLevelKeys)
-      || ![1, 2, 3, stateVersion].includes(value.schema) || value.package !== packageName
+      || ![1, 2, 3, 4, legacyGeneratedSchema, stateVersion].includes(value.schema) || value.package !== packageName
       || !["copy", "link"].includes(value.mode) || !Array.isArray(value.entries)
       || typeof value.installedAt !== "string" || !Number.isFinite(Date.parse(value.installedAt))) {
     throw new Error(`Install state is invalid: ${statePath}. Move it aside and retry, or restore a valid package state file.`);
   }
+  if (value.schema === stateVersion) {
+    if (value.mode !== "copy") {
+      throw new Error(`Schema ${stateVersion} install state must be a copy install: ${statePath}. Move it aside and retry.`);
+    }
+    validateGeneratedEntries(value.entries, statePath, profileNames);
+    return value;
+  }
+  if (value.schema === legacyGeneratedSchema) {
+    if (value.mode !== "copy") {
+      throw new Error(`Schema ${legacyGeneratedSchema} install state must be a copy install: ${statePath}. Move it aside and retry.`);
+    }
+    validateGeneratedEntries(value.entries, statePath, legacyProfileNames);
+    return value;
+  }
+
   const expectedPaths = value.mode === "copy"
     ? value.schema === 1 ? legacyCopyPaths : value.schema === 2 ? versionTwoCopyPaths : value.schema === 3 ? versionThreeCopyPaths : copyPaths
     : value.schema === 1 ? legacyLinkPaths : value.schema === 2 ? versionTwoLinkPaths : value.schema === 3 ? versionThreeLinkPaths : linkPaths;
@@ -426,10 +494,6 @@ function validateState(value, statePath) {
   }
   const seen = new Set();
   for (const entry of value.entries) {
-    const safePath = typeof entry?.path === "string" && entry.path.length > 0
-      && !entry.path.includes("\\") && !posix.isAbsolute(entry.path) && !win32.isAbsolute(entry.path)
-      && posix.normalize(entry.path) === entry.path
-      && !entry.path.split("/").some((part) => part === "." || part === "..");
     const expectedKeys = expectedKind === "file" ? ["digest", "kind", "path"] : ["kind", "linkTarget", "path"];
     const validPayload = expectedKind === "file"
       ? typeof entry?.digest === "string" && /^[0-9a-f]{64}$/.test(entry.digest)
@@ -437,7 +501,7 @@ function validateState(value, statePath) {
         && resolve(entry.linkTarget) === entry.linkTarget;
     if (!entry || typeof entry !== "object" || Array.isArray(entry)
         || JSON.stringify(Object.keys(entry).sort()) !== JSON.stringify(expectedKeys)
-        || !safePath || entry.kind !== expectedKind || !expectedPaths.includes(entry.path)
+        || !safeStatePath(entry.path) || entry.kind !== expectedKind || !expectedPaths.includes(entry.path)
         || seen.has(entry.path) || !validPayload) {
       throw new Error(`Install state contains an invalid entry: ${statePath}. Move it aside and retry, or restore a valid package state file.`);
     }
@@ -536,32 +600,110 @@ function equivalentState(existing, mode, entries) {
   return JSON.stringify(existing.entries) === JSON.stringify(entries.map(storedEntry));
 }
 
-async function installBundle(options) {
-  const models = await readModelAssignments(options.modelsPath);
-  options.target = await selectPhysicalTarget(options.target);
-  const entries = await desiredEntries(options.mode, options.target, models, options.sourceRoot);
-  for (const entry of entries) await assertManagedParentSafe(options.target, entry.destination);
-  await assertManagedParentSafe(options.target, join(options.target, backupDirectoryName, "entry"));
-  const existingState = await readState(options.target);
-  const containerPlans = [];
-  if (options.mode === "copy") {
-    for (const path of ["agents/autonomous", "skills/autonomous-mode", "skills/work-mode", "skills/pull-request-description", "skills/source-code-lookup"]) {
-      const destination = join(options.target, path);
-      const status = await pathStatus(destination);
-      if (status && (!status.isDirectory() || status.isSymbolicLink())) {
-        containerPlans.push({
-          action: "replace",
-          entry: { path, destination, kind: "container" },
-        });
+// True when `candidate` is (or lives under) one of the removed paths, i.e. it
+// sits inside a retired file/directory or a removed link that migration clears.
+function isCoveredBy(removedPaths, candidate) {
+  return removedPaths.some((path) => candidate === path || candidate.startsWith(`${path}/`));
+}
+
+// R11: Best-effort duplicate-source detection. If this OpenCode target already
+// holds a state file owned by the standalone installer (or a plugin package),
+// the same skills may be installed twice under different ownership. Surface the
+// documented choice; do not block.
+async function detectDuplicateSource(target) {
+  const probeRoots = [target, dirname(target)];
+  for (const root of probeRoots) {
+    const candidates = [".agenticale-standalone-install.json", "plugin.json"];
+    for (const marker of candidates) {
+      const markerPath = join(root, marker);
+      if (marker === "plugin.json") {
+        const status = await pathStatus(markerPath);
+        if (!status?.isFile()) continue;
+        try {
+          const manifest = JSON.parse(await readFile(markerPath, "utf8"));
+          if (manifest?.name === "agenticale") return markerPath;
+        } catch {
+          // unreadable manifest; not our package
+        }
+      } else if (await pathStatus(markerPath)) {
+        return markerPath;
       }
     }
   }
-  const plans = [];
+  return null;
+}
 
+// Reconcile an existing (owned) install with the new inventory. This runs for
+// BOTH schema migrations and same-schema updates: an owned, UNMODIFIED entry
+// that is no longer present in the new inventory is retired (removed), and an
+// owned entry whose content or link target changed is preserved and reported.
+// For links, ownership is verified by comparing the live link target to the
+// stored one before anything is removed. The `inNew` flag is retained for
+// reporting; removals are safe to perform for every retired entry because the
+// new inventory is written over them.
+async function planMigration(options, existingState, entries) {
+  const newInventoryPaths = new Set(entries.map((entry) => entry.path));
+  const newDigests = new Map(entries.map((entry) => [entry.path, entry.digest]));
+  const newLinkTargets = new Map(entries.map((entry) => [entry.path, entry.linkTarget]).filter(([, value]) => value !== undefined));
+  const removes = [];
+  const preserved = [];
+  for (const stored of existingState.entries) {
+    const destination = join(options.target, stored.path);
+    const inNew = newInventoryPaths.has(stored.path);
+    const status = await pathStatus(destination);
+    if (!status) continue; // already gone
+
+    if (existingState.mode === "link") {
+      const ownedLink = status.isSymbolicLink()
+        && (await currentLinkTarget(destination)) === normalizedLinkTarget(stored.linkTarget);
+      if (!ownedLink) {
+        preserved.push({ path: stored.path, destination, inNew });
+        continue;
+      }
+      if (!inNew || (newLinkTargets.get(stored.path) !== undefined && normalizedLinkTarget(newLinkTargets.get(stored.path)) !== normalizedLinkTarget(stored.linkTarget))) {
+        removes.push({ path: stored.path, destination, inNew, link: true });
+      }
+      continue;
+    }
+
+    if (!status.isFile() || status.isSymbolicLink()) {
+      // A link or directory where an owned file was tracked: we cannot prove
+      // ownership of the current bytes, so preserve and report it.
+      preserved.push({ path: stored.path, destination, inNew });
+      continue;
+    }
+    const unmodified = digest(await readFile(destination)) === stored.digest;
+    if (!unmodified) {
+      preserved.push({ path: stored.path, destination, inNew });
+      continue;
+    }
+    if (!inNew || newDigests.get(stored.path) !== stored.digest) {
+      removes.push({ path: stored.path, destination, inNew });
+    }
+  }
+  return { removes, preserved, linkConverted: existingState.mode === "link" };
+}
+
+async function installBundle(options) {
+  options.target = await selectPhysicalTarget(options.target);
+  const existingState = await readState(options.target);
+  const migrated = existingState !== null && existingState.schema !== stateVersion;
+  const entries = await buildOpenCodeEntries(options);
+  for (const entry of entries) entry.destination = join(options.target, entry.path);
+
+  // Reconcile the existing install with the new inventory for BOTH schema
+  // migrations and same-schema updates (R12): unmodified owned files no longer
+  // present are retired, modified ones are preserved.
+  const migration = existingState !== null
+    ? await planMigration(options, existingState, entries)
+    : { removes: [], preserved: [], linkConverted: false };
+  const duplicate = existingState === null ? await detectDuplicateSource(options.target) : null;
+  const removedSet = migration.removes.map(({ path }) => path);
+
+  await assertManagedParentSafe(options.target, join(options.target, backupDirectoryName, "entry"));
+  const plans = [];
   for (const entry of entries) {
-    const replacedContainer = containerPlans.some(({ entry: container }) =>
-      entry.path.startsWith(`${container.path}/`));
-    if (replacedContainer) {
+    if (isCoveredBy(removedSet, entry.path)) {
       plans.push({ action: "create", entry });
       continue;
     }
@@ -571,47 +713,108 @@ async function installBundle(options) {
     else plans.push({ action: "replace", entry });
   }
 
-  const collisions = [...containerPlans, ...plans.filter((plan) => plan.action === "replace")];
+  const collisions = plans.filter((plan) => plan.action === "replace");
   if (collisions.length > 0 && !options.replace) {
     const paths = collisions.map(({ entry }) => `  - ${entry.destination}`).join("\n");
     throw new Error(`Differing content already exists at:\n${paths}\nNo changes were made. Re-run with --replace to back it up and replace it.`);
   }
 
-  console.log(`${options.dryRun ? "Dry-run install" : "Install"} (${options.mode}) -> ${options.target}`);
-  for (const plan of containerPlans) console.log(`  ${plan.action}: ${plan.entry.path}`);
+  console.log(`${options.dryRun ? "Dry-run " : ""}Install (copy, generated) -> ${options.target}`);
+  if (migrated) console.log(`  migrating from schema ${existingState.schema} ${existingState.mode} install`);
+  if (migration.linkConverted) {
+    console.log("  converted: the previous link install was converted to a copy install of the generated bundle.");
+  }
+  if (duplicate) {
+    console.log(`  notice: another AgenticAle install appears present (${duplicate}).`);
+    console.log("    This installer owns the generated OpenCode bundle; the plugin/standalone installers own their own copies.");
+    console.log("    Installing both can duplicate the four skills. Pick one source of truth and uninstall the other if that is not intended.");
+  }
+  for (const { path } of migration.removes) console.log(`  migrate-remove: ${path}`);
+  for (const { path, inNew } of migration.preserved) {
+    console.log(`  preserve-modified: ${path} (modified; left in place${inNew ? "; collides with the new file, re-run with --replace" : ""})`);
+  }
   for (const plan of plans) console.log(`  ${plan.action}: ${plan.entry.path}`);
   if (options.dryRun) {
-    if (collisions.length > 0) console.log(`  backup: ${collisions.length} differing destination(s) under ${backupDirectoryName}/`);
+    if (collisions.length > 0 || migration.removes.length > 0) {
+      console.log(`  backup: ${collisions.length + migration.removes.length} path(s) under ${backupDirectoryName}/`);
+    }
     console.log("Dry run complete; no files were changed.");
+    return;
+  }
+
+  // F10: "up to date" also requires the stored inventory to equal the new one.
+  // A stale owned entry whose file is already absent schedules no removal, so the
+  // file checks alone would falsely report up-to-date and skip reconciliation.
+  const upToDate = !migrated
+    && migration.removes.length === 0
+    && plans.every(({ action }) => action === "keep")
+    && equivalentState(existingState, "copy", entries);
+  if (upToDate) {
+    console.log("Already up to date.");
+    console.log("Next: restart OpenCode and use the /work and /autonomous skills; this installer leaves opencode.jsonc unchanged.");
+    console.log("See docs/setup.md for child-session permissions and docs/autonomous.md for unattended /autonomous runs.");
     return;
   }
 
   await mkdir(options.target, { recursive: true });
   await assertPhysicalTargetStable(options.target);
-  for (const entry of entries) await assertManagedParentSafe(options.target, entry.destination);
+
+  const touchedPaths = new Set([
+    ...migration.removes.map(({ path }) => path),
+    ...plans.filter(({ action }) => action !== "keep").map(({ entry }) => entry.path),
+  ]);
+  const preExisting = new Set();
+  for (const path of touchedPaths) {
+    if (await pathStatus(join(options.target, path))) preExisting.add(path);
+  }
+  const statePath = join(options.target, stateName);
+  const statePreExisted = (await pathStatus(statePath)) !== null;
+
+  // F2: capture the pre-update state bytes in memory so rollback can restore
+  // them independently of whether a content backup directory exists (a missing-
+  // file repair backs up no content, yet still rewrites the state on success).
+  // The mutation itself is still gated by the per-write assertManagedParentSafe
+  // calls in the loop below; on failure we roll back and restore this state.
+  const originalStateBytes = statePreExisted ? await readFile(statePath) : null;
+
+  // F11: validate every planned mutation's existing ancestors BEFORE backing up
+  // or changing any content. A foreign linked ancestor must reject the whole run
+  // before the first mutation so there is nothing for rollback to undo. An owned
+  // link the migration removes is exempt: it is replaced by a real directory in
+  // the profile, so a plan writing through it is safe (it is removed first).
+  const allowedLinkedAncestors = new Set(migration.removes.map(({ destination }) => normalizedPath(destination)));
+  for (const { destination } of migration.removes) {
+    await assertManagedParentSafe(options.target, destination);
+  }
+  for (const { action, entry } of plans) {
+    if (action === "keep") continue;
+    await assertManagedParentSafe(options.target, entry.destination, allowedLinkedAncestors);
+  }
 
   let backupDirectory = null;
-  if (collisions.length > 0) {
+  if (preExisting.size > 0) {
     backupDirectory = await createUniqueBackupDirectory(options.target);
-    for (const { entry } of collisions) {
-      await copyForBackup(entry.destination, join(backupDirectory, entry.path));
-    }
-    const statePath = join(options.target, stateName);
-    if (await pathStatus(statePath)) await copyForBackup(statePath, join(backupDirectory, stateName));
+    for (const path of preExisting) await copyForBackup(join(options.target, path), join(backupDirectory, path));
+    if (statePreExisted) await copyForBackup(statePath, join(backupDirectory, stateName));
     await writeFile(join(backupDirectory, "backup.json"), `${JSON.stringify({
       package: packageName,
       createdAt: new Date().toISOString(),
       target: options.target,
-      entries: collisions.map(({ entry }) => entry.path),
+      removed: migration.removes.map(({ path }) => path),
+      replaced: collisions.map(({ entry }) => entry.path),
     }, null, 2)}\n`, "utf8");
     console.log(`  backup created: ${backupDirectory}`);
   }
 
-  const changedDestinations = [];
+  // F11: only paths actually mutated by this run are rolled back; a planned path
+  // whose parent check refused the operation is never added, so rollback can
+  // never delete or rewrite a file the run itself refused to touch.
+  const mutatedPaths = new Set();
   try {
-    for (const { entry } of containerPlans) {
-      await removeDestination(entry.destination);
-      changedDestinations.push(entry.destination);
+    for (const { path, destination } of migration.removes) {
+      await assertManagedParentSafe(options.target, destination);
+      await removeDestination(destination);
+      mutatedPaths.add(path);
     }
     for (const { action, entry } of plans) {
       if (action === "keep") continue;
@@ -619,43 +822,58 @@ async function installBundle(options) {
       await mkdir(dirname(entry.destination), { recursive: true });
       await assertManagedParentSafe(options.target, entry.destination);
       if (action === "replace") await removeDestination(entry.destination);
-      if (entry.kind === "file") {
-        await writeFile(entry.destination, entry.content, { flag: "wx" });
-      } else {
-        const type = process.platform === "win32" && entry.directory ? "junction" : entry.directory ? "dir" : "file";
-        await symlink(entry.source, entry.destination, type);
-      }
-      changedDestinations.push(entry.destination);
+      // F13: register the path before the write. A replace has already removed
+      // the destination, and a create/replace write can leave a partial file
+      // before failing; either way the path must be rolled back.
+      mutatedPaths.add(entry.path);
+      await writeFile(entry.destination, entry.content, { flag: "wx" });
     }
 
-    const storedEntries = entries.map(storedEntry);
-    if (!equivalentState(existingState, options.mode, entries) || plans.some(({ action }) => action !== "keep")) {
+    if (!equivalentState(existingState, "copy", entries)) {
       await mkdir(options.target, { recursive: true });
       await writeState(options.target, {
         schema: stateVersion,
         package: packageName,
-        mode: options.mode,
+        mode: "copy",
         installedAt: new Date().toISOString(),
-        entries: storedEntries,
+        entries: entries.map(storedEntry),
       });
     }
   } catch (error) {
     let rollbackError = null;
     try {
-      for (const destination of [...changedDestinations].reverse()) {
+      // F11: confine restoration to the paths this run actually mutated, and
+      // re-check each parent so a restoration cannot follow a link either.
+      for (const path of mutatedPaths) {
+        const destination = join(options.target, path);
+        await assertManagedParentSafe(options.target, destination);
+        if (!preExisting.has(path)) {
+          // Created or removed by this run: undo by deleting it again.
+          if (await pathStatus(destination)) await removeDestination(destination);
+          continue;
+        }
+        // Pre-existing and differing: remove, then restore the backed-up copy
+        // (a backup directory exists whenever any pre-existing path was touched).
         if (await pathStatus(destination)) await removeDestination(destination);
+        if (backupDirectory) {
+          const backup = join(backupDirectory, path);
+          if (await pathStatus(backup)) {
+            await assertManagedParentSafe(options.target, destination);
+            await copyForBackup(backup, destination);
+          }
+        }
       }
-      if (backupDirectory) {
-        for (const { entry } of collisions) {
-          const backup = join(backupDirectory, entry.path);
-          if (await pathStatus(backup)) await copyForBackup(backup, entry.destination);
+      // F2: restore the pre-update state from memory (not the backup directory),
+      // and only when it changed, so a missing-file repair still keeps ownership.
+      if (await pathStatus(statePath)) {
+        const currentStateBytes = await readFile(statePath);
+        if (originalStateBytes === null) {
+          await removeDestination(statePath);
+        } else if (currentStateBytes.compare(originalStateBytes) !== 0) {
+          await writeFile(statePath, originalStateBytes, { encoding: "utf8" });
         }
-        const backedUpState = join(backupDirectory, stateName);
-        if (await pathStatus(backedUpState)) {
-          const currentState = join(options.target, stateName);
-          if (await pathStatus(currentState)) await removeDestination(currentState);
-          await copyForBackup(backedUpState, currentState);
-        }
+      } else if (originalStateBytes !== null) {
+        await writeFile(statePath, originalStateBytes, { encoding: "utf8" });
       }
     } catch (rollbackFailure) {
       rollbackError = rollbackFailure;
@@ -669,20 +887,28 @@ async function installBundle(options) {
     throw new Error(`Installation did not complete: ${error.message}.${rollback}${recovery}`);
   }
 
-  console.log(plans.every(({ action }) => action === "keep") ? "Already up to date." : "Installation complete.");
-  console.log("Next: restart OpenCode and use /work <task>; this installer leaves opencode.jsonc unchanged.");
+  console.log("Installation complete.");
+  console.log("Next: restart OpenCode and use the /work and /autonomous skills; this installer leaves opencode.jsonc unchanged.");
   console.log("See docs/setup.md for child-session permissions and docs/autonomous.md for unattended /autonomous runs.");
 }
 
 async function removeEmptyPackageDirectories(target) {
   const directories = [
-    "skills/work-mode/references",
-    "skills/work-mode",
+    // Generated (schema 5) layout, leaf-first.
+    "skills/work/references/runtimes",
+    "skills/work/references/tasks",
     "skills/work/references",
+    "skills/work/agents",
     "skills/work",
-    "skills/autonomous-mode",
+    "skills/autonomous/agents",
+    "skills/autonomous",
     "skills/pull-request-description",
     "skills/source-code-lookup",
+    // Retired (schema 1-4) layout, leaf-first.
+    "skills/work-mode/references",
+    "skills/work-mode",
+    "skills/autonomous-mode",
+    "commands",
     "agents/autonomous",
   ];
   for (const path of directories) {

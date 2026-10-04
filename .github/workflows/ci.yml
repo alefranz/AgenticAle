@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   validate:
-    name: Node 22 / ${{ matrix.os }}
+    name: Node 24 / ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -23,16 +23,16 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
 
-      - name: Validate bundle
+      - name: Validate source of truth
         run: node scripts/validate.mjs
 
-      - name: Test profile installer
+      - name: Test installers (OpenCode + standalone)
         run: node scripts/test-installer.mjs
 
-      - name: Test multi-client build
+      - name: Test multi-client build (plugin + standalone + OpenCode)
         run: node scripts/test-build.mjs
 
-      - name: Check published Copilot plugin
+      - name: Check published plugin and catalogs
         run: node scripts/publish-default-plugin.mjs --check
