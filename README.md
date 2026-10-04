@@ -52,12 +52,28 @@ VS Code discovers the same plugin; the work skill may display as `/agenticale
 work` in the autocomplete even though the CLI uses `/agenticale:work`. Select
 the suggested autocomplete entry in VS Code.
 
-### Standalone skills (Codex VS Code and other clients)
+### Codex (CLI, VS Code extension, and ChatGPT desktop app)
 
-The official Codex VS Code extension supports skills and subagents but not
-plugins, so install the four skill folders directly. A routing choice is
-required: `--no-model` (inherit), `--models PATH|PRESET`, or `--routing PATH`.
-No native agent or plugin is required.
+Install the packaged plugin from this repository's marketplace:
+
+```sh
+codex plugin marketplace add alefranz/AgenticAle
+codex plugin add agenticale@agenticale
+```
+
+Start a new Codex chat or session. In Codex CLI or the VS Code extension, use
+`/skills` or type `$work` or `$autonomous`. In Codex mode in the ChatGPT desktop
+app, find the installed skills under Skills or mention them in the chat. The
+plugin already includes `agents/openai.yaml` metadata for both public workflow
+skills. See [setup and customization](docs/setup.md) for local testing and
+updates.
+
+#### Alternative: install standalone skills
+
+Codex CLI, the VS Code extension, and Codex mode in the ChatGPT desktop app
+also discover local skills from `.agents/skills`. This path lets you choose
+custom routing at install time: `--no-model` (inherit), `--models PATH|PRESET`,
+or `--routing PATH`.
 
 From a checkout, install to user scope (the checkout's own `.agents/skills` is
 off limits to the installer, so project scope does not apply here):
@@ -74,7 +90,8 @@ node /path/to/AgenticAle/scripts/install-standalone.mjs --no-model
 ```
 
 Use `--scope user` for user scope (`~/.agents/skills`) or `--target PATH` to
-override the destination explicitly.
+override the destination explicitly. Use either the plugin or standalone
+install for a given scope to avoid duplicate skill entries.
 
 ### OpenCode V2
 
