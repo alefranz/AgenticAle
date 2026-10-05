@@ -78,6 +78,25 @@ or the next action is no longer concrete. Return evidence and a next action for
 a fresh agent, saving them on disk only when the supplied state policy requires
 it. Productive implementation and verification need not reset on a tool count.
 
+## Routing records
+
+The coordinator records each dispatched round with its compact routing fields:
+
+- Role: the routing key (one of the seven).
+- Selection: the selected tier, or the direct choice.
+- Requested: the requested model and reasoning effort (or `inherit`).
+- Provenance: the selection's source(s) — the role-selection source and, for a
+  tier reference, the tier-definition source.
+- Fallback: any explicitly configured fallback actually attempted (or none).
+- Effective: the effective settings when native metadata makes them available,
+  or the reason they are unknown.
+
+These records belong to the invoking workflow's state: session state in
+reviewed task work, the handoff routing summary and the round ledger in
+Autonomous Mode. A child's self-reported model name never fills the effective
+field, and an unknown effective setting stays unknown rather than being
+estimated.
+
 ## Review and fix gate
 
 Review task correctness, relevant regressions, acceptance checks, scope,

@@ -145,6 +145,27 @@ At the end, you get the changes, verification results, review outcome, and any
 remaining limitations. Independent review helps catch issues before your own
 review; it does not guarantee defect-free code.
 
+## Customize model routing
+
+You can customize the routes without editing the plugin or a harness
+configuration file. Create one optional Markdown file:
+
+- `<repo>/.agenticale/routing.md` for that repository only, or
+- `~/.agenticale/routing.md` for every repository you work in.
+
+The usual form is one table per runtime with three tiers — `fast`,
+`standard`, and `deep`, each naming a model and a reasoning effort — plus
+optional per-role overrides. Repository entries override personal entries one
+entry at a time, and an explicit choice at invocation time overrides both for
+that round. Start from the example that ships with the installed skill
+(`references/routing.example.md` in the `work` skill). See
+[setup and customization](docs/setup.md#customizing-model-routing) for the
+recommended form, precedence examples, and the OpenCode refresh path.
+
+`work` and `autonomous` discover and read these files when they start or
+resume; missing files simply use the packaged defaults, and installation,
+updates, and uninstallation never create, overwrite, or remove your files.
+
 ## Choose where the task finishes
 
 | Request | Result |

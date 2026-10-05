@@ -57,16 +57,47 @@ resume, continue the exact one `NEXT` action.
 
 ## Task routing and capability
 
-Before dispatching any round, resolve the routing policy exactly as the work
-skill does: read [the routing contract](../work/references/ROUTING.md) and
-[the packaged policy](../work/references/routing.json), select the applicable
-runtime binding from `../work/references/runtimes/` for the active host, and
-resolve each round's named routing key against the active policy using the
-documented precedence. A missing key in a complete policy is an error, not an
-implicit inheritance; if the host does not expose the native dispatch field,
-follow the binding's documented fallback and record the requested route versus
-the effective model and effort. Do not silently inherit the session model in
-place of a route the policy names.
+Before dispatching any round, run the shared routing bootstrap described in
+[the routing contract](../work/references/ROUTING.md) — the same bootstrap the
+work skill uses — at start and on every fresh resume:
+
+1. Read the routing contract and the installed defaults baseline
+   (`../work/references/routing.json`), and select the actual runtime binding
+   from `../work/references/runtimes/` for the host actually being used, from
+   the tools the host exposes; never infer the runtime from a selected model
+   name.
+2. Discover and read the personal and project preference files using the
+   contract's Discovery rules (worktree root from any subdirectory, non-Git
+   workspace scope, absence versus unreadable, no scanning of other
+   directories, deduplication).
+3. Apply the invocation preferences and resolve the routing snapshot for the
+   active runtime, with provenance on every route.
+4. Check each selection against the binding's exposed dispatch capabilities and
+   surface missing capabilities, unsupported choices, or unresolved
+   preferences before the affected child runs. An ambiguous final selection
+   blocks only the affected dispatch; preserve the unrelated clear
+   selections.
+5. Record a compact routing summary — each tier's model and effort with its
+   source, plus any role exceptions (for a tier reference, both the
+   role-selection source and the tier-definition source) — as an `ESTABLISHED`
+   fact in the active handoff in round 0, and carry it into the final report
+   and the session-close archive paragraph.
+
+A missing key in a complete policy is an error, not an implicit inheritance. An
+unsupported request can use only an explicitly configured fallback; it must
+not silently inherit the session model in place of a route the policy names or
+invent a weaker model. Record requested versus effective settings when native
+metadata makes the latter available; an unknown effective setting stays
+unknown, and a child's self-reported model name never establishes what it ran
+on.
+
+Keep the snapshot fixed during the activation, including context compaction.
+On a fresh resume, re-run the bootstrap against the current files and compare
+the resolution against the recorded summary: report material changes. The
+prior handoff's routing record is diagnostic history, not a layer that
+overrides current preferences. A re-resolution affects subsequent dispatches
+only, never an already-running child. The bootstrap is read-only: it never
+creates or modifies a routing file.
 
 Route each round to a fresh child subagent carrying the matching task contract;
 do not use a generic built-in child for a role that needs its own bounded
@@ -159,6 +190,9 @@ Keep current operational state separate from completed audit detail:
   at most ~2 KB and contains `GOAL`, `ESTABLISHED`, `CURRENT STATE`,
   `ACCEPTANCE`, and exactly one `NEXT` action. A reset also adds a compact
   `TRIED` section. Create it before the first round of a session if absent.
+  The compact routing summary from the routing bootstrap (Task routing and
+  capability) is an `ESTABLISHED` fact of the activation, not a new state
+  file.
 - `docs/handoffs/archive/YYYY-MM.md` holds completed handoffs, review
   verdicts, and session-close ledgers. Preserve the original detail and
   append records in chronological order; do not rewrite it into a lossy
@@ -222,7 +256,11 @@ strengthen the persistence policy.
    material: read it only by an exact archive pointer, never as general
    archaeology. Do NOT read source code — that is what the subagents are
    for.
-3. State the plan in 3–6 lines: goal, budget, mode, persistence policy, how the
+3. Run the shared routing bootstrap above. For a resume, compare the fresh
+   resolution against the recorded routing summary first and report material
+   changes. Persist the compact routing summary in the active handoff's
+   `ESTABLISHED` facts; the bootstrap is read-only and creates no routing file.
+4. State the plan in 3–6 lines: goal, budget, mode, persistence policy, how the
    work splits into slices, and stop conditions. Then start round 1 without
    waiting for approval; pause only on a stop condition below.
 
@@ -593,7 +631,8 @@ Stop the loop and report to the user when any of these hit:
 - The round ledger, one line per round.
 - What was achieved, with evidence (changed files or commit hashes, test
   results, review verdicts).
-- Where the work now stands (handoff state) and the exact next step.
+- Where the work now stands (handoff state, including the current routing
+  summary or the material changes reported on resume) and the exact next step.
 - Open blockers or decisions needed.
 
 **Persist before printing.** State lives on disk, not in the conversation
@@ -602,8 +641,10 @@ final report, the main loop writes the report's pertinent info to the repo
 handoff archive (a dated **session-close handoff paragraph** in the current
 monthly archive, following the active git persistence policy): the round ledger
 (one line per round with change references and verdicts), the final verified
-state (build/test evidence, per-repo persistence state and pin match), the open
-nits already tracked as checkboxes, and the exact next step. Update `BACKLOG.md` and
+state (build/test evidence, per-repo persistence state and pin match), the
+current routing summary (or the material-change note against the previously
+recorded one), the open nits already tracked as checkboxes, and the exact next
+step. Update `BACKLOG.md` and
 `docs/handoffs/active.md` so they retain only current state, the carried
 open items, and one exact next action; add an archive pointer for the closed
 session. Update any stale references in place where repository policy

@@ -3,6 +3,22 @@
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { lstat, mkdir, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import {
+  applyBuildOverrides,
+  exportV1All,
+  legacyInventoryToV2,
+  mergeV2MissingRuntimes,
+  normalizeV1ToV2,
+  resolveAllRuntimes,
+  strictValidateRouting,
+  validateRouting,
+  validateV2Routing,
+} from "../skills/work/scripts/routing.mjs";
+
+// Shared routing contract: the validator is owned by the packaged module so
+// the build, validate, tests, and the installed resolver all enforce one
+// schema. The build re-exports it for callers that import it from here.
+export { strictValidateRouting, validateRouting };
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(scriptDirectory, "..");
@@ -20,10 +36,6 @@ export const roles = [
 
 const roleSet = new Set(roles);
 const effortLevels = new Set(["low", "medium", "high", "xhigh", "max"]);
-const RUNTIME_KEYS = ["copilot", "codex", "opencode"];
-const TOP_LEVEL_ROUTING_KEYS = ["provenance", "runtimes", "schemaVersion"];
-const EXPLICIT_ENTRY_KEYS = ["fallbacks", "mode", "model", "reasoningEffort"];
-const INHERIT_ENTRY_KEYS = ["mode"];
 const modelPresets = new Map([
   ["example", "examples/example.json"],
   ["local", "examples/local.json"],
@@ -181,169 +193,37 @@ async function readLegacyModels(value) {
   return parsed;
 }
 
-// Convert a legacy `role -> provider/model[#variant]` inventory into the
-// versioned routing contract. Present roles become explicit routes for all
-// three runtimes (the provider prefix is preserved verbatim); omitted roles
-// become explicit inheritance. Legacy values without an effort variant carry
-// the legacy default effort so the imported policy stays a complete, strict
-// policy.
-function legacyToRouting(inventory) {
-  const runtimes = { copilot: {}, codex: {}, opencode: {} };
-  const omitted = [];
-  for (const role of roles) {
-    const raw = inventory[role];
-    if (typeof raw !== "string" || raw.length === 0) {
-      omitted.push(role);
-      for (const runtime of ["copilot", "codex", "opencode"]) {
-        runtimes[runtime][role] = { mode: "inherit" };
-      }
-      continue;
-    }
-    const hash = raw.lastIndexOf("#");
-    const model = hash >= 0 ? raw.slice(0, hash) : raw;
-    const variant = hash >= 0 ? raw.slice(hash + 1) : null;
-    const entry = { mode: "explicit", model, fallbacks: [] };
-    if (variant) {
-      if (!effortLevels.has(variant)) {
-        throw new Error(`Legacy model for ${role} has unsupported effort variant '#${variant}'.`);
-      }
-      entry.reasoningEffort = variant;
-    } else {
-      entry.reasoningEffort = "high";
-    }
-    for (const runtime of ["copilot", "codex", "opencode"]) runtimes[runtime][role] = entry;
-  }
-  return {
-    routing: {
-      schemaVersion: 1,
-      provenance: "Imported from a legacy --models inventory.",
-      runtimes,
-    },
-    omitted,
-  };
-}
-
-// The single authoritative routing-policy schema, shared by the builder (which
-// validates packaged, imported, and caller-supplied policies) and by
-// validate.mjs (which statically checks the shipped policy and the generated
-// installs). Every declared policy is complete and strict:
-//   - schemaVersion must be 1; provenance, when present, is a non-empty string.
-//   - runtimes maps a non-empty subset of copilot/codex/opencode.
-//   - each declared runtime maps exactly the seven keys (a missing key is an
-//     error, not an implicit inheritance).
-//   - explicit routes require a non-empty model and a supported effort and may
-//     carry an ordered fallbacks list of { model, reasoningEffort } pairs.
-//   - inherit routes carry only `mode`; model/effort/fallbacks are contradictory.
-// Exact native model identifiers and the per-host effort set are adapter
-// concerns; this validates the policy-level shape only.
-export function strictValidateRouting(routing) {
-  if (!routing || typeof routing !== "object" || Array.isArray(routing)) {
-    throw new Error("Routing must be a JSON object.");
-  }
-  if (routing.schemaVersion !== 1) throw new Error("Routing schemaVersion must be 1.");
-  for (const key of Object.keys(routing)) {
-    if (!TOP_LEVEL_ROUTING_KEYS.includes(key)) {
-      throw new Error(`Routing has unknown top-level key '${key}'.`);
-    }
-  }
-  if (routing.provenance !== undefined && (typeof routing.provenance !== "string" || routing.provenance.length === 0)) {
-    throw new Error("Routing provenance, when present, must be a non-empty string.");
-  }
-  if (!routing.runtimes || typeof routing.runtimes !== "object" || Array.isArray(routing.runtimes)) {
-    throw new Error("Routing must include a runtimes object.");
-  }
-  const runtimeKeys = Object.keys(routing.runtimes);
-  if (runtimeKeys.length === 0) throw new Error("Routing must declare at least one runtime.");
-  for (const runtime of runtimeKeys) {
-    if (!RUNTIME_KEYS.includes(runtime)) throw new Error(`Routing declares unsupported runtime '${runtime}'.`);
-  }
-  for (const runtime of runtimeKeys) {
-    const map = routing.runtimes[runtime];
-    if (!map || typeof map !== "object" || Array.isArray(map)) {
-      throw new Error(`Routing runtime '${runtime}' must be an object of route entries.`);
-    }
-    const declaredKeys = Object.keys(map).sort();
-    if (JSON.stringify(declaredKeys) !== JSON.stringify([...roles].sort())) {
-      throw new Error(`Routing runtime '${runtime}' must map exactly the ${roles.length} keys: ${[...roles].sort().join(", ")}.`);
-    }
-    for (const role of roles) {
-      const entry = map[role];
-      if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
-        throw new Error(`Routing ${runtime}/${role} must be an object.`);
-      }
-      const entryKeys = Object.keys(entry).sort();
-      if (entry.mode === "explicit") {
-        if (JSON.stringify(entryKeys) !== JSON.stringify(EXPLICIT_ENTRY_KEYS)) {
-          throw new Error(`Routing ${runtime}/${role} explicit entry must carry exactly: ${EXPLICIT_ENTRY_KEYS.join(", ")}.`);
-        }
-        if (typeof entry.model !== "string" || entry.model.length === 0) {
-          throw new Error(`Routing ${runtime}/${role} explicit route requires a non-empty model.`);
-        }
-        if (!effortLevels.has(entry.reasoningEffort)) {
-          throw new Error(`Routing ${runtime}/${role} explicit route requires a supported reasoningEffort (got '${entry.reasoningEffort}').`);
-        }
-        if (!Array.isArray(entry.fallbacks)) {
-          throw new Error(`Routing ${runtime}/${role} fallbacks must be an array.`);
-        }
-        entry.fallbacks.forEach((pair, index) => {
-          if (!pair || typeof pair !== "object" || Array.isArray(pair)
-              || JSON.stringify(Object.keys(pair).sort()) !== JSON.stringify(["model", "reasoningEffort"])) {
-            throw new Error(`Routing ${runtime}/${role} fallback ${index} must be a { model, reasoningEffort } pair.`);
-          }
-          if (typeof pair.model !== "string" || pair.model.length === 0) {
-            throw new Error(`Routing ${runtime}/${role} fallback ${index} requires a non-empty model.`);
-          }
-          if (!effortLevels.has(pair.reasoningEffort)) {
-            throw new Error(`Routing ${runtime}/${role} fallback ${index} has unsupported effort '${pair.reasoningEffort}'.`);
-          }
-        });
-      } else if (entry.mode === "inherit") {
-        if (JSON.stringify(entryKeys) !== JSON.stringify(INHERIT_ENTRY_KEYS)) {
-          throw new Error(`Routing ${runtime}/${role} inherit entry must carry only 'mode'.`);
-        }
-      } else {
-        throw new Error(`Routing ${runtime}/${role} has invalid mode '${entry.mode}'.`);
-      }
-    }
-  }
-}
-
-// Validates the builder's routing inputs (packaged, imported, caller-supplied).
-export function validateRouting(routing) {
-  strictValidateRouting(routing);
-}
-
-// The packaged preset is the authoritative fallback for runtimes a caller
-// policy leaves undeclared. It is always complete (all three runtimes), so it
-// is also the packaged-build source.
+// The packaged version-2 defaults baseline: the installed baseline for the
+// default build and the fill source for runtimes a caller input leaves
+// undeclared. It is always complete (all three runtimes).
 async function loadPackagedRouting() {
   const packaged = JSON.parse(
     await readFile(join(repositoryRoot, "skills", "work", "references", "routing.json"), "utf8"),
   );
-  validateRouting(packaged);
+  validateV2Routing(packaged);
   return packaged;
 }
 
-// F6: the builder always emits all three targets, so the effective policy must
-// declare every runtime. A caller policy that omits one would otherwise render
-// that host's routes as model-less (silently inheriting). Fill any undeclared
-// runtime from the packaged preset before the merged policy is validated and
-// rendered. Declared runtimes are never touched, so caller choices win.
-function mergeMissingRuntimes(routing, packaged) {
-  const merged = structuredClone(routing);
-  const added = [];
-  for (const [runtime, map] of Object.entries(packaged.runtimes)) {
-    if (!merged.runtimes[runtime]) {
-      merged.runtimes[runtime] = structuredClone(map);
-      added.push(runtime);
-    }
-  }
-  return { merged, added };
+// Markdown is the runtime preference format the workflow interprets in
+// context; it is never a build input. A Markdown path supplied to --routing
+// gets a clear explanation before any parsing.
+function markdownRoutingGuidance(path) {
+  return `--routing PATH expects a JSON policy (version 1 or 2), not a Markdown preference file: ${path}. `
+    + "Customize routing at runtime with <project>/.agenticale/routing.md or ~/.agenticale/routing.md (see the work skill's references/ROUTING.md), "
+    + "or export a resolved version-1 JSON policy (node skills/work/scripts/routing.mjs resolve) and pass that JSON file to --routing.";
 }
 
+// Loads the effective version-2 baseline for this build from the explicit
+// inputs: --routing accepts a version-1 policy (normalized to exact direct role
+// exceptions over the packaged tiers) or a version-2 baseline (undeclared
+// runtimes filled from the packaged defaults, as before); --models imports a
+// legacy role-to-model inventory; with neither, the packaged baseline is used.
 async function loadRouting(options) {
+  const packaged = await loadPackagedRouting();
+
   if (options.routing) {
     const path = resolve(options.routing);
+    if (path.toLowerCase().endsWith(".md")) throw new Error(markdownRoutingGuidance(path));
     let parsed;
     try {
       parsed = JSON.parse(await readFile(path, "utf8"));
@@ -351,28 +231,40 @@ async function loadRouting(options) {
       if (error instanceof SyntaxError) throw new Error(`Routing file is not valid JSON: ${path}.`);
       throw error;
     }
-    validateRouting(parsed);
-    const packaged = await loadPackagedRouting();
-    const { merged, added } = mergeMissingRuntimes(parsed, packaged);
-    validateRouting(merged);
-    const note = added.length
-      ? ` (undeclared runtime(s) ${added.join(", ")} merged from the packaged preset)`
-      : "";
-    return { routing: merged, routingSource: `--routing ${options.routing}${note}` };
+    if (parsed?.schemaVersion === 1) {
+      strictValidateRouting(parsed);
+      // A complete version-1 policy is not reinterpreted as a sparse tier
+      // override: it normalizes to exact direct role exceptions, and runtimes
+      // the policy leaves undeclared keep the packaged defaults (F6 merge, now
+      // inside the shared module).
+      const added = Object.keys(packaged.runtimes).filter((runtime) => !parsed.runtimes[runtime]);
+      const baseline = normalizeV1ToV2(parsed, packaged);
+      const note = added.length
+        ? ` (undeclared runtime(s) ${added.join(", ")} merged from the packaged preset)`
+        : "";
+      return { baseline, routingSource: `--routing ${options.routing}${note}` };
+    }
+    if (parsed?.schemaVersion === 2) {
+      const { merged, added } = mergeV2MissingRuntimes(parsed, packaged);
+      const note = added.length
+        ? ` (undeclared runtime(s) ${added.join(", ")} merged from the packaged preset)`
+        : "";
+      return { baseline: merged, routingSource: `--routing ${options.routing}${note}` };
+    }
+    throw new Error(`Routing schemaVersion must be 1 or 2 (got ${JSON.stringify(parsed?.schemaVersion)}).`);
   }
 
   if (options.models) {
     const inventory = await readLegacyModels(options.models);
-    const { routing, omitted } = legacyToRouting(inventory);
-    validateRouting(routing);
+    const { baseline, omitted } = legacyInventoryToV2(inventory, packaged);
+    baseline.provenance = "Imported from a legacy --models inventory.";
     const report = omitted.length
       ? `Imported legacy --models inventory; ${omitted.length} omitted key(s) converted to explicit inheritance (${omitted.join(", ")}).`
       : "Imported legacy --models inventory (all roles present; none converted to inheritance).";
-    return { routing, routingSource: `--models ${options.models} (legacy import)`, importReport: report };
+    return { baseline, routingSource: `--models ${options.models} (legacy import)`, importReport: report };
   }
 
-  const packaged = await loadPackagedRouting();
-  return { routing: packaged, routingSource: "packaged skills/work/references/routing.json" };
+  return { baseline: packaged, routingSource: "packaged skills/work/references/routing.json" };
 }
 
 // F5: --effort is a route-wide reasoning-effort override and is only meaningful
@@ -380,14 +272,15 @@ async function loadRouting(options) {
 // effort override applied to any inherit route (or to the all-inherit result
 // of --no-model) would produce contradictory outputs (a model-less profile
 // labeled explicit, while the shipped policy still says inherit). Reject the
-// combination up front, before any mutation.
-function assertEffortOverrideCompatible(routing, options) {
+// combination up front, before any mutation, against the pre-override
+// resolution snapshot (tier references already resolved to concrete routes).
+function assertEffortOverrideCompatible(snapshot, options) {
   if (!options.effortOverride) return;
   if (options.noModel) {
     throw new Error("--effort cannot be combined with --no-model: --no-model inherits both model and effort, so a route-wide effort override is contradictory.");
   }
   const inherited = [];
-  for (const [runtime, map] of Object.entries(routing.runtimes)) {
+  for (const [runtime, map] of Object.entries(snapshot.runtimes)) {
     for (const [role, entry] of Object.entries(map)) {
       if (entry.mode === "inherit") inherited.push(`${runtime}/${role}`);
     }
@@ -395,22 +288,6 @@ function assertEffortOverrideCompatible(routing, options) {
   if (inherited.length > 0) {
     throw new Error(`--effort cannot be applied to routes that inherit (${inherited.join(", ")}). Inheritance means inherit both model and effort; remove --effort or set those routes to explicit.`);
   }
-}
-
-// Resolve a route (a routing key) for a given runtime to either an explicit
-// { model, reasoningEffort } choice or an inherit choice. --no-model forces
-// inheritance; --effort is a route-wide reasoning-effort override.
-function resolveRoute(routing, runtime, route, options) {
-  if (options.noModel) return { mode: "inherit" };
-  const entry = routing.runtimes[runtime]?.[route];
-  if (entry && entry.mode === "explicit") {
-    const reasoningEffort = options.effortOverride ? options.effort : entry.reasoningEffort;
-    return { mode: "explicit", model: entry.model, reasoningEffort };
-  }
-  // Inherit routes always inherit both model and effort. --effort can never
-  // reach here on an inherit route: assertEffortOverrideCompatible rejects the
-  // combination up front, so there is no effort-without-model path to render.
-  return { mode: "inherit" };
 }
 
 // Each OpenCode profile is one routing key (seven profiles, one per key), so
@@ -460,38 +337,13 @@ function renderSourceRoot(text, sourceRoot) {
   return text.replace(marker, `Source root: ${JSON.stringify(sourceRoot)}`);
 }
 
-// Materialize the resolved routing policy: apply --no-model (every route
-// inherits) and the route-wide --effort override (every explicit route's effort
-// becomes the override). The result is a complete, strict policy ready to ship
-// in every generated skill tree. Intentional inheritance and configured
-// fallbacks are preserved.
-function materializeRouting(routing, options) {
-  const resolved = {
-    schemaVersion: 1,
-    provenance: routing.provenance,
-    runtimes: {},
-  };
-  for (const runtime of Object.keys(routing.runtimes)) {
-    resolved.runtimes[runtime] = {};
-    for (const role of roles) {
-      const entry = routing.runtimes[runtime][role];
-      if (options.noModel || entry.mode === "inherit") {
-        resolved.runtimes[runtime][role] = { mode: "inherit" };
-        continue;
-      }
-      const next = { mode: "explicit", model: entry.model, fallbacks: entry.fallbacks };
-      next.reasoningEffort = options.effortOverride ? options.effort : entry.reasoningEffort;
-      resolved.runtimes[runtime][role] = next;
-    }
-  }
-  return resolved;
-}
-
 // Copy the four public skills into a skills root, applying the source-root
-// override to the source-code-lookup skill where supplied, and materializing
-// the resolved routing policy into skills/work/references/routing.json so the
-// installed policy reflects the caller's model/effort choices.
-async function populateSkillsRoot(skillsRoot, sourceRoot, resolvedRouting) {
+// override to the source-code-lookup skill where supplied, and writing BOTH
+// routing resources into the generated work skill: the effective version-2
+// baseline (references/routing.json, the installed baseline) and the fully
+// resolved version-1 snapshot (references/resolved-routing.json) from the same
+// resolution pass, so the installed policy reflects the caller's choices.
+async function populateSkillsRoot(skillsRoot, sourceRoot, baseline, resolvedSnapshot) {
   for (const name of SKILL_NAMES) {
     await copyDirTree(join(repositoryRoot, "skills", name), join(skillsRoot, name));
   }
@@ -500,10 +352,8 @@ async function populateSkillsRoot(skillsRoot, sourceRoot, resolvedRouting) {
     const rendered = renderSourceRoot(await readFile(lookupPath, "utf8"), sourceRoot);
     await writeFile(lookupPath, rendered.replace(/\r\n?/g, "\n"), "utf8");
   }
-  if (resolvedRouting !== null) {
-    const routingPath = join(skillsRoot, "work", "references", "routing.json");
-    await writeText(routingPath, `${JSON.stringify(resolvedRouting, null, 2)}\n`);
-  }
+  await writeText(join(skillsRoot, "work", "references", "routing.json"), `${JSON.stringify(baseline, null, 2)}\n`);
+  await writeText(join(skillsRoot, "work", "references", "resolved-routing.json"), `${JSON.stringify(resolvedSnapshot, null, 2)}\n`);
 }
 
 // Copies the adapter-owned command templates (thin launchers that load the
@@ -701,10 +551,20 @@ async function assertBuildOutputOwned(output) {
 
 export async function buildBundles(options) {
   await assertSafeOutput(options.output);
-  const { routing, routingSource, importReport } = await loadRouting(options);
+  const { baseline, routingSource, importReport } = await loadRouting(options);
   if (importReport) console.log(importReport);
-  assertEffortOverrideCompatible(routing, options);
-  const resolvedRouting = materializeRouting(routing, options);
+  // One resolution pass feeds everything. The pre-override snapshot guards the
+  // F5 effort check (tier references already resolved to concrete routes); the
+  // adjusted resolution supplies both shipped routing resources and the
+  // OpenCode profile rendering.
+  const preSnapshot = exportV1All(resolveAllRuntimes(baseline, []), baseline.provenance);
+  assertEffortOverrideCompatible(preSnapshot, options);
+  const adjusted = applyBuildOverrides(baseline, {
+    noModel: options.noModel,
+    effort: options.effortOverride ? options.effort : null,
+  });
+  const resolved = resolveAllRuntimes(adjusted, []);
+  const resolvedSnapshot = exportV1All(resolved, adjusted.provenance);
 
   const adapter = JSON.parse(
     await readFile(join(repositoryRoot, "adapters", "opencode", "adapter.json"), "utf8"),
@@ -719,13 +579,13 @@ export async function buildBundles(options) {
   const profiles = [];
   for (const profile of adapter.profiles) {
     const route = profile.name;
-    const resolved = resolveRoute(routing, "opencode", route, options);
+    const resolvedRoute = resolved.runtimes.opencode.routes[route];
     const bodySource = await readFile(
       join(repositoryRoot, "skills", "work", "references", "tasks", `${taskContractFor(route)}.md`),
       "utf8",
     );
     const body = bodySource.replace(/\r\n?/g, "\n").trim();
-    profiles.push({ profile, route, resolved, text: renderOpenCodeProfile(profile, resolved, body) });
+    profiles.push({ profile, route, resolved: resolvedRoute, text: renderOpenCodeProfile(profile, resolvedRoute, body) });
   }
 
   // Remove only the roots this build owns (including the retired baseline
@@ -755,17 +615,17 @@ export async function buildBundles(options) {
 
   // 1. Agent Plugins 1.0 package.
   await writeText(join(pluginRoot, "plugin.json"), `${JSON.stringify(pluginManifest, null, 2)}\n`);
-  await populateSkillsRoot(join(pluginRoot, "skills"), options.sourceRoot, resolvedRouting);
+  await populateSkillsRoot(join(pluginRoot, "skills"), options.sourceRoot, adjusted, resolvedSnapshot);
 
   // 2. Standalone (project) skill binding.
-  await populateSkillsRoot(standaloneSkillsRoot, options.sourceRoot, resolvedRouting);
+  await populateSkillsRoot(standaloneSkillsRoot, options.sourceRoot, adjusted, resolvedSnapshot);
 
   // 3. OpenCode V2 binding (generated profiles + command entries + skills).
   for (const { profile, text } of profiles) {
     await writeText(join(openCodeRoot, profile.outputPath), text);
   }
   await populateCommandEntries(openCodeRoot, adapter);
-  await populateSkillsRoot(join(openCodeRoot, "skills"), options.sourceRoot, resolvedRouting);
+  await populateSkillsRoot(join(openCodeRoot, "skills"), options.sourceRoot, adjusted, resolvedSnapshot);
 
   const explicitCount = profileRecords.filter((record) => record.mode === "explicit").length;
   return {

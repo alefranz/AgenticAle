@@ -804,6 +804,7 @@ async function removeEmptyPackageDirectories(target) {
     "work/references/tasks",
     "work/references",
     "work/agents",
+    "work/scripts",
     "work",
     "autonomous/agents",
     "autonomous",

@@ -43,9 +43,13 @@ async function readText(path) {
   return readFile(path, "utf8");
 }
 
-async function buildFixture(name, args = []) {
+async function buildFixture(name, args = [], { env, cwd } = {}) {
   const root = join(scratch, name);
-  const result = spawnSync(process.execPath, [build, "--output", root, ...args], { encoding: "utf8" });
+  const result = spawnSync(process.execPath, [build, "--output", root, ...args], {
+    encoding: "utf8",
+    env: env ? { ...process.env, ...env } : process.env,
+    cwd,
+  });
   check(result.status === 0, `${name} build exits 0`);
   if (result.status !== 0) console.error(result.stdout, result.stderr);
   return {
@@ -57,6 +61,55 @@ async function buildFixture(name, args = []) {
   };
 }
 
+// The version-1 baseline exactly as it was committed before the version-2
+// contract (git 11eb0ae:skills/work/references/routing.json). The acceptance
+// criterion is that the version-2 baseline resolves to the SAME concrete
+// selections as this inventory, so routing-output assertions compare against
+// it. Version-1 --routing inputs in this file are derived from it too.
+const legacyV1Baseline = {
+  schemaVersion: 1,
+  provenance: "Baseline-inventory defaults derived from examples/gpt.json and examples/openai.json (gpt-6 family). These are NOT verified against any live account or runtime in this documentation-only pass. Exact native model field names and supported effort values are adapter concerns; validate identifiers per host before relying on a strict route, or override any route (or use --no-model / --routing PATH).",
+  runtimes: {
+    copilot: {
+      explore: { mode: "explicit", model: "OpenAI/gpt-6-luna", reasoningEffort: "max", fallbacks: [] },
+      implement: { mode: "explicit", model: "OpenAI/gpt-6-luna", reasoningEffort: "max", fallbacks: [] },
+      "implement-hard": { mode: "explicit", model: "OpenAI/gpt-6-sol", reasoningEffort: "high", fallbacks: [] },
+      fix: { mode: "explicit", model: "OpenAI/gpt-6-luna", reasoningEffort: "max", fallbacks: [] },
+      review: { mode: "explicit", model: "OpenAI/gpt-6-sol", reasoningEffort: "high", fallbacks: [] },
+      "deep-review": { mode: "explicit", model: "OpenAI/gpt-6-sol", reasoningEffort: "xhigh", fallbacks: [] },
+      consult: { mode: "explicit", model: "OpenAI/gpt-6-sol", reasoningEffort: "xhigh", fallbacks: [] },
+    },
+    codex: {
+      explore: { mode: "explicit", model: "openai/gpt-6-luna", reasoningEffort: "max", fallbacks: [] },
+      implement: { mode: "explicit", model: "openai/gpt-6-luna", reasoningEffort: "max", fallbacks: [] },
+      "implement-hard": { mode: "explicit", model: "openai/gpt-6-sol", reasoningEffort: "high", fallbacks: [] },
+      fix: { mode: "explicit", model: "openai/gpt-6-luna", reasoningEffort: "max", fallbacks: [] },
+      review: { mode: "explicit", model: "openai/gpt-6-sol", reasoningEffort: "high", fallbacks: [] },
+      "deep-review": { mode: "explicit", model: "openai/gpt-6-sol", reasoningEffort: "xhigh", fallbacks: [] },
+      consult: { mode: "explicit", model: "openai/gpt-6-sol", reasoningEffort: "xhigh", fallbacks: [] },
+    },
+    opencode: {
+      explore: { mode: "explicit", model: "opencode/gpt-6-luna", reasoningEffort: "max", fallbacks: [] },
+      implement: { mode: "explicit", model: "opencode/gpt-6-luna", reasoningEffort: "max", fallbacks: [] },
+      "implement-hard": { mode: "explicit", model: "opencode/gpt-6-sol", reasoningEffort: "high", fallbacks: [] },
+      fix: { mode: "explicit", model: "opencode/gpt-6-luna", reasoningEffort: "max", fallbacks: [] },
+      review: { mode: "explicit", model: "opencode/gpt-6-sol", reasoningEffort: "high", fallbacks: [] },
+      "deep-review": { mode: "explicit", model: "opencode/gpt-6-sol", reasoningEffort: "xhigh", fallbacks: [] },
+      consult: { mode: "explicit", model: "opencode/gpt-6-sol", reasoningEffort: "xhigh", fallbacks: [] },
+    },
+  },
+};
+
+// Key-order-insensitive JSON comparison (policy objects are compared by value,
+// not by serialization order).
+function stableStringify(value) {
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+  if (value !== null && typeof value === "object") {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
 try {
   // Default build: three output roots, correct shapes and file counts.
   const fixture = await buildFixture("default");
@@ -64,9 +117,27 @@ try {
   const standaloneRel = await listRelative(fixture.standaloneRoot);
   const openCodeRel = await listRelative(fixture.openCodeRoot);
 
-  check(pluginRel.length === 20, "plugin bundle has 20 files");
-  check(standaloneRel.length === 19, "standalone bundle has 19 files");
-  check(openCodeRel.length === 28, "OpenCode bundle has 28 files (7 profiles + 2 commands + 19 skills)");
+  check(pluginRel.length === 23, "plugin bundle has 23 files");
+  check(standaloneRel.length === 22, "standalone bundle has 22 files");
+  check(openCodeRel.length === 31, "OpenCode bundle has 31 files (7 profiles + 2 commands + 22 skills)");
+
+  // The packaged routing resources (version-2 baseline, resolved version-1
+  // snapshot, example preferences, and the shared resolver module) ship in
+  // all three output roots.
+  for (const [label, skillsRoot] of [
+    ["plugin", join(fixture.pluginRoot, "skills")],
+    ["standalone", fixture.standaloneRoot],
+    ["opencode", join(fixture.openCodeRoot, "skills")],
+  ]) {
+    for (const rel of [
+      "work/references/routing.json",
+      "work/references/resolved-routing.json",
+      "work/references/routing.example.md",
+      "work/scripts/routing.mjs",
+    ]) {
+      check(existsSync(join(skillsRoot, rel)), `${label} bundle ships ${rel}`);
+    }
+  }
 
   // Plugin root: manifest + four skills.
   check(pluginRel.includes("plugin.json"), "plugin bundle has plugin.json");
@@ -153,21 +224,58 @@ try {
     const list = await listFiles(root);
     return Promise.all(list.map(async (path) => [portable(relative(root, path)), hash(await readFile(path))]));
   };
-  const assertRoutingModes = async (label, routingPath, expectedMode) => {
-    check(existsSync(routingPath), `${label} materializes work/references/routing.json`);
-    const parsed = JSON.parse(await readText(routingPath));
-    for (const runtime of Object.keys(parsed.runtimes)) {
-      for (const route of Object.keys(parsed.runtimes[runtime])) {
-        check(parsed.runtimes[runtime][route].mode === expectedMode, `${label} routing ${runtime}/${route} is ${expectedMode}`);
+  // routing.json holds the effective version-2 baseline (tiers + role
+  // exceptions); resolved-routing.json holds the fully resolved version-1
+  // snapshot from the same resolution pass. Both ship in every skill tree.
+  const assertV2TierShape = (label, v2) => {
+    check(v2.schemaVersion === 2, `${label} routing.json is a version-2 baseline`);
+    check(typeof v2.provenance === "string" && v2.provenance.length > 0, `${label} routing.json carries provenance`);
+    check(JSON.stringify(Object.keys(v2.roleTiers).sort()) === JSON.stringify(allProfiles.slice().sort()), `${label} routing.json maps all seven roles to tiers`);
+    for (const runtime of ["copilot", "codex", "opencode"]) {
+      const map = v2.runtimes?.[runtime];
+      check(map && typeof map.tiers === "object" && typeof map.roles === "object", `${label} routing.json declares tiers+roles for ${runtime}`);
+      for (const tier of ["fast", "standard", "deep"]) {
+        const entry = map?.tiers?.[tier];
+        check(
+          entry && entry.mode === "explicit" && typeof entry.model === "string" && entry.model.length > 0
+            && ["low", "medium", "high", "xhigh", "max"].includes(entry.reasoningEffort) && Array.isArray(entry.fallbacks),
+          `${label} routing.json ${runtime}/${tier} is a valid explicit tier`,
+        );
       }
     }
   };
-  // The default build materializes the packaged (explicit) routing into every tree.
-  await assertRoutingModes("default plugin", join(fixture.pluginRoot, "skills", "work", "references", "routing.json"), "explicit");
-  await assertRoutingModes("default standalone", join(fixture.standaloneRoot, "work", "references", "routing.json"), "explicit");
+  const assertResolvedV1Modes = async (label, skillsRoot, expectedMode) => {
+    const resolvedPath = join(skillsRoot, "work", "references", "resolved-routing.json");
+    check(existsSync(resolvedPath), `${label} materializes work/references/resolved-routing.json`);
+    const parsed = JSON.parse(await readText(resolvedPath));
+    check(parsed.schemaVersion === 1, `${label} resolved snapshot is a version-1 policy`);
+    for (const runtime of Object.keys(parsed.runtimes)) {
+      for (const route of Object.keys(parsed.runtimes[runtime])) {
+        check(parsed.runtimes[runtime][route].mode === expectedMode, `${label} resolved ${runtime}/${route} is ${expectedMode}`);
+      }
+    }
+  };
+  const withoutProvenance = (policy) => { const { provenance, ...rest } = policy; return rest; };
+  // The default build materializes the packaged (explicit) routing into every
+  // tree, and the resolved snapshot is the legacy v1 baseline with nothing lost.
+  assertV2TierShape("default plugin", JSON.parse(await readText(join(fixture.pluginRoot, "skills", "work", "references", "routing.json"))));
+  await assertResolvedV1Modes("default plugin", join(fixture.pluginRoot, "skills"), "explicit");
+  await assertResolvedV1Modes("default standalone", fixture.standaloneRoot, "explicit");
+  await assertResolvedV1Modes("default opencode", join(fixture.openCodeRoot, "skills"), "explicit");
+  const defaultResolved = JSON.parse(await readText(join(fixture.standaloneRoot, "work", "references", "resolved-routing.json")));
+  check(
+    stableStringify(withoutProvenance(defaultResolved)) === stableStringify(withoutProvenance(legacyV1Baseline)),
+    "default resolved snapshot is deep-equal to the legacy version-1 baseline (provenance aside)",
+  );
   // --no-model materializes an inherit-only routing into every tree.
-  await assertRoutingModes("no-model plugin", join(noModel.pluginRoot, "skills", "work", "references", "routing.json"), "inherit");
-  await assertRoutingModes("no-model standalone", join(noModel.standaloneRoot, "work", "references", "routing.json"), "inherit");
+  await assertResolvedV1Modes("no-model plugin", join(noModel.pluginRoot, "skills"), "inherit");
+  await assertResolvedV1Modes("no-model standalone", noModel.standaloneRoot, "inherit");
+  const noModelV2 = JSON.parse(await readText(join(noModel.standaloneRoot, "work", "references", "routing.json")));
+  for (const runtime of Object.keys(noModelV2.runtimes)) {
+    const roleMap = noModelV2.runtimes[runtime].roles;
+    check(JSON.stringify(Object.keys(roleMap).sort()) === JSON.stringify(allProfiles.slice().sort()), `no-model routing.json ${runtime} has a role exception for every role`);
+    check(Object.values(roleMap).every((entry) => entry.mode === "inherit"), `no-model routing.json ${runtime} roles all inherit`);
+  }
   check(JSON.stringify(await listRelative(fixture.standaloneRoot)) === JSON.stringify(await listRelative(noModel.standaloneRoot)), "standalone bundle file set is identical with and without --no-model");
 
   // --source-root renders the exact JSON-encoded path into the lookup skill.
@@ -190,25 +298,46 @@ try {
   }
   check((await readText(join(effortFixture.openCodeRoot, "agents", "autonomous", "review.md"))).includes("model: opencode/gpt-6-sol"), "--effort override keeps the per-route model");
 
-  // --routing PATH is a first-class input: a caller-supplied file wins over the
-  // packaged routing.json and its explicit model is rendered into the profiles.
-  const callerRouting = join(scratch, "caller-routing.json");
+  // --routing accepts BOTH version-1 policies and version-2 baselines. A
+  // version-1 input is a complete policy: it normalizes to exact direct role
+  // exceptions over the packaged tiers (never reinterpreted as a sparse tier
+  // override) and undeclared runtimes keep the packaged defaults.
   const packaged = JSON.parse(await readText(join(repository, "skills", "work", "references", "routing.json")));
-  const customized = structuredClone(packaged);
-  customized.runtimes.opencode.review.model = "acme/test-model";
-  await writeFile(callerRouting, JSON.stringify(customized), "utf8");
-  const routingFixture = await buildFixture("caller-routing", ["--routing", callerRouting]);
-  check((await readText(join(routingFixture.openCodeRoot, "agents", "autonomous", "review.md"))).includes("model: acme/test-model"), "--routing file model is rendered into the review profile");
-  check((await readText(join(routingFixture.openCodeRoot, "agents", "autonomous", "explore.md"))).includes("model: opencode/gpt-6-luna"), "--routing file leaves unmodified routes at their packaged model");
-  // The caller's customization is materialized verbatim into the skill trees.
-  const materializedCaller = JSON.parse(await readText(join(routingFixture.standaloneRoot, "work", "references", "routing.json")));
-  check(materializedCaller.runtimes.opencode.review.model === "acme/test-model", "--routing customization is materialized into the standalone routing.json");
-  const materializedCallerPlugin = JSON.parse(await readText(join(routingFixture.pluginRoot, "skills", "work", "references", "routing.json")));
-  check(materializedCallerPlugin.runtimes.opencode.review.model === "acme/test-model", "--routing customization is materialized into the plugin routing.json");
+  const callerV1 = structuredClone(legacyV1Baseline);
+  callerV1.runtimes.opencode.review.model = "acme/test-model";
+  const callerV1Path = join(scratch, "caller-routing-v1.json");
+  await writeFile(callerV1Path, JSON.stringify(callerV1), "utf8");
+  const v1Fixture = await buildFixture("caller-routing-v1", ["--routing", callerV1Path]);
+  check((await readText(join(v1Fixture.openCodeRoot, "agents", "autonomous", "review.md"))).includes("model: acme/test-model"), "--routing v1 policy model is rendered into the review profile");
+  check((await readText(join(v1Fixture.openCodeRoot, "agents", "autonomous", "explore.md"))).includes("model: opencode/gpt-6-luna"), "--routing v1 policy leaves unmodified routes at their packaged model");
+  // The changed role materializes as a direct role exception, not a tier rewrite.
+  const v1Shipped = JSON.parse(await readText(join(v1Fixture.standaloneRoot, "work", "references", "routing.json")));
+  check(v1Shipped.runtimes.opencode.roles.review.mode === "explicit" && v1Shipped.runtimes.opencode.roles.review.model === "acme/test-model", "--routing v1 policy change materializes as an opencode/review role exception");
+  check(v1Shipped.runtimes.opencode.tiers.standard.model === "opencode/gpt-6-sol", "--routing v1 policy does not rewrite the standard tier");
+  const v1ShippedPlugin = JSON.parse(await readText(join(v1Fixture.pluginRoot, "skills", "work", "references", "routing.json")));
+  check(v1ShippedPlugin.runtimes.opencode.roles.review.model === "acme/test-model", "--routing v1 customization is materialized into the plugin routing.json");
+  // The resolved snapshot equals the caller's complete policy (provenance aside).
+  const v1Resolved = JSON.parse(await readText(join(v1Fixture.standaloneRoot, "work", "references", "resolved-routing.json")));
+  check(stableStringify(withoutProvenance(v1Resolved)) === stableStringify(withoutProvenance(callerV1)), "--routing v1 resolved snapshot equals the caller policy (provenance aside)");
+
+  // A version-2 input is a defaults baseline: an overridden tier affects every
+  // role mapped to it, and undeclared runtimes are filled from the packaged
+  // defaults as before.
+  const callerV2 = structuredClone(packaged);
+  callerV2.runtimes.opencode.tiers.standard.model = "acme/v2-model";
+  const callerV2Path = join(scratch, "caller-routing-v2.json");
+  await writeFile(callerV2Path, JSON.stringify(callerV2), "utf8");
+  const v2Fixture = await buildFixture("caller-routing-v2", ["--routing", callerV2Path]);
+  check((await readText(join(v2Fixture.openCodeRoot, "agents", "autonomous", "review.md"))).includes("model: acme/v2-model"), "--routing v2 tier override renders into the review profile");
+  check((await readText(join(v2Fixture.openCodeRoot, "agents", "autonomous", "implement-hard.md"))).includes("model: acme/v2-model"), "--routing v2 tier override renders into the implement-hard profile");
+  check((await readText(join(v2Fixture.openCodeRoot, "agents", "autonomous", "explore.md"))).includes("model: opencode/gpt-6-luna"), "--routing v2 leaves unmapped tiers at their packaged model");
+  const v2Shipped = JSON.parse(await readText(join(v2Fixture.standaloneRoot, "work", "references", "routing.json")));
+  check(v2Shipped.runtimes.opencode.tiers.standard.model === "acme/v2-model", "--routing v2 customization is materialized into the standalone routing.json");
+  check(v2Shipped.runtimes.opencode.tiers.fast.model === "opencode/gpt-6-luna", "--routing v2 leaves the fast tier untouched");
 
   // F5: --effort cannot be applied to a route that inherits (inherit means
   // inherit both model AND effort), including the all-inherit --no-model case.
-  const inheritRouting = structuredClone(packaged);
+  const inheritRouting = structuredClone(legacyV1Baseline);
   for (const runtime of Object.keys(inheritRouting.runtimes)) inheritRouting.runtimes[runtime].review = { mode: "inherit" };
   const inheritRoutingPath = join(scratch, "f5-inherit.json");
   await writeFile(inheritRoutingPath, JSON.stringify(inheritRouting), "utf8");
@@ -220,20 +349,53 @@ try {
   // F6: a caller policy that omits a runtime must not silently render
   // model-less profiles; the undeclared runtime is filled from the packaged
   // preset before validation and rendering.
-  const codexOnly = { schemaVersion: 1, runtimes: { codex: structuredClone(packaged.runtimes.codex) } };
+  const codexOnly = { schemaVersion: 1, runtimes: { codex: structuredClone(legacyV1Baseline.runtimes.codex) } };
   const codexOnlyPath = join(scratch, "f6-codex-only.json");
   await writeFile(codexOnlyPath, JSON.stringify(codexOnly), "utf8");
   const f6Fixture = await buildFixture("f6-codex-only", ["--routing", codexOnlyPath]);
   const f6Explore = await readText(join(f6Fixture.openCodeRoot, "agents", "autonomous", "explore.md"));
   check(f6Explore.includes("model: opencode/gpt-6-luna"), "F6 omitted opencode runtime is filled from the packaged preset (explore profile carries a model)");
   const f6Shipped = JSON.parse(await readText(join(f6Fixture.standaloneRoot, "work", "references", "routing.json")));
-  check(JSON.stringify(Object.keys(f6Shipped.runtimes).sort()) === JSON.stringify(["codex", "copilot", "opencode"].sort()), "F6 shipped policy declares all three runtimes");
-  check(f6Shipped.runtimes.opencode.explore.model === "opencode/gpt-6-luna", "F6 merged opencode route keeps the packaged model");
-  check(f6Shipped.runtimes.codex.explore.model === packaged.runtimes.codex.explore.model, "F6 declared codex runtime is untouched by the merge");
+  check(JSON.stringify(Object.keys(f6Shipped.runtimes).sort()) === JSON.stringify(["codex", "copilot", "opencode"].sort()), "F6 shipped v2 baseline declares all three runtimes");
+  check(f6Shipped.runtimes.opencode.tiers.fast.model === "opencode/gpt-6-luna", "F6 merged opencode runtime keeps the packaged tier model");
+  const f6Resolved = JSON.parse(await readText(join(f6Fixture.standaloneRoot, "work", "references", "resolved-routing.json")));
+  check(f6Resolved.runtimes.codex.explore.model === legacyV1Baseline.runtimes.codex.explore.model, "F6 declared codex runtime is untouched by the merge");
+
+  // OpenCode preparation inputs: a requested policy carrying an ordered
+  // fallback list on one role and an intentional inheritance on another. The
+  // build materializes the primary selection into the profile frontmatter
+  // only — the seven-profile adapter cannot execute a fallback chain — while
+  // the shipped resources preserve the fallback list and inheritance verbatim.
+  const prepV1 = structuredClone(legacyV1Baseline);
+  prepV1.runtimes.opencode.review.model = "acme/review-prep";
+  prepV1.runtimes.opencode.review.fallbacks = [
+    { model: "acme/review-fb-1", reasoningEffort: "high" },
+    { model: "acme/review-fb-2", reasoningEffort: "medium" },
+  ];
+  prepV1.runtimes.opencode.consult = { mode: "inherit" };
+  const prepV1Path = join(scratch, "prep-routing-v1.json");
+  await writeFile(prepV1Path, JSON.stringify(prepV1), "utf8");
+  const prepFixture = await buildFixture("prep-routing-v1", ["--routing", prepV1Path]);
+  const prepReview = await readText(join(prepFixture.openCodeRoot, "agents", "autonomous", "review.md"));
+  check(prepReview.includes("model: acme/review-prep"), "prep v1: review profile renders the requested primary model");
+  check((prepReview.match(/^model:/gm) ?? []).length === 1, "prep v1: the profile materializes exactly one model (no fallback chain)");
+  check(!prepReview.includes("acme/review-fb-1") && !prepReview.includes("acme/review-fb-2"), "prep v1: requested fallbacks are not rendered into the profile");
+  check(prepReview.includes("steps: 56") && prepReview.includes("mode: subagent") && prepReview.includes("- action: subagent") && prepReview.includes("- action: question") && !/- action: edit/.test(prepReview), "prep v1: review profile keeps its permission/step fields");
+  const prepConsult = await readText(join(prepFixture.openCodeRoot, "agents", "autonomous", "consult.md"));
+  check(!/^model:/m.test(prepConsult) && !/^reasoningEffort:/m.test(prepConsult), "prep v1: an inherit request renders a profile with no forced model");
+  check(prepConsult.includes("steps: 20") && prepConsult.includes("- action: edit"), "prep v1: consult profile keeps its permission/step fields");
+  const prepProfileNames = (await listRelative(prepFixture.openCodeRoot)).filter((path) => path.startsWith("agents/autonomous/")).map((path) => path.split("/").pop().replace(".md", ""));
+  check(JSON.stringify([...prepProfileNames].sort()) === JSON.stringify([...allProfiles].sort()), "prep v1: seven profiles with a distinct implement-hard");
+  const prepResolved = JSON.parse(await readText(join(prepFixture.standaloneRoot, "work", "references", "resolved-routing.json")));
+  check(JSON.stringify(prepResolved.runtimes.opencode.review.fallbacks) === JSON.stringify(prepV1.runtimes.opencode.review.fallbacks), "prep v1: the resolved snapshot preserves the requested fallback order");
+  check(JSON.stringify(prepResolved.runtimes.opencode.consult) === JSON.stringify({ mode: "inherit" }), "prep v1: the resolved snapshot preserves the intentional inheritance");
+  check(prepResolved.runtimes.opencode.explore.model === legacyV1Baseline.runtimes.opencode.explore.model, "prep v1: the resolved snapshot keeps untouched routes");
+  const prepShipped = JSON.parse(await readText(join(prepFixture.pluginRoot, "skills", "work", "references", "routing.json")));
+  check(JSON.stringify(prepShipped.runtimes.opencode.roles.review.fallbacks) === JSON.stringify(prepV1.runtimes.opencode.review.fallbacks), "prep v1: the shipped v2 baseline preserves the fallback list in the role exception");
 
   // strictValidateRouting negative cases (the shared contract the build enforces).
   const { strictValidateRouting } = await import("./build.mjs");
-  const makeBad = (mutate) => { const r = structuredClone(packaged); mutate(r); return r; };
+  const makeBad = (mutate) => { const r = structuredClone(legacyV1Baseline); mutate(r); return r; };
   const expectRoutingRejection = (label, mutate) => {
     let threw = false;
     try { strictValidateRouting(makeBad(mutate)); } catch { threw = true; }
@@ -247,6 +409,44 @@ try {
   expectRoutingRejection("explicit entry missing effort", (r) => { delete r.runtimes.copilot.review.reasoningEffort; });
   expectRoutingRejection("unsupported reasoning effort", (r) => { r.runtimes.copilot.review.reasoningEffort = "extreme"; });
   expectRoutingRejection("fallback not a model/effort pair", (r) => { r.runtimes.copilot.review.fallbacks = [{ model: "x", reasoningEffort: "low", extra: 1 }]; });
+
+  // A Markdown preference file supplied to --routing is a workflow input, not a
+  // build input: the build refuses it before parsing with guidance toward the
+  // runtime preference files and a resolved JSON export.
+  const markdownPrefs = join(scratch, "routing-prefs.md");
+  await writeFile(markdownPrefs, "# Personal preferences\nexplore: acme/prose-model\n", "utf8");
+  const markdownRun = spawnSync(process.execPath, [build, "--output", join(scratch, "err"), "--routing", markdownPrefs], { encoding: "utf8" });
+  check(markdownRun.status === 1 && /expects a JSON policy/.test(markdownRun.stderr), "Markdown path to --routing is refused before parsing");
+  check(/routing\.md/.test(markdownRun.stderr) && /resolved version-1 JSON/.test(markdownRun.stderr), "Markdown --routing refusal points at runtime preferences and the resolved JSON export");
+  check(!(await existsSync(join(scratch, "err"))), "Markdown --routing refusal writes no output");
+
+  // Publication isolation: a default build must neither read nor embed the
+  // caller's home/project routing preferences, even when both are seeded in an
+  // isolated fake home and project root that a discovery helper could find.
+  {
+    const sentinelHome = join(scratch, "sentinel-home");
+    const sentinelProject = join(scratch, "sentinel-project");
+    await mkdir(join(sentinelHome, ".agenticale"), { recursive: true });
+    await mkdir(join(sentinelProject, ".agenticale"), { recursive: true });
+    const homePrefs = "SENTINEL-HOME-PREFERENCE-ZXQ9\nexplore: acme/sentinel-home-model\n";
+    const projectPrefs = "SENTINEL-PROJECT-PREFERENCE-KT7W\nreview: acme/sentinel-project-model\n";
+    await writeFile(join(sentinelHome, ".agenticale", "routing.md"), homePrefs, "utf8");
+    await writeFile(join(sentinelProject, ".agenticale", "routing.md"), projectPrefs, "utf8");
+    const iso = await buildFixture("isolation", [], { env: { HOME: sentinelHome, USERPROFILE: sentinelHome }, cwd: sentinelProject });
+    const builtContents = await Promise.all([
+      ...(await listFiles(iso.pluginRoot)),
+      ...(await listFiles(iso.standaloneRoot)),
+      ...(await listFiles(iso.openCodeRoot)),
+      iso.buildState,
+    ].map((path) => readFile(path, "utf8")));
+    check(!builtContents.some((text) => text.includes("SENTINEL-HOME-PREFERENCE-ZXQ9")), "default build does not embed the home routing.md sentinel");
+    check(!builtContents.some((text) => text.includes("SENTINEL-PROJECT-PREFERENCE-KT7W")), "default build does not embed the project routing.md sentinel");
+    check(!builtContents.some((text) => text.includes("acme/sentinel-home-model") || text.includes("acme/sentinel-project-model")), "default build does not interpret the sentinel preference selections");
+    check((await readText(join(sentinelProject, ".agenticale", "routing.md"))) === projectPrefs, "default build leaves the project routing.md untouched");
+    check((await readText(join(sentinelHome, ".agenticale", "routing.md"))) === homePrefs, "default build leaves the home routing.md untouched");
+    const committedContents = await Promise.all((await listFiles(join(repository, "plugins", "agenticale"))).map((path) => readFile(path, "utf8")));
+    check(!committedContents.some((text) => text.includes("SENTINEL-HOME-PREFERENCE-ZXQ9") || text.includes("SENTINEL-PROJECT-PREFERENCE-KT7W")), "published plugin does not embed the routing.md sentinels");
+  }
 
   // Generated-artifact drift: the committed default package must equal a fresh
   // default build (catches a source change that skipped regeneration).

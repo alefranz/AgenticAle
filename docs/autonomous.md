@@ -200,6 +200,28 @@ active handoff yet, the coordinator uses the first clear `Next slice` to create
 one. If an active handoff already exists, it takes precedence so unfinished
 work is continued instead of starting a different backlog item.
 
+## Model routing across sessions
+
+`autonomous` runs the same routing bootstrap as `work` (the routing contract in
+the installed `work` skill): it discovers the personal and repository
+preference files, resolves a snapshot for the active runtime, and shows a
+compact tier summary with sources before dispatching any child.
+
+- The run records a compact routing summary in the existing handoff/report
+  structure: each tier's model and effort with its source, plus any role
+  exceptions, persisted as an `ESTABLISHED` fact in the active handoff, carried
+  into the final report and the session-close archive. Each round's record
+  keeps the role, the selected tier or direct choice, the requested
+  model/effort, the selection's provenance, any fallback actually attempted,
+  and the effective settings or the reason they are unknown.
+- A fresh resume re-reads the current preference files and compares the
+  resolution against the recorded summary, reporting material changes before
+  continuing. The prior handoff's routing record is diagnostic history, not a
+  layer that overrides current preferences.
+- The bootstrap is read-only: it never creates or modifies a routing file. See
+  [setup and customization](setup.md#customizing-model-routing) for the
+  customization path.
+
 ## Copilot entry point
 
 There is no coordinator to select: invoke the `autonomous` skill and the current
