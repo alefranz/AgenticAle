@@ -63,7 +63,7 @@ function usage() {
 Builds the skills-first bundle from the common core and the OpenCode adapter:
   <output>/plugin/agenticale            Agent Plugins 1.0 package (skills + plugin.json)
   <output>/standalone/.agents/skills    standalone (project) skill binding
-  <output>/opencode                     OpenCode V2 binding (skills + generated profiles)
+  <output>/opencode                     OpenCode V2 binding (skills + generated profiles + command entries)
 
 Options:
   --output PATH         Build root (default: dist)
@@ -506,6 +506,28 @@ async function populateSkillsRoot(skillsRoot, sourceRoot, resolvedRouting) {
   }
 }
 
+// Copies the adapter-owned command templates (thin launchers that load the
+// explicit-only skills by exact ID) into the OpenCode output. OpenCode V2 does
+// not interpret the skills' `slash` portability field, so the /work and
+// /autonomous entries must be installed command files.
+async function populateCommandEntries(openCodeRoot, adapter) {
+  const adapterDirectory = join(repositoryRoot, "adapters", "opencode");
+  for (const command of adapter.commands ?? []) {
+    if (typeof command?.name !== "string" || typeof command?.source !== "string" || typeof command?.outputPath !== "string") {
+      throw new Error("OpenCode adapter command entries must declare name, source, and outputPath strings: adapters/opencode/adapter.json");
+    }
+    const source = resolve(adapterDirectory, command.source);
+    if (source !== adapterDirectory && !source.startsWith(adapterDirectory + sep)) {
+      throw new Error(`OpenCode command source must stay inside the adapter directory: ${command.source}`);
+    }
+    if (!command.outputPath.startsWith("commands/")) {
+      throw new Error(`OpenCode command output path must live under commands/: ${command.outputPath}`);
+    }
+    const text = (await readFile(source, "utf8")).replace(/\r\n?/g, "\n");
+    await writeText(join(openCodeRoot, command.outputPath), text);
+  }
+}
+
 async function writeText(path, contents) {
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, contents.replace(/\r\n?/g, "\n"), "utf8");
@@ -738,10 +760,11 @@ export async function buildBundles(options) {
   // 2. Standalone (project) skill binding.
   await populateSkillsRoot(standaloneSkillsRoot, options.sourceRoot, resolvedRouting);
 
-  // 3. OpenCode V2 binding (generated profiles + discovered skills).
+  // 3. OpenCode V2 binding (generated profiles + command entries + skills).
   for (const { profile, text } of profiles) {
     await writeText(join(openCodeRoot, profile.outputPath), text);
   }
+  await populateCommandEntries(openCodeRoot, adapter);
   await populateSkillsRoot(join(openCodeRoot, "skills"), options.sourceRoot, resolvedRouting);
 
   const explicitCount = profileRecords.filter((record) => record.mode === "explicit").length;

@@ -34,6 +34,9 @@ const runtimes = ["codex", "copilot", "opencode"];
 const profileNames = ["consult", "deep-review", "explore", "fix", "implement", "implement-hard", "review"];
 const skillNames = ["work", "autonomous", "pull-request-description", "source-code-lookup"];
 const retiredSkillNames = ["work-mode", "autonomous-mode"];
+// The two adapter-owned OpenCode command templates (thin launchers for the
+// explicit-only skills; OpenCode does not interpret the skills' `slash` field).
+const commandNames = ["autonomous", "work"];
 
 // The NEW authored source-of-truth layout validate.mjs must assert exists.
 const requiredPaths = [
@@ -53,6 +56,8 @@ const requiredPaths = [
   "skills/source-code-lookup/SKILL.md",
   "adapters/opencode/adapter.json",
   "adapters/opencode/README.md",
+  "adapters/opencode/commands/autonomous.md",
+  "adapters/opencode/commands/work.md",
 ].sort();
 
 // The RETIRED layout that must be gone from the authored source tree.
@@ -371,9 +376,54 @@ function validateAdapter() {
       fail(profilePath, `profile must deny exactly ${expectedDeny.join(", ")}`, "restore the exact deny permission set");
     }
   }
+  if (!Array.isArray(adapter.commands)) {
+    fail(path, "adapter must include a commands array", "add the commands array");
+  } else {
+    const commandNamesSeen = adapter.commands.map((command) => command && command.name).sort();
+    if (JSON.stringify(commandNamesSeen) !== JSON.stringify([...commandNames].sort())) {
+      fail(path, `commands must be exactly ${commandNames.join(", ")}`, "keep one command entry per explicit-only workflow skill");
+    }
+    for (const command of adapter.commands) {
+      const commandPath = `${path}#commands.${command && command.name}`;
+      if (!command || typeof command.name !== "string" || typeof command.source !== "string" || typeof command.outputPath !== "string") {
+        fail(commandPath, "command entry must declare name, source, and outputPath strings", "use the documented command entry shape");
+        continue;
+      }
+      if (!command.source.startsWith("commands/") || command.source.includes("..")) {
+        fail(commandPath, "command source must stay under the adapter commands directory", "reference the template relative to adapters/opencode");
+      }
+      if (!command.outputPath.startsWith("commands/")) {
+        fail(commandPath, "command output path must live under commands/", "write the entry under commands/ in the OpenCode output");
+      }
+    }
+  }
   const adapterText = readText(path);
   if (/task contract/i.test(adapterText)) {
     fail(path, "adapter must not contain task-contract body text", "keep the adapter metadata-only; bodies come from skills/work/references/tasks");
+  }
+}
+
+// The adapter-owned command templates are the thin OpenCode launchers for the
+// explicit-only skills: frontmatter with a description, and a body that loads
+// the skill by exact ID and passes through $ARGUMENTS.
+function validateCommandTemplates() {
+  for (const name of commandNames) {
+    const path = `adapters/opencode/commands/${name}.md`;
+    if (!existsSync(join(repositoryRoot, path))) continue;
+    const text = readText(path);
+    const { fields, body } = parseFrontmatter(path, text);
+    if (JSON.stringify([...fields.keys()].sort()) !== JSON.stringify(["description"])) {
+      fail(path, "command frontmatter must carry only a description", "remove the extra frontmatter keys");
+    }
+    if (!fields.get("description")) {
+      fail(path, "command description must not be empty", "describe the command in one line");
+    }
+    if (!body.includes("$ARGUMENTS")) {
+      fail(path, "command body must pass through $ARGUMENTS", "add the $ARGUMENTS placeholder");
+    }
+    if (!body.includes(`\`${name}\``)) {
+      fail(path, `command body must load the skill by exact ID \`${name}\``, "reference the exact skill ID in backticks");
+    }
   }
 }
 
@@ -607,6 +657,7 @@ validateSkillSourceLookup();
 validateSkillPullRequest();
 validateRoutingContract();
 validateAdapter();
+validateCommandTemplates();
 validateNeutralContracts();
 validateSanitation();
 
@@ -615,5 +666,5 @@ if (failures.length > 0) {
   for (const failure of failures) console.error(`- ${failure}`);
   process.exitCode = 1;
 } else {
-  console.log(`Validation passed: ${requiredPaths.length} source-of-truth files, ${taskContracts.length} neutral task contracts, routing contract, ${profileNames.length} adapter profiles, and sanitation.`);
+  console.log(`Validation passed: ${requiredPaths.length} source-of-truth files, ${taskContracts.length} neutral task contracts, routing contract, ${profileNames.length} adapter profiles, ${commandNames.length} adapter command templates, and sanitation.`);
 }

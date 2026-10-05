@@ -14,7 +14,9 @@ focused changes with clear verification are easiest to review.
   `adapters/opencode`, and the routing contract is
   `skills/work/references/routing.json`. Do not add retired-layout paths
   (`commands/`, `agents/autonomous/`, `skills/work-mode`,
-  `skills/autonomous-mode`).
+  `skills/autonomous-mode`) at the repository root. The adapter-owned OpenCode
+  command templates under `adapters/opencode/commands/` are part of the
+  generated OpenCode binding, not the retired layout.
 - Do not edit the generated plugin or catalog files under `plugins/agenticale/`,
   `.github/plugin/marketplace.json`, or `.agents/plugins/marketplace.json` by
   hand; regenerate them with `node scripts/publish-default-plugin.mjs`.
@@ -38,13 +40,14 @@ node scripts/publish-default-plugin.mjs --check
 git diff --check
 ```
 
-- `validate.mjs` checks the authored source of truth: 21 source-of-truth files,
-  6 capability-neutral task contracts, the routing contract, 6 OpenCode adapter
-  profiles, the absence of the retired layout, and sanitation.
-- `test-installer.mjs` (112 assertions) covers the OpenCode and standalone
+- `validate.mjs` checks the authored source of truth: 23 source-of-truth files,
+  6 capability-neutral task contracts, the routing contract, 7 OpenCode adapter
+  profiles, 2 OpenCode command templates, the absence of the retired layout, and
+  sanitation.
+- `test-installer.mjs` (198 assertions) covers the OpenCode and standalone
   installers, including old copy and link state migration, in isolated temporary
   directories.
-- `test-build.mjs` (86 assertions) covers the three build output roots, routing
+- `test-build.mjs` (210 assertions) covers the three build output roots, routing
   serialization, argument behavior, and artifact drift.
 - `publish-default-plugin.mjs --check` verifies the committed plugin and both
   catalogs are current.

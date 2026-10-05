@@ -105,10 +105,12 @@ invocation details.
 
 ### OpenCode V2 (generated profiles)
 
-Installs the *generated* OpenCode binding: the four skills plus seven generated
-agent profiles under `agents/autonomous/`. It copies into the OpenCode
-configuration directory and does not link to the repository source. The default
-target is `$XDG_CONFIG_HOME/opencode` when set, otherwise `~/.config/opencode`.
+Installs the *generated* OpenCode binding: the four skills, seven generated
+agent profiles under `agents/autonomous/`, and the two command entries
+`commands/work.md` and `commands/autonomous.md` that expose `/work` and
+`/autonomous` in the OpenCode TUI. It copies into the OpenCode configuration
+directory and does not link to the repository source. The default target is
+`$XDG_CONFIG_HOME/opencode` when set, otherwise `~/.config/opencode`.
 
 ```sh
 node scripts/install.mjs --no-model
@@ -119,7 +121,7 @@ This installer is copy-only: it no longer offers a link mode. On install it
 migrates older copy installs (state schema 1-4), older link installs
 (schema 1-4), and older six-profile generated installs (schema 5) to the
 current generated copy layout (state `.autonomous-mode-install.json`,
-schema 6, a 26-file inventory).
+schema 6, a 28-file inventory).
 
 If the target already carries another AgenticAle marker (for example a
 standalone `.agenticale-standalone-install.json`), the installer surfaces a
@@ -230,9 +232,9 @@ out inherit the session model and the install reports the conversion.
 ## OpenCode permissions
 
 The OpenCode installer leaves `opencode.jsonc` unchanged. The foreground agent
-needs permission to load the `work` and `autonomous` skills and to launch the
-generated `autonomous/*` profiles; those profile IDs are shared by both
-workflows. Child sessions cannot ask the user questions or launch nested
+needs permission to run the `/work` and `/autonomous` command entries, to load
+the `work` and `autonomous` skills, and to launch the generated
+`autonomous/*` profiles; those profile IDs are shared by both workflows. Child sessions cannot ask the user questions or launch nested
 agents. Configure the actions your task needs so they resolve without
 interactive child prompts, scoped to the project and your environment. See the
 [OpenCode V2 permissions guide](https://opencode.ai/v2/docs/permissions) for

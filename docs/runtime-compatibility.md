@@ -44,7 +44,7 @@ are inputs to the matrix, not verified working versions.
 | 4 | Codex CLI | Direct skill invocation plus per-spawn model/reasoning dispatch |
 | 5 | Official Codex VS Code extension | Shared plugin through the Codex marketplace, or standalone skill folders |
 | 6 | Codex in the ChatGPT desktop app | Shared plugin through the Codex marketplace, or standalone skill folders |
-| 7 | OpenCode V2 | Generated model-routing profiles plus direct skill invocation |
+| 7 | OpenCode V2 | Generated model-routing profiles, command entries, and direct skill invocation |
 
 ## Capabilities to record per runtime
 

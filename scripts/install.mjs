@@ -40,13 +40,15 @@ const legacyGeneratedSchema = 5;
 // not the authored repo source. The destination layout is fixed; the exact set
 // of files is discovered by walking the build output so it always matches what
 // the build produced.
-const generatedRoots = ["agents", "skills"];
-const retiredCopyRoots = ["agents", "commands", "skills/autonomous-mode", "skills/work-mode"];
+const generatedRoots = ["agents", "commands", "skills"];
 
 // The seven rendered OpenCode profiles the build emits (no coordinator).
 const profileNames = new Set(["consult", "deep-review", "explore", "fix", "implement", "implement-hard", "review"]);
 // The six profiles the retired schema-5 build emitted (no implement-hard).
 const legacyProfileNames = new Set(["consult", "deep-review", "explore", "fix", "implement", "review"]);
+// The two command entries the current build emits (thin launchers for the
+// explicit-only skills; OpenCode does not interpret the skills' `slash` field).
+const commandNames = new Set(["autonomous", "work"]);
 
 // Retired (old install) path inventories, kept so older states (schema 1-4) can
 // be validated and migrated. These are relative to the OpenCode target.
@@ -421,14 +423,18 @@ function safeStatePath(path) {
 
 // Schema 5 (the generated-output install) has a dynamic file set because the
 // skill files are walked from the build. It is still fully constrained: exactly
-// the six rendered profiles plus only the four public skill directories, all as
-// regular files with a digest.
+// the rendered profiles plus only the four public skill directories, all as
+// regular files with a digest. Entries under commands/ must be one of the two
+// known command entries, but a pre-command schema-6 state (current release
+// installs) legally lacks them: migration adds the entries, so validation only
+// checks shape, not presence.
 function validateGeneratedEntries(entries, statePath, expectedProfiles) {
   if (!Array.isArray(entries) || entries.length === 0) {
     throw new Error(`Install state does not contain the generated entry set: ${statePath}. Move it aside and retry.`);
   }
   const profiles = new Set();
   const skills = new Set();
+  const commands = new Set();
   for (const entry of entries) {
     const validPayload = entry?.kind === "file"
       && typeof entry?.digest === "string" && /^[0-9a-f]{64}$/.test(entry.digest);
@@ -444,6 +450,12 @@ function validateGeneratedEntries(entries, statePath, expectedProfiles) {
       }
       if (profiles.has(parts[2])) throw new Error(`Install state duplicates generated profile: ${statePath}.`);
       profiles.add(parts[2]);
+    } else if (parts[0] === "commands") {
+      if (parts.length !== 2 || !parts[1].endsWith(".md") || !commandNames.has(parts[1].replace(/\.md$/, ""))) {
+        throw new Error(`Install state has a generated path outside the bundle: ${statePath}.`);
+      }
+      if (commands.has(parts[1])) throw new Error(`Install state duplicates a generated command entry: ${statePath}.`);
+      commands.add(parts[1]);
     } else if (parts[0] === "skills") {
       if (!["work", "autonomous", "pull-request-description", "source-code-lookup"].includes(parts[1])) {
         throw new Error(`Install state has an unexpected generated skill: ${statePath}. Move it aside and retry.`);
@@ -751,7 +763,7 @@ async function installBundle(options) {
     && equivalentState(existingState, "copy", entries);
   if (upToDate) {
     console.log("Already up to date.");
-    console.log("Next: restart OpenCode and use the /work and /autonomous skills; this installer leaves opencode.jsonc unchanged.");
+    console.log("Next: restart OpenCode and use the /work and /autonomous commands; this installer leaves opencode.jsonc unchanged.");
     console.log("See docs/setup.md for child-session permissions and docs/autonomous.md for unattended /autonomous runs.");
     return;
   }
@@ -888,7 +900,7 @@ async function installBundle(options) {
   }
 
   console.log("Installation complete.");
-  console.log("Next: restart OpenCode and use the /work and /autonomous skills; this installer leaves opencode.jsonc unchanged.");
+  console.log("Next: restart OpenCode and use the /work and /autonomous commands; this installer leaves opencode.jsonc unchanged.");
   console.log("See docs/setup.md for child-session permissions and docs/autonomous.md for unattended /autonomous runs.");
 }
 
