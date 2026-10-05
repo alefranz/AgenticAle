@@ -91,6 +91,18 @@
       ]
     }
   ],
+  "commands": [
+    {
+      "name": "work",
+      "source": "commands/work.md",
+      "outputPath": "commands/work.md"
+    },
+    {
+      "name": "autonomous",
+      "source": "commands/autonomous.md",
+      "outputPath": "commands/autonomous.md"
+    }
+  ],
   "skillDiscovery": {
     "outputSkillsRoot": "skills",
     "skills": [

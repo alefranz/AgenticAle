@@ -102,10 +102,12 @@ rm -rf "$smoke_root"
   is no `coordinator` profile. With `--no-model`, each profile omits a
   `model:` line and inherits the session model;
 - the installed `work/SKILL.md` and `autonomous/SKILL.md` set `slash: true` and
-  `metadata.opencode/autoinvoke: false`, and OpenCode's command list exposes
-  `/work` and `/autonomous` as invocable skills; both skills' shared-round links
-  resolve to the installed `skills/work/references/rounds.md`;
-- the install state is `.autonomous-mode-install.json` (schema 6, 26-file
+  `metadata.opencode/autoinvoke: false`; the installed
+  `commands/work.md` and `commands/autonomous.md` load their skills by exact ID
+  and pass through `$ARGUMENTS`, and OpenCode's command list exposes `/work`
+  and `/autonomous`; both skills' shared-round links resolve to the installed
+  `skills/work/references/rounds.md`;
+- the install state is `.autonomous-mode-install.json` (schema 6, 28-file
   inventory); the materialized `work/references/routing.json` is explicit by
   default and carries `mode: "inherit"` under `--no-model`; uninstall removes
   the recorded copy and its state file while leaving the isolated profile

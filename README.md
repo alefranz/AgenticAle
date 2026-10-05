@@ -97,7 +97,8 @@ install for a given scope to avoid duplicate skill entries.
 
 Install [OpenCode V2](https://opencode.ai/v2/docs) and Node.js 20 or later. From
 a checkout of this repository, install the generated OpenCode binding (the four
-skills plus seven generated routing profiles):
+skills, seven generated routing profiles, and the `/work` and `/autonomous`
+command entries):
 
 ```sh
 node scripts/install.mjs --no-model

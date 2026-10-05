@@ -178,13 +178,17 @@ try {
     check(state.schema === STATE_VERSION, "install fresh: state schema 6");
     check(state.mode === "copy", "install fresh: state mode copy");
     check(state.package === PACKAGE, "install fresh: state package");
-    check(state.entries.length === 26, "install fresh: 26 entries");
+    check(state.entries.length === 28, "install fresh: 28 entries");
     const profiles = state.entries.filter((e) => e.path.startsWith("agents/autonomous/"));
     check(profiles.length === 7, "install fresh: 7 generated profiles");
     check(state.entries.some((e) => e.path === "agents/autonomous/implement-hard.md"), "install fresh: implements implement-hard.md profile");
+    check(state.entries.some((e) => e.path === "commands/work.md") && state.entries.some((e) => e.path === "commands/autonomous.md"), "install fresh: two command entries in state");
     const files = (await relFiles(t)).filter((f) => f !== STATE);
-    check(files.length === 26, "install fresh: 26 files on disk");
-    check(!files.some((f) => f.startsWith("commands/")), "install fresh: no commands/");
+    check(files.length === 28, "install fresh: 28 files on disk");
+    const workCommand = await readFile(join(t, "commands", "work.md"), "utf8");
+    check(workCommand.includes("`work`") && workCommand.includes("$ARGUMENTS"), "install fresh: work command loads the skill by exact ID");
+    const autonomousCommand = await readFile(join(t, "commands", "autonomous.md"), "utf8");
+    check(autonomousCommand.includes("`autonomous`") && autonomousCommand.includes("$ARGUMENTS"), "install fresh: autonomous command loads the skill by exact ID");
     const srcLookup = await readFile(join(t, "skills", "source-code-lookup", "SKILL.md"), "utf8");
     check(srcLookup.includes('Source root: "~/dev"'), "install fresh: source root default marker");
     check(await exists(join(t, "skills", "work", "references", "routing.json")), "install fresh: materializes work/references/routing.json");
@@ -315,7 +319,7 @@ try {
       ["wrong top-level keys", (s) => { s.extra = 1; }, "Install state is invalid:"],
       ["wrong package", (s) => { s.package = "nope"; }, "Install state is invalid:"],
       ["schema 6 link mode", (s) => { s.mode = "link"; }, `Schema ${STATE_VERSION} install state must be a copy install:`],
-      ["path outside bundle", (s) => { s.entries.push({ path: "commands/work.md", kind: "file", digest: digest(Buffer.from("x")) }); }, "Install state has a generated path outside the bundle:"],
+      ["path outside bundle", (s) => { s.entries.push({ path: "commands/extra.md", kind: "file", digest: digest(Buffer.from("x")) }); }, "Install state has a generated path outside the bundle:"],
       ["unexpected profile", (s) => { s.entries = s.entries.filter((e) => e.path !== "agents/autonomous/consult.md"); s.entries.push({ path: "agents/autonomous/implhard.md", kind: "file", digest: digest(Buffer.from("x")) }); s.entries.push({ path: "agents/autonomous/consult.md", kind: "file", digest: digest(Buffer.from("y")) }); }, "Install state has an unexpected generated profile:"],
     ];
     for (const [label, mutate, expect] of cases) {
@@ -334,18 +338,23 @@ try {
     const t = join(scratch, `b-copy${schema}`);
     await mkdir(t, { recursive: true });
     await makeCopyFixture(t, schema);
-    // Modify one retired file that is NOT reused by the new inventory (commands/autonomous.md).
+    // Modify one retired file that the new inventory REUSES (commands/autonomous.md):
+    // the new bundle ships its own generated command entries, so the plain re-run
+    // collides and the modified entry is only replaced after explicit approval.
     const modPath = join(t, "commands", "autonomous.md");
     await writeFile(modPath, "USER-EDITED\n");
-    const r = run("install.mjs", ["install", "--target", t, "--no-model"]);
-    check(r.exit === 0, `migration copy schema ${schema}: exits 0`);
+    const blocked = run("install.mjs", ["install", "--target", t, "--no-model"]);
+    check(blocked.exit === 1 && blocked.err.includes("Differing content already exists at:"), `migration copy schema ${schema}: modified command entry collides without --replace`);
+    const r = run("install.mjs", ["install", "--target", t, "--no-model", "--replace"]);
+    check(r.exit === 0, `migration copy schema ${schema}: exits 0 with --replace`);
     check(r.out.includes(`  migrating from schema ${schema} copy install`), `migration copy schema ${schema}: migrating message`);
+    check(r.out.includes("preserve-modified: commands/autonomous.md"), `migration copy schema ${schema}: modified command entry reported`);
     const state = await readState(t);
     check(state.schema === STATE_VERSION, `migration copy schema ${schema}: advanced to schema ${STATE_VERSION}`);
-    check(state.entries.length === 26, `migration copy schema ${schema}: 26 entries`);
-    check((await readFile(modPath, "utf8")) === "USER-EDITED\n", `migration copy schema ${schema}: modified retired file preserved`);
-    // An unmodified retired file that is not in the new inventory is removed.
-    check(!(await exists(join(t, "commands", "work.md"))), `migration copy schema ${schema}: unmodified retired commands/work.md removed`);
+    check(state.entries.length === 28, `migration copy schema ${schema}: 28 entries`);
+    check(r.out.includes("backup created:"), `migration copy schema ${schema}: replaced command entry backed up`);
+    check((await readFile(modPath, "utf8")).includes("$ARGUMENTS"), `migration copy schema ${schema}: commands/autonomous.md now carries the generated entry`);
+    check((await readFile(join(t, "commands", "work.md"), "utf8")).includes("$ARGUMENTS"), `migration copy schema ${schema}: commands/work.md now carries the generated entry`);
   }
   {
     // Schema 5 (six-profile generated) → schema 6 adds the implement-hard profile.
@@ -357,9 +366,28 @@ try {
     check(r.out.includes(`  migrating from schema ${LEGACY_GENERATED_SCHEMA} copy install`), "migration generated schema 5: migrating message");
     const state = await readState(t);
     check(state.schema === STATE_VERSION, "migration generated schema 5: advanced to schema 6");
-    check(state.entries.length === 26, "migration generated schema 5: 26 entries");
+    check(state.entries.length === 28, "migration generated schema 5: 28 entries");
     check(await exists(join(t, "agents", "autonomous", "implement-hard.md")), "migration generated schema 5: implement-hard profile now present");
     check(state.entries.some((e) => e.path === "agents/autonomous/implement-hard.md"), "migration generated schema 5: implement-hard in state");
+    check((await readFile(join(t, "commands", "work.md"), "utf8")).includes("$ARGUMENTS"), "migration generated schema 5: command entries added");
+  }
+  {
+    // Schema 6 state from the CURRENT release (no command entries) migrates by
+    // adding the two command entries; the legacy state must validate, not be
+    // rejected as incomplete.
+    const t = join(scratch, "b-gen6-nocommands");
+    const fresh = run("install.mjs", ["install", "--target", t, "--no-model"]);
+    check(fresh.exit === 0, "migration current-release schema 6: setup fresh exits 0");
+    const state = JSON.parse(await readFile(join(t, STATE), "utf8"));
+    const legacy = { ...state, entries: state.entries.filter((e) => !e.path.startsWith("commands/")) };
+    await writeFile(join(t, STATE), JSON.stringify(legacy, null, 2));
+    await rm(join(t, "commands"), { recursive: true });
+    const r = run("install.mjs", ["install", "--target", t, "--no-model"]);
+    check(r.exit === 0, "migration current-release schema 6: exits 0 without --replace");
+    check(!r.out.includes("Already up to date"), "migration current-release schema 6: reconciles instead of reporting up-to-date");
+    const state2 = await readState(t);
+    check(state2.entries.length === 28, "migration current-release schema 6: 28 entries");
+    check((await readFile(join(t, "commands", "autonomous.md"), "utf8")).includes("$ARGUMENTS"), "migration current-release schema 6: command entries added");
   }
   {
     // Modified-but-REUSED file (consult.md is in the new inventory) collides without --replace.
@@ -390,12 +418,17 @@ try {
     await writeFile(join(t, STATE), JSON.stringify({
       entries, installedAt: new Date().toISOString(), mode: "link", package: PACKAGE, schema: 4,
     }, null, 2));
-    const r = run("install.mjs", ["install", "--target", t, "--no-model"]);
-    check(r.exit === 0, "migration link schema 4: exits 0");
+    // The two retired command links now collide with the generated command
+    // entries, so the conversion needs explicit approval.
+    const blocked = run("install.mjs", ["install", "--target", t, "--no-model"]);
+    check(blocked.exit === 1 && blocked.err.includes("Differing content already exists at:"), "migration link schema 4: command links collide without --replace");
+    const r = run("install.mjs", ["install", "--target", t, "--no-model", "--replace"]);
+    check(r.exit === 0, "migration link schema 4: exits 0 with --replace");
     check(r.out.includes("  migrating from schema 4 link install"), "migration link schema 4: migrating message");
     check(r.out.includes("  converted: the previous link install was converted to a copy install of the generated bundle."), "migration link schema 4: converted message");
     const state = await readState(t);
-    check(state.schema === STATE_VERSION && state.mode === "copy" && state.entries.length === 26, "migration link schema 4: now schema 6 copy 26 entries");
+    check(state.schema === STATE_VERSION && state.mode === "copy" && state.entries.length === 28, "migration link schema 4: now schema 6 copy 28 entries");
+    check((await readFile(join(t, "commands", "work.md"), "utf8")).includes("$ARGUMENTS"), "migration link schema 4: command links replaced by the generated files");
   }
   // Build the full schema-4 link inventory (the validator requires the exact set).
   async function makeLinkFixture(target, srcDir) {
@@ -427,7 +460,9 @@ try {
     await writeFile(otherTarget, "other\n");
     await rm(dest);
     await symlink(otherTarget, dest, "file");
-    const r = run("install.mjs", ["install", "--target", t, "--no-model"]);
+    // --replace clears the retired-command-link collision so the install reaches
+    // the repointed profile home, which it must refuse rather than write through.
+    const r = run("install.mjs", ["install", "--target", t, "--no-model", "--replace"]);
     check(r.exit === 1, "R6 link repoint: non-owned profile link fails the install safely");
     check(r.out.includes("preserve-modified: agents/autonomous"), "R6 link repoint: repointed link reported as preserved");
     check(await exists(dest), "R6 link repoint: repointed link NOT deleted");
@@ -443,11 +478,15 @@ try {
     const dest = join(t, "agents/autonomous");
     await rm(dest);
     await mkdir(dest, { recursive: true });
-    const r = run("install.mjs", ["install", "--target", t, "--no-model"]);
-    check(r.exit === 0, "R6 link→dir: exits 0");
+    // As in b-link4, the retired command links collide with the generated
+    // command entries until the conversion is explicitly approved.
+    const blocked = run("install.mjs", ["install", "--target", t, "--no-model"]);
+    check(blocked.exit === 1 && blocked.err.includes("Differing content already exists at:"), "R6 link→dir: command links collide without --replace");
+    const r = run("install.mjs", ["install", "--target", t, "--no-model", "--replace"]);
+    check(r.exit === 0, "R6 link→dir: exits 0 with --replace");
     check(r.out.includes("preserve-modified: agents/autonomous"), "R6 link→dir: replaced-by-directory preserved");
     const state = await readState(t);
-    check(state.schema === STATE_VERSION && state.mode === "copy" && state.entries.length === 26, "R6 link→dir: converted to schema 6 copy 26 entries");
+    check(state.schema === STATE_VERSION && state.mode === "copy" && state.entries.length === 28, "R6 link→dir: converted to schema 6 copy 28 entries");
     check(await exists(join(t, "agents", "autonomous", "consult.md")), "R6 link→dir: profile copies written into the preserved directory");
   }
 

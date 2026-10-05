@@ -27,7 +27,9 @@ The two workflow skills are explicit-only: each sets
 `copilot/disable-model-invocation: true` and `opencode/autoinvoke: false`, and
 the OpenAI metadata (`agents/openai.yaml`) disables implicit invocation. The
 invoking session is the coordinator; there is no selectable coordinator profile
-and no `commands/` entry. The session owns its own model and effort, and it
+and no `commands/` entry in the authored core (the OpenCode binding ships two
+thin command entries — see the generated binding below). The session owns its
+own model and effort, and it
 dispatches fresh children using task-specific instructions and the caller
 selected or configured route.
 
@@ -54,8 +56,9 @@ recovery after loss of the host session.
 The authored source-of-truth layout is what `scripts/validate.mjs` asserts
 exists: the two workflow skills plus their `agents/openai.yaml`, the shared
 `rounds.md`, the `ROUTING.md` reference and `routing.json`, the four runtime
-bindings, the six task contracts, the `adapters/opencode/` metadata, and the two
-supporting skills, for 21 source-of-truth files. The retired layout
+bindings, the six task contracts, the `adapters/opencode/` metadata (adapter,
+command templates, and README), and the two supporting skills, for 23
+source-of-truth files. The retired layout
 (`commands/`, `agents/autonomous/`, `skills/work-mode`, `skills/autonomous-mode`)
 must be absent.
 
@@ -104,10 +107,19 @@ explicit route writes a `model:` line and reasoning effort into the profile
 frontmatter; an inherit route omits the `model:` line so the profile inherits the
 session model.
 
-The adapter metadata lives at `adapters/opencode/` (`adapter.json` and
-`README.md`) and is the only machine-readable description the build reads to
-render the OpenCode binding. Step ceilings and permission denials are OpenCode
-adapter concerns; they are not claimed on the other hosts.
+The binding also carries two command entries, `commands/work.md` and
+`commands/autonomous.md`, rendered from the adapter-owned templates in
+`adapters/opencode/commands/`. Each is a thin launcher that explicitly loads
+the matching skill by its exact ID and passes through `$ARGUMENTS`; they are
+the only way OpenCode V2 exposes `/work` and `/autonomous`, because OpenCode
+does not interpret the skills' `slash` portability field. The workflow rules
+stay in the skills; the commands carry none of them.
+
+The adapter metadata lives at `adapters/opencode/` (`adapter.json`, the
+`commands/` templates, and `README.md`) and is the only machine-readable
+description the build reads to render the OpenCode binding. Step ceilings and
+permission denials are OpenCode adapter concerns; they are not claimed on the
+other hosts.
 
 ## Distribution
 

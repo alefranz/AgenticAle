@@ -66,7 +66,7 @@ try {
 
   check(pluginRel.length === 20, "plugin bundle has 20 files");
   check(standaloneRel.length === 19, "standalone bundle has 19 files");
-  check(openCodeRel.length === 26, "OpenCode bundle has 26 files (7 profiles + 19 skills)");
+  check(openCodeRel.length === 28, "OpenCode bundle has 28 files (7 profiles + 2 commands + 19 skills)");
 
   // Plugin root: manifest + four skills.
   check(pluginRel.includes("plugin.json"), "plugin bundle has plugin.json");
@@ -88,6 +88,13 @@ try {
   const profileNames = openCodeRel.filter((path) => path.startsWith("agents/autonomous/")).map((path) => path.split("/").pop().replace(".md", ""));
   check(JSON.stringify([...profileNames].sort()) === JSON.stringify([...allProfiles].sort()), "OpenCode bundle has exactly seven profiles, one per routing key");
   check(!openCodeRel.some((path) => path.endsWith("coordinator.md")), "OpenCode bundle has no coordinator profile");
+
+  // OpenCode command entries: thin launchers for the explicit-only skills.
+  check(openCodeRel.includes("commands/work.md") && openCodeRel.includes("commands/autonomous.md"), "OpenCode bundle has the two command entries");
+  const workCommand = await readText(join(fixture.openCodeRoot, "commands", "work.md"));
+  check(workCommand.includes("`work`") && workCommand.includes("$ARGUMENTS"), "work command loads the work skill by exact ID and passes $ARGUMENTS");
+  const autonomousCommand = await readText(join(fixture.openCodeRoot, "commands", "autonomous.md"));
+  check(autonomousCommand.includes("`autonomous`") && autonomousCommand.includes("$ARGUMENTS"), "autonomous command loads the autonomous skill by exact ID and passes $ARGUMENTS");
 
   // Default models are rendered per route (opencode provider prefix).
   const explore = await readText(join(fixture.openCodeRoot, "agents", "autonomous", "explore.md"));
