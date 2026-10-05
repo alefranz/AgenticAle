@@ -73,24 +73,54 @@ Child agents return blockers to the coordinator rather than asking the user.
 
 ### Resolve routing before dispatching
 
-Before dispatching any round, the coordinator loads the routing policy and the
-active runtime binding, in this order:
+Before dispatching any round, run the shared routing bootstrap described in
+[the routing contract](references/ROUTING.md) — the same bootstrap autonomous
+mode uses — once per activation, at start:
 
-1. Read [the routing contract](references/ROUTING.md) and
-   [the packaged policy](references/routing.json).
-2. Select the applicable runtime binding from
-   `references/runtimes/` for the host actually being used; that binding states
-   the native dispatch schema, the per-host model/effort field names, and how
-   `inherit` and unsupported hosts are handled on that surface.
-3. For each round, resolve its named routing key against the active policy using
-   the documented precedence (task override, then `--routing` file, then the
-   packaged preset), then dispatch using the binding's exposed native schema.
+1. Read the routing contract and the installed defaults baseline
+   (`references/routing.json`), and select the actual runtime binding from
+   `references/runtimes/` for the host actually being used, from the tools the
+   host exposes. That binding states the native dispatch schema, the per-host
+   model/effort field names, and how `inherit` and unsupported hosts are
+   handled on that surface. Never infer the runtime from a selected model name.
+2. Discover and read the personal and project preference files using the
+   contract's Discovery rules: resolve the Git worktree root (including when
+   invoked from a subdirectory), or an explicitly established workspace root
+   for a non-Git project, then check `<repo>/.agenticale/routing.md` and
+   `~/.agenticale/routing.md`. Absence is normal; an existing file that cannot
+   be read is reported before dispatch; do not scan other directories, and
+   deduplicate when both roots name the same file.
+3. Apply the invocation preferences (explicit per-route choices for this
+   request, or an explicitly supplied Markdown path) and resolve the routing
+   snapshot for the active runtime: the seven concrete routes or intentional
+   inheritance, each with its provenance. Where Node is available, the packaged
+   helper (`scripts/routing.mjs resolve`) performs the same resolution
+   deterministically; the in-context merge follows the documented algorithm.
+4. Check each selection against the binding's exposed dispatch capabilities.
+   Surface missing capabilities, unsupported choices, and unresolved
+   preferences (ambiguous final selections, model-only instructions, unknown
+   roles, undefined tier references) before the affected child runs. An
+   ambiguous final selection blocks only the affected dispatch; preserve the
+   unrelated clear selections.
+5. Keep a compact tier summary and role exceptions in session state, with
+   sources (for a tier reference, both the role-selection source and the
+   tier-definition source), and dispatch each round with the snapshot's
+   concrete choice through the binding's native schema.
 
-A missing key in a complete policy is an error, not an implicit inheritance. If
-the host does not expose the native dispatch field for the resolved route, the
-coordinator follows the runtime binding's documented fallback and records the
-requested route versus the effective model and effort. Do not silently inherit
-the session model in place of a route the policy names.
+A missing key in a complete policy is an error, not an implicit inheritance. An
+unsupported request can use only an explicitly configured fallback; it must
+not silently inherit the session model in place of a route the policy names or
+invent a weaker model. Record requested versus effective settings when native
+metadata makes the latter available; an unknown effective setting stays
+unknown, and a child's self-reported model name never establishes what it ran
+on.
+
+Keep the snapshot fixed during the activation, including context compaction. A
+new `/work` invocation or an explicit user request re-runs the bootstrap; a
+re-resolution affects subsequent dispatches only, never an already-running
+child. The bootstrap is read-only: it never creates or modifies a routing
+file, and the snapshot stays in session state (see "State stays in the
+session").
 
 Default to routine implementation. Exploration, consultation, and deep review
 are conditional, not mandatory stages. Keep the coordinator's context small by

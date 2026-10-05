@@ -30,18 +30,26 @@ Because the exact field names and the set of supported effort levels are
 adapter concerns, this binding describes them generically. Live verification of
 the schema is documentation-only for this pass and is not tested here.
 
-## Routing precedence on this surface
+## Routing bootstrap on this surface
 
-Route resolution for each round follows the shared precedence, in order:
+Route resolution for each round follows the shared bootstrap in `ROUTING.md`:
+read the installed contract and defaults, discover and read the personal and
+project preference files, apply the invocation preferences, and resolve the
+snapshot for this runtime. The preference sections use the `copilot` runtime
+name. Precedence is per named entry, highest to lowest: invocation
+preferences, repository routing.md, personal routing.md, installed baseline.
+Do not scan unrelated files for preferences. A caller may override any
+individual route without replacing the rest; invocation choices are
+session-scoped and do not persist to any preference file or to
+`routing.json`.
 
-1. An explicit user or task override for that route.
-2. An explicitly selected project or user routing file (a complete
-   `schemaVersion` 1 policy supplied via `--routing PATH`).
-3. The packaged host preset (the bundled `routing.json`).
+## Requested versus effective settings
 
-Do not scan unrelated files for overrides. A caller may override any individual
-route without replacing the rest of the selected policy. Task-time overrides are
-session-scoped and do not persist to the routing file.
+The per-call model and effort fields carry the snapshot's requested selection.
+Because this surface documents fallback to the session model when a requested
+selection cannot be honored, a successful dispatch is not proof the request was
+honored: distinguish requested from effective settings using runtime metadata
+or local traces, and keep an unknown effective setting unknown.
 
 ## How `inherit` is realized
 
@@ -52,12 +60,13 @@ an explicit, intentional choice; it is not a fallback and not a missing value.
 
 ## Caller and session overrides
 
-An explicit user/task override for a route wins over the selected policy for that
-route only; all other routes still resolve from the policy. Overrides supplied at
-task time stay within the session and do not rewrite `routing.json` or any
-project/user routing file. If the caller supplies conflicting routing inputs
-(more than one routing source, or a routing policy that conflicts with a legacy
-`--models` import), the inputs are rejected rather than merged.
+An invocation preference (an explicit per-route choice, or an explicitly
+supplied Markdown path) wins over the discovered preference files for the
+entries it names; every other entry still resolves from the discovered files
+and the installed baseline. Conflicting choices within the same layer need
+clarification; file order is not an implicit tiebreaker. Invocation choices
+stay within the session and never rewrite `routing.json` or any preference
+file.
 
 ## Limitations (stated honestly)
 
@@ -81,8 +90,9 @@ project/user routing file. If the caller supplies conflicting routing inputs
   expected to align, but each must be smoke-tested on its own; a capability seen
   in one is not proof it is present in another.
 - Effort-level support is unconfirmed per version. Support only verified effort
-  levels on a target; reject or apply an explicitly configured fallback for an
-  unsupported level rather than assuming it is honored.
+  levels on a target; surface an unsupported level before dispatch and use only
+  an explicitly configured fallback for it, rather than assuming it is honored
+  or silently substituting another selection.
 
 The skill selects this binding from the actual runtime/tool surface, not from the
 chosen language model. A surface that is not the Copilot CLI, Copilot Agent Host,

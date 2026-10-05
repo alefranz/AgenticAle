@@ -26,18 +26,27 @@ and does not inherit a prior call's context or an accumulated session state from
 the harness. The coordinator must therefore pass the full bounded task packet on
 every call and must not rely on the harness retaining context between rounds.
 
-## Routing precedence on this surface
+## Routing bootstrap on this surface
 
-Route resolution for each round follows the shared precedence, in order:
+Route resolution for each round follows the shared bootstrap in `ROUTING.md`:
+read the installed contract and defaults, discover and read the personal and
+project preference files, apply the invocation preferences, and resolve the
+snapshot for this runtime. The preference sections use the `copilot` runtime
+name; this binding retains its own dispatch limits (the per-call model argument
+on `runSubagent`, the stateless calls, and the parent-model cost-tier ceiling).
+Precedence is per named entry, highest to lowest: invocation preferences,
+repository routing.md, personal routing.md, installed baseline. Do not scan
+unrelated files for preferences. A caller may override any individual route
+without replacing the rest; invocation choices are session-scoped and do not
+persist to any preference file or to `routing.json`.
 
-1. An explicit user or task override for that route.
-2. An explicitly selected project or user routing file (a complete
-   `schemaVersion` 1 policy supplied via `--routing PATH`).
-3. The packaged host preset (the bundled `routing.json`).
+## Requested versus effective settings
 
-Do not scan unrelated files for overrides. A caller may override any individual
-route without replacing the rest of the selected policy. Task-time overrides are
-session-scoped and do not persist to the routing file.
+The explicit model argument on `runSubagent` carries the snapshot's requested
+selection, bounded by the harness's parent-model cost-tier ceiling. A
+successful dispatch is not proof the requested model was honored: distinguish
+requested from effective settings using runtime metadata or local traces, and
+keep an unknown effective setting unknown.
 
 ## How `inherit` is realized
 
@@ -48,12 +57,13 @@ a fallback and not a missing value.
 
 ## Caller and session overrides
 
-An explicit user/task override for a route wins over the selected policy for that
-route only; all other routes still resolve from the policy. Overrides supplied at
-task time stay within the session and do not rewrite `routing.json` or any
-project/user routing file. If the caller supplies conflicting routing inputs
-(more than one routing source, or a routing policy that conflicts with a legacy
-`--models` import), the inputs are rejected rather than merged.
+An invocation preference (an explicit per-route choice, or an explicitly
+supplied Markdown path) wins over the discovered preference files for the
+entries it names; every other entry still resolves from the discovered files
+and the installed baseline. Conflicting choices within the same layer need
+clarification; file order is not an implicit tiebreaker. Invocation choices
+stay within the session and never rewrite `routing.json` or any preference
+file.
 
 ## Limitations (stated honestly)
 

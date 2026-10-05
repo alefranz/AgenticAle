@@ -63,6 +63,39 @@ copilot plugin uninstall agenticale
 copilot plugin marketplace remove agenticale
 ```
 
+## Routing preference discovery cases
+
+These cases exercise the customization path (see
+[customizing model routing](setup.md#customizing-model-routing)) in an
+isolated home before any live model run. The structured-resolution cases make
+no model request: the installed `routing.mjs` helper resolves deterministically
+from structured preference JSON (the same selections a prose file would carry,
+expressed as tier and role entries).
+
+1. **No-file default.** With no `.agenticale/routing.md` in the isolated home
+   or project, run the installed helper from the installed `skills/work`
+   directory: `node scripts/routing.mjs resolve --runtime copilot`. The output
+   equals the packaged baseline resolved to all seven roles; a live
+   `/agenticale:work` run must show the same baseline tier summary (live pass,
+   recorded separately).
+2. **Personal only.** Seed `<smoke-root>/.agenticale/routing.md` with a
+   three-tier `copilot` table; the resolution with the same selections as
+   structured input shows the personal tiers with personal provenance, and
+   baseline choices for everything the file omits.
+3. **Repository over personal.** Seed both an isolated project file and the
+   personal file with a conflicting entry: per entry, the repository file wins
+   and the personal entry survives where the repository omits it.
+4. **Explicit role override.** A role override (for example
+   `review: use the deep tier`) applies to that role only; `review: default`
+   restores the packaged tier mapping using the merged tier definitions;
+   `review: inherit` inherits the session model and effort.
+
+Observing the workflow interpret prose files is a live pass: record it in
+[runtime-compatibility.md](runtime-compatibility.md). The Copilot binding
+dispatches per-call model and effort natively, so a matching selection needs
+no profile refresh; the live pass confirms the effective model from metadata
+or trace.
+
 ## Optional live check (not tested)
 
 A live model-routing check is a separate pass and is **not tested** in this

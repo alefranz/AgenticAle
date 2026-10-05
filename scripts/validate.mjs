@@ -3,7 +3,12 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { strictValidateRouting } from "./build.mjs";
+import {
+  STANDARD_TIERS,
+  resolveAllRuntimes,
+  strictValidateRouting,
+  validateV2Routing,
+} from "../skills/work/scripts/routing.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(scriptDirectory, "..");
@@ -44,12 +49,14 @@ const requiredPaths = [
   "skills/work/agents/openai.yaml",
   "skills/work/references/rounds.md",
   "skills/work/references/ROUTING.md",
+  "skills/work/references/routing.example.md",
   "skills/work/references/routing.json",
   "skills/work/references/runtimes/copilot.md",
   "skills/work/references/runtimes/copilot-local.md",
   "skills/work/references/runtimes/codex.md",
   "skills/work/references/runtimes/opencode.md",
   ...taskContracts.map((name) => `skills/work/references/tasks/${name}.md`),
+  "skills/work/scripts/routing.mjs",
   "skills/autonomous/SKILL.md",
   "skills/autonomous/agents/openai.yaml",
   "skills/pull-request-description/SKILL.md",
@@ -240,6 +247,11 @@ function validateSkillPullRequest() {
   }
 }
 
+// The authored baseline is the version-2 defaults contract: a common
+// role-to-tier map plus per-runtime tier definitions, no role exceptions.
+// It must resolve (with no preferences) to exactly the 21 explicit routes
+// (3 runtimes x 7 roles) with empty fallbacks, so the packaged defaults stay
+// fully explicit and comparable with the version-1 history.
 function validateRoutingContract() {
   const path = "skills/work/references/routing.json";
   let routing;
@@ -250,12 +262,10 @@ function validateRoutingContract() {
     return;
   }
   try {
-    strictValidateRouting(routing);
+    validateV2Routing(routing);
   } catch (error) {
-    fail(path, `routing contract violates the shared strict schema (${error.message})`, "align routing.json with the documented contract in references/ROUTING.md");
-  }
-  if (routing.schemaVersion !== 1) {
-    fail(path, "schemaVersion must be 1", "bump the routing schemaVersion intentionally");
+    fail(path, `routing contract violates the shared version-2 baseline schema (${error.message})`, "align routing.json with the documented contract in references/ROUTING.md");
+    return;
   }
   if (typeof routing.provenance !== "string" || routing.provenance.length === 0) {
     fail(path, "provenance must be a non-empty string", "record where the routing values came from");
@@ -265,7 +275,7 @@ function validateRoutingContract() {
     return;
   }
   const runtimeKeys = Object.keys(routing.runtimes).sort();
-  if (JSON.stringify(runtimeKeys) !== JSON.stringify(runtimes)) {
+  if (JSON.stringify(runtimeKeys) !== JSON.stringify([...runtimes].sort())) {
     fail(path, `runtimes must be exactly ${runtimes.join(", ")}`, "keep one entry per supported runtime");
   }
   for (const runtime of runtimes) {
@@ -274,12 +284,26 @@ function validateRoutingContract() {
       fail(path, `missing runtime '${runtime}'`, `add the ${runtime} runtime`);
       continue;
     }
-    const keys = Object.keys(map);
-    if (JSON.stringify([...keys].sort()) !== JSON.stringify([...routes].sort())) {
-      fail(path, `runtime '${runtime}' must map exactly the ${routes.length} routes`, `map exactly: ${routes.join(", ")}`);
+    const tierKeys = Object.keys(map.tiers ?? {}).sort();
+    if (JSON.stringify(tierKeys) !== JSON.stringify([...STANDARD_TIERS].sort())) {
+      fail(path, `runtime '${runtime}' must declare exactly the standard tiers: ${STANDARD_TIERS.join(", ")}`, "declare the packaged fast/standard/deep tiers");
     }
+    if (Object.keys(map.roles ?? {}).length !== 0) {
+      fail(path, `runtime '${runtime}' must not carry role exceptions in the authored baseline`, "keep roles empty; role exceptions are runtime preferences");
+    }
+  }
+  // The baseline must resolve to exactly 21 explicit routes with no fallbacks.
+  let resolved;
+  try {
+    resolved = resolveAllRuntimes(routing, []);
+  } catch (error) {
+    fail(path, `baseline does not resolve (${error.message})`, "every role must map to a tier declared by every runtime");
+    return;
+  }
+  for (const runtime of runtimes) {
+    const runtimeRoutes = resolved.runtimes[runtime]?.routes ?? {};
     for (const route of routes) {
-      const entry = map[route];
+      const entry = runtimeRoutes[route];
       if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
         fail(path, `runtime '${runtime}' is missing route '${route}'`, `add the ${runtime}/${route} route`);
         continue;
@@ -296,6 +320,27 @@ function validateRoutingContract() {
       if (!Array.isArray(entry.fallbacks) || entry.fallbacks.length !== 0) {
         fail(path, `route ${runtime}/${route} fallbacks must be an empty array (no fallbacks)`, "remove the fallbacks");
       }
+    }
+  }
+}
+
+// Light content check on the preference example: it must name the preference
+// file and show all three standard tiers. The prose is illustrative and is not
+// machine-parsed, so this only guards against a truncated or stale example.
+function validateRoutingExample() {
+  const path = "skills/work/references/routing.example.md";
+  if (!existsSync(join(repositoryRoot, path))) return; // requiredPaths flags absence
+  const text = readText(path);
+  if (text.trim().length === 0) {
+    fail(path, "routing example must not be empty", "restore the example preference body");
+    return;
+  }
+  if (!text.includes("routing.md")) {
+    fail(path, "routing example must name the routing.md preference file", "reference routing.md in the example header");
+  }
+  for (const tier of STANDARD_TIERS) {
+    if (!new RegExp(`\\b${tier}\\b`).test(text)) {
+      fail(path, `routing example must reference the '${tier}' tier`, "keep the standard tier rows in the example table");
     }
   }
 }
@@ -524,6 +569,51 @@ function validateBundleSurface() {
     if (existsSync(join(repositoryRoot, packageRoot, "com.github.copilot"))) {
       fail(`${packageRoot}/com.github.copilot`, "committed package must not ship a per-role Copilot directory", "remove the retired Copilot catalog");
     }
+
+    // The packaged routing resources: the version-2 baseline, the resolved
+    // version-1 snapshot, the preference example, and the shared module.
+    for (const extra of [
+      "skills/work/references/routing.json",
+      "skills/work/references/resolved-routing.json",
+      "skills/work/references/routing.example.md",
+      "skills/work/scripts/routing.mjs",
+    ]) {
+      if (!existsSync(join(repositoryRoot, packageRoot, extra))) {
+        fail(`${packageRoot}/${extra}`, "committed package is missing a packaged routing resource", "regenerate the plugin with node scripts/publish-default-plugin.mjs");
+      }
+    }
+    const packageRoutingPath = `${packageRoot}/skills/work/references/routing.json`;
+    if (existsSync(join(repositoryRoot, packageRoutingPath))) {
+      let packaged;
+      try {
+        packaged = JSON.parse(readText(packageRoutingPath));
+      } catch (error) {
+        fail(packageRoutingPath, `committed baseline is not valid JSON (${error.message})`, "regenerate the plugin with node scripts/publish-default-plugin.mjs");
+      }
+      if (packaged !== undefined) {
+        try {
+          validateV2Routing(packaged);
+        } catch (error) {
+          fail(packageRoutingPath, `committed baseline violates the version-2 schema (${error.message})`, "regenerate the plugin with node scripts/publish-default-plugin.mjs");
+        }
+      }
+    }
+    const packageResolvedPath = `${packageRoot}/skills/work/references/resolved-routing.json`;
+    if (existsSync(join(repositoryRoot, packageResolvedPath))) {
+      let resolved;
+      try {
+        resolved = JSON.parse(readText(packageResolvedPath));
+      } catch (error) {
+        fail(packageResolvedPath, `committed resolved snapshot is not valid JSON (${error.message})`, "regenerate the plugin with node scripts/publish-default-plugin.mjs");
+      }
+      if (resolved !== undefined) {
+        try {
+          strictValidateRouting(resolved);
+        } catch (error) {
+          fail(packageResolvedPath, `committed resolved snapshot violates the version-1 strict schema (${error.message})`, "regenerate the plugin with node scripts/publish-default-plugin.mjs");
+        }
+      }
+    }
   }
 
   const obsoleteHelper = ["bin", `git-credential-${"git" + "ea"}`].join("/");
@@ -656,6 +746,7 @@ validateSkillAutonomous();
 validateSkillSourceLookup();
 validateSkillPullRequest();
 validateRoutingContract();
+validateRoutingExample();
 validateAdapter();
 validateCommandTemplates();
 validateNeutralContracts();
