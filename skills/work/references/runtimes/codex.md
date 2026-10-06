@@ -25,14 +25,13 @@ not tested here.
 
 ## Routing bootstrap on this surface
 
-Route resolution for each round follows the shared bootstrap in `ROUTING.md`:
-read the installed contract and defaults, interpret the personal and project
-Markdown preferences, apply invocation choices, and resolve this runtime's
-routes. The preference section uses the `codex` runtime name. Precedence is
-invocation, project, personal, then installed baseline. Do not scan unrelated
-files.
-Invocation choices are session-scoped and do not persist to a preference file
-or `routing.md`.
+At activation, follow the shared bootstrap in `ROUTING.md`:
+discover personal and project `routing.md` files, interpret the active runtime's
+preferences, apply invocation choices, and resolve this runtime's routes once
+for the activation. The preference section uses the `codex` runtime name.
+Precedence is invocation, project, personal, then installed baseline. Do not
+scan unrelated files. Invocation choices are session-scoped and do not persist
+to a preference file or `routing.md`.
 
 ## Requested versus effective settings
 
