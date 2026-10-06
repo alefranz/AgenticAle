@@ -143,13 +143,15 @@ and effort or explicit inheritance. The snapshot is installed material for
 compatibility, comparison, and export — not an override above user
 preferences.
 
-The packaged baseline is the `gpt-6` family, provider-qualified per host
-(`OpenAI/` for Copilot, `openai/` for Codex, `opencode/` for OpenCode), grouped
-into three tiers: `fast` (`explore`, `implement`, `fix`), `standard`
-(`implement-hard`, `review`), and `deep` (`deep-review`, `consult`). That
-baseline is an inventory, not a verified account mapping: check each host's
-`/models` or `/model` before relying on a strict route, or customize it with a
-routing preference file (below) or an install-time option.
+The packaged choices mirror `examples/openai.json`: Copilot and Codex use their
+native bare model IDs; OpenCode keeps the `openai/` provider prefix. The four
+tiers are `fast` (`explore`: `gpt-6-luna`, `medium`), `routine`
+(`implement`, `fix`: `gpt-6-luna`, `high`), `standard`
+(`implement-hard`, `review`: `gpt-6.1-sol`, `high`), and `deep`
+(`deep-review`, `consult`: `gpt-6.1-sol`, `xhigh`). Model access depends on the
+host, plan, and account; confirm the
+IDs are available in the target runtime before relying on strict routing, or
+customize it with a routing preference file (below) or an install-time option.
 
 `implement` and `implement-hard` share the same implementation contract but
 route to different models and effort. OpenCode materializes the resolved routes
@@ -164,7 +166,7 @@ build:
 
 | Option | Effect |
 | --- | --- |
-| `--models PATH\|PRESET` | Legacy import. Reads an `examples` mapping (`gpt`, `openai`, `zen`, `local`, `example`) or a JSON file and converts it to the routing contract. Omitted roles become explicit inheritance and are reported. |
+| `--models PATH\|PRESET` | Legacy import. Reads an `examples` mapping (`gpt`, `openai`, `zen`, `local`, `example`) or a JSON file and converts it to the routing contract. Known OpenCode provider prefixes (`openai/`, `opencode/`) are removed for Copilot and Codex, and retained for OpenCode. Omitted roles become explicit inheritance and are reported. |
 | `--routing PATH` | Build from a complete caller-supplied routing file instead of the packaged `routing.json`. Conflicts with `--models`. |
 | `--no-model` | Omit model and effort for every route; each route inherits the session model. Conflicts with `--models`. |
 | `--effort LEVEL` | Route-wide reasoning-effort override (`low`/`medium`/`high`/`xhigh`/`max`); overrides the effort of every route. |
@@ -244,14 +246,10 @@ installed `work` skill):
 
 | Tier | Model | Reasoning effort |
 | --- | --- | --- |
-| fast | gpt-6-luna | high |
-| standard | gpt-6-sol | high |
-| deep | gpt-6-sol | xhigh |
-
-### Role overrides
-
-- review: use the deep tier.
-- consult: use gpt-6-astra with high reasoning effort.
+| fast | gpt-6-luna | medium |
+| routine | gpt-6-luna | high |
+| standard | gpt-6.1-sol | high |
+| deep | gpt-6.1-sol | xhigh |
 ````
 
 Clear prose expressing the same choices is accepted — headings, tables, and
@@ -358,6 +356,9 @@ The legacy `--models` JSON names roles and omits ones to inherit:
 Values use the `provider/model[#variant]` form; an optional `#variant`
 (`low`/`medium`/`high`/`xhigh`/`max`) sets the effort for that route. Roles left
 out inherit the session model and the install reports the conversion.
+The `openai/` and `opencode/` prefixes used by the bundled examples select
+OpenCode providers; imports remove those prefixes when creating Copilot and
+Codex routes, which use native bare model IDs.
 
 ## OpenCode permissions
 

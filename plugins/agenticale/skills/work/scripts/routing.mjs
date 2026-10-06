@@ -55,7 +55,7 @@ const effortLevels = new Set(EFFORT_LEVELS);
 // The standard tiers every installed baseline declares. Users may define
 // additional named tiers; `default` and `inherit` are reserved instructions,
 // not tier names.
-export const STANDARD_TIERS = ["fast", "standard", "deep"];
+export const STANDARD_TIERS = ["fast", "routine", "standard", "deep"];
 export const RESERVED_INSTRUCTION_NAMES = ["default", "inherit"];
 
 // Provenance label for entries that come from the installed (packaged or
@@ -604,9 +604,12 @@ export function normalizeV1ToV2(v1, baseline) {
 }
 
 // Converts a legacy `role -> provider/model[#variant]` inventory into version-2
-// role exceptions: present roles become explicit selections for every runtime
-// (the provider prefix is preserved verbatim; a missing variant carries the
-// legacy default effort), omitted roles become explicit inheritance.
+// role exceptions. The openai/ and opencode/ prefixes in the legacy examples
+// are OpenCode provider selectors, not model IDs for the Copilot/Codex native
+// dispatch fields, so strip those known selectors for those runtimes. Preserve
+// other provider names verbatim because their target-specific meaning cannot be
+// inferred here. A missing variant carries the legacy default effort; omitted
+// roles become explicit inheritance.
 export function legacyInventoryToV2(inventory, baseline) {
   validateV2Routing(baseline);
   if (!isPlainObject(inventory)) {
@@ -635,7 +638,11 @@ export function legacyInventoryToV2(inventory, baseline) {
     }
     const entry = { mode: "explicit", model, reasoningEffort: variant ?? "high", fallbacks: [] };
     for (const runtime of Object.keys(v2.runtimes)) {
-      v2.runtimes[runtime].roles[role] = structuredClone(entry);
+      const runtimeEntry = structuredClone(entry);
+      if (runtime !== "opencode") {
+        runtimeEntry.model = runtimeEntry.model.replace(/^(?:openai|opencode)\//i, "");
+      }
+      v2.runtimes[runtime].roles[role] = runtimeEntry;
     }
   }
   return { baseline: v2, omitted };

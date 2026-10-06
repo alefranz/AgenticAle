@@ -1,11 +1,11 @@
 {
   "schemaVersion": 2,
-  "provenance": "Version-2 defaults baseline migrated from the version-1 baseline inventory (derived from examples/gpt.json and examples/openai.json, gpt-6 family). Preserves all packaged runtime/role primary choices: fast = gpt-6-luna|max (explore, implement, fix), standard = gpt-6-sol|high (implement-hard, review), deep = gpt-6-sol|xhigh (deep-review, consult). NOT verified against any live account or runtime in this documentation-only pass; exact native model field names and supported effort values are adapter concerns. Customize per runtime with a routing.md preference file (see references/ROUTING.md), or override at build time (--routing PATH / --models / --no-model / --effort).",
+  "provenance": "Packaged model and effort choices mirror examples/openai.json. Copilot and Codex use host-native bare model IDs; OpenCode keeps the openai/ provider prefix from the example. Availability and effort support are not verified against live accounts. Customize per runtime with a routing.md preference file (see references/ROUTING.md), or override at build time (--routing PATH / --models / --no-model / --effort).",
   "roleTiers": {
     "explore": "fast",
-    "implement": "fast",
+    "implement": "routine",
     "implement-hard": "standard",
-    "fix": "fast",
+    "fix": "routine",
     "review": "standard",
     "deep-review": "deep",
     "consult": "deep"
@@ -15,19 +15,25 @@
       "tiers": {
         "fast": {
           "mode": "explicit",
-          "model": "OpenAI/gpt-6-luna",
-          "reasoningEffort": "max",
+          "model": "gpt-6-luna",
+          "reasoningEffort": "medium",
+          "fallbacks": []
+        },
+        "routine": {
+          "mode": "explicit",
+          "model": "gpt-6-luna",
+          "reasoningEffort": "high",
           "fallbacks": []
         },
         "standard": {
           "mode": "explicit",
-          "model": "OpenAI/gpt-6-sol",
+          "model": "gpt-6.1-sol",
           "reasoningEffort": "high",
           "fallbacks": []
         },
         "deep": {
           "mode": "explicit",
-          "model": "OpenAI/gpt-6-sol",
+          "model": "gpt-6.1-sol",
           "reasoningEffort": "xhigh",
           "fallbacks": []
         }
@@ -38,19 +44,25 @@
       "tiers": {
         "fast": {
           "mode": "explicit",
-          "model": "openai/gpt-6-luna",
-          "reasoningEffort": "max",
+          "model": "gpt-6-luna",
+          "reasoningEffort": "medium",
+          "fallbacks": []
+        },
+        "routine": {
+          "mode": "explicit",
+          "model": "gpt-6-luna",
+          "reasoningEffort": "high",
           "fallbacks": []
         },
         "standard": {
           "mode": "explicit",
-          "model": "openai/gpt-6-sol",
+          "model": "gpt-6.1-sol",
           "reasoningEffort": "high",
           "fallbacks": []
         },
         "deep": {
           "mode": "explicit",
-          "model": "openai/gpt-6-sol",
+          "model": "gpt-6.1-sol",
           "reasoningEffort": "xhigh",
           "fallbacks": []
         }
@@ -61,19 +73,25 @@
       "tiers": {
         "fast": {
           "mode": "explicit",
-          "model": "opencode/gpt-6-luna",
-          "reasoningEffort": "max",
+          "model": "openai/gpt-6-luna",
+          "reasoningEffort": "medium",
+          "fallbacks": []
+        },
+        "routine": {
+          "mode": "explicit",
+          "model": "openai/gpt-6-luna",
+          "reasoningEffort": "high",
           "fallbacks": []
         },
         "standard": {
           "mode": "explicit",
-          "model": "opencode/gpt-6-sol",
+          "model": "openai/gpt-6.1-sol",
           "reasoningEffort": "high",
           "fallbacks": []
         },
         "deep": {
           "mode": "explicit",
-          "model": "opencode/gpt-6-sol",
+          "model": "openai/gpt-6.1-sol",
           "reasoningEffort": "xhigh",
           "fallbacks": []
         }

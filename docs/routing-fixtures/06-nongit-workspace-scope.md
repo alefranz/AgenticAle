@@ -31,9 +31,10 @@ No `~/.agenticale/routing.md`.
 
 | Role | Selection | Requested model / effort | Provenance |
 | --- | --- | --- | --- |
-| explore / implement / fix | tier `fast` | gpt-6-luna / high | tier: workspace routing.md |
-| implement-hard / review | tier `standard` | openai/gpt-6-sol / high | tier: installed baseline |
-| deep-review / consult | tier `deep` | openai/gpt-6-sol / xhigh | tier: installed baseline |
+| explore | tier `fast` | gpt-6-luna / high | tier: workspace routing.md |
+| implement / fix | tier `routine` | gpt-6-luna / high | tier: installed baseline |
+| implement-hard / review | tier `standard` | gpt-6.1-sol / high | tier: installed baseline |
+| deep-review / consult | tier `deep` | gpt-6.1-sol / xhigh | tier: installed baseline |
 
 ## Setup — case B: no established workspace root
 
@@ -49,6 +50,8 @@ activation.
 
 ## Expected effective selections — case B (codex)
 
-All seven routes from the installed baseline, every provenance label
-"installed baseline", with the missing-project-scope report attached to the
-activation summary.
+All seven routes from the installed baseline — explore uses gpt-6-luna at
+medium effort, implement and fix use gpt-6-luna at high, hard implementation
+and review use gpt-6.1-sol at high, and deep review and consultation use
+gpt-6.1-sol at xhigh — with every provenance label "installed baseline" and
+the missing-project-scope report attached to the activation summary.

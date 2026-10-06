@@ -35,6 +35,7 @@ Invocation: `/work <task>` with the session's working directory at
 
 | Role | Selection | Requested model / effort | Provenance |
 | --- | --- | --- | --- |
-| explore / implement / fix | tier `fast` | openai/gpt-6-luna / max | tier: installed baseline |
-| implement-hard / review | tier `standard` | openai/gpt-6-sol / high | tier: installed baseline |
+| explore | tier `fast` | gpt-6-luna / medium | tier: installed baseline |
+| implement / fix | tier `routine` | gpt-6-luna / high | tier: installed baseline |
+| implement-hard / review | tier `standard` | gpt-6.1-sol / high | tier: installed baseline |
 | deep-review / consult | tier `deep` | gpt-6-sol / max | tier: repo routing.md |

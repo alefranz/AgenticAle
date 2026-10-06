@@ -26,16 +26,17 @@ compatibility commitments:
 they differ only in routing (a harder route). Each is an independent profile; a
 missing key in a complete policy is an error, not an implicit inheritance. A
 future rename requires an alias or migration, and new roles receive a packaged
-tier mapping so ordinary three-tier customization continues to apply.
+tier mapping so ordinary tier customization continues to apply.
 
 ## Tiers and role overrides
 
-The usual configuration consists of three named tiers, each selecting a model
-and reasoning effort. The initial defaults:
+The usual configuration consists of named tiers, each selecting a model and
+reasoning effort. The installed defaults use four tiers:
 
 | Tier | Meaning | Default roles |
 | --- | --- | --- |
-| `fast` | Routine, high-volume work | `explore`, `implement`, `fix` |
+| `fast` | Quick project exploration | `explore` |
+| `routine` | Routine implementation and fixes | `implement`, `fix` |
 | `standard` | Difficult implementation and independent review | `implement-hard`, `review` |
 | `deep` | Intensive integration analysis and second opinions | `deep-review`, `consult` |
 
@@ -279,8 +280,11 @@ runtime binding validates identifiers per host.
   be partial; import converts any omitted key to explicit inheritance and
   reports that conversion. Do not conflate a legacy partial map's omission
   (converted to inheritance and reported) with a missing key in a complete
-  policy (an error). Preset aliases are preserved and availability is
-  validated per target.
+  policy (an error). The `openai/` and `opencode/` prefixes in these examples
+  select OpenCode providers; the importer removes those known prefixes when
+  producing Copilot and Codex routes, which use bare model IDs. OpenCode keeps
+  the provider-qualified value. Other provider names are preserved and must be
+  valid for the target runtime.
 - `--no-model`: every route inherits both model and effort, as before.
 - `--effort LEVEL`: the route-wide reasoning-effort override for explicit
   routes; it is rejected when any effective route inherits (inheritance means

@@ -28,10 +28,10 @@ skill tree or counted in the source-of-truth inventory.
    reason they are unknown) — against the fixture's expected table.
 
 Model names are illustrative (as in `routing.example.md`). "Installed
-baseline" below means the packaged codex baseline: fast
-`openai/gpt-6-luna|max`, standard `openai/gpt-6-sol|high`, deep
-`openai/gpt-6-sol|xhigh`, with role-to-tier mapping explore/implement/fix to
-`fast`, implement-hard/review to `standard`, deep-review/consult to `deep`.
+baseline" below means the packaged Codex baseline: `gpt-6-luna|medium` for
+exploration, `gpt-6-luna|high` for routine implementation and fixes,
+`gpt-6.1-sol|high` for hard implementation and review, and
+`gpt-6.1-sol|xhigh` for deep review and consultation.
 
 | Fixture | Scenario |
 | --- | --- |

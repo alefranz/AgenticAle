@@ -81,16 +81,15 @@ versioned machine data.
 
 `skills/work/references/routing.json` (schemaVersion 2) is the packaged
 defaults contract: a common `roleTiers` map (the seven exposed role names to
-`fast`, `standard`, or `deep`) plus per-runtime `tiers` definitions and
+`fast`, `routine`, `standard`, or `deep`) plus per-runtime `tiers` definitions and
 optional per-runtime `roles` exceptions, for the three runtimes (`copilot`,
 `codex`, `opencode`). A version-2 role entry is a tier reference
 (`{ "mode": "tier", "tier": ... }`), an explicit model/effort selection with
 optional ordered fallback pairs, or an inheritance entry. The packaged
-baseline declares all three runtimes and preserves the `gpt-6` inventory,
-provider-qualified per host (`OpenAI/` for Copilot, `openai/` for Codex,
-`opencode/` for OpenCode); its `provenance` note records that it is an
-inventory, not a verified account mapping. `default` and `inherit` are
-reserved instructions, not tier names.
+baseline declares all three runtimes and mirrors `examples/openai.json`: Copilot
+and Codex use native bare model IDs, while OpenCode keeps the `openai/` provider
+prefix. Its `provenance` note records that model access depends on each host and
+account. `default` and `inherit` are reserved instructions, not tier names.
 
 ### The shared module
 

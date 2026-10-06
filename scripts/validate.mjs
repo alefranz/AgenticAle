@@ -286,7 +286,7 @@ function validateRoutingContract() {
     }
     const tierKeys = Object.keys(map.tiers ?? {}).sort();
     if (JSON.stringify(tierKeys) !== JSON.stringify([...STANDARD_TIERS].sort())) {
-      fail(path, `runtime '${runtime}' must declare exactly the standard tiers: ${STANDARD_TIERS.join(", ")}`, "declare the packaged fast/standard/deep tiers");
+      fail(path, `runtime '${runtime}' must declare exactly the standard tiers: ${STANDARD_TIERS.join(", ")}`, "declare the packaged fast/routine/standard/deep tiers");
     }
     if (Object.keys(map.roles ?? {}).length !== 0) {
       fail(path, `runtime '${runtime}' must not carry role exceptions in the authored baseline`, "keep roles empty; role exceptions are runtime preferences");
@@ -312,7 +312,7 @@ function validateRoutingContract() {
         fail(path, `route ${runtime}/${route} must use mode "explicit"`, "restore mode: explicit (no fallbacks)");
       }
       if (typeof entry.model !== "string" || entry.model.length === 0) {
-        fail(path, `route ${runtime}/${route} must have a non-empty model string`, "set the provider-qualified model");
+        fail(path, `route ${runtime}/${route} must have a non-empty model string`, "set a model identifier valid for the selected runtime");
       }
       if (typeof entry.reasoningEffort !== "string" || entry.reasoningEffort.length === 0) {
         fail(path, `route ${runtime}/${route} must have a non-empty reasoningEffort string`, "set the reasoning effort");

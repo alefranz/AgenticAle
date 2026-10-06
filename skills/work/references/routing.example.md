@@ -12,7 +12,9 @@ Runtime sections use `codex`, `copilot`, and `opencode` (the `copilot-local`
 binding uses the `copilot` section). Apply only the active runtime's
 preferences; omit a section to keep the installed defaults for that runtime.
 The model names below are illustrative; actual identifiers and effort support
-come from the host.
+come from the host. The installed role mapping uses `fast` for exploration,
+`routine` for implementation and fixes, `standard` for hard implementation and
+review, and `deep` for deep review and consultation.
 
 ---
 
@@ -24,11 +26,7 @@ come from the host.
 
 | Tier | Model | Reasoning effort |
 | --- | --- | --- |
-| fast | gpt-6-luna | high |
-| standard | gpt-6-sol | high |
-| deep | gpt-6-sol | xhigh |
-
-### Role overrides
-
-- review: use the deep tier.
-- consult: use gpt-6-astra with high reasoning effort.
+| fast | gpt-6-luna | medium |
+| routine | gpt-6-luna | high |
+| standard | gpt-6.1-sol | high |
+| deep | gpt-6.1-sol | xhigh |

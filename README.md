@@ -153,11 +153,12 @@ configuration file. Create one optional Markdown file:
 - `<repo>/.agenticale/routing.md` for that repository only, or
 - `~/.agenticale/routing.md` for every repository you work in.
 
-The usual form is one table per runtime with three tiers — `fast`,
-`standard`, and `deep`, each naming a model and a reasoning effort — plus
-optional per-role overrides. Repository entries override personal entries one
-entry at a time, and an explicit choice at invocation time overrides both for
-that round. Start from the example that ships with the installed skill
+The usual form is one table per runtime with four tiers — `fast` for
+exploration, `routine` for implementation and fixes, `standard` for hard
+implementation and review, and `deep` for deep review and consultation — each
+naming a model and reasoning effort, plus optional per-role overrides.
+Repository entries override personal entries one entry at a time, and an
+explicit choice at invocation time overrides both for that round. Start from the example that ships with the installed skill
 (`references/routing.example.md` in the `work` skill). See
 [setup and customization](docs/setup.md#customizing-model-routing) for the
 recommended form, precedence examples, and the OpenCode refresh path.

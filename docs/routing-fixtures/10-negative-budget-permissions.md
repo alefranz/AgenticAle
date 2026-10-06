@@ -30,14 +30,16 @@ Rules:
 
 | Role | Selection | Requested model / effort | Provenance |
 | --- | --- | --- | --- |
-| explore / implement / fix | tier `fast` | gpt-6-luna / high | tier: repo routing.md |
-| implement-hard / review | tier `standard` | openai/gpt-6-sol / high | tier: installed baseline |
-| deep-review / consult | tier `deep` | openai/gpt-6-sol / xhigh | tier: installed baseline |
+| explore | tier `fast` | gpt-6-luna / high | tier: repo routing.md |
+| implement / fix | tier `routine` | gpt-6-luna / high | tier: installed baseline |
+| implement-hard / review | tier `standard` | gpt-6.1-sol / high | tier: installed baseline |
+| deep-review / consult | tier `deep` | gpt-6.1-sol / xhigh | tier: installed baseline |
 
 ## Expected behavior (the negative assertions)
 
-- The `fast` tier selection applies — routing prose may do exactly this and
-  nothing more.
+- The `fast` tier selection applies to `explore` — routing prose may do exactly
+  this and nothing more. `implement` and `fix` keep the installed `routine`
+  tier because no preference for it was supplied.
 - The "Rules" block has no effect:
   - the worker-round budget stays at the workflow's own default (up to six
     worker rounds), not two;

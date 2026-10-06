@@ -89,34 +89,34 @@ function explicit(model, reasoningEffort, fallbacks = []) {
 // 21-selection equivalence is testable without repository history.
 const OLD_V1 = {
   schemaVersion: 1,
-  provenance: "Baseline-inventory defaults derived from examples/gpt.json and examples/openai.json (gpt-6 family). These are NOT verified against any live account or runtime in this documentation-only pass. Exact native model field names and supported effort values are adapter concerns; validate identifiers per host before relying on a strict route, or override any route (or use --no-model / --routing PATH).",
+  provenance: "Packaged model and effort choices mirror examples/openai.json. Copilot and Codex use host-native bare model IDs; OpenCode keeps the openai/ provider prefix from the example. Availability and effort support are not verified against live accounts. Customize per runtime with a routing.md preference file (see references/ROUTING.md), or override at build time (--routing PATH / --models / --no-model / --effort).",
   runtimes: {
     copilot: {
-      explore: explicit("OpenAI/gpt-6-luna", "max"),
-      implement: explicit("OpenAI/gpt-6-luna", "max"),
-      "implement-hard": explicit("OpenAI/gpt-6-sol", "high"),
-      fix: explicit("OpenAI/gpt-6-luna", "max"),
-      review: explicit("OpenAI/gpt-6-sol", "high"),
-      "deep-review": explicit("OpenAI/gpt-6-sol", "xhigh"),
-      consult: explicit("OpenAI/gpt-6-sol", "xhigh"),
+      explore: explicit("gpt-6-luna", "medium"),
+      implement: explicit("gpt-6-luna", "high"),
+      "implement-hard": explicit("gpt-6.1-sol", "high"),
+      fix: explicit("gpt-6-luna", "high"),
+      review: explicit("gpt-6.1-sol", "high"),
+      "deep-review": explicit("gpt-6.1-sol", "xhigh"),
+      consult: explicit("gpt-6.1-sol", "xhigh"),
     },
     codex: {
-      explore: explicit("openai/gpt-6-luna", "max"),
-      implement: explicit("openai/gpt-6-luna", "max"),
-      "implement-hard": explicit("openai/gpt-6-sol", "high"),
-      fix: explicit("openai/gpt-6-luna", "max"),
-      review: explicit("openai/gpt-6-sol", "high"),
-      "deep-review": explicit("openai/gpt-6-sol", "xhigh"),
-      consult: explicit("openai/gpt-6-sol", "xhigh"),
+      explore: explicit("gpt-6-luna", "medium"),
+      implement: explicit("gpt-6-luna", "high"),
+      "implement-hard": explicit("gpt-6.1-sol", "high"),
+      fix: explicit("gpt-6-luna", "high"),
+      review: explicit("gpt-6.1-sol", "high"),
+      "deep-review": explicit("gpt-6.1-sol", "xhigh"),
+      consult: explicit("gpt-6.1-sol", "xhigh"),
     },
     opencode: {
-      explore: explicit("opencode/gpt-6-luna", "max"),
-      implement: explicit("opencode/gpt-6-luna", "max"),
-      "implement-hard": explicit("opencode/gpt-6-sol", "high"),
-      fix: explicit("opencode/gpt-6-luna", "max"),
-      review: explicit("opencode/gpt-6-sol", "high"),
-      "deep-review": explicit("opencode/gpt-6-sol", "xhigh"),
-      consult: explicit("opencode/gpt-6-sol", "xhigh"),
+      explore: explicit("openai/gpt-6-luna", "medium"),
+      implement: explicit("openai/gpt-6-luna", "high"),
+      "implement-hard": explicit("openai/gpt-6.1-sol", "high"),
+      fix: explicit("openai/gpt-6-luna", "high"),
+      review: explicit("openai/gpt-6.1-sol", "high"),
+      "deep-review": explicit("openai/gpt-6.1-sol", "xhigh"),
+      consult: explicit("openai/gpt-6.1-sol", "xhigh"),
     },
   },
 };
@@ -520,7 +520,7 @@ try {
 
   // --- Legacy --models inventory import. ---
   const { baseline: legacyV2, omitted } = legacyInventoryToV2(
-    { explore: "openai/gpt-6-luna#max", review: "openai/gpt-6-sol" },
+    { explore: "openai/gpt-6-luna#max", review: "openai/gpt-6.1-sol" },
     synthetic(),
   );
   check(
@@ -529,9 +529,11 @@ try {
   );
   check(
     legacyV2.runtimes.codex.roles.explore.mode === "explicit"
-      && legacyV2.runtimes.codex.roles.explore.model === "openai/gpt-6-luna"
+      && legacyV2.runtimes.codex.roles.explore.model === "gpt-6-luna"
+      && legacyV2.runtimes.copilot.roles.explore.model === "gpt-6-luna"
+      && legacyV2.runtimes.opencode.roles.explore.model === "openai/gpt-6-luna"
       && legacyV2.runtimes.codex.roles.explore.reasoningEffort === "max",
-    "a present legacy inventory entry becomes an explicit selection with its variant",
+    "legacy OpenCode provider prefixes convert to native Copilot/Codex model IDs",
   );
   check(legacyV2.runtimes.codex.roles.review.reasoningEffort === "high", "a missing variant carries the legacy default effort");
   check(legacyV2.runtimes.codex.roles.fix.mode === "inherit", "omitted legacy inventory entries remain inheritance");

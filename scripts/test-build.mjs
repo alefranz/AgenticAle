@@ -61,41 +61,39 @@ async function buildFixture(name, args = [], { env, cwd } = {}) {
   };
 }
 
-// The version-1 baseline exactly as it was committed before the version-2
-// contract (git 11eb0ae:skills/work/references/routing.json). The acceptance
-// criterion is that the version-2 baseline resolves to the SAME concrete
-// selections as this inventory, so routing-output assertions compare against
-// it. Version-1 --routing inputs in this file are derived from it too.
+// The fully resolved version-1 snapshot of the packaged defaults baseline.
+// Build and routing assertions compare against it; version-1 --routing inputs
+// in this file are derived from it too.
 const legacyV1Baseline = {
   schemaVersion: 1,
-  provenance: "Baseline-inventory defaults derived from examples/gpt.json and examples/openai.json (gpt-6 family). These are NOT verified against any live account or runtime in this documentation-only pass. Exact native model field names and supported effort values are adapter concerns; validate identifiers per host before relying on a strict route, or override any route (or use --no-model / --routing PATH).",
+  provenance: "Packaged model and effort choices mirror examples/openai.json. Copilot and Codex use host-native bare model IDs; OpenCode keeps the openai/ provider prefix from the example. Availability and effort support are not verified against live accounts. Customize per runtime with a routing.md preference file (see references/ROUTING.md), or override at build time (--routing PATH / --models / --no-model / --effort).",
   runtimes: {
     copilot: {
-      explore: { mode: "explicit", model: "OpenAI/gpt-6-luna", reasoningEffort: "max", fallbacks: [] },
-      implement: { mode: "explicit", model: "OpenAI/gpt-6-luna", reasoningEffort: "max", fallbacks: [] },
-      "implement-hard": { mode: "explicit", model: "OpenAI/gpt-6-sol", reasoningEffort: "high", fallbacks: [] },
-      fix: { mode: "explicit", model: "OpenAI/gpt-6-luna", reasoningEffort: "max", fallbacks: [] },
-      review: { mode: "explicit", model: "OpenAI/gpt-6-sol", reasoningEffort: "high", fallbacks: [] },
-      "deep-review": { mode: "explicit", model: "OpenAI/gpt-6-sol", reasoningEffort: "xhigh", fallbacks: [] },
-      consult: { mode: "explicit", model: "OpenAI/gpt-6-sol", reasoningEffort: "xhigh", fallbacks: [] },
+      explore: { mode: "explicit", model: "gpt-6-luna", reasoningEffort: "medium", fallbacks: [] },
+      implement: { mode: "explicit", model: "gpt-6-luna", reasoningEffort: "high", fallbacks: [] },
+      "implement-hard": { mode: "explicit", model: "gpt-6.1-sol", reasoningEffort: "high", fallbacks: [] },
+      fix: { mode: "explicit", model: "gpt-6-luna", reasoningEffort: "high", fallbacks: [] },
+      review: { mode: "explicit", model: "gpt-6.1-sol", reasoningEffort: "high", fallbacks: [] },
+      "deep-review": { mode: "explicit", model: "gpt-6.1-sol", reasoningEffort: "xhigh", fallbacks: [] },
+      consult: { mode: "explicit", model: "gpt-6.1-sol", reasoningEffort: "xhigh", fallbacks: [] },
     },
     codex: {
-      explore: { mode: "explicit", model: "openai/gpt-6-luna", reasoningEffort: "max", fallbacks: [] },
-      implement: { mode: "explicit", model: "openai/gpt-6-luna", reasoningEffort: "max", fallbacks: [] },
-      "implement-hard": { mode: "explicit", model: "openai/gpt-6-sol", reasoningEffort: "high", fallbacks: [] },
-      fix: { mode: "explicit", model: "openai/gpt-6-luna", reasoningEffort: "max", fallbacks: [] },
-      review: { mode: "explicit", model: "openai/gpt-6-sol", reasoningEffort: "high", fallbacks: [] },
-      "deep-review": { mode: "explicit", model: "openai/gpt-6-sol", reasoningEffort: "xhigh", fallbacks: [] },
-      consult: { mode: "explicit", model: "openai/gpt-6-sol", reasoningEffort: "xhigh", fallbacks: [] },
+      explore: { mode: "explicit", model: "gpt-6-luna", reasoningEffort: "medium", fallbacks: [] },
+      implement: { mode: "explicit", model: "gpt-6-luna", reasoningEffort: "high", fallbacks: [] },
+      "implement-hard": { mode: "explicit", model: "gpt-6.1-sol", reasoningEffort: "high", fallbacks: [] },
+      fix: { mode: "explicit", model: "gpt-6-luna", reasoningEffort: "high", fallbacks: [] },
+      review: { mode: "explicit", model: "gpt-6.1-sol", reasoningEffort: "high", fallbacks: [] },
+      "deep-review": { mode: "explicit", model: "gpt-6.1-sol", reasoningEffort: "xhigh", fallbacks: [] },
+      consult: { mode: "explicit", model: "gpt-6.1-sol", reasoningEffort: "xhigh", fallbacks: [] },
     },
     opencode: {
-      explore: { mode: "explicit", model: "opencode/gpt-6-luna", reasoningEffort: "max", fallbacks: [] },
-      implement: { mode: "explicit", model: "opencode/gpt-6-luna", reasoningEffort: "max", fallbacks: [] },
-      "implement-hard": { mode: "explicit", model: "opencode/gpt-6-sol", reasoningEffort: "high", fallbacks: [] },
-      fix: { mode: "explicit", model: "opencode/gpt-6-luna", reasoningEffort: "max", fallbacks: [] },
-      review: { mode: "explicit", model: "opencode/gpt-6-sol", reasoningEffort: "high", fallbacks: [] },
-      "deep-review": { mode: "explicit", model: "opencode/gpt-6-sol", reasoningEffort: "xhigh", fallbacks: [] },
-      consult: { mode: "explicit", model: "opencode/gpt-6-sol", reasoningEffort: "xhigh", fallbacks: [] },
+      explore: { mode: "explicit", model: "openai/gpt-6-luna", reasoningEffort: "medium", fallbacks: [] },
+      implement: { mode: "explicit", model: "openai/gpt-6-luna", reasoningEffort: "high", fallbacks: [] },
+      "implement-hard": { mode: "explicit", model: "openai/gpt-6.1-sol", reasoningEffort: "high", fallbacks: [] },
+      fix: { mode: "explicit", model: "openai/gpt-6-luna", reasoningEffort: "high", fallbacks: [] },
+      review: { mode: "explicit", model: "openai/gpt-6.1-sol", reasoningEffort: "high", fallbacks: [] },
+      "deep-review": { mode: "explicit", model: "openai/gpt-6.1-sol", reasoningEffort: "xhigh", fallbacks: [] },
+      consult: { mode: "explicit", model: "openai/gpt-6.1-sol", reasoningEffort: "xhigh", fallbacks: [] },
     },
   },
 };
@@ -167,27 +165,27 @@ try {
   const autonomousCommand = await readText(join(fixture.openCodeRoot, "commands", "autonomous.md"));
   check(autonomousCommand.includes("`autonomous`") && autonomousCommand.includes("$ARGUMENTS"), "autonomous command loads the autonomous skill by exact ID and passes $ARGUMENTS");
 
-  // Default models are rendered per route (opencode provider prefix).
+  // Default models are rendered per route (OpenCode's OpenAI provider ID).
   const explore = await readText(join(fixture.openCodeRoot, "agents", "autonomous", "explore.md"));
-  check(explore.includes("model: opencode/gpt-6-luna"), "explore profile renders the opencode luna model");
-  check(explore.includes("reasoningEffort: max"), "explore profile renders max effort");
+  check(explore.includes("model: openai/gpt-6-luna"), "explore profile renders the OpenAI provider's luna model");
+  check(explore.includes("reasoningEffort: medium"), "explore profile renders medium effort");
   const implement = await readText(join(fixture.openCodeRoot, "agents", "autonomous", "implement.md"));
-  check(implement.includes("model: opencode/gpt-6-luna"), "implement profile renders the opencode luna model");
-  check(implement.includes("reasoningEffort: max"), "implement profile renders max effort");
+  check(implement.includes("model: openai/gpt-6-luna"), "implement profile renders the OpenAI provider's luna model");
+  check(implement.includes("reasoningEffort: high"), "implement profile renders high effort");
   const fix = await readText(join(fixture.openCodeRoot, "agents", "autonomous", "fix.md"));
-  check(fix.includes("model: opencode/gpt-6-luna"), "fix profile renders the opencode luna model");
-  check(fix.includes("reasoningEffort: max"), "fix profile renders max effort");
+  check(fix.includes("model: openai/gpt-6-luna"), "fix profile renders the OpenAI provider's luna model");
+  check(fix.includes("reasoningEffort: high"), "fix profile renders high effort");
   const review = await readText(join(fixture.openCodeRoot, "agents", "autonomous", "review.md"));
-  check(review.includes("model: opencode/gpt-6-sol"), "review profile renders the opencode sol model");
+  check(review.includes("model: openai/gpt-6.1-sol"), "review profile renders GPT-6.1 Sol on the OpenAI provider");
   check(review.includes("reasoningEffort: high"), "review profile renders high effort");
   const deepReview = await readText(join(fixture.openCodeRoot, "agents", "autonomous", "deep-review.md"));
-  check(deepReview.includes("model: opencode/gpt-6-sol"), "deep-review profile renders the opencode sol model");
+  check(deepReview.includes("model: openai/gpt-6.1-sol"), "deep-review profile renders GPT-6.1 Sol on the OpenAI provider");
   check(deepReview.includes("reasoningEffort: xhigh"), "deep-review profile renders xhigh effort");
   const consult = await readText(join(fixture.openCodeRoot, "agents", "autonomous", "consult.md"));
-  check(consult.includes("model: opencode/gpt-6-sol"), "consult profile renders the opencode sol model");
+  check(consult.includes("model: openai/gpt-6.1-sol"), "consult profile renders GPT-6.1 Sol on the OpenAI provider");
   check(consult.includes("reasoningEffort: xhigh"), "consult profile renders xhigh effort");
   const implementHard = await readText(join(fixture.openCodeRoot, "agents", "autonomous", "implement-hard.md"));
-  check(implementHard.includes("model: opencode/gpt-6-sol"), "implement-hard profile renders the opencode sol model");
+  check(implementHard.includes("model: openai/gpt-6.1-sol"), "implement-hard profile renders GPT-6.1 Sol on the OpenAI provider");
   check(implementHard.includes("reasoningEffort: high"), "implement-hard profile renders high effort");
 
   // Each profile keeps its adapter metadata (subagent mode + exact deny set).
@@ -234,7 +232,7 @@ try {
     for (const runtime of ["copilot", "codex", "opencode"]) {
       const map = v2.runtimes?.[runtime];
       check(map && typeof map.tiers === "object" && typeof map.roles === "object", `${label} routing.json declares tiers+roles for ${runtime}`);
-      for (const tier of ["fast", "standard", "deep"]) {
+      for (const tier of ["fast", "routine", "standard", "deep"]) {
         const entry = map?.tiers?.[tier];
         check(
           entry && entry.mode === "explicit" && typeof entry.model === "string" && entry.model.length > 0
@@ -296,7 +294,7 @@ try {
     const text = await readText(join(effortFixture.openCodeRoot, "agents", "autonomous", `${name}.md`));
     check(text.includes("reasoningEffort: low"), `--effort low overrides the ${name} profile effort`);
   }
-  check((await readText(join(effortFixture.openCodeRoot, "agents", "autonomous", "review.md"))).includes("model: opencode/gpt-6-sol"), "--effort override keeps the per-route model");
+  check((await readText(join(effortFixture.openCodeRoot, "agents", "autonomous", "review.md"))).includes("model: openai/gpt-6.1-sol"), "--effort override keeps the per-route model");
 
   // --routing accepts BOTH version-1 policies and version-2 baselines. A
   // version-1 input is a complete policy: it normalizes to exact direct role
@@ -309,11 +307,11 @@ try {
   await writeFile(callerV1Path, JSON.stringify(callerV1), "utf8");
   const v1Fixture = await buildFixture("caller-routing-v1", ["--routing", callerV1Path]);
   check((await readText(join(v1Fixture.openCodeRoot, "agents", "autonomous", "review.md"))).includes("model: acme/test-model"), "--routing v1 policy model is rendered into the review profile");
-  check((await readText(join(v1Fixture.openCodeRoot, "agents", "autonomous", "explore.md"))).includes("model: opencode/gpt-6-luna"), "--routing v1 policy leaves unmodified routes at their packaged model");
+  check((await readText(join(v1Fixture.openCodeRoot, "agents", "autonomous", "explore.md"))).includes("model: openai/gpt-6-luna"), "--routing v1 policy leaves unmodified routes at their packaged model");
   // The changed role materializes as a direct role exception, not a tier rewrite.
   const v1Shipped = JSON.parse(await readText(join(v1Fixture.standaloneRoot, "work", "references", "routing.json")));
   check(v1Shipped.runtimes.opencode.roles.review.mode === "explicit" && v1Shipped.runtimes.opencode.roles.review.model === "acme/test-model", "--routing v1 policy change materializes as an opencode/review role exception");
-  check(v1Shipped.runtimes.opencode.tiers.standard.model === "opencode/gpt-6-sol", "--routing v1 policy does not rewrite the standard tier");
+  check(v1Shipped.runtimes.opencode.tiers.standard.model === "openai/gpt-6.1-sol", "--routing v1 policy does not rewrite the standard tier");
   const v1ShippedPlugin = JSON.parse(await readText(join(v1Fixture.pluginRoot, "skills", "work", "references", "routing.json")));
   check(v1ShippedPlugin.runtimes.opencode.roles.review.model === "acme/test-model", "--routing v1 customization is materialized into the plugin routing.json");
   // The resolved snapshot equals the caller's complete policy (provenance aside).
@@ -330,10 +328,10 @@ try {
   const v2Fixture = await buildFixture("caller-routing-v2", ["--routing", callerV2Path]);
   check((await readText(join(v2Fixture.openCodeRoot, "agents", "autonomous", "review.md"))).includes("model: acme/v2-model"), "--routing v2 tier override renders into the review profile");
   check((await readText(join(v2Fixture.openCodeRoot, "agents", "autonomous", "implement-hard.md"))).includes("model: acme/v2-model"), "--routing v2 tier override renders into the implement-hard profile");
-  check((await readText(join(v2Fixture.openCodeRoot, "agents", "autonomous", "explore.md"))).includes("model: opencode/gpt-6-luna"), "--routing v2 leaves unmapped tiers at their packaged model");
+  check((await readText(join(v2Fixture.openCodeRoot, "agents", "autonomous", "explore.md"))).includes("model: openai/gpt-6-luna"), "--routing v2 leaves unmapped tiers at their packaged model");
   const v2Shipped = JSON.parse(await readText(join(v2Fixture.standaloneRoot, "work", "references", "routing.json")));
   check(v2Shipped.runtimes.opencode.tiers.standard.model === "acme/v2-model", "--routing v2 customization is materialized into the standalone routing.json");
-  check(v2Shipped.runtimes.opencode.tiers.fast.model === "opencode/gpt-6-luna", "--routing v2 leaves the fast tier untouched");
+  check(v2Shipped.runtimes.opencode.tiers.fast.model === "openai/gpt-6-luna", "--routing v2 leaves the fast tier untouched");
 
   // F5: --effort cannot be applied to a route that inherits (inherit means
   // inherit both model AND effort), including the all-inherit --no-model case.
@@ -354,10 +352,10 @@ try {
   await writeFile(codexOnlyPath, JSON.stringify(codexOnly), "utf8");
   const f6Fixture = await buildFixture("f6-codex-only", ["--routing", codexOnlyPath]);
   const f6Explore = await readText(join(f6Fixture.openCodeRoot, "agents", "autonomous", "explore.md"));
-  check(f6Explore.includes("model: opencode/gpt-6-luna"), "F6 omitted opencode runtime is filled from the packaged preset (explore profile carries a model)");
+  check(f6Explore.includes("model: openai/gpt-6-luna"), "F6 omitted opencode runtime is filled from the packaged preset (explore profile carries a model)");
   const f6Shipped = JSON.parse(await readText(join(f6Fixture.standaloneRoot, "work", "references", "routing.json")));
   check(JSON.stringify(Object.keys(f6Shipped.runtimes).sort()) === JSON.stringify(["codex", "copilot", "opencode"].sort()), "F6 shipped v2 baseline declares all three runtimes");
-  check(f6Shipped.runtimes.opencode.tiers.fast.model === "opencode/gpt-6-luna", "F6 merged opencode runtime keeps the packaged tier model");
+  check(f6Shipped.runtimes.opencode.tiers.fast.model === "openai/gpt-6-luna", "F6 merged opencode runtime keeps the packaged tier model");
   const f6Resolved = JSON.parse(await readText(join(f6Fixture.standaloneRoot, "work", "references", "resolved-routing.json")));
   check(f6Resolved.runtimes.codex.explore.model === legacyV1Baseline.runtimes.codex.explore.model, "F6 declared codex runtime is untouched by the merge");
 
