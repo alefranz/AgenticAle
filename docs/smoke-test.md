@@ -107,13 +107,11 @@ rm -rf "$smoke_root"
   and pass through `$ARGUMENTS`, and OpenCode's command list exposes `/work`
   and `/autonomous`; both skills' shared-round links resolve to the installed
   `skills/work/references/rounds.md`;
-- the install state is `.autonomous-mode-install.json` (schema 6, 31-file
-  inventory); the installed `work/references/` carries both the version-2
-  baseline (`routing.json`) and the resolved version-1 snapshot
-  (`resolved-routing.json`), explicit by default and `mode: "inherit"` under
-  `--no-model`, plus the customization example and the shared `routing.mjs`
-  module; uninstall removes the recorded copy and its state file while leaving
-  the isolated profile directory safe to delete.
+- the install state is `.autonomous-mode-install.json`; the installed
+  `work/references/` carries one version-2 baseline (`routing.json`), the JSON
+  preference example, and the shared `routing.mjs` module; uninstall removes
+  the recorded copy and its state file while leaving the isolated profile
+  directory safe to delete.
 
 The commands above verify discovery without making a model request. An
 end-to-end model run is intentionally manual because it consumes provider
@@ -165,55 +163,30 @@ mapping. A role omitted from the JSON object inherits the current session model.
 Re-run the same install without `--replace` and confirm it reports the profile
 is up to date. The uninstall should remove unchanged rendered profiles.
 
-## Routing preference discovery cases
+## Markdown preference checks
 
-These cases exercise the customization path (see
-[customizing model routing](setup.md#customizing-model-routing)) in the same
-isolated smoke root. The structured-resolution cases make no model request:
-the installed `routing.mjs` helper resolves deterministically from structured
-preference JSON (the same selections a prose file would carry, expressed as
-tier and role entries). Observing the workflow itself interpret a prose
-`routing.md` is a live pass — record it in
-[runtime-compatibility.md](runtime-compatibility.md); do not report it here as
-verified.
+These checks use the optional Markdown files documented in
+[customizing model routing](setup.md#customizing-model-routing). They make no
+model request. Interpret the Markdown preferences into structured layers and
+pass those layers to the resolver from the installed `skills/work` directory:
 
-1. **No-file default.** With the isolated `XDG_CONFIG_HOME` set and no
-   `.agenticale/routing.md` in the smoke home or the workspace, run the
-   installed helper from the installed `skills/work` directory:
+```sh
+node scripts/routing.mjs resolve --runtime opencode --input <structured-layer.json>
+```
 
-   ```sh
-   node scripts/routing.mjs resolve --runtime opencode
-   ```
+Check that no files yields the packaged baseline, a personal file overrides
+only its entries, and the project file overrides the personal file. For
+OpenCode, compare the resolved route against the current profile fields in
+`opencode debug agents`; refresh explicitly if no profile matches. The
+resolver output can be saved and passed to the existing installer:
 
-   The output equals the installed baseline resolved to all seven roles — the
-   packaged `gpt-6` selections, or inherited routes under a `--no-model`
-   install. A live `/work` run with no preference file must show the baseline
-   tier summary and default role mappings (live pass, recorded separately).
-2. **Personal only.** Write a three-tier `opencode` table to
-   `<smoke-root>/.agenticale/routing.md`; the helper output with the same
-   selections as structured input shows the personal tiers with personal
-   provenance, and unrelated roles keep their baseline choices.
-3. **Repository over personal.** Add `<workspace-root>/.agenticale/routing.md`
-   with a conflicting tier or role entry: per entry, the repository file wins,
-   and the personal file still supplies the entries the repository omits.
-4. **Explicit role override.** A role override (for example
-   `review: use the deep tier`) applies to that role only; the compact summary
-   keeps both the role-selection source and the tier-definition source.
-5. **OpenCode: requested versus installed profile.** After a change no
-   installed profile matches, compare the exported resolution with the actual
-   profile fields (`opencode debug agents`). A mismatch must be reported with
-   the preparation command, and the route must not be dispatched as if the
-   request were honored. Refresh explicitly against the isolated target, then
-   restart or start a new session and re-check requested versus installed
-   selections before dispatch:
+```sh
+node scripts/routing.mjs resolve --runtime opencode --input <structured-layer.json> > <preparation-path>/resolved-policy.json
+node scripts/install.mjs --target <isolated-profile-path> --routing <preparation-path>/resolved-policy.json
+```
 
-   ```sh
-   node scripts/routing.mjs resolve --runtime opencode --input <preferences.json> > <preparation-path>/resolved-policy.json
-   node scripts/install.mjs --target <isolated-profile-path> --routing <preparation-path>/resolved-policy.json
-   ```
-
-   Fallback pairs are preserved in the export but honored only when a matching
-   preconfigured profile exists.
+Fallback pairs are preserved in the export but honored only when a matching
+preconfigured profile exists.
 
 ## Live workflow checks (not tested)
 

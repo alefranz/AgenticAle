@@ -32,16 +32,13 @@ the schema is documentation-only for this pass and is not tested here.
 
 ## Routing bootstrap on this surface
 
-Route resolution for each round follows the shared bootstrap in `ROUTING.md`:
-read the installed contract and defaults, discover and read the personal and
-project preference files, apply the invocation preferences, and resolve the
-snapshot for this runtime. The preference sections use the `copilot` runtime
-name. Precedence is per named entry, highest to lowest: invocation
-preferences, repository routing.md, personal routing.md, installed baseline.
-Do not scan unrelated files for preferences. A caller may override any
-individual route without replacing the rest; invocation choices are
-session-scoped and do not persist to any preference file or to
-`routing.json`.
+At activation, follow the shared bootstrap in `ROUTING.md`:
+discover personal and project `routing.md` files, interpret the active runtime's
+preferences, apply invocation choices, and resolve this runtime's routes once
+for the activation. The preference section uses the `copilot` runtime name.
+Precedence is invocation, project, personal, then installed baseline. Do not
+scan unrelated files. Invocation choices are session-scoped and do not persist
+to a preference file or `routing.md`.
 
 ## Requested versus effective settings
 
@@ -60,12 +57,10 @@ an explicit, intentional choice; it is not a fallback and not a missing value.
 
 ## Caller and session overrides
 
-An invocation preference (an explicit per-route choice, or an explicitly
-supplied Markdown path) wins over the discovered preference files for the
+An explicit invocation choice wins over discovered preference files for the
 entries it names; every other entry still resolves from the discovered files
-and the installed baseline. Conflicting choices within the same layer need
-clarification; file order is not an implicit tiebreaker. Invocation choices
-stay within the session and never rewrite `routing.json` or any preference
+and the installed baseline. Invocation choices
+stay within the session and never rewrite `routing.md` or any preference
 file.
 
 ## Limitations (stated honestly)

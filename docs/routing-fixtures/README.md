@@ -10,9 +10,9 @@ resolution, export) is covered by `scripts/test-routing.mjs`, and the
 installed workflow must never need these files to run.
 
 Placement: the installed workflow needs only the packaged contract, defaults,
-resolved snapshot, example, and shared module (see `ROUTING.md`, Packaged
-resources), so these fixtures live under `docs/` and are not shipped in the
-skill tree or counted in the source-of-truth inventory.
+Markdown example, and shared module (see `ROUTING.md`), so these fixtures live
+under `docs/` and are not shipped in the skill tree or counted in the
+source-of-truth inventory.
 
 ## How to use
 
@@ -29,9 +29,10 @@ skill tree or counted in the source-of-truth inventory.
 
 Model names are illustrative (as in `routing.example.md`). "Installed
 baseline" below means the packaged codex baseline: fast
-`openai/gpt-6-luna|max`, standard `openai/gpt-6-sol|high`, deep
-`openai/gpt-6-sol|xhigh`, with role-to-tier mapping explore/implement/fix to
-`fast`, implement-hard/review to `standard`, deep-review/consult to `deep`.
+`gpt-6-luna|medium`, routine `gpt-6-luna|high`, standard
+`gpt-6.1-sol|high`, deep `gpt-6.1-sol|xhigh`, with role-to-tier mapping
+explore to `fast`, implement/fix to `routine`, implement-hard/review to
+`standard`, and deep-review/consult to `deep`.
 
 | Fixture | Scenario |
 | --- | --- |

@@ -34,18 +34,19 @@ No `~/.agenticale/routing.md`.
 ## Expected effective selections — active runtime `copilot`
 
 No `copilot` section exists in the file, so every route resolves from the
-installed baseline (the packaged copilot values: `OpenAI/gpt-6-luna|max` for
-`fast` roles, `OpenAI/gpt-6-sol|high` for `standard`, `OpenAI/gpt-6-sol|xhigh`
-for `deep`). Every provenance label is "installed baseline". The `codex` and
+installed baseline (the packaged copilot values: `gpt-6-luna|medium` for
+`fast`, `gpt-6-luna|high` for `routine`, `gpt-6.1-sol|high` for `standard`,
+and `gpt-6.1-sol|xhigh` for `deep`). Every provenance label is "installed baseline". The `codex` and
 `opencode` sections are inactive and must not leak into this activation.
 
 ## Expected effective selections — active runtime `codex` (variant)
 
 | Role | Selection | Requested model / effort | Provenance |
 | --- | --- | --- | --- |
-| explore / implement / fix | tier `fast` | gpt-6-luna / high | tier: repo routing.md |
-| implement-hard / review | tier `standard` | openai/gpt-6-sol / high | tier: installed baseline |
-| deep-review / consult | tier `deep` | openai/gpt-6-sol / xhigh | tier: installed baseline |
+| explore | tier `fast` | gpt-6-luna / high | tier: repo routing.md |
+| implement / fix | tier `routine` | gpt-6-luna / high | tier: installed baseline |
+| implement-hard / review | tier `standard` | gpt-6.1-sol / high | tier: installed baseline |
+| deep-review / consult | tier `deep` | gpt-6.1-sol / xhigh | tier: installed baseline |
 
 Only the `codex` section applies; the `opencode` section is ignored. The
 `codex` section defines only `fast`, so `standard` and `deep` keep the

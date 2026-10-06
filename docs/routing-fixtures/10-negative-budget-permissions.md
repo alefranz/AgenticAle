@@ -16,7 +16,7 @@ permissions, or installation ownership. Active runtime is `codex`.
 
 | Tier | Model | Reasoning effort |
 | --- | --- | --- |
-| fast | gpt-6-luna | high |
+| fast | gpt-6-luna | medium |
 
 Rules:
 
@@ -30,9 +30,10 @@ Rules:
 
 | Role | Selection | Requested model / effort | Provenance |
 | --- | --- | --- | --- |
-| explore / implement / fix | tier `fast` | gpt-6-luna / high | tier: repo routing.md |
-| implement-hard / review | tier `standard` | openai/gpt-6-sol / high | tier: installed baseline |
-| deep-review / consult | tier `deep` | openai/gpt-6-sol / xhigh | tier: installed baseline |
+| explore | tier `fast` | gpt-6-luna / medium | tier: repo routing.md |
+| implement / fix | tier `routine` | gpt-6-luna / high | tier: installed baseline |
+| implement-hard / review | tier `standard` | gpt-6.1-sol / high | tier: installed baseline |
+| deep-review / consult | tier `deep` | gpt-6.1-sol / xhigh | tier: installed baseline |
 
 ## Expected behavior (the negative assertions)
 

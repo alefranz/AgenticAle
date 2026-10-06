@@ -16,8 +16,9 @@ Project root `.agenticale/routing.md`:
 
 | Tier | Model | Reasoning effort |
 | --- | --- | --- |
-| fast | gpt-6-luna | high |
-| standard | gpt-6-sol | high |
+| fast | gpt-6-luna | medium |
+| routine | gpt-6-luna | high |
+| standard | gpt-6.1-sol | high |
 | deep | gpt-6-sol | xhigh |
 
 ### Role overrides
@@ -32,16 +33,14 @@ No `~/.agenticale/routing.md`.
 
 | Role | Selection | Requested model / effort | Provenance |
 | --- | --- | --- | --- |
-| explore | tier `fast` | gpt-6-luna / high | role: default mapping; tier: repo routing.md |
-| implement | tier `fast` | gpt-6-luna / high | role: default mapping; tier: repo routing.md |
-| fix | tier `fast` | gpt-6-luna / high | role: default mapping; tier: repo routing.md |
-| implement-hard | tier `standard` | gpt-6-sol / high | role: default mapping; tier: repo routing.md |
+| explore | tier `fast` | gpt-6-luna / medium | role: default mapping; tier: repo routing.md |
+| implement / fix | tier `routine` | gpt-6-luna / high | role: default mapping; tier: repo routing.md |
+| implement-hard | tier `standard` | gpt-6.1-sol / high | role: default mapping; tier: repo routing.md |
 | review | tier `deep` | gpt-6-sol / xhigh | role: repo override; tier: repo routing.md |
 | deep-review | tier `deep` | gpt-6-sol / xhigh | role: default mapping; tier: repo routing.md |
 | consult | direct | gpt-6-astra / high | role: repo override (direct choice) |
 
-Note the tier values differ from the installed baseline for `fast` (high
-rather than max): the repo table replaces the `fast` tier atomically, so all
-roles mapped to `fast` pick up the new pair. No fallback is configured, so
-none is attempted. Effective settings are unknown unless the host exposes
-native dispatch metadata.
+The repo's `fast` choice is explicit; the other three tiers are included so
+the example is complete. No fallback is configured, so none is attempted.
+Effective settings are unknown unless the host exposes native dispatch
+metadata.

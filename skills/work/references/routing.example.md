@@ -24,7 +24,8 @@ come from the host.
 
 | Tier | Model | Reasoning effort |
 | --- | --- | --- |
-| fast | gpt-6-luna | high |
+| fast | gpt-6-luna | medium |
+| routine | gpt-6-luna | high |
 | standard | gpt-6-sol | high |
 | deep | gpt-6-sol | xhigh |
 

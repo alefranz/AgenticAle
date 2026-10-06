@@ -5,7 +5,6 @@ import { lstat, mkdir, readFile, readdir, realpath, rm, stat, writeFile } from "
 import { fileURLToPath } from "node:url";
 import {
   applyBuildOverrides,
-  exportV1All,
   legacyInventoryToV2,
   mergeV2MissingRuntimes,
   normalizeV1ToV2,
@@ -274,14 +273,14 @@ async function loadRouting(options) {
 // labeled explicit, while the shipped policy still says inherit). Reject the
 // combination up front, before any mutation, against the pre-override
 // resolution snapshot (tier references already resolved to concrete routes).
-function assertEffortOverrideCompatible(snapshot, options) {
+function assertEffortOverrideCompatible(resolution, options) {
   if (!options.effortOverride) return;
   if (options.noModel) {
     throw new Error("--effort cannot be combined with --no-model: --no-model inherits both model and effort, so a route-wide effort override is contradictory.");
   }
   const inherited = [];
-  for (const [runtime, map] of Object.entries(snapshot.runtimes)) {
-    for (const [role, entry] of Object.entries(map)) {
+  for (const [runtime, runtimeResolution] of Object.entries(resolution.runtimes)) {
+    for (const [role, entry] of Object.entries(runtimeResolution.routes)) {
       if (entry.mode === "inherit") inherited.push(`${runtime}/${role}`);
     }
   }
@@ -337,13 +336,9 @@ function renderSourceRoot(text, sourceRoot) {
   return text.replace(marker, `Source root: ${JSON.stringify(sourceRoot)}`);
 }
 
-// Copy the four public skills into a skills root, applying the source-root
-// override to the source-code-lookup skill where supplied, and writing BOTH
-// routing resources into the generated work skill: the effective version-2
-// baseline (references/routing.json, the installed baseline) and the fully
-// resolved version-1 snapshot (references/resolved-routing.json) from the same
-// resolution pass, so the installed policy reflects the caller's choices.
-async function populateSkillsRoot(skillsRoot, sourceRoot, baseline, resolvedSnapshot) {
+// Copy the four public skills into a skills root and write the one effective
+// version-2 routing baseline used by runtime resolution.
+async function populateSkillsRoot(skillsRoot, sourceRoot, baseline) {
   for (const name of SKILL_NAMES) {
     await copyDirTree(join(repositoryRoot, "skills", name), join(skillsRoot, name));
   }
@@ -353,7 +348,6 @@ async function populateSkillsRoot(skillsRoot, sourceRoot, baseline, resolvedSnap
     await writeFile(lookupPath, rendered.replace(/\r\n?/g, "\n"), "utf8");
   }
   await writeText(join(skillsRoot, "work", "references", "routing.json"), `${JSON.stringify(baseline, null, 2)}\n`);
-  await writeText(join(skillsRoot, "work", "references", "resolved-routing.json"), `${JSON.stringify(resolvedSnapshot, null, 2)}\n`);
 }
 
 // Copies the adapter-owned command templates (thin launchers that load the
@@ -553,18 +547,15 @@ export async function buildBundles(options) {
   await assertSafeOutput(options.output);
   const { baseline, routingSource, importReport } = await loadRouting(options);
   if (importReport) console.log(importReport);
-  // One resolution pass feeds everything. The pre-override snapshot guards the
-  // F5 effort check (tier references already resolved to concrete routes); the
-  // adjusted resolution supplies both shipped routing resources and the
-  // OpenCode profile rendering.
-  const preSnapshot = exportV1All(resolveAllRuntimes(baseline, []), baseline.provenance);
-  assertEffortOverrideCompatible(preSnapshot, options);
+  // One resolution pass feeds everything. The pre-override resolution guards
+  // the F5 effort check; the adjusted resolution renders OpenCode profiles.
+  const preResolution = resolveAllRuntimes(baseline, []);
+  assertEffortOverrideCompatible(preResolution, options);
   const adjusted = applyBuildOverrides(baseline, {
     noModel: options.noModel,
     effort: options.effortOverride ? options.effort : null,
   });
   const resolved = resolveAllRuntimes(adjusted, []);
-  const resolvedSnapshot = exportV1All(resolved, adjusted.provenance);
 
   const adapter = JSON.parse(
     await readFile(join(repositoryRoot, "adapters", "opencode", "adapter.json"), "utf8"),
@@ -615,17 +606,17 @@ export async function buildBundles(options) {
 
   // 1. Agent Plugins 1.0 package.
   await writeText(join(pluginRoot, "plugin.json"), `${JSON.stringify(pluginManifest, null, 2)}\n`);
-  await populateSkillsRoot(join(pluginRoot, "skills"), options.sourceRoot, adjusted, resolvedSnapshot);
+  await populateSkillsRoot(join(pluginRoot, "skills"), options.sourceRoot, adjusted);
 
   // 2. Standalone (project) skill binding.
-  await populateSkillsRoot(standaloneSkillsRoot, options.sourceRoot, adjusted, resolvedSnapshot);
+  await populateSkillsRoot(standaloneSkillsRoot, options.sourceRoot, adjusted);
 
   // 3. OpenCode V2 binding (generated profiles + command entries + skills).
   for (const { profile, text } of profiles) {
     await writeText(join(openCodeRoot, profile.outputPath), text);
   }
   await populateCommandEntries(openCodeRoot, adapter);
-  await populateSkillsRoot(join(openCodeRoot, "skills"), options.sourceRoot, adjusted, resolvedSnapshot);
+  await populateSkillsRoot(join(openCodeRoot, "skills"), options.sourceRoot, adjusted);
 
   const explicitCount = profileRecords.filter((record) => record.mode === "explicit").length;
   return {

@@ -147,23 +147,22 @@ review; it does not guarantee defect-free code.
 
 ## Customize model routing
 
-You can customize the routes without editing the plugin or a harness
-configuration file. Create one optional Markdown file:
+You can customize routes without editing the plugin or a harness
+configuration file. Copy the Markdown example to either
+`<repo>/.agenticale/routing.md` for that repository or
+`~/.agenticale/routing.md` for every repository you work in.
 
-- `<repo>/.agenticale/routing.md` for that repository only, or
-- `~/.agenticale/routing.md` for every repository you work in.
-
-The usual form is one table per runtime with three tiers — `fast`,
-`standard`, and `deep`, each naming a model and a reasoning effort — plus
-optional per-role overrides. Repository entries override personal entries one
-entry at a time, and an explicit choice at invocation time overrides both for
-that round. Start from the example that ships with the installed skill
-(`references/routing.example.md` in the `work` skill). See
+The packaged routes use four tiers — `fast` for exploration, `routine` for
+implementation and fixes, `standard` for hard implementation and review, and
+`deep` for deep review and consultation. The Markdown file can replace tiers or
+override individual roles per runtime. Repository entries override personal
+entries one at a time, and explicit invocation choices take precedence. Start
+from `references/routing.example.md` in the installed `work` skill. See
 [setup and customization](docs/setup.md#customizing-model-routing) for the
 recommended form, precedence examples, and the OpenCode refresh path.
 
 `work` and `autonomous` discover and read these files when they start or
-resume; missing files simply use the packaged defaults, and installation,
+resume; missing files use the packaged defaults, and installation,
 updates, and uninstallation never create, overwrite, or remove your files.
 
 ## Choose where the task finishes
