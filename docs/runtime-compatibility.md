@@ -108,30 +108,23 @@ must not be labeled complete based on another client's result.
 
 ## Routing customization status (this pass)
 
-Model routing customization (the `routing.md` preference files described in
-[setup.md](setup.md#customizing-model-routing)) was implemented and
-deterministically tested in this pass, but **no live client was run and the
-live OpenCode profile was not mutated** (repository rules disallow it). Every
-row below is therefore **not tested** for live interpretation or dispatch; the
-deterministic-evidence column is test coverage in isolated temporary
-directories, not a live pass.
+Model routing customization uses the JSON preference files described in
+[setup.md](setup.md#customizing-model-routing). This refactor did not run the
+automated suite or a live client, and did not mutate the live OpenCode profile.
+Every row below is therefore **not tested** for live dispatch.
 
 | Surface | Customization capability | Status (this pass) |
 | --- | --- | --- |
-| Copilot (CLI and VS Code) | Preference discovery, interpretation, and per-call dispatch of resolved routes | **not tested** — no live client runs in this environment |
-| Copilot (CLI and VS Code) | No-file default, personal-only, repository-over-personal, and explicit role-override behavior | **not tested** live; deterministic structured resolution covered by `scripts/test-routing.mjs` (204 assertions) |
-| Codex (CLI, VS Code extension, desktop app) | Preference discovery, interpretation, and per-spawn dispatch of resolved routes | **not tested** — no live client runs in this environment |
+| Copilot (CLI and VS Code) | JSON preference discovery and per-call dispatch of resolved routes | **not tested** — no live client runs in this environment |
+| Copilot (CLI and VS Code) | No-file default, personal-only, repository-over-personal, and explicit role-override behavior | **not tested** live; deterministic structured resolution is covered by `scripts/test-routing.mjs` |
+| Codex (CLI, VS Code extension, desktop app) | JSON preference discovery and per-spawn dispatch of resolved routes | **not tested** — no live client runs in this environment |
 | OpenCode V2 | Requested-versus-installed profile comparison and mismatch reporting | **not tested** — no live client runs in this environment; structured export and normalization covered by `scripts/test-routing.mjs` |
 | OpenCode V2 | OpenCode profile-refresh activation | **not tested** (live profile mutation disallowed; temp-dir installer tests cover ownership/collision/rollback) |
-| All surfaces | Install/update/uninstall preservation of user-owned `routing.md` files | **not tested** live; deterministic evidence in `scripts/test-installer.mjs` (248 assertions) |
+| All surfaces | Install/update/uninstall preservation of user-owned `routing.json` files | **not tested** live; deterministic evidence in `scripts/test-installer.mjs` |
 
-The workflow-interpretation evaluation fixtures live in
-`docs/routing-fixtures/` (ten fixtures for the prose-interpretation boundary).
-They are evaluations to run against a live client, not evidence that was run.
-Live interpretation and dispatch checks for the customization path follow the
-same per-capability recording rules as the capability matrix above: record
-client and bundled-runtime versions separately, requested versus effective
-settings from native metadata or trace, and a status of **verified**,
-**limited**, or **not tested**. Do not mark a capability verified without a
-live pass; deterministic test coverage or another client's success does not
-establish parity.
+Preference files now use a structured JSON patch. No live client was run for
+this refactor. Live interpretation and dispatch checks follow the same
+per-capability recording rules as the matrix above: record client and
+bundled-runtime versions separately, requested versus effective settings from
+native metadata or trace, and a status of **verified**, **limited**, or
+**not tested**. Do not infer live behavior from deterministic local resolution.

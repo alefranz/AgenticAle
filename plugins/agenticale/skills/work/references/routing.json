@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "provenance": "Packaged model and effort choices mirror examples/openai.json. Copilot and Codex use host-native bare model IDs; OpenCode keeps the openai/ provider prefix from the example. Availability and effort support are not verified against live accounts. Customize per runtime with a routing.md preference file (see references/ROUTING.md), or override at build time (--routing PATH / --models / --no-model / --effort).",
+  "provenance": "Packaged model and effort choices mirror examples/openai.json. Copilot and Codex use host-native bare model IDs; OpenCode keeps the openai/ provider prefix from the example. Availability and effort support are not verified against live accounts. Customize per runtime with a routing.json preference file (see references/ROUTING.md), or override at build time (--routing PATH / --models / --no-model / --effort).",
   "roleTiers": {
     "explore": "fast",
     "implement": "routine",

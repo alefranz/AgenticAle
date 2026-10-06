@@ -121,7 +121,7 @@ This installer is copy-only: it no longer offers a link mode. On install it
 migrates older copy installs (state schema 1-4), older link installs
 (schema 1-4), and older six-profile generated installs (schema 5) to the
 current generated copy layout (state `.autonomous-mode-install.json`,
-schema 6, a 31-file inventory).
+schema 6, a 30-file inventory).
 
 If the target already carries another AgenticAle marker (for example a
 standalone `.agenticale-standalone-install.json`), the installer surfaces a
@@ -131,17 +131,12 @@ two installs were meant to be a single one.
 
 ## Model routing
 
-Routing is an explicit per-route policy. The packaged defaults baseline is
+Routing is an explicit per-route policy. The single packaged defaults baseline is
 [`skills/work/references/routing.json`](../skills/work/references/routing.json)
 (schemaVersion 2): a common role-to-tier map plus per-runtime tier definitions
-for the three runtimes (`copilot`, `codex`, `opencode`). Every build resolves
-that baseline once and also installs the fully resolved version-1 snapshot
-(`references/resolved-routing.json` beside it in the installed skill): for each
-runtime and each of seven routing keys (`explore`, `implement`,
-`implement-hard`, `fix`, `review`, `deep-review`, `consult`), a concrete model
-and effort or explicit inheritance. The snapshot is installed material for
-compatibility, comparison, and export — not an override above user
-preferences.
+for the three runtimes (`copilot`, `codex`, `opencode`). The resolver derives
+the seven concrete routes for the active runtime from this baseline and any
+optional preference files. It does not package a redundant resolved snapshot.
 
 The packaged choices mirror `examples/openai.json`: Copilot and Codex use their
 native bare model IDs; OpenCode keeps the `openai/` provider prefix. The four
@@ -199,122 +194,60 @@ time.
 
 ## Customizing model routing
 
-The day-to-day customization path is one optional Markdown file — no plugin
-edit, no harness configuration file, and no reinstall:
+The packaged `references/routing.json` supplies defaults. To customize them,
+copy `references/routing.example.json` from the installed `work` skill to either:
 
-- repository scope: `<repo>/.agenticale/routing.md`
-- personal scope: `~/.agenticale/routing.md`
+- `<repo>/.agenticale/routing.json` for one repository, or
+- `~/.agenticale/routing.json` for all repositories.
 
-Both `work` and `autonomous` discover and read these files when they start or
-resume.
+The file is a version-2 JSON patch. It may override individual runtime tiers
+or role selections; omitted entries keep the packaged or personal value.
+Precedence is invocation choice, project file, personal file, then packaged
+baseline. For Git projects, use the worktree root even from a subdirectory.
+For non-Git projects, establish the workspace root explicitly.
 
-### Discovery order and precedence
+Example role override:
 
-Per named entry, from highest to lowest:
-
-```text
-Invocation preferences (this session only)
-  > <repo>/.agenticale/routing.md
-  > ~/.agenticale/routing.md
-  > the installed baseline
+```json
+{
+  "schemaVersion": 2,
+  "runtimes": {
+    "codex": {
+      "roles": {
+        "review": {
+          "mode": "explicit",
+          "model": "gpt-6.1-sol",
+          "reasoningEffort": "high",
+          "fallbacks": []
+        }
+      }
+    }
+  }
+}
 ```
 
-- For a Git project, the repository file is found at the worktree root, even
-  when you invoke from a subdirectory. A non-Git project uses an explicitly
-  established workspace root.
-- The repository file overrides the personal file entry by entry; an omitted
-  entry keeps the lower layer. A custom install's explicit role choices remain
-  lower-precedence exceptions until a higher role selection or `default`
-  clears them; tier edits alone do not clear them.
-- A missing file is normal. An existing file that cannot be read is reported
-  before dispatch, not silently treated as "defaults were chosen".
-- Runtime sections use `codex`, `copilot`, and `opencode` (the `copilot-local`
-  binding uses the `copilot` section); only the active runtime's preferences
-  apply.
+Use `mode: "inherit"` to use the session model and effort, `mode: "tier"` to
+assign a role to a tier, and `mode: "default"` to reset an override to the
+packaged value. An explicit choice includes a model, reasoning effort, and a
+fallback list. See `references/ROUTING.md` in the installed skill for the
+complete schema and supported reset behavior.
 
-### The recommended form
+The packaged resolver loads the two optional JSON files and applies them in
+precedence order:
 
-Copy the body of the packaged example (`references/routing.example.md` in the
-installed `work` skill):
+```sh
+node scripts/routing.mjs resolve --runtime codex --project-root <repo>
+```
 
-````markdown
-# AgenticAle model routing
+OpenCode uses preconfigured profiles. A preference change takes effect there
+only after a matching profile is installed and active. If no profile matches,
+the workflow exports a resolved policy and reports the existing installer
+command needed to refresh it; see `references/runtimes/opencode.md`.
 
-## codex
-
-### Tiers
-
-| Tier | Model | Reasoning effort |
-| --- | --- | --- |
-| fast | gpt-6-luna | medium |
-| routine | gpt-6-luna | high |
-| standard | gpt-6.1-sol | high |
-| deep | gpt-6.1-sol | xhigh |
-````
-
-Clear prose expressing the same choices is accepted — headings, tables, and
-punctuation are not required — but a concrete selection names both a model and
-an effort, and model names must be real identifiers your host provides; the
-example's names are illustrative.
-
-### Tiers, roles, `default`, and `inherit`
-
-- A **tier** names a model and a reasoning effort. The default tiers are
-  `fast` (routine, high-volume work), `standard` (difficult implementation and
-  independent review), and `deep` (intensive analysis and second opinions). You
-  may add your own named tiers.
-- A **role override** points one of the seven roles at a tier, at a concrete
-  model/effort pair, at `inherit`, or at `default`.
-- `role: default` clears a lower-precedence role exception and restores the
-  role's packaged tier mapping, using the final merged tier definitions.
-- `tier: default` restores a standard tier's installed baseline definition.
-- `inherit` intentionally inherits the session's model **and** effort; it is
-  distinct from simply omitting an entry.
-
-Worked precedence examples:
-
-| Personal preference | Repository preference | Effective result |
-| --- | --- | --- |
-| `review: deep` | Replace the `deep` selection | Review uses the repository's `deep` model and effort |
-| A direct review model/effort | Replace `standard` | The direct review selection survives |
-| A direct review model/effort | `review: default`, replace `standard` | Review uses the repository's `standard` selection |
-| `review: inherit` | Omit review | Review intentionally inherits the session model and effort |
-
-The full contract — discovery rules, merge semantics, selection rules, and all
-required precedence examples — is in the installed routing contract
-(`references/ROUTING.md` in the `work` skill).
-
-### OpenCode: activating a routing change
-
-OpenCode dispatches preconfigured profiles, so a routing change takes effect
-only once matching profiles are installed and activated:
-
-1. The installed workflow resolves the requested OpenCode routes (the packaged
-   `scripts/routing.mjs resolve --runtime opencode` helper exports a complete
-   version-1 policy) and compares them with the installed resolved policy and
-   the actual profile fields.
-2. When a profile matches, it is used. When it does not, the workflow reports
-   the mismatch with an actionable preparation command; a mismatched route is
-   never dispatched as if the request were honored.
-3. To refresh: export the resolved policy, then rerun the existing installer
-   from a checkout of this repository and restart OpenCode (or start a new
-   session), re-checking requested versus installed selections before
-   dispatch:
-
-   ```sh
-   node /path/to/AgenticAle/scripts/install.mjs install --routing /path/to/resolved-policy.json
-   ```
-
-Steps 1 and 2 need no checkout; only the refresh step does. Fallback pairs are
-preserved in the export but are honored only when a matching preconfigured
-profile exists.
-
-### Ownership
-
-Installation, update, publication, and uninstallation never create, overwrite,
-migrate, or remove these files; creating a file is always your explicit
-action. The package ships only the example and the defaults.
-
+Preference files are user-owned. Install, update, publication, and uninstall
+never create, overwrite, migrate, or remove them. Convert a `routing.md` file
+from an older release to JSON before dispatch; the resolver reports it instead
+of silently ignoring it.
 ## Choosing models: cheap by default, strong when it matters
 
 The intended routing keeps high-volume work (explore, routine implement, fix)
@@ -478,7 +411,7 @@ Modified files are preserved during uninstall.
 - **You are unsure about model routing:** use `--no-model` for a quick trial,
   then reinstall with `--models /path/to/my-models.json` or
   `--routing /path/to/routing.json` when you are ready to specialize routes —
-  or, after any install, create a `routing.md` preference file
+  or, after any install, create a `routing.json` preference file
   ([customizing model routing](#customizing-model-routing)).
 - **You want to understand the implementation:** read the optional
   [technical architecture guide](architecture.md).

@@ -178,13 +178,13 @@ try {
     check(state.schema === STATE_VERSION, "install fresh: state schema 6");
     check(state.mode === "copy", "install fresh: state mode copy");
     check(state.package === PACKAGE, "install fresh: state package");
-    check(state.entries.length === 31, "install fresh: 31 entries");
+    check(state.entries.length === 30, "install fresh: 30 entries");
     const profiles = state.entries.filter((e) => e.path.startsWith("agents/autonomous/"));
     check(profiles.length === 7, "install fresh: 7 generated profiles");
     check(state.entries.some((e) => e.path === "agents/autonomous/implement-hard.md"), "install fresh: implements implement-hard.md profile");
     check(state.entries.some((e) => e.path === "commands/work.md") && state.entries.some((e) => e.path === "commands/autonomous.md"), "install fresh: two command entries in state");
     const files = (await relFiles(t)).filter((f) => f !== STATE);
-    check(files.length === 31, "install fresh: 31 files on disk");
+    check(files.length === 30, "install fresh: 30 files on disk");
     const workCommand = await readFile(join(t, "commands", "work.md"), "utf8");
     check(workCommand.includes("`work`") && workCommand.includes("$ARGUMENTS"), "install fresh: work command loads the skill by exact ID");
     const autonomousCommand = await readFile(join(t, "commands", "autonomous.md"), "utf8");
@@ -192,8 +192,7 @@ try {
     const srcLookup = await readFile(join(t, "skills", "source-code-lookup", "SKILL.md"), "utf8");
     check(srcLookup.includes('Source root: "~/dev"'), "install fresh: source root default marker");
     check(await exists(join(t, "skills", "work", "references", "routing.json")), "install fresh: materializes work/references/routing.json");
-    check(await exists(join(t, "skills", "work", "references", "resolved-routing.json")), "install fresh: materializes work/references/resolved-routing.json");
-    check(await exists(join(t, "skills", "work", "references", "routing.example.md")), "install fresh: materializes work/references/routing.example.md");
+    check(await exists(join(t, "skills", "work", "references", "routing.example.json")), "install fresh: materializes work/references/routing.example.json");
     check(await exists(join(t, "skills", "work", "scripts", "routing.mjs")), "install fresh: materializes work/scripts/routing.mjs");
   }
   {
@@ -354,7 +353,7 @@ try {
     check(r.out.includes("preserve-modified: commands/autonomous.md"), `migration copy schema ${schema}: modified command entry reported`);
     const state = await readState(t);
     check(state.schema === STATE_VERSION, `migration copy schema ${schema}: advanced to schema ${STATE_VERSION}`);
-    check(state.entries.length === 31, `migration copy schema ${schema}: 31 entries`);
+    check(state.entries.length === 30, `migration copy schema ${schema}: 30 entries`);
     check(r.out.includes("backup created:"), `migration copy schema ${schema}: replaced command entry backed up`);
     check((await readFile(modPath, "utf8")).includes("$ARGUMENTS"), `migration copy schema ${schema}: commands/autonomous.md now carries the generated entry`);
     check((await readFile(join(t, "commands", "work.md"), "utf8")).includes("$ARGUMENTS"), `migration copy schema ${schema}: commands/work.md now carries the generated entry`);
@@ -369,7 +368,7 @@ try {
     check(r.out.includes(`  migrating from schema ${LEGACY_GENERATED_SCHEMA} copy install`), "migration generated schema 5: migrating message");
     const state = await readState(t);
     check(state.schema === STATE_VERSION, "migration generated schema 5: advanced to schema 6");
-    check(state.entries.length === 31, "migration generated schema 5: 31 entries");
+    check(state.entries.length === 30, "migration generated schema 5: 30 entries");
     check(await exists(join(t, "agents", "autonomous", "implement-hard.md")), "migration generated schema 5: implement-hard profile now present");
     check(state.entries.some((e) => e.path === "agents/autonomous/implement-hard.md"), "migration generated schema 5: implement-hard in state");
     check((await readFile(join(t, "commands", "work.md"), "utf8")).includes("$ARGUMENTS"), "migration generated schema 5: command entries added");
@@ -389,7 +388,7 @@ try {
     check(r.exit === 0, "migration current-release schema 6: exits 0 without --replace");
     check(!r.out.includes("Already up to date"), "migration current-release schema 6: reconciles instead of reporting up-to-date");
     const state2 = await readState(t);
-    check(state2.entries.length === 31, "migration current-release schema 6: 31 entries");
+    check(state2.entries.length === 30, "migration current-release schema 6: 30 entries");
     check((await readFile(join(t, "commands", "autonomous.md"), "utf8")).includes("$ARGUMENTS"), "migration current-release schema 6: command entries added");
   }
   {
@@ -430,7 +429,7 @@ try {
     check(r.out.includes("  migrating from schema 4 link install"), "migration link schema 4: migrating message");
     check(r.out.includes("  converted: the previous link install was converted to a copy install of the generated bundle."), "migration link schema 4: converted message");
     const state = await readState(t);
-    check(state.schema === STATE_VERSION && state.mode === "copy" && state.entries.length === 31, "migration link schema 4: now schema 6 copy 28 entries");
+    check(state.schema === STATE_VERSION && state.mode === "copy" && state.entries.length === 30, "migration link schema 4: now schema 6 copy 30 entries");
     check((await readFile(join(t, "commands", "work.md"), "utf8")).includes("$ARGUMENTS"), "migration link schema 4: command links replaced by the generated files");
   }
   // Build the full schema-4 link inventory (the validator requires the exact set).
@@ -489,7 +488,7 @@ try {
     check(r.exit === 0, "R6 link→dir: exits 0 with --replace");
     check(r.out.includes("preserve-modified: agents/autonomous"), "R6 link→dir: replaced-by-directory preserved");
     const state = await readState(t);
-    check(state.schema === STATE_VERSION && state.mode === "copy" && state.entries.length === 31, "R6 link→dir: converted to schema 6 copy 28 entries");
+    check(state.schema === STATE_VERSION && state.mode === "copy" && state.entries.length === 30, "R6 link→dir: converted to schema 6 copy 30 entries");
     check(await exists(join(t, "agents", "autonomous", "consult.md")), "R6 link→dir: profile copies written into the preserved directory");
   }
 
@@ -558,8 +557,7 @@ try {
     check(!files.some((f) => f.startsWith("agents/")), "standalone fresh: no agents/");
     check(!files.some((f) => f.startsWith("commands/")), "standalone fresh: no commands/");
     check(await exists(join(t, "work", "references", "routing.json")), "standalone fresh: materializes work/references/routing.json");
-    check(await exists(join(t, "work", "references", "resolved-routing.json")), "standalone fresh: materializes work/references/resolved-routing.json");
-    check(await exists(join(t, "work", "references", "routing.example.md")), "standalone fresh: materializes work/references/routing.example.md");
+    check(await exists(join(t, "work", "references", "routing.example.json")), "standalone fresh: materializes work/references/routing.example.json");
     check(await exists(join(t, "work", "scripts", "routing.mjs")), "standalone fresh: materializes work/scripts/routing.mjs");
     // Idempotent.
     const before = await readFile(join(t, STANDALONE_STATE), "utf8");
@@ -761,7 +759,7 @@ try {
   }
 
   // ---------------------------------------------------------------------
-  // E. User-owned preference files: a user's .agenticale/routing.md in the
+  // E. User-owned preference files: a user's .agenticale/routing.json in the
   //    project and home roots must never be created, overwritten, or removed
   //    by install/update/uninstall, for both installers.
   // ---------------------------------------------------------------------
@@ -769,36 +767,36 @@ try {
     const home = await mkdtemp(join(scratch, "e-routing-home-"));
     const env = { HOME: home, USERPROFILE: home };
     const project = await mkdtemp(join(scratch, "e-routing-project-"));
-    const projectPrefs = "USER-PROJECT-PREFERENCES-1\nexplore: acme/user-model\n";
-    const homePrefs = "USER-HOME-PREFERENCES-2\nreview: acme/user-model\n";
+    const projectPrefs = JSON.stringify({ schemaVersion: 2, runtimes: { codex: { roles: { explore: { mode: "explicit", model: "USER-PROJECT-PREFERENCES-1", reasoningEffort: "high", fallbacks: [] } } } } });
+    const homePrefs = JSON.stringify({ schemaVersion: 2, runtimes: { codex: { roles: { review: { mode: "explicit", model: "USER-HOME-PREFERENCES-2", reasoningEffort: "high", fallbacks: [] } } } } });
     await mkdir(join(project, ".agenticale"), { recursive: true });
     await mkdir(join(home, ".agenticale"), { recursive: true });
-    await writeFile(join(project, ".agenticale", "routing.md"), projectPrefs, "utf8");
-    await writeFile(join(home, ".agenticale", "routing.md"), homePrefs, "utf8");
+    await writeFile(join(project, ".agenticale", "routing.json"), projectPrefs, "utf8");
+    await writeFile(join(home, ".agenticale", "routing.json"), homePrefs, "utf8");
     const assertPrefs = async (label) => {
-      check((await readFile(join(project, ".agenticale", "routing.md"), "utf8")) === projectPrefs, `user routing.md: project file untouched after ${label}`);
-      check((await readFile(join(home, ".agenticale", "routing.md"), "utf8")) === homePrefs, `user routing.md: home file untouched after ${label}`);
+      check((await readFile(join(project, ".agenticale", "routing.json"), "utf8")) === projectPrefs, `user routing.json: project file untouched after ${label}`);
+      check((await readFile(join(home, ".agenticale", "routing.json"), "utf8")) === homePrefs, `user routing.json: home file untouched after ${label}`);
     };
     const target = join(project, ".agents", "skills");
-    check((await run("install-standalone.mjs", ["install", "--target", target, "--no-model"], { cwd: project, env })).exit === 0, "user routing.md: standalone install exits 0");
+    check((await run("install-standalone.mjs", ["install", "--target", target, "--no-model"], { cwd: project, env })).exit === 0, "user routing.json: standalone install exits 0");
     await assertPrefs("standalone install");
-    check((await run("install-standalone.mjs", ["install", "--target", target, "--no-model"], { cwd: project, env })).exit === 0, "user routing.md: standalone update exits 0");
+    check((await run("install-standalone.mjs", ["install", "--target", target, "--no-model"], { cwd: project, env })).exit === 0, "user routing.json: standalone update exits 0");
     await assertPrefs("standalone update");
-    check((await run("install-standalone.mjs", ["uninstall", "--target", target], { cwd: project, env })).exit === 0, "user routing.md: standalone uninstall exits 0");
+    check((await run("install-standalone.mjs", ["uninstall", "--target", target], { cwd: project, env })).exit === 0, "user routing.json: standalone uninstall exits 0");
     await assertPrefs("standalone uninstall");
   }
   {
     // The installer never CREATES such files either: a root without
-    // .agenticale/routing.md stays without one across install and uninstall.
+    // .agenticale/routing.json stays absent across install and uninstall.
     const home = await mkdtemp(join(scratch, "e-routing-bare-home-"));
     const env = { HOME: home, USERPROFILE: home };
     const project = await mkdtemp(join(scratch, "e-routing-bare-project-"));
     const target = join(project, ".agents", "skills");
-    check((await run("install-standalone.mjs", ["install", "--target", target, "--no-model"], { cwd: project, env })).exit === 0, "user routing.md: bare standalone install exits 0");
-    check(!(await exists(join(project, ".agenticale", "routing.md"))), "user routing.md: never created in the project root");
-    check(!(await exists(join(home, ".agenticale", "routing.md"))), "user routing.md: never created in the home root");
-    check((await run("install-standalone.mjs", ["uninstall", "--target", target], { cwd: project, env })).exit === 0, "user routing.md: bare standalone uninstall exits 0");
-    check(!(await exists(join(project, ".agenticale", "routing.md"))), "user routing.md: still absent from the project root after uninstall");
+    check((await run("install-standalone.mjs", ["install", "--target", target, "--no-model"], { cwd: project, env })).exit === 0, "user routing.json: bare standalone install exits 0");
+    check(!(await exists(join(project, ".agenticale", "routing.json"))), "user routing.json: never created in the project root");
+    check(!(await exists(join(home, ".agenticale", "routing.json"))), "user routing.json: never created in the home root");
+    check((await run("install-standalone.mjs", ["uninstall", "--target", target], { cwd: project, env })).exit === 0, "user routing.json: bare standalone uninstall exits 0");
+    check(!(await exists(join(project, ".agenticale", "routing.json"))), "user routing.json: still absent from the project root after uninstall");
   }
   {
     // Same contract for the OpenCode (profile) installer: the target root and
@@ -806,20 +804,20 @@ try {
     const home = await mkdtemp(join(scratch, "e-routing-oc-home-"));
     const env = { HOME: home, USERPROFILE: home };
     const target = join(scratch, "e-routing-oc");
-    const prefs = "USER-OC-PREFERENCES-3\nfix: acme/user-model\n";
+    const prefs = JSON.stringify({ schemaVersion: 2, runtimes: { opencode: { roles: { fix: { mode: "explicit", model: "USER-OC-PREFERENCES-3", reasoningEffort: "high", fallbacks: [] } } } } });
     await mkdir(join(target, ".agenticale"), { recursive: true });
     await mkdir(join(home, ".agenticale"), { recursive: true });
-    await writeFile(join(target, ".agenticale", "routing.md"), prefs, "utf8");
-    await writeFile(join(home, ".agenticale", "routing.md"), prefs, "utf8");
+    await writeFile(join(target, ".agenticale", "routing.json"), prefs, "utf8");
+    await writeFile(join(home, ".agenticale", "routing.json"), prefs, "utf8");
     const assertPrefs = async (label) => {
-      check((await readFile(join(target, ".agenticale", "routing.md"), "utf8")) === prefs, `user routing.md: opencode target file untouched after ${label}`);
-      check((await readFile(join(home, ".agenticale", "routing.md"), "utf8")) === prefs, `user routing.md: opencode home file untouched after ${label}`);
+      check((await readFile(join(target, ".agenticale", "routing.json"), "utf8")) === prefs, `user routing.json: opencode target file untouched after ${label}`);
+      check((await readFile(join(home, ".agenticale", "routing.json"), "utf8")) === prefs, `user routing.json: opencode home file untouched after ${label}`);
     };
-    check((await run("install.mjs", ["install", "--target", target, "--no-model"], { cwd: target, env })).exit === 0, "user routing.md: opencode install exits 0");
+    check((await run("install.mjs", ["install", "--target", target, "--no-model"], { cwd: target, env })).exit === 0, "user routing.json: opencode install exits 0");
     await assertPrefs("opencode install");
-    check((await run("install.mjs", ["install", "--target", target, "--no-model"], { cwd: target, env })).exit === 0, "user routing.md: opencode update exits 0");
+    check((await run("install.mjs", ["install", "--target", target, "--no-model"], { cwd: target, env })).exit === 0, "user routing.json: opencode update exits 0");
     await assertPrefs("opencode update");
-    check((await run("install.mjs", ["uninstall", "--target", target], { cwd: target, env })).exit === 0, "user routing.md: opencode uninstall exits 0");
+    check((await run("install.mjs", ["uninstall", "--target", target], { cwd: target, env })).exit === 0, "user routing.json: opencode uninstall exits 0");
     await assertPrefs("opencode uninstall");
   }
 
@@ -852,8 +850,6 @@ try {
     let review = await readFile(join(t, "agents", "autonomous", "review.md"), "utf8");
     check(review.includes("model: acme/review-a"), "prep refresh: review profile renders the requested model");
     check(!review.includes("acme/review-a-fb"), "prep refresh: the requested fallback is not materialized into the profile");
-    const resolvedA = JSON.parse(await readFile(join(t, "skills", "work", "references", "resolved-routing.json"), "utf8"));
-    check(JSON.stringify(resolvedA.runtimes.opencode) === JSON.stringify(policyA.runtimes.opencode), "prep refresh: the installed resolved policy equals the requested policy");
 
     // Idempotent re-run with the same requested policy: a no-op.
     const same = run("install.mjs", ["install", "--target", t, "--routing", pathA]);
@@ -868,16 +864,14 @@ try {
     check(updated.out.includes("migrate-remove: agents/autonomous/review.md") && updated.out.includes("backup created:"), "prep refresh: the update retires the old profiles under a backup");
     review = await readFile(join(t, "agents", "autonomous", "review.md"), "utf8");
     check(review.includes("model: acme/review-b"), "prep refresh: review profile now renders the requested model");
-    const resolvedB = JSON.parse(await readFile(join(t, "skills", "work", "references", "resolved-routing.json"), "utf8"));
-    check(JSON.stringify(resolvedB.runtimes.opencode) === JSON.stringify(policyB.runtimes.opencode), "prep refresh: the installed resolved policy equals the new requested policy");
     check(await exists(join(t, "agents", "autonomous", "implement-hard.md")), "prep refresh: seven profiles retained with a distinct implement-hard");
 
     // The refreshed install's own helper (install-relative, no checkout)
-    // reproduces the installed resolved policy for the active runtime.
+    // resolves its packaged routing baseline to the selected OpenCode routes.
     const helper = spawnSync(process.execPath, [join(t, "skills", "work", "scripts", "routing.mjs"), "resolve", "--runtime", "opencode"], { encoding: "utf8", input: "" });
     check(helper.status === 0, `prep refresh: the installed helper runs from the target without the checkout${helper.status === 0 ? "" : ` (stderr: ${helper.stderr.trim()})`}`);
     const helperPolicy = JSON.parse(helper.stdout);
-    check(JSON.stringify(helperPolicy.runtimes.opencode) === JSON.stringify(policyB.runtimes.opencode), "prep refresh: the installed helper reproduces the installed resolved policy");
+    check(JSON.stringify(helperPolicy.runtimes.opencode) === JSON.stringify(policyB.runtimes.opencode), "prep refresh: the installed helper resolves the installed OpenCode routes");
   }
   {
     // A profile the user has modified blocks the whole requested-policy update

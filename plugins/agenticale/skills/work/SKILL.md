@@ -77,31 +77,29 @@ Before dispatching any round, run the shared routing bootstrap described in
 [the routing contract](references/ROUTING.md) — the same bootstrap autonomous
 mode uses — once per activation, at start:
 
-1. Read the routing contract and the installed defaults baseline
-   (`references/routing.json`), and select the actual runtime binding from
-   `references/runtimes/` for the host actually being used, from the tools the
-   host exposes. That binding states the native dispatch schema, the per-host
-   model/effort field names, and how `inherit` and unsupported hosts are
-   handled on that surface. Never infer the runtime from a selected model name.
-2. Discover and read the personal and project preference files using the
-   contract's Discovery rules: resolve the Git worktree root (including when
-   invoked from a subdirectory), or an explicitly established workspace root
-   for a non-Git project, then check `<repo>/.agenticale/routing.md` and
-   `~/.agenticale/routing.md`. Absence is normal; an existing file that cannot
-   be read is reported before dispatch; do not scan other directories, and
-   deduplicate when both roots name the same file.
-3. Apply the invocation preferences (explicit per-route choices for this
-   request, or an explicitly supplied Markdown path) and resolve the routing
-   snapshot for the active runtime: the seven concrete routes or intentional
-   inheritance, each with its provenance. Where Node is available, the packaged
-   helper (`scripts/routing.mjs resolve`) performs the same resolution
-   deterministically; the in-context merge follows the documented algorithm.
+1. Read the routing contract and installed defaults (`references/routing.json`),
+   and select the actual runtime binding from `references/runtimes/` for the
+   host being used. Never infer the runtime from a selected model name.
+2. Establish the Git worktree root, or the explicit workspace root for a
+   non-Git project. Read only `<root>/.agenticale/routing.json` and
+   `~/.agenticale/routing.json`; the project file takes precedence. Absence is
+   normal, while an unreadable or invalid file must be reported before dispatch.
+   If a legacy `routing.md` exists at either location, report that it needs
+   conversion and do not silently fall back to defaults.
+3. Apply explicit invocation choices and resolve the seven routes for the
+   active runtime. Where Node is available, the packaged helper can discover
+   and resolve the JSON files directly:
+
+   ```sh
+   node scripts/routing.mjs resolve --runtime <runtime> --project-root <root>
+   ```
+
+   The in-context path follows the same JSON merge rules and keeps each route's
+   source in session state.
 4. Check each selection against the binding's exposed dispatch capabilities.
    Surface missing capabilities, unsupported choices, and unresolved
-   preferences (ambiguous final selections, model-only instructions, unknown
-   roles, undefined tier references) before the affected child runs. An
-   ambiguous final selection blocks only the affected dispatch; preserve the
-   unrelated clear selections.
+   preferences (unknown roles, undefined tier references) before the affected
+   child runs.
 5. Keep a compact tier summary and role exceptions in session state, with
    sources (for a tier reference, both the role-selection source and the
    tier-definition source), and dispatch each round with the snapshot's

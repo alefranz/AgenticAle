@@ -21,8 +21,10 @@ wrappers.
   `source-code-lookup`, `pull-request-description` (supporting). Workflows are
   explicit-only on every runtime (Copilot `disable-model-invocation: true`,
   OpenCode `autoinvoke: false`, OpenAI `allow_implicit_invocation: false`).
-- **Routing contract** at `skills/work/references/routing.json` (schemaVersion
-  1): 3 runtimes x 7 routes, all `mode: explicit`, `fallbacks: []`.
+- **Routing defaults** at `skills/work/references/routing.json` (schemaVersion
+  2): four shared tiers map the seven roles to per-runtime model/effort pairs.
+  Optional project and personal overrides use JSON patches; generated bundles
+  carry only the defaults baseline, with no expanded resolved snapshot.
 - **Seven generated OpenCode profiles**: `consult`, `deep-review`, `explore`,
   `fix`, `implement`, `implement-hard`, `review`. `implement-hard` is a
   distinct profile (the `implement` contract at higher effort), not a reused
@@ -33,8 +35,8 @@ wrappers.
   per-plugin `policy: { installation: "INSTALLED_BY_DEFAULT",
   authentication: "ON_USE" }` — the documented skills-only values, validated by
   `publish-default-plugin.mjs`).
-- **Three build output roots** under `--output X`: `plugin/agenticale` (20
-  files), `standalone/.agents/skills` (19 files), `opencode` (26 files: seven
+- **Three build output roots** under `--output X`: `plugin/agenticale` (22
+  files), `standalone/.agents/skills` (21 files), `opencode` (30 files: seven
   profiles + four skills incl. `routing.json`). Build state at
   `X/.agenticale-build.json` (schemaVersion 2).
 - **Three installers**: `install.mjs` (OpenCode, copy-only, state schema 6,
@@ -46,11 +48,10 @@ wrappers.
   same-schema update retires owned files the new inventory no longer carries.
   `publish-default-plugin.mjs` regenerates the plugin and both catalogs;
   `--check` verifies currency.
-- **Verification is green**: `validate.mjs` (21 source-of-truth files, 6
-  neutral task contracts, routing contract, 7 adapter profiles, sanitation,
-  plus an invalid-frontmatter YAML guard and the shared strict routing schema),
-  `test-build.mjs` (207 assertions), `test-installer.mjs` (165 assertions),
-  `publish-default-plugin.mjs --check` (0.3.0 current).
+- The earlier skills-first implementation pass passed its validation and
+  artifact checks. The current routing simplification was generated through
+  `publish-default-plugin.mjs`; automated routing, installer, and build suites
+  have not been run for this follow-up.
 
 ## Review findings (R1-R15: addressed)
 
@@ -83,10 +84,11 @@ are addressed in this branch:
 
 ## Current state (subtask 10: documentation)
 
-The code, adapters, build, installers, publish, and tests are done and green
-(see "Verification is green" above), and the documentation reconciliation for
-the seven-profile / schema-6 / 26-file layout is complete across `docs/` and
-`README.md`. `docs/skills-first-coding-plan.md` is not edited.
+The skills-first implementation and its documentation pass are complete.
+The routing follow-up moves user preferences to JSON patches and removes the
+expanded snapshot. The plugin package has been regenerated, but automated
+tests remain to be run before treating this follow-up as verified.
+`docs/skills-first-coding-plan.md` remains an unchanged planning record.
 
 The follow-up branch review
 ([skills-first-branch-review.md](../skills-first-branch-review.md)) added two

@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 2,
+  "runtimes": {
+    "codex": {
+      "tiers": {
+        "deep": {
+          "mode": "explicit",
+          "model": "gpt-6.1-sol",
+          "reasoningEffort": "xhigh",
+          "fallbacks": []
+        }
+      }
+    },
+    "opencode": {
+      "roles": {
+        "review": {
+          "mode": "explicit",
+          "model": "openai/gpt-6.1-sol",
+          "reasoningEffort": "high",
+          "fallbacks": []
+        }
+      }
+    }
+  }
+}

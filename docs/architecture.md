@@ -22,7 +22,7 @@ Four concerns are separated so each can change independently:
 | Task contracts | `skills/work/references/tasks/<role>.md` (six: `explore`, `implement`, `fix`, `review`, `deep-review`, `consult`) |
 | Routing contract | `skills/work/references/ROUTING.md` |
 | Routing defaults baseline | `skills/work/references/routing.json` (schemaVersion 2) |
-| Routing customization example | `skills/work/references/routing.example.md` |
+| Routing customization example | `skills/work/references/routing.example.json` |
 | Shared routing module | `skills/work/scripts/routing.mjs` (dependency-free, packaged with the work skill) |
 | Runtime bindings | `skills/work/references/runtimes/<host>.md` (four: `copilot`, `copilot-local`, `codex`, `opencode`) |
 
@@ -59,7 +59,7 @@ recovery after loss of the host session.
 The authored source-of-truth layout is what `scripts/validate.mjs` asserts
 exists: the two workflow skills plus their `agents/openai.yaml`, the shared
 `rounds.md`, the `ROUTING.md` reference, the `routing.json` defaults baseline,
-the `routing.example.md` customization example, the shared `scripts/routing.mjs`
+the `routing.example.json` customization example, the shared `scripts/routing.mjs`
 module, the four runtime bindings, the six task contracts, the
 `adapters/opencode/` metadata (adapter, command templates, and README), and the
 two supporting skills, for 25 source-of-truth files. The retired layout
@@ -68,14 +68,10 @@ must be absent.
 
 ## The routing contract
 
-Routing has two boundaries. The orchestrator interprets the user's Markdown
-preference files in context. Deterministic tooling — the shared module
-`skills/work/scripts/routing.mjs` and the build — consumes structured
-preferences and concrete routes only. There is no partial Markdown parser that
-quietly rejects valid prose, and no build or installer that needs an API call
-to read user files. The user's files are sparse preferences with no required
-schema version, frontmatter, or parser dependency; the contract itself is
-versioned machine data.
+Routing uses JSON for defaults and user preferences. The packaged resolver
+reads the optional personal and project files and merges them with the
+installed baseline. The build never discovers user files, so generated
+packages remain reproducible.
 
 ### The version-2 defaults baseline
 
@@ -109,32 +105,20 @@ source present. It exposes:
   `inherit`);
 - version-1 normalization and build overrides (`mergeV2MissingRuntimes`,
   `normalizeV1ToV2`, `legacyInventoryToV2`, `applyBuildOverrides`);
-- strict version-1 export (`exportV1`, `exportV1All`), compatible with the
-  existing validator;
-- discovery helpers (`discoverPreferencePaths`, `loadPackagedBaseline`,
-  `packagedBaselinePath`) that compute candidate paths for the caller. The
-  module never reads preference files on its own, and default builds and
-  publication must not call the discovery helper, so their output stays
-  reproducible.
+- strict version-1 export (`exportV1`), compatible with the existing validator;
+- preference discovery and loading for the optional JSON files. Default builds
+  and publication do not call discovery, so their output stays reproducible.
 
-It also provides a `resolve` CLI: it reads the installed baseline (or
-`--baseline PATH`) plus structured preference JSON (stdin or `--input PATH`)
-and prints a valid version-1 policy for the complete active runtime
-(`--runtime copilot|codex|opencode`). It does not interpret Markdown and does
-not discover files; its errors identify the affected runtime, role/tier, and
-source.
+The `resolve` CLI reads the installed baseline, then optional personal and
+project JSON preferences when given `--project-root PATH`, then an optional
+invocation layer (`--input PATH`). It prints a complete version-1 policy for
+the active runtime (`--runtime copilot|codex|opencode`).
 
-### Dual installed resources
+### One installed defaults file
 
-Every build resolves the effective baseline once and writes both installed
-resources from that single pass: `references/routing.json` (the version-2
-baseline, retaining the tier relationships runtime customization needs) and
-`references/resolved-routing.json` (the fully resolved version-1 snapshot —
-all seven roles per runtime, each a concrete selection or `inherit`). The
-snapshot supports compatibility, comparison, and export; it is a snapshot of
-installed choices, not an override above user preferences. The resolver's
-concrete result also supplies OpenCode profile rendering, so there is no
-second hand-maintained role/model inventory.
+Every build installs `references/routing.json`, the version-2 baseline. The
+resolver derives concrete routes when needed, and the same result renders
+OpenCode profiles. There is no checked-in or packaged expanded snapshot.
 
 ### Precedence and merge
 
@@ -142,8 +126,8 @@ Precedence is per named entry, from highest to lowest:
 
 ```text
 Invocation preferences
-  > repository routing.md
-  > personal routing.md
+  > `<project-root>/.agenticale/routing.json`
+  > `~/.agenticale/routing.json`
   > installed/package baseline
 ```
 
@@ -153,18 +137,16 @@ unit; a new selection without fallbacks has an empty fallback list). An
 omitted entry preserves the lower layer. Role-to-tier references resolve only
 after all layers merge. `role: default` clears a lower-precedence role
 exception; `tier: default` restores a standard tier's baseline definition;
-`inherit` intentionally inherits the session model and effort. Unknown roles,
-undefined tier references, and ambiguity in the final effective selection are
-surfaced with their source location and block only the affected dispatch.
+`inherit` intentionally inherits the session model and effort. Unknown roles
+and undefined tier references are errors with their source file.
 
 Build and install options resolve the policy:
 
 - `--routing PATH` builds from a caller-supplied version-1 or version-2 file
   (conflicts with `--models`). A complete version-1 policy normalizes to exact
-  direct role exceptions over the packaged tiers, undeclared runtimes merge
-  from the packaged defaults, and a Markdown path is rejected with a clear
-  explanation pointing at the runtime preference files or a resolved JSON
-  export.
+  direct role exceptions over the packaged tiers and undeclared runtimes merge
+  from the packaged defaults. Preference patches use the runtime-discovered
+  JSON files and are not build inputs.
 - `--models PATH|PRESET` imports a legacy `provider/model[#variant]` inventory
   and converts it; omitted keys become explicit inheritance and are reported.
 - `--no-model` forces inheritance for every route.
@@ -206,7 +188,7 @@ description the build reads to render the OpenCode binding. Step ceilings and
 permission denials are OpenCode adapter concerns; they are not claimed on the
 other hosts.
 
-Customization follows the same two-boundary model on OpenCode: the resolved
+Customization follows the same model on OpenCode: the resolved
 selections determine what the seven profiles render, but additional tiers never
 create new profiles or task contracts — there remains exactly one profile per
 routing key, and per-call model overrides stay bounded by the preconfigured
@@ -242,9 +224,9 @@ three output roots beneath `--output` (default `dist`):
 
 | Output root | Contents |
 | --- | --- |
-| `<output>/plugin/agenticale` | Agent Plugins 1.0 package (23 files: `plugin.json` + the four skills and their resources, including the routing baseline, example, resolved snapshot, and shared module) |
-| `<output>/standalone/.agents/skills` | the four standalone skills (22 files), no plugin dependency |
-| `<output>/opencode` | the seven generated profiles plus the same skills (31 files) |
+| `<output>/plugin/agenticale` | Agent Plugins 1.0 package (22 files: `plugin.json` + the four skills and their resources, including one routing baseline, the preference example, and shared module) |
+| `<output>/standalone/.agents/skills` | the four standalone skills (21 files), no plugin dependency |
+| `<output>/opencode` | the seven generated profiles plus the same skills (30 files) |
 
 The build writes `.agenticale-build.json` (schemaVersion 2) describing the
 package, the routing source, the effort mode, and the resolved profiles. Build
@@ -262,7 +244,7 @@ reported; replacements are backed up.
 | `scripts/install-copilot.mjs` | the modern shared plugin, via `copilot plugin install` | managed by the Copilot plugin store |
 | `codex plugin marketplace add` + `codex plugin add` | the shared plugin from `.agents/plugins/marketplace.json` | managed by the Codex plugin store |
 | `scripts/install-standalone.mjs` | the four standalone skills to project scope (`<cwd>/.agents/skills`, default) or user scope (`~/.agents/skills`) | `.agenticale-standalone-install.json` (schema 1) |
-| `scripts/install.mjs` | the generated OpenCode output (skills + seven profiles) | `.autonomous-mode-install.json` (schema 6, 31-file inventory) |
+| `scripts/install.mjs` | the generated OpenCode output (skills + seven profiles) | `.autonomous-mode-install.json` (schema 6, 30-file inventory) |
 
 The OpenCode installer is copy-only. It builds to a temporary root and copies the
 generated output into the OpenCode configuration directory; it does not link to

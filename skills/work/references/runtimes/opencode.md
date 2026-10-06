@@ -46,77 +46,58 @@ per routing key.
 ## Routing bootstrap and profile selection on this surface
 
 Route resolution for each round follows the shared bootstrap in `ROUTING.md`:
-read the installed contract and defaults, discover and read the personal and
-project preference files (the `opencode` preference section), apply the
-invocation preferences, and resolve the snapshot for this runtime. Precedence
-is per named entry, highest to lowest: invocation preferences, repository
-routing.md, personal routing.md, installed baseline. Do not scan unrelated
-files for preferences. A caller may override any individual route without
-replacing the rest; invocation choices are session-scoped and do not persist
-to any preference file or to `routing.json`.
+read the installed contract and defaults, load the personal and project JSON
+patches (the `opencode` runtime section), apply explicit invocation choices,
+and resolve this runtime's seven routes. Precedence is invocation, project,
+personal, then installed baseline. Do not scan unrelated files. Invocation
+choices are session-scoped and do not persist to `routing.json` or a preference
+file.
 
-Profile-based selection: because the shim dispatches preconfigured profiles
-rather than free model strings, check each requested selection against the
-installed profiles before dispatch — compare with the installed resolved policy
-(`resolved-routing.json`) and the actual profile fields, accounting for
-modified profiles; an unavailable comparison is a limitation, not proof of a
-match. Dispatch the matching profile by its profile ID from the mapping above.
-A mismatched profile leads to the explicit preparation/refresh procedure in
-the next section; it is reported with an actionable preparation command and is
-never dispatched as if the request was honored.
+Before dispatch, compare each resolved selection with the actual profile's
+`model` and `reasoningEffort` fields. The profile is the installed state; no
+second resolved-policy file is needed. Dispatch only a matching profile. If
+none matches, report the limitation and follow the explicit preparation and
+refresh procedure below.
 
 ## OpenCode preparation and refresh
 
-This procedure prepares the requested selections when no matching profile is
-installed. It is explicit and read-only with respect to user state: it never
-rewrites active profiles or the host's global model configuration as a side
-effect of reading `routing.md`.
+Use this procedure when no installed profile matches. Reading preferences
+never rewrites active profiles or host-wide model configuration.
 
-1. **Resolve the requested routes without the source checkout.** Interpret the
-   discovered Markdown per `ROUTING.md`; the AgenticAle source checkout is not
-   needed for interpretation. Where Node is available, the packaged
-   `routing.mjs` module installed alongside this skill resolves
-   deterministically; its default baseline is the installed
-   `references/routing.json` beside the module:
+1. **Resolve the requested routes.** From the installed `skills/work`
+   directory, use the packaged resolver to read the installed baseline and
+   discovered JSON preferences. Add `--input PATH` only for a separate
+   invocation patch:
 
    ```sh
-   node scripts/routing.mjs resolve --runtime opencode --input <preferences.json>
+   node scripts/routing.mjs resolve --runtime opencode --project-root <project-root>
    ```
 
-   Run this from the installed `skills/work` directory, with structured
-   preference JSON on stdin or via `--input`. The output is a complete
-   version-1 policy for OpenCode: all seven roles, each an explicit
-   model/effort selection (with any requested fallbacks preserved) or
-   `inherit`.
-2. **Compare requested with installed, from the actual profile fields.** Read
-   the installed resolved policy (`references/resolved-routing.json`) and the
-   `model` / `reasoningEffort` frontmatter of each
-   `agents/autonomous/<role>.md` profile in the OpenCode target directory.
-   Compare per role against the profile that is actually present: a profile
-   edited after installation differs from the packaged snapshot, so the
-   snapshot alone is never proof of a match. If the profiles are unavailable
-   or unreadable, report the comparison as a limitation and do not dispatch
-   the affected route as if it matched.
+   The output is a complete version-1 OpenCode policy: seven explicit routes
+   or intentional inheritance.
+2. **Compare with the active profiles.** Read the `model` and
+   `reasoningEffort` frontmatter of each `agents/autonomous/<role>.md` profile
+   in the OpenCode target directory. If profiles are unavailable or unreadable,
+   report the comparison as a limitation and do not dispatch as if matched.
 3. **Use a matching profile.** A route matches when the profile's model and
    effort equal the requested selection; an `inherit` request matches a
    profile with no `model` line. Dispatch it by its profile ID from the
    mapping above. Before promising an ordered fallback, check that each
    requested fallback pair also has a matching preconfigured profile; a
    fallback without a matching profile cannot be honored on this surface.
-4. **Otherwise, export a preparation artifact.** Write the complete version-1
-   OpenCode policy from step 1 to an explicit preparation artifact or
-   temporary path — one you choose, outside project workflow state, and tell
-   the user about:
+4. **Otherwise, save the resolved policy.** Write the output from step 1 to
+   an explicit preparation path outside project workflow state and tell the
+   user where it is:
 
    ```sh
    node scripts/routing.mjs resolve --runtime opencode \
-     --input <preferences.json> > <preparation-path>/resolved-policy.json
+     --project-root <project-root> > <preparation-path>/resolved-policy.json
    ```
 5. **Refresh with the existing checkout-based installer.** This is the only
    step that needs the AgenticAle source checkout (the preparation
    dependency; obtain one by cloning
-   `https://github.com/alefranz/AgenticAle`). Runtime preference reading and
-   the task resources stay install-relative. Rerun the existing OpenCode
+   `https://github.com/alefranz/AgenticAle`). Preference reading and task
+   resources stay install-relative. Rerun the existing OpenCode
    `install` command against the resolved policy:
 
    ```sh

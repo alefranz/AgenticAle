@@ -147,24 +147,25 @@ review; it does not guarantee defect-free code.
 
 ## Customize model routing
 
-You can customize the routes without editing the plugin or a harness
-configuration file. Create one optional Markdown file:
+You can customize routes without editing the plugin or a harness
+configuration file. Create an optional JSON patch:
 
-- `<repo>/.agenticale/routing.md` for that repository only, or
-- `~/.agenticale/routing.md` for every repository you work in.
+- `<repo>/.agenticale/routing.json` for that repository only, or
+- `~/.agenticale/routing.json` for every repository you work in.
 
-The usual form is one table per runtime with four tiers — `fast` for
-exploration, `routine` for implementation and fixes, `standard` for hard
-implementation and review, and `deep` for deep review and consultation — each
-naming a model and reasoning effort, plus optional per-role overrides.
+The packaged routes use four tiers — `fast` for exploration, `routine` for
+implementation and fixes, `standard` for hard implementation and review, and
+`deep` for deep review and consultation. A JSON patch can replace tiers or
+override individual roles per runtime.
 Repository entries override personal entries one entry at a time, and an
-explicit choice at invocation time overrides both for that round. Start from the example that ships with the installed skill
-(`references/routing.example.md` in the `work` skill). See
+explicit choice at invocation time overrides both for that round. Start from
+the example that ships with the installed skill
+(`references/routing.example.json` in the `work` skill). See
 [setup and customization](docs/setup.md#customizing-model-routing) for the
 recommended form, precedence examples, and the OpenCode refresh path.
 
 `work` and `autonomous` discover and read these files when they start or
-resume; missing files simply use the packaged defaults, and installation,
+resume; missing files use the packaged defaults, and installation,
 updates, and uninstallation never create, overwrite, or remove your files.
 
 ## Choose where the task finishes

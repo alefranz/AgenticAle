@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import {
   STANDARD_TIERS,
   resolveAllRuntimes,
-  strictValidateRouting,
+  validatePreferenceLayer,
   validateV2Routing,
 } from "../skills/work/scripts/routing.mjs";
 
@@ -49,7 +49,7 @@ const requiredPaths = [
   "skills/work/agents/openai.yaml",
   "skills/work/references/rounds.md",
   "skills/work/references/ROUTING.md",
-  "skills/work/references/routing.example.md",
+  "skills/work/references/routing.example.json",
   "skills/work/references/routing.json",
   "skills/work/references/runtimes/copilot.md",
   "skills/work/references/runtimes/copilot-local.md",
@@ -324,24 +324,34 @@ function validateRoutingContract() {
   }
 }
 
-// Light content check on the preference example: it must name the preference
-// file and show all three standard tiers. The prose is illustrative and is not
-// machine-parsed, so this only guards against a truncated or stale example.
+// Validate the shipped preference example against the same structured patch
+// contract used by the resolver.
 function validateRoutingExample() {
-  const path = "skills/work/references/routing.example.md";
+  const path = "skills/work/references/routing.example.json";
   if (!existsSync(join(repositoryRoot, path))) return; // requiredPaths flags absence
-  const text = readText(path);
-  if (text.trim().length === 0) {
-    fail(path, "routing example must not be empty", "restore the example preference body");
+  let example;
+  try {
+    example = JSON.parse(readText(path));
+  } catch (error) {
+    fail(path, `routing example is not valid JSON (${error.message})`, "restore a valid JSON preference patch");
     return;
   }
-  if (!text.includes("routing.md")) {
-    fail(path, "routing example must name the routing.md preference file", "reference routing.md in the example header");
+  if (example.schemaVersion !== 2) {
+    fail(path, "routing example must declare schemaVersion 2", "use the version-2 preference patch schema");
   }
-  for (const tier of STANDARD_TIERS) {
-    if (!new RegExp(`\\b${tier}\\b`).test(text)) {
-      fail(path, `routing example must reference the '${tier}' tier`, "keep the standard tier rows in the example table");
+  if (!example.runtimes || typeof example.runtimes !== "object" || Array.isArray(example.runtimes) || Object.keys(example.runtimes).length === 0) {
+    fail(path, "routing example must include a non-empty runtimes object", "add at least one runtime preference");
+    return;
+  }
+  for (const key of Object.keys(example)) {
+    if (key !== "schemaVersion" && key !== "runtimes") {
+      fail(path, `routing example has unknown key '${key}'`, "use only schemaVersion and runtimes");
     }
+  }
+  try {
+    validatePreferenceLayer({ runtimes: example.runtimes }, 0);
+  } catch (error) {
+    fail(path, `routing example violates the preference contract (${error.message})`, "align the example with references/ROUTING.md");
   }
 }
 
@@ -570,17 +580,20 @@ function validateBundleSurface() {
       fail(`${packageRoot}/com.github.copilot`, "committed package must not ship a per-role Copilot directory", "remove the retired Copilot catalog");
     }
 
-    // The packaged routing resources: the version-2 baseline, the resolved
-    // version-1 snapshot, the preference example, and the shared module.
+    // The packaged routing resources: the version-2 baseline, preference
+    // example, and shared module.
     for (const extra of [
       "skills/work/references/routing.json",
-      "skills/work/references/resolved-routing.json",
-      "skills/work/references/routing.example.md",
+      "skills/work/references/routing.example.json",
       "skills/work/scripts/routing.mjs",
     ]) {
       if (!existsSync(join(repositoryRoot, packageRoot, extra))) {
         fail(`${packageRoot}/${extra}`, "committed package is missing a packaged routing resource", "regenerate the plugin with node scripts/publish-default-plugin.mjs");
       }
+    }
+    const obsoleteSnapshot = `${packageRoot}/skills/work/references/resolved-routing.json`;
+    if (existsSync(join(repositoryRoot, obsoleteSnapshot))) {
+      fail(obsoleteSnapshot, "committed package still carries the redundant resolved routing snapshot", "regenerate the plugin without resolved-routing.json");
     }
     const packageRoutingPath = `${packageRoot}/skills/work/references/routing.json`;
     if (existsSync(join(repositoryRoot, packageRoutingPath))) {
@@ -595,22 +608,6 @@ function validateBundleSurface() {
           validateV2Routing(packaged);
         } catch (error) {
           fail(packageRoutingPath, `committed baseline violates the version-2 schema (${error.message})`, "regenerate the plugin with node scripts/publish-default-plugin.mjs");
-        }
-      }
-    }
-    const packageResolvedPath = `${packageRoot}/skills/work/references/resolved-routing.json`;
-    if (existsSync(join(repositoryRoot, packageResolvedPath))) {
-      let resolved;
-      try {
-        resolved = JSON.parse(readText(packageResolvedPath));
-      } catch (error) {
-        fail(packageResolvedPath, `committed resolved snapshot is not valid JSON (${error.message})`, "regenerate the plugin with node scripts/publish-default-plugin.mjs");
-      }
-      if (resolved !== undefined) {
-        try {
-          strictValidateRouting(resolved);
-        } catch (error) {
-          fail(packageResolvedPath, `committed resolved snapshot violates the version-1 strict schema (${error.message})`, "regenerate the plugin with node scripts/publish-default-plugin.mjs");
         }
       }
     }

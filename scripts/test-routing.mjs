@@ -3,7 +3,7 @@
 // (skills/work/scripts/routing.mjs): the phase 1-2 machine contracts of
 // docs/model-routing-customization-plan.md section 10.1. These prove the
 // resolver, validators, normalization, export, and the installed-fixture
-// `resolve` CLI; they do not interpret Markdown and never touch the real
+// `resolve` CLI; they do not interpret prose and never touch the real
 // user's home, plugin store, or live profile.
 
 import { mkdtemp, mkdir, readFile, rm, cp, writeFile } from "node:fs/promises";
@@ -19,7 +19,7 @@ import {
   RoutingError,
   applyBuildOverrides,
   discoverPreferencePaths,
-  exportV1All,
+  exportV1,
   legacyInventoryToV2,
   mergePreferenceLayers,
   mergeV2MissingRuntimes,
@@ -89,7 +89,7 @@ function explicit(model, reasoningEffort, fallbacks = []) {
 // 21-selection equivalence is testable without repository history.
 const OLD_V1 = {
   schemaVersion: 1,
-  provenance: "Packaged model and effort choices mirror examples/openai.json. Copilot and Codex use host-native bare model IDs; OpenCode keeps the openai/ provider prefix from the example. Availability and effort support are not verified against live accounts. Customize per runtime with a routing.md preference file (see references/ROUTING.md), or override at build time (--routing PATH / --models / --no-model / --effort).",
+  provenance: "Packaged model and effort choices mirror examples/openai.json. Copilot and Codex use host-native bare model IDs; OpenCode keeps the openai/ provider prefix from the example. Availability and effort support are not verified against live accounts. Customize per runtime with a routing.json preference file (see references/ROUTING.md), or override at build time (--routing PATH / --models / --no-model / --effort).",
   runtimes: {
     copilot: {
       explore: explicit("gpt-6-luna", "medium"),
@@ -205,15 +205,15 @@ try {
       && defaultRoute.provenance.tierSource === BASELINE_SOURCE,
     "default resolution carries the default-tier-mapping provenance",
   );
-  const snapshot = exportV1All(defaultResolution, packaged.provenance);
+  const policy = exportV1(defaultResolution.runtimes.codex.routes, "codex", packaged.provenance);
   let strictSnapshotError = null;
   try {
-    strictValidateRouting(snapshot);
+    strictValidateRouting(policy);
   } catch (error) {
     strictSnapshotError = error;
   }
-  check(strictSnapshotError === null, `resolved snapshot passes the strict version-1 contract${strictSnapshotError ? ` (${strictSnapshotError.message})` : ""}`);
-  check(JSON.stringify(snapshot.runtimes) === JSON.stringify(OLD_V1.runtimes), "resolved snapshot selections are byte-identical to the version-1 baseline");
+  check(strictSnapshotError === null, `single-runtime export passes the strict version-1 contract${strictSnapshotError ? ` (${strictSnapshotError.message})` : ""}`);
+  check(JSON.stringify(policy.runtimes.codex) === JSON.stringify(OLD_V1.runtimes.codex), "single-runtime export preserves the resolved selections");
 
   // --- v1 validator contract is unchanged for version-1 inputs. ---
   let v1ContractError = null;
@@ -481,9 +481,9 @@ try {
     JSON.stringify(v2Fallbacks.runtimes.codex.roles.review.fallbacks) === JSON.stringify(v1Fallbacks.runtimes.codex.review.fallbacks),
     "normalization preserves fallback order verbatim",
   );
-  const snapshotFallbacks = exportV1All(resolveAllRuntimes(v2Fallbacks, []), v2Fallbacks.provenance);
+  const fallbackPolicy = exportV1(resolveAllRuntimes(v2Fallbacks, []).runtimes.codex.routes, "codex", v2Fallbacks.provenance);
   check(
-    JSON.stringify(snapshotFallbacks.runtimes.codex.review.fallbacks) === JSON.stringify(v1Fallbacks.runtimes.codex.review.fallbacks),
+    JSON.stringify(fallbackPolicy.runtimes.codex.review.fallbacks) === JSON.stringify(v1Fallbacks.runtimes.codex.review.fallbacks),
     "export preserves fallback order",
   );
 
@@ -564,15 +564,15 @@ try {
   check(JSON.stringify(applyBuildOverrides(synthetic(), { effort: null })) === JSON.stringify(synthetic()), "a null effort is a no-op");
   checkError(() => applyBuildOverrides(synthetic(), { effort: "ultra" }), "applyBuildOverrides rejects an invalid effort", ["Invalid --effort 'ultra'"]);
 
-  // --- Discovery helper: supplied roots, dedup, no reading. ---
+  // --- Discovery helper: personal then project, dedup, exact roots. ---
   check(
     JSON.stringify(discoverPreferencePaths({ projectRoot: "/tmp/proj", homeDir: "/home/u" }))
-      === JSON.stringify(["/tmp/proj/.agenticale/routing.md", "/home/u/.agenticale/routing.md"]),
-    "discovery lists the project file before the home file",
+      === JSON.stringify(["/home/u/.agenticale/routing.json", "/tmp/proj/.agenticale/routing.json"]),
+    "discovery lists the personal file before the project file",
   );
   check(discoverPreferencePaths({ projectRoot: "/home/u", homeDir: "/home/u" }).length === 1, "discovery dedups when the project root is the home directory");
   check(
-    JSON.stringify(discoverPreferencePaths({ homeDir: "/home/u" })) === JSON.stringify(["/home/u/.agenticale/routing.md"]),
+    JSON.stringify(discoverPreferencePaths({ homeDir: "/home/u" })) === JSON.stringify(["/home/u/.agenticale/routing.json"]),
     "discovery lists only the home file without a project root",
   );
 
@@ -584,11 +584,13 @@ try {
   await mkdir(join(fixtureRoot, "references"), { recursive: true });
   await cp(modulePath, join(fixtureRoot, "scripts", "routing.mjs"), { recursive: true });
   await writeFile(join(fixtureRoot, "references", "routing.json"), `${JSON.stringify(packaged, null, 2)}\n`, "utf8");
+  const personalRoot = join(fixtureRoot, "home");
+  await mkdir(personalRoot, { recursive: true });
   const cli = (args, input) => spawnSync(process.execPath, [join(fixtureRoot, "scripts", "routing.mjs"), ...args], {
     encoding: "utf8",
     input: input ?? "",
     cwd: fixtureRoot,
-    env: { ...process.env, HOME: fixtureRoot, USERPROFILE: fixtureRoot },
+    env: { ...process.env, HOME: personalRoot, USERPROFILE: personalRoot },
   });
   const cliPref = JSON.stringify([{ source: "personal", runtimes: { codex: { tiers: { deep: explicit("alt/deep", "low") } } } }]);
   const cliRun = cli(["resolve", "--runtime", "codex"], cliPref);
@@ -610,10 +612,16 @@ try {
   check(cliInput.status === 0, `installed-fixture resolve --input exits 0${cliInput.status === 0 ? "" : ` (stderr: ${cliInput.stderr.trim()})`}`);
   const cliInputPolicy = JSON.parse(cliInput.stdout);
   check(cliInputPolicy.runtimes.copilot["deep-review"].model === packaged.runtimes.copilot.tiers.deep.model, "a runtime untouched by the layer keeps its baseline selection");
-  const cliEmpty = cli(["resolve", "--runtime", "opencode"]);
-  check(cliEmpty.status === 0, `resolve with empty stdin exits 0${cliEmpty.status === 0 ? "" : ` (stderr: ${cliEmpty.stderr.trim()})`}`);
-  const cliEmptyPolicy = JSON.parse(cliEmpty.stdout);
-  check(cliEmptyPolicy.runtimes.opencode.review.model === packaged.runtimes.opencode.tiers.standard.model, "empty input resolves the baseline alone");
+  const personalPrefsPath = join(personalRoot, ".agenticale", "routing.json");
+  const projectPrefsPath = join(fixtureRoot, ".agenticale", "routing.json");
+  await mkdir(join(personalRoot, ".agenticale"), { recursive: true });
+  await mkdir(join(fixtureRoot, ".agenticale"), { recursive: true });
+  await writeFile(personalPrefsPath, JSON.stringify({ schemaVersion: 2, runtimes: { codex: { roles: { review: explicit("acme/personal", "low") } } } }), "utf8");
+  await writeFile(projectPrefsPath, JSON.stringify({ schemaVersion: 2, runtimes: { codex: { roles: { review: explicit("acme/project", "high") } } } }), "utf8");
+  const discovered = cli(["resolve", "--runtime", "codex", "--project-root", fixtureRoot]);
+  check(discovered.status === 0, `resolve discovers JSON preferences${discovered.status === 0 ? "" : ` (stderr: ${discovered.stderr.trim()})`}`);
+  const discoveredPolicy = JSON.parse(discovered.stdout);
+  check(discoveredPolicy.runtimes.codex.review.model === "acme/project", "project JSON preference overrides the personal preference");
 
   // The OpenCode preparation export: a complete seven-role policy for the
   // active runtime with a tier replacement carrying an ordered fallback list
