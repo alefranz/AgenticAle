@@ -6,7 +6,6 @@ import { fileURLToPath } from "node:url";
 import {
   STANDARD_TIERS,
   resolveAllRuntimes,
-  validatePreferenceLayer,
   validateV2Routing,
 } from "../skills/work/scripts/routing.mjs";
 
@@ -49,7 +48,7 @@ const requiredPaths = [
   "skills/work/agents/openai.yaml",
   "skills/work/references/rounds.md",
   "skills/work/references/ROUTING.md",
-  "skills/work/references/routing.example.json",
+  "skills/work/references/routing.example.md",
   "skills/work/references/routing.json",
   "skills/work/references/runtimes/copilot.md",
   "skills/work/references/runtimes/copilot-local.md",
@@ -324,34 +323,14 @@ function validateRoutingContract() {
   }
 }
 
-// Validate the shipped preference example against the same structured patch
-// contract used by the resolver.
+// Validate that the shipped human customization example presents the
+// documented tier-first Markdown interface.
 function validateRoutingExample() {
-  const path = "skills/work/references/routing.example.json";
+  const path = "skills/work/references/routing.example.md";
   if (!existsSync(join(repositoryRoot, path))) return; // requiredPaths flags absence
-  let example;
-  try {
-    example = JSON.parse(readText(path));
-  } catch (error) {
-    fail(path, `routing example is not valid JSON (${error.message})`, "restore a valid JSON preference patch");
-    return;
-  }
-  if (example.schemaVersion !== 2) {
-    fail(path, "routing example must declare schemaVersion 2", "use the version-2 preference patch schema");
-  }
-  if (!example.runtimes || typeof example.runtimes !== "object" || Array.isArray(example.runtimes) || Object.keys(example.runtimes).length === 0) {
-    fail(path, "routing example must include a non-empty runtimes object", "add at least one runtime preference");
-    return;
-  }
-  for (const key of Object.keys(example)) {
-    if (key !== "schemaVersion" && key !== "runtimes") {
-      fail(path, `routing example has unknown key '${key}'`, "use only schemaVersion and runtimes");
-    }
-  }
-  try {
-    validatePreferenceLayer({ runtimes: example.runtimes }, 0);
-  } catch (error) {
-    fail(path, `routing example violates the preference contract (${error.message})`, "align the example with references/ROUTING.md");
+  const example = readText(path);
+  for (const required of ["## codex", "### Tiers", "### Role overrides", "| fast |", "| routine |", "| standard |", "| deep |"]) {
+    if (!example.includes(required)) fail(path, `routing example is missing '${required}'`, "keep the tier table and optional role overrides in the Markdown example");
   }
 }
 
@@ -584,7 +563,7 @@ function validateBundleSurface() {
     // example, and shared module.
     for (const extra of [
       "skills/work/references/routing.json",
-      "skills/work/references/routing.example.json",
+      "skills/work/references/routing.example.md",
       "skills/work/scripts/routing.mjs",
     ]) {
       if (!existsSync(join(repositoryRoot, packageRoot, extra))) {

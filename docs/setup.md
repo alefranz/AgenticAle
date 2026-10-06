@@ -195,48 +195,23 @@ time.
 ## Customizing model routing
 
 The packaged `references/routing.json` supplies defaults. To customize them,
-copy `references/routing.example.json` from the installed `work` skill to either:
+copy `references/routing.example.md` from the installed `work` skill to either
+`<repo>/.agenticale/routing.md` for one repository or
+`~/.agenticale/routing.md` for all repositories. The project file overrides
+the personal file, which overrides the packaged baseline; invocation choices
+have the highest precedence. For Git projects, use the worktree root even
+from a subdirectory. For non-Git projects, establish the workspace root
+explicitly.
 
-- `<repo>/.agenticale/routing.json` for one repository, or
-- `~/.agenticale/routing.json` for all repositories.
+Use the tier table first and add optional role overrides below it. State both
+model and effort for a direct choice. See `references/ROUTING.md` in the
+installed skill for ambiguity, reset, and fallback behavior.
 
-The file is a version-2 JSON patch. It may override individual runtime tiers
-or role selections; omitted entries keep the packaged or personal value.
-Precedence is invocation choice, project file, personal file, then packaged
-baseline. For Git projects, use the worktree root even from a subdirectory.
-For non-Git projects, establish the workspace root explicitly.
-
-Example role override:
-
-```json
-{
-  "schemaVersion": 2,
-  "runtimes": {
-    "codex": {
-      "roles": {
-        "review": {
-          "mode": "explicit",
-          "model": "gpt-6.1-sol",
-          "reasoningEffort": "high",
-          "fallbacks": []
-        }
-      }
-    }
-  }
-}
-```
-
-Use `mode: "inherit"` to use the session model and effort, `mode: "tier"` to
-assign a role to a tier, and `mode: "default"` to reset an override to the
-packaged value. An explicit choice includes a model, reasoning effort, and a
-fallback list. See `references/ROUTING.md` in the installed skill for the
-complete schema and supported reset behavior.
-
-The packaged resolver loads the two optional JSON files and applies them in
-precedence order:
+The packaged resolver receives structured preferences interpreted from the
+Markdown file:
 
 ```sh
-node scripts/routing.mjs resolve --runtime codex --project-root <repo>
+node scripts/routing.mjs resolve --runtime codex --input <structured-layer.json>
 ```
 
 OpenCode uses preconfigured profiles. A preference change takes effect there
@@ -245,9 +220,9 @@ the workflow exports a resolved policy and reports the existing installer
 command needed to refresh it; see `references/runtimes/opencode.md`.
 
 Preference files are user-owned. Install, update, publication, and uninstall
-never create, overwrite, migrate, or remove them. Convert a `routing.md` file
-from an older release to JSON before dispatch; the resolver reports it instead
-of silently ignoring it.
+never create, overwrite, migrate, or remove them. The resolver does not
+discover user files; Markdown remains the only automatically discovered human
+customization format.
 ## Choosing models: cheap by default, strong when it matters
 
 The intended routing keeps high-volume work (explore, routine implement, fix)
@@ -406,12 +381,12 @@ Modified files are preserved during uninstall.
   rules for the actions they use; continue `/work` from its retained session, or
   rerun `/autonomous` to resume its durable handoff. Only the autonomous skill
   provides fresh-session recovery.
-- **A model cannot be found:** run `/models`, update the routing file or legacy
-  JSON, and reinstall with `--replace`.
+- **A model cannot be found:** run `/models`, update the Markdown routing file
+  or the structured build input, and reinstall with `--replace`.
 - **You are unsure about model routing:** use `--no-model` for a quick trial,
   then reinstall with `--models /path/to/my-models.json` or
   `--routing /path/to/routing.json` when you are ready to specialize routes —
-  or, after any install, create a `routing.json` preference file
+  or, after any install, create a `routing.md` preference file
   ([customizing model routing](#customizing-model-routing)).
 - **You want to understand the implementation:** read the optional
   [technical architecture guide](architecture.md).

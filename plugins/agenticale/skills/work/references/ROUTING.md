@@ -1,167 +1,103 @@
-# Routing
+# Model routing
 
-This contract has one packaged source of defaults: `references/routing.json`.
-Personal and project settings are optional JSON patches. The installed package
-does not carry a second, expanded copy of the defaults.
+The installed `references/routing.json` is the single packaged defaults file.
+Users customize model routing in Markdown; the workflow interprets the prose
+into bounded structured preferences, then the packaged helper merges and
+resolves them. Users do not need to author the helper's JSON schema.
 
-## Roles and default tiers
+## Roles and tiers
 
-Every runtime supports the same seven routing roles:
+The seven roles are `explore`, `implement`, `implement-hard`, `fix`, `review`,
+`deep-review`, and `consult`. The default role-to-tier mapping is:
 
-`explore`, `implement`, `implement-hard`, `fix`, `review`, `deep-review`, and
-`consult`.
-
-The packaged baseline maps roles to four reusable tiers:
-
-| Tier | Roles | Purpose |
+| Tier | Default roles | Purpose |
 | --- | --- | --- |
-| `fast` | `explore` | Quick exploration |
-| `routine` | `implement`, `fix` | Routine implementation |
-| `standard` | `implement-hard`, `review` | Difficult implementation and review |
-| `deep` | `deep-review`, `consult` | Integration analysis and second opinions |
+| `fast` | `explore` | Quick investigation |
+| `routine` | `implement`, `fix` | Everyday implementation and fixes |
+| `standard` | `implement-hard`, `review` | Complex changes and independent review |
+| `deep` | `deep-review`, `consult` | Intensive analysis and second opinions |
 
-Each runtime defines its model and reasoning effort for those tiers. Model
-identifiers and dispatch fields are runtime-specific; use the runtime binding
-in `references/runtimes/` when dispatching. For example, OpenCode model names
-may include a provider prefix while Codex and Copilot use host-native model
-IDs.
+Each runtime has its own model identifiers and supported effort values; see
+`references/runtimes/`. The `copilot-local` binding uses the `copilot`
+preference section. Users may define additional named tiers. A tier selects a
+model and effort together, or explicitly inherits both from the session.
 
-## Optional preference files
+## User customization
 
-Users may create either or both of these files:
+The human-authored file is `routing.md`, copied from
+`references/routing.example.md`:
 
-- `<project-root>/.agenticale/routing.json`
-- `~/.agenticale/routing.json`
+- `<project-root>/.agenticale/routing.md` applies to one project.
+- `~/.agenticale/routing.md` applies across projects.
 
-The project file overrides the personal file, which overrides the packaged
-baseline. An invocation choice has the highest precedence. Missing files mean
-no customization. Existing but unreadable or invalid JSON files are errors to
-report before dispatch.
+The project file has precedence over the personal file, which has precedence
+over the installed defaults. An explicitly supplied Markdown path is an
+invocation layer above discovered files. Within each layer, express a choice
+clearly; conflicting choices at the same level are ambiguous and require
+clarification. Omitted entries retain the lower-precedence choice. A clear
+higher-precedence entry may repair an ambiguous lower-precedence entry.
 
-The preference file is a version-2 JSON patch. It may include only the
-runtimes and entries being changed; omitted entries keep their lower-priority
-value. Copy `references/routing.example.json` as a starting point. A patch can
-replace tier definitions under `runtimes.<runtime>.tiers` or role selections
-under `runtimes.<runtime>.roles`.
+Use the tier table first, then add optional role overrides. A role may choose a
+tier, specify a model and effort directly, intentionally inherit both, or
+return to its default tier. State both model and effort for a direct selection;
+do not infer an effort from a lower layer. Fallbacks are optional, ordered
+model/effort pairs and are used only when explicitly requested and supported by
+the runtime binding. Do not invent model identifiers or silently substitute a
+weaker route.
 
-Preference files from older releases that use `routing.md` are not read or
-rewritten. Convert any existing choices to JSON before dispatching; the
-resolver reports a legacy file instead of silently falling back to defaults.
+`role: default` clears a lower-precedence role exception and restores the
+packaged role-to-tier mapping, using the final merged tier values. `tier: default`
+restores that standard tier's packaged definition; a custom tier with no
+packaged definition cannot be reset this way. `inherit` is an explicit
+choice to use both the session model and effort. An omitted entry leaves the
+lower-precedence entry in place. Replacing an entry replaces its model, effort,
+and fallbacks together.
 
-An explicit selection has this form:
+Apply only preferences for the active runtime. An invalid or ambiguous entry
+for an inactive runtime does not block the active one. Interpret the complete
+human file, including clear equivalent prose, rather than requiring exact
+headings, tables, or punctuation. Unknown roles, undefined tiers, and
+unresolved ambiguity in the active runtime must be surfaced before the
+affected dispatch. Preserve unrelated clear selections when one entry needs
+clarification.
 
-```json
-{
-  "mode": "explicit",
-  "model": "gpt-6.1-sol",
-  "reasoningEffort": "high",
-  "fallbacks": []
-}
-```
+Routing preferences govern only model, effort, and explicit fallback choices.
+They cannot change task scope, workflow budgets, permissions, installation
+ownership, or other skill behavior. Keep the resolved routing snapshot fixed
+for an activation, including context compaction; reload it on a new invocation
+or an explicit request.
 
-A role can select a tier with `{ "mode": "tier", "tier": "deep" }`, or
-intentionally inherit both model and effort with `{ "mode": "inherit" }`.
-`{ "mode": "default" }` resets a role or tier entry to the packaged
-baseline. A custom tier without a packaged definition cannot be reset.
-Replacing an entry replaces its model, effort, and fallbacks together.
-Fallbacks are ordered `{ "model", "reasoningEffort" }` pairs.
+Preference files belong to the user. Install, update, build, publication, and
+uninstall do not create, overwrite, migrate, or remove them. Missing files mean
+no customization. Report a present but unreadable file rather than claiming it
+was applied. Do not scan parent workspaces, nested repositories, host config
+directories, or plugin caches. For Git projects, use the worktree root even
+when invoked below it; for non-Git projects, use the explicitly established
+workspace root.
 
-An example role override:
+## Deterministic resolution and exports
 
-```json
-{
-  "schemaVersion": 2,
-  "runtimes": {
-    "codex": {
-      "roles": {
-        "review": {
-          "mode": "explicit",
-          "model": "gpt-6.1-sol",
-          "reasoningEffort": "high",
-          "fallbacks": []
-        }
-      }
-    }
-  }
-}
-```
-
-Preference files are user-owned. Install, update, build, publication, and
-uninstall never create, overwrite, migrate, or remove them. Do not scan parent
-workspaces, nested repositories, host-specific config directories, or plugin
-caches for additional preferences.
-
-## Resolution
-
-At the start of `work` or `autonomous`:
-
-1. Identify the active runtime and establish the project root. For a Git
-   project, use the worktree root even when invoked from a subdirectory. For a
-   non-Git project, use an explicitly established workspace root.
-2. Read `references/routing.json` and the two optional preference files above.
-   Merge from lowest to highest precedence: packaged baseline, personal file,
-   project file, then explicit invocation choices. Keep the source of each
-   selected entry in session state.
-3. Resolve all seven roles for the active runtime. Validate model and effort
-   support against that runtime's binding before dispatch. Report invalid or
-   unsupported choices; use only an explicitly configured fallback.
-4. Keep the resolved choices fixed for the activation, including context
-   compaction. A new invocation or explicit request resolves them again.
-
-When Node is available, the packaged helper can discover the JSON files and
-resolve them deterministically:
+The workflow interprets Markdown into structured layers and passes those
+layers to the dependency-free helper. The helper validates the active runtime,
+merges entries from lowest to highest precedence, replaces each selected entry
+atomically, resolves all seven roles, and exports a complete version-1 policy.
+It does not discover or parse user files. Without Node, apply these same rules
+in context and keep the source of each role and tier selection so the chosen
+route can be explained.
 
 ```sh
-node scripts/routing.mjs resolve --runtime codex --project-root <project-root>
+node scripts/routing.mjs resolve --runtime codex --input <structured-layer.json>
 ```
 
-Use `--input PATH` for an additional structured invocation layer. The helper
-prints a complete version-1 policy for the active runtime. It does not write
-preference files. Without Node, apply the same JSON merge rules in context.
+`--input` is a tooling interface for the interpreted preferences, not a
+second automatically discovered user format. `--explain` returns the policy
+with per-role selection and tier provenance. The plain output remains a strict
+version-1 policy for build tools and OpenCode's installer. Build-time
+`--routing PATH` also accepts complete version-1 policies or version-2
+baselines; `--models` remains the legacy examples importer.
 
-Unknown top-level keys, runtimes, roles, or tiers; incomplete selections; and
-unsupported effort values are errors. A missing role in a complete version-1
-policy is also an error, not implicit inheritance. `inherit` means inherit both
-model and effort. Do not silently substitute the session model or invent a
-weaker model when a configured route is unavailable.
-
-Do not infer the runtime from the selected model. Record requested versus
-effective settings when the host exposes effective metadata; a child's
-self-reported model name is not proof of what it ran on. `work` keeps routing
-state in the session. `autonomous` records a compact summary in its existing
-handoff/report.
-
-## Build and import options
-
-- `--routing PATH` accepts a complete version-1 policy or a version-2 baseline.
-- `--models PATH|PRESET` imports the legacy `provider/model[#variant]` map
-  format used by `examples/`. Omitted roles become explicit inheritance and
-  are reported. Known `openai/` and `opencode/` prefixes are removed for
-  Codex/Copilot and retained for OpenCode; other provider prefixes pass through.
-- `--no-model` makes all routes inherit both model and effort.
-- `--effort LEVEL` overrides effort on explicit routes and is rejected if any
-  route inherits.
-
-These are build-time choices. Runtime preference files are not build inputs and
-are never embedded into generated packages.
-
-## OpenCode profiles
-
-OpenCode dispatches preconfigured profiles instead of arbitrary model strings.
-Compare the resolved request directly with the current profile's `model` and
-`reasoningEffort` fields before dispatch. The profile itself is the source of
-what is installed; no second resolved-policy snapshot is needed. If a route has
-no matching profile, report that limitation and use the documented explicit
-preparation and refresh process in `references/runtimes/opencode.md`. The
-current adapter cannot execute an arbitrary fallback chain or materialize
-multiple models for one role.
-
-| Role | OpenCode profile ID |
-| --- | --- |
-| `explore` | `autonomous/explore` |
-| `implement` | `autonomous/implement` |
-| `implement-hard` | `autonomous/implement-hard` |
-| `fix` | `autonomous/fix` |
-| `review` | `autonomous/review` |
-| `deep-review` | `autonomous/deep-review` |
-| `consult` | `autonomous/consult` |
+For OpenCode preparation, compare the requested choices against the installed
+profiles and actual profile fields. If refresh is needed, export a complete
+OpenCode policy and use the existing installer flow documented in
+`references/runtimes/opencode.md`. The helper and preference interpretation
+never rewrite active profiles or global host configuration implicitly.

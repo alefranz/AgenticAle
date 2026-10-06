@@ -66,7 +66,7 @@ async function buildFixture(name, args = [], { env, cwd } = {}) {
 // in this file are derived from it too.
 const legacyV1Baseline = {
   schemaVersion: 1,
-  provenance: "Packaged model and effort choices mirror examples/openai.json. Copilot and Codex use host-native bare model IDs; OpenCode keeps the openai/ provider prefix from the example. Availability and effort support are not verified against live accounts. Customize per runtime with a routing.json preference file (see references/ROUTING.md), or override at build time (--routing PATH / --models / --no-model / --effort).",
+  provenance: "Packaged model and effort choices mirror examples/openai.json. Copilot and Codex use host-native bare model IDs; OpenCode keeps the openai/ provider prefix from the example. Availability and effort support are not verified against live accounts. Customize per runtime with routing.md (see references/ROUTING.md), or override at build time (--routing PATH / --models / --no-model / --effort).",
   runtimes: {
     copilot: {
       explore: { mode: "explicit", model: "gpt-6-luna", reasoningEffort: "medium", fallbacks: [] },
@@ -109,8 +109,8 @@ try {
   check(standaloneRel.length === 21, "standalone bundle has 21 files");
   check(openCodeRel.length === 30, "OpenCode bundle has 30 files (7 profiles + 2 commands + 21 skills)");
 
-  // The packaged routing resources (version-2 baseline, JSON preference
-  // example, and shared resolver module) ship in all three output roots.
+  // The packaged routing resources (version-2 baseline, Markdown example,
+  // and shared resolver module) ship in all three output roots.
   for (const [label, skillsRoot] of [
     ["plugin", join(fixture.pluginRoot, "skills")],
     ["standalone", fixture.standaloneRoot],
@@ -118,7 +118,7 @@ try {
   ]) {
     for (const rel of [
       "work/references/routing.json",
-      "work/references/routing.example.json",
+      "work/references/routing.example.md",
       "work/scripts/routing.mjs",
     ]) {
       check(existsSync(join(skillsRoot, rel)), `${label} bundle ships ${rel}`);
@@ -366,12 +366,12 @@ try {
   expectRoutingRejection("fallback not a model/effort pair", (r) => { r.runtimes.copilot.review.fallbacks = [{ model: "x", reasoningEffort: "low", extra: 1 }]; });
 
   // A Markdown preference supplied to --routing is not a build input; the
-  // diagnostic points users to JSON runtime preferences or a resolved export.
+  // diagnostic points users to Markdown runtime preferences or a resolved export.
   const markdownPrefs = join(scratch, "routing-prefs.md");
   await writeFile(markdownPrefs, "# Personal preferences\nexplore: acme/prose-model\n", "utf8");
   const markdownRun = spawnSync(process.execPath, [build, "--output", join(scratch, "err"), "--routing", markdownPrefs], { encoding: "utf8" });
   check(markdownRun.status === 1 && /expects a JSON policy/.test(markdownRun.stderr), "Markdown path to --routing is refused before parsing");
-  check(/routing\.json/.test(markdownRun.stderr) && /resolved version-1 JSON/.test(markdownRun.stderr), "Markdown --routing refusal points at JSON preferences and the resolved export");
+  check(/routing\.md/.test(markdownRun.stderr) && /resolved version-1 JSON/.test(markdownRun.stderr), "Markdown --routing refusal points at the human preference path and resolved export");
   check(!(await existsSync(join(scratch, "err"))), "Markdown --routing refusal writes no output");
 
   // Publication isolation: a default build must neither read nor embed the

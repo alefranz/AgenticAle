@@ -13,8 +13,8 @@ focused changes with clear verification are easiest to review.
   `skills/source-code-lookup`. The OpenCode adapter lives under
   `adapters/opencode`, and the routing contract is
   `skills/work/references/ROUTING.md`, with the version-2 defaults baseline at
-  `skills/work/references/routing.json`, the customization example at
-  `skills/work/references/routing.example.json`, and the shared module at
+  `skills/work/references/routing.json`, the Markdown customization example at
+  `skills/work/references/routing.example.md`, and the shared module at
   `skills/work/scripts/routing.mjs`. Do not add retired-layout paths
   (`commands/`, `agents/autonomous/`, `skills/work-mode`,
   `skills/autonomous-mode`) at the repository root. The adapter-owned OpenCode
@@ -46,7 +46,7 @@ git diff --check
 
 - `validate.mjs` checks the authored source of truth: 25 source-of-truth files
   (including the routing contract, the version-2 `routing.json` baseline, the
-  `routing.example.json` patch, and the shared `routing.mjs` module), 6
+  `routing.example.md` example, and the shared `routing.mjs` module), 6
   capability-neutral task contracts, 7 OpenCode adapter profiles, 2 OpenCode
   command templates, the absence of the retired layout, and sanitation.
 - `test-routing.mjs` covers the shared routing module: version

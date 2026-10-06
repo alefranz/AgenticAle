@@ -38,7 +38,7 @@ patches, apply invocation choices, and resolve this runtime's routes. The
 preference section uses the `copilot` runtime name. Precedence is invocation,
 project, personal, then installed baseline. Do not scan unrelated files.
 Invocation choices are session-scoped and do not persist to a preference file
-or `routing.json`.
+or `routing.md`.
 
 ## Requested versus effective settings
 
@@ -60,7 +60,7 @@ an explicit, intentional choice; it is not a fallback and not a missing value.
 An explicit invocation choice wins over discovered preference files for the
 entries it names; every other entry still resolves from the discovered files
 and the installed baseline. Invocation choices
-stay within the session and never rewrite `routing.json` or any preference
+stay within the session and never rewrite `routing.md` or any preference
 file.
 
 ## Limitations (stated honestly)

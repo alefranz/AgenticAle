@@ -192,7 +192,7 @@ try {
     const srcLookup = await readFile(join(t, "skills", "source-code-lookup", "SKILL.md"), "utf8");
     check(srcLookup.includes('Source root: "~/dev"'), "install fresh: source root default marker");
     check(await exists(join(t, "skills", "work", "references", "routing.json")), "install fresh: materializes work/references/routing.json");
-    check(await exists(join(t, "skills", "work", "references", "routing.example.json")), "install fresh: materializes work/references/routing.example.json");
+    check(await exists(join(t, "skills", "work", "references", "routing.example.md")), "install fresh: materializes work/references/routing.example.md");
     check(await exists(join(t, "skills", "work", "scripts", "routing.mjs")), "install fresh: materializes work/scripts/routing.mjs");
   }
   {
@@ -551,13 +551,13 @@ try {
     check(state.schema === 1, "standalone fresh: schema 1");
     check(state.scope === "project", "standalone fresh: scope project");
     check(state.sourceLayout === "autonomous,pull-request-description,source-code-lookup,work", "standalone fresh: sourceLayout string");
-    check(state.entries.length === 22, "standalone fresh: 22 entries");
+    check(state.entries.length === 21, "standalone fresh: 21 entries");
     const files = (await relFiles(t)).filter((f) => f !== STANDALONE_STATE);
-    check(files.length === 22, "standalone fresh: 22 files on disk");
+    check(files.length === 21, "standalone fresh: 21 files on disk");
     check(!files.some((f) => f.startsWith("agents/")), "standalone fresh: no agents/");
     check(!files.some((f) => f.startsWith("commands/")), "standalone fresh: no commands/");
     check(await exists(join(t, "work", "references", "routing.json")), "standalone fresh: materializes work/references/routing.json");
-    check(await exists(join(t, "work", "references", "routing.example.json")), "standalone fresh: materializes work/references/routing.example.json");
+    check(await exists(join(t, "work", "references", "routing.example.md")), "standalone fresh: materializes work/references/routing.example.md");
     check(await exists(join(t, "work", "scripts", "routing.mjs")), "standalone fresh: materializes work/scripts/routing.mjs");
     // Idempotent.
     const before = await readFile(join(t, STANDALONE_STATE), "utf8");
@@ -759,7 +759,7 @@ try {
   }
 
   // ---------------------------------------------------------------------
-  // E. User-owned preference files: a user's .agenticale/routing.json in the
+  // E. User-owned preference files: a user's .agenticale/routing.md in the
   //    project and home roots must never be created, overwritten, or removed
   //    by install/update/uninstall, for both installers.
   // ---------------------------------------------------------------------
@@ -767,36 +767,36 @@ try {
     const home = await mkdtemp(join(scratch, "e-routing-home-"));
     const env = { HOME: home, USERPROFILE: home };
     const project = await mkdtemp(join(scratch, "e-routing-project-"));
-    const projectPrefs = JSON.stringify({ schemaVersion: 2, runtimes: { codex: { roles: { explore: { mode: "explicit", model: "USER-PROJECT-PREFERENCES-1", reasoningEffort: "high", fallbacks: [] } } } } });
-    const homePrefs = JSON.stringify({ schemaVersion: 2, runtimes: { codex: { roles: { review: { mode: "explicit", model: "USER-HOME-PREFERENCES-2", reasoningEffort: "high", fallbacks: [] } } } } });
+    const projectPrefs = "# Project routing\nExplore with USER-PROJECT-PREFERENCES-1 at high effort.\n";
+    const homePrefs = "# Personal routing\nReview with USER-HOME-PREFERENCES-2 at high effort.\n";
     await mkdir(join(project, ".agenticale"), { recursive: true });
     await mkdir(join(home, ".agenticale"), { recursive: true });
-    await writeFile(join(project, ".agenticale", "routing.json"), projectPrefs, "utf8");
-    await writeFile(join(home, ".agenticale", "routing.json"), homePrefs, "utf8");
+    await writeFile(join(project, ".agenticale", "routing.md"), projectPrefs, "utf8");
+    await writeFile(join(home, ".agenticale", "routing.md"), homePrefs, "utf8");
     const assertPrefs = async (label) => {
-      check((await readFile(join(project, ".agenticale", "routing.json"), "utf8")) === projectPrefs, `user routing.json: project file untouched after ${label}`);
-      check((await readFile(join(home, ".agenticale", "routing.json"), "utf8")) === homePrefs, `user routing.json: home file untouched after ${label}`);
+      check((await readFile(join(project, ".agenticale", "routing.md"), "utf8")) === projectPrefs, `user routing.md: project file untouched after ${label}`);
+      check((await readFile(join(home, ".agenticale", "routing.md"), "utf8")) === homePrefs, `user routing.md: home file untouched after ${label}`);
     };
     const target = join(project, ".agents", "skills");
-    check((await run("install-standalone.mjs", ["install", "--target", target, "--no-model"], { cwd: project, env })).exit === 0, "user routing.json: standalone install exits 0");
+    check((await run("install-standalone.mjs", ["install", "--target", target, "--no-model"], { cwd: project, env })).exit === 0, "user routing.md: standalone install exits 0");
     await assertPrefs("standalone install");
-    check((await run("install-standalone.mjs", ["install", "--target", target, "--no-model"], { cwd: project, env })).exit === 0, "user routing.json: standalone update exits 0");
+    check((await run("install-standalone.mjs", ["install", "--target", target, "--no-model"], { cwd: project, env })).exit === 0, "user routing.md: standalone update exits 0");
     await assertPrefs("standalone update");
-    check((await run("install-standalone.mjs", ["uninstall", "--target", target], { cwd: project, env })).exit === 0, "user routing.json: standalone uninstall exits 0");
+    check((await run("install-standalone.mjs", ["uninstall", "--target", target], { cwd: project, env })).exit === 0, "user routing.md: standalone uninstall exits 0");
     await assertPrefs("standalone uninstall");
   }
   {
     // The installer never CREATES such files either: a root without
-    // .agenticale/routing.json stays absent across install and uninstall.
+    // .agenticale/routing.md stays absent across install and uninstall.
     const home = await mkdtemp(join(scratch, "e-routing-bare-home-"));
     const env = { HOME: home, USERPROFILE: home };
     const project = await mkdtemp(join(scratch, "e-routing-bare-project-"));
     const target = join(project, ".agents", "skills");
-    check((await run("install-standalone.mjs", ["install", "--target", target, "--no-model"], { cwd: project, env })).exit === 0, "user routing.json: bare standalone install exits 0");
-    check(!(await exists(join(project, ".agenticale", "routing.json"))), "user routing.json: never created in the project root");
-    check(!(await exists(join(home, ".agenticale", "routing.json"))), "user routing.json: never created in the home root");
-    check((await run("install-standalone.mjs", ["uninstall", "--target", target], { cwd: project, env })).exit === 0, "user routing.json: bare standalone uninstall exits 0");
-    check(!(await exists(join(project, ".agenticale", "routing.json"))), "user routing.json: still absent from the project root after uninstall");
+    check((await run("install-standalone.mjs", ["install", "--target", target, "--no-model"], { cwd: project, env })).exit === 0, "user routing.md: bare standalone install exits 0");
+    check(!(await exists(join(project, ".agenticale", "routing.md"))), "user routing.md: never created in the project root");
+    check(!(await exists(join(home, ".agenticale", "routing.md"))), "user routing.md: never created in the home root");
+    check((await run("install-standalone.mjs", ["uninstall", "--target", target], { cwd: project, env })).exit === 0, "user routing.md: bare standalone uninstall exits 0");
+    check(!(await exists(join(project, ".agenticale", "routing.md"))), "user routing.md: still absent from the project root after uninstall");
   }
   {
     // Same contract for the OpenCode (profile) installer: the target root and
@@ -804,20 +804,20 @@ try {
     const home = await mkdtemp(join(scratch, "e-routing-oc-home-"));
     const env = { HOME: home, USERPROFILE: home };
     const target = join(scratch, "e-routing-oc");
-    const prefs = JSON.stringify({ schemaVersion: 2, runtimes: { opencode: { roles: { fix: { mode: "explicit", model: "USER-OC-PREFERENCES-3", reasoningEffort: "high", fallbacks: [] } } } } });
+    const prefs = "# OpenCode routing\nFix with USER-OC-PREFERENCES-3 at high effort.\n";
     await mkdir(join(target, ".agenticale"), { recursive: true });
     await mkdir(join(home, ".agenticale"), { recursive: true });
-    await writeFile(join(target, ".agenticale", "routing.json"), prefs, "utf8");
-    await writeFile(join(home, ".agenticale", "routing.json"), prefs, "utf8");
+    await writeFile(join(target, ".agenticale", "routing.md"), prefs, "utf8");
+    await writeFile(join(home, ".agenticale", "routing.md"), prefs, "utf8");
     const assertPrefs = async (label) => {
-      check((await readFile(join(target, ".agenticale", "routing.json"), "utf8")) === prefs, `user routing.json: opencode target file untouched after ${label}`);
-      check((await readFile(join(home, ".agenticale", "routing.json"), "utf8")) === prefs, `user routing.json: opencode home file untouched after ${label}`);
+      check((await readFile(join(target, ".agenticale", "routing.md"), "utf8")) === prefs, `user routing.md: opencode target file untouched after ${label}`);
+      check((await readFile(join(home, ".agenticale", "routing.md"), "utf8")) === prefs, `user routing.md: opencode home file untouched after ${label}`);
     };
-    check((await run("install.mjs", ["install", "--target", target, "--no-model"], { cwd: target, env })).exit === 0, "user routing.json: opencode install exits 0");
+    check((await run("install.mjs", ["install", "--target", target, "--no-model"], { cwd: target, env })).exit === 0, "user routing.md: opencode install exits 0");
     await assertPrefs("opencode install");
-    check((await run("install.mjs", ["install", "--target", target, "--no-model"], { cwd: target, env })).exit === 0, "user routing.json: opencode update exits 0");
+    check((await run("install.mjs", ["install", "--target", target, "--no-model"], { cwd: target, env })).exit === 0, "user routing.md: opencode update exits 0");
     await assertPrefs("opencode update");
-    check((await run("install.mjs", ["uninstall", "--target", target], { cwd: target, env })).exit === 0, "user routing.json: opencode uninstall exits 0");
+    check((await run("install.mjs", ["uninstall", "--target", target], { cwd: target, env })).exit === 0, "user routing.md: opencode uninstall exits 0");
     await assertPrefs("opencode uninstall");
   }
 

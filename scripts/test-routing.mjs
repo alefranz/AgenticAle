@@ -89,7 +89,7 @@ function explicit(model, reasoningEffort, fallbacks = []) {
 // 21-selection equivalence is testable without repository history.
 const OLD_V1 = {
   schemaVersion: 1,
-  provenance: "Packaged model and effort choices mirror examples/openai.json. Copilot and Codex use host-native bare model IDs; OpenCode keeps the openai/ provider prefix from the example. Availability and effort support are not verified against live accounts. Customize per runtime with a routing.json preference file (see references/ROUTING.md), or override at build time (--routing PATH / --models / --no-model / --effort).",
+  provenance: "Packaged model and effort choices mirror examples/openai.json. Copilot and Codex use host-native bare model IDs; OpenCode keeps the openai/ provider prefix from the example. Availability and effort support are not verified against live accounts. Customize per runtime with routing.md (see references/ROUTING.md), or override at build time (--routing PATH / --models / --no-model / --effort).",
   runtimes: {
     copilot: {
       explore: explicit("gpt-6-luna", "medium"),
@@ -493,7 +493,7 @@ try {
   divergent.runtimes.codex.review.model = "openai/custom-review";
   const v2Divergent = normalizeV1ToV2(divergent, packaged);
   check(v2Divergent.runtimes.codex.roles.review.model === "openai/custom-review", "divergent roles are preserved verbatim");
-  check(v2Divergent.runtimes.codex.roles["implement-hard"].model === "openai/gpt-6-sol", "same-nominal-tier roles are not collapsed into tiers");
+  check(v2Divergent.runtimes.codex.roles["implement-hard"].model === "gpt-6.1-sol", "same-nominal-tier roles are not collapsed into tiers");
   check(
     resolveAllRuntimes(v2Divergent, []).runtimes.codex.routes.review.model === "openai/custom-review",
     "divergent roles win over their nominal tier at resolution",
@@ -530,10 +530,9 @@ try {
   check(
     legacyV2.runtimes.codex.roles.explore.mode === "explicit"
       && legacyV2.runtimes.codex.roles.explore.model === "gpt-6-luna"
-      && legacyV2.runtimes.copilot.roles.explore.model === "gpt-6-luna"
       && legacyV2.runtimes.opencode.roles.explore.model === "openai/gpt-6-luna"
       && legacyV2.runtimes.codex.roles.explore.reasoningEffort === "max",
-    "legacy OpenCode provider prefixes convert to native Copilot/Codex model IDs",
+    "legacy OpenCode provider prefixes convert to native Codex model IDs",
   );
   check(legacyV2.runtimes.codex.roles.review.reasoningEffort === "high", "a missing variant carries the legacy default effort");
   check(legacyV2.runtimes.codex.roles.fix.mode === "inherit", "omitted legacy inventory entries remain inheritance");
@@ -567,12 +566,12 @@ try {
   // --- Discovery helper: personal then project, dedup, exact roots. ---
   check(
     JSON.stringify(discoverPreferencePaths({ projectRoot: "/tmp/proj", homeDir: "/home/u" }))
-      === JSON.stringify(["/home/u/.agenticale/routing.json", "/tmp/proj/.agenticale/routing.json"]),
+      === JSON.stringify([join(resolve("/home/u"), ".agenticale", "routing.md"), join(resolve("/tmp/proj"), ".agenticale", "routing.md")]),
     "discovery lists the personal file before the project file",
   );
   check(discoverPreferencePaths({ projectRoot: "/home/u", homeDir: "/home/u" }).length === 1, "discovery dedups when the project root is the home directory");
   check(
-    JSON.stringify(discoverPreferencePaths({ homeDir: "/home/u" })) === JSON.stringify(["/home/u/.agenticale/routing.json"]),
+    JSON.stringify(discoverPreferencePaths({ homeDir: "/home/u" })) === JSON.stringify([join(resolve("/home/u"), ".agenticale", "routing.md")]),
     "discovery lists only the home file without a project root",
   );
 
@@ -592,7 +591,7 @@ try {
     cwd: fixtureRoot,
     env: { ...process.env, HOME: personalRoot, USERPROFILE: personalRoot },
   });
-  const cliPref = JSON.stringify([{ source: "personal", runtimes: { codex: { tiers: { deep: explicit("alt/deep", "low") } } } }]);
+  const cliPref = JSON.stringify([{ source: "personal routing.md", runtimes: { codex: { tiers: { deep: explicit("alt/deep", "low") } } } }]);
   const cliRun = cli(["resolve", "--runtime", "codex"], cliPref);
   check(cliRun.status === 0, `installed-fixture resolve CLI exits 0 with stdin preferences${cliRun.status === 0 ? "" : ` (stderr: ${cliRun.stderr.trim()})`}`);
   const cliPolicy = JSON.parse(cliRun.stdout);
@@ -608,20 +607,31 @@ try {
   check(cliPolicy.runtimes.codex["deep-review"].model === "alt/deep" && cliPolicy.runtimes.codex["deep-review"].reasoningEffort === "low", "CLI applies the stdin tier preference");
   check(cliPolicy.runtimes.codex.explore.model === packaged.runtimes.codex.tiers.fast.model, "CLI leaves baseline routes at their packaged selection");
   await writeFile(join(fixtureRoot, "prefs.json"), cliPref, "utf8");
+  const copilotPref = JSON.stringify([{ source: "project routing.md", runtimes: { copilot: { roles: { review: explicit("acme/copilot-review", "xhigh") } } } }]);
+  await writeFile(join(fixtureRoot, "prefs.json"), copilotPref, "utf8");
   const cliInput = cli(["resolve", "--runtime", "copilot", "--input", join(fixtureRoot, "prefs.json")]);
   check(cliInput.status === 0, `installed-fixture resolve --input exits 0${cliInput.status === 0 ? "" : ` (stderr: ${cliInput.stderr.trim()})`}`);
   const cliInputPolicy = JSON.parse(cliInput.stdout);
-  check(cliInputPolicy.runtimes.copilot["deep-review"].model === packaged.runtimes.copilot.tiers.deep.model, "a runtime untouched by the layer keeps its baseline selection");
+  check(cliInputPolicy.runtimes.copilot.review.model === "acme/copilot-review" && cliInputPolicy.runtimes.copilot.review.reasoningEffort === "xhigh", "installed helper applies the interpreted Copilot customization");
+  check(cliInputPolicy.runtimes.copilot["deep-review"].model === packaged.runtimes.copilot.tiers.deep.model, "a runtime-untouched role keeps its baseline selection");
   const personalPrefsPath = join(personalRoot, ".agenticale", "routing.json");
-  const projectPrefsPath = join(fixtureRoot, ".agenticale", "routing.json");
+  const projectPrefsPath = join(fixtureRoot, ".agenticale", "routing.md");
   await mkdir(join(personalRoot, ".agenticale"), { recursive: true });
   await mkdir(join(fixtureRoot, ".agenticale"), { recursive: true });
-  await writeFile(personalPrefsPath, JSON.stringify({ schemaVersion: 2, runtimes: { codex: { roles: { review: explicit("acme/personal", "low") } } } }), "utf8");
-  await writeFile(projectPrefsPath, JSON.stringify({ schemaVersion: 2, runtimes: { codex: { roles: { review: explicit("acme/project", "high") } } } }), "utf8");
-  const discovered = cli(["resolve", "--runtime", "codex", "--project-root", fixtureRoot]);
-  check(discovered.status === 0, `resolve discovers JSON preferences${discovered.status === 0 ? "" : ` (stderr: ${discovered.stderr.trim()})`}`);
-  const discoveredPolicy = JSON.parse(discovered.stdout);
-  check(discoveredPolicy.runtimes.codex.review.model === "acme/project", "project JSON preference overrides the personal preference");
+  await writeFile(personalPrefsPath, "malformed legacy JSON", "utf8");
+  await writeFile(projectPrefsPath, "# Copilot only\nUse gpt-6-luna for exploration.\n", "utf8");
+  const undiscovered = cli(["resolve", "--runtime", "codex"]);
+  check(undiscovered.status === 0, `resolver ignores user files unless supplied as structured input${undiscovered.status === 0 ? "" : ` (stderr: ${undiscovered.stderr.trim()})`}`);
+  const undiscoveredPolicy = JSON.parse(undiscovered.stdout);
+  check(undiscoveredPolicy.runtimes.codex.review.model === packaged.runtimes.codex.tiers.standard.model, "Markdown stays the human interface and does not block baseline resolution");
+  const inactiveMalformed = cli(["resolve", "--runtime", "codex"], JSON.stringify([{ source: "project routing.md", runtimes: { copilot: { roles: { review: { mode: "broken" } } } } }]));
+  check(inactiveMalformed.status === 0, "malformed inactive-runtime preferences do not block active runtime resolution");
+  const activeMalformed = cli(["resolve", "--runtime", "codex"], JSON.stringify([{ source: "project routing.md", runtimes: { codex: { roles: { review: { mode: "broken" } } } } }]));
+  check(activeMalformed.status === 1 && /codex\/role 'review'/.test(activeMalformed.stderr), "malformed active-runtime preferences identify the route");
+  const explained = cli(["resolve", "--runtime", "codex", "--explain"], cliPref);
+  check(explained.status === 0, "--explain returns route provenance");
+  const explanation = JSON.parse(explained.stdout);
+  check(explanation.policy.schemaVersion === 1 && explanation.routeProvenance["deep-review"].tierSource === "personal routing.md", "--explain preserves per-route provenance beside the strict policy");
 
   // The OpenCode preparation export: a complete seven-role policy for the
   // active runtime with a tier replacement carrying an ordered fallback list

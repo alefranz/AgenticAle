@@ -85,9 +85,10 @@ are addressed in this branch:
 ## Current state (subtask 10: documentation)
 
 The skills-first implementation and its documentation pass are complete.
-The routing follow-up moves user preferences to JSON patches and removes the
-expanded snapshot. The plugin package has been regenerated, but automated
-tests remain to be run before treating this follow-up as verified.
+The routing follow-up keeps Markdown as the user preference format, retains
+one packaged defaults baseline, restores the interpretation fixtures, and
+removes the expanded snapshot. Resolver, installer, build, validation, and
+publication checks pass; live client dispatch remains unverified.
 `docs/skills-first-coding-plan.md` remains an unchanged planning record.
 
 The follow-up branch review

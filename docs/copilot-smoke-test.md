@@ -63,19 +63,20 @@ copilot plugin uninstall agenticale
 copilot plugin marketplace remove agenticale
 ```
 
-## JSON preference checks
+## Markdown preference checks
 
-These checks exercise the JSON customization path (see
+These checks exercise the Markdown customization path (see
 [customizing model routing](setup.md#customizing-model-routing)) in an isolated
-home before a live model run. From the installed `skills/work` directory, run:
+home before a live model run. The workflow interprets each Markdown layer and
+passes the structured result to the resolver:
 
 ```sh
-node scripts/routing.mjs resolve --runtime copilot --project-root <workspace-root>
+node scripts/routing.mjs resolve --runtime copilot --input <structured-layer.json>
 ```
 
 Check that no files yields the packaged baseline, a personal preference
 overrides only its entries, and a project preference overrides the personal
-file. A role override affects only that role; `mode: "default"` resets it to
+file. A role override affects only that role; a `default` instruction resets it to
 the packaged mapping, while `mode: "inherit"` uses the session model and
 effort. The Copilot binding dispatches per-call model and effort, so a matching
 selection needs no profile refresh. Record the effective model from metadata or

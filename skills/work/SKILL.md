@@ -81,21 +81,19 @@ mode uses — once per activation, at start:
    and select the actual runtime binding from `references/runtimes/` for the
    host being used. Never infer the runtime from a selected model name.
 2. Establish the Git worktree root, or the explicit workspace root for a
-   non-Git project. Read only `<root>/.agenticale/routing.json` and
-   `~/.agenticale/routing.json`; the project file takes precedence. Absence is
-   normal, while an unreadable or invalid file must be reported before dispatch.
-   If a legacy `routing.md` exists at either location, report that it needs
-   conversion and do not silently fall back to defaults.
-3. Apply explicit invocation choices and resolve the seven routes for the
-   active runtime. Where Node is available, the packaged helper can discover
-   and resolve the JSON files directly:
+   non-Git project. Read `<root>/.agenticale/routing.md` and
+   `~/.agenticale/routing.md` when present; the project file takes precedence.
+   Absence is normal, while a present but unreadable file must be reported.
+3. Interpret active-runtime preferences, then resolve the seven routes. Where
+   Node is available, pass the interpreted structured preferences to the
+   packaged helper:
 
    ```sh
-   node scripts/routing.mjs resolve --runtime <runtime> --project-root <root>
+   node scripts/routing.mjs resolve --runtime <runtime> --input <structured-layer.json>
    ```
 
-   The in-context path follows the same JSON merge rules and keeps each route's
-   source in session state.
+   The in-context path follows the same merge rules and keeps each route's
+   source in session state. `--explain` exposes per-route provenance to tools.
 4. Check each selection against the binding's exposed dispatch capabilities.
    Surface missing capabilities, unsupported choices, and unresolved
    preferences (unknown roles, undefined tier references) before the affected

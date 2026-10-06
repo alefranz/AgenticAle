@@ -50,7 +50,7 @@ read the installed contract and defaults, load the personal and project JSON
 patches (the `opencode` runtime section), apply explicit invocation choices,
 and resolve this runtime's seven routes. Precedence is invocation, project,
 personal, then installed baseline. Do not scan unrelated files. Invocation
-choices are session-scoped and do not persist to `routing.json` or a preference
+choices are session-scoped and do not persist to `routing.md` or a preference
 file.
 
 Before dispatch, compare each resolved selection with the actual profile's
@@ -66,11 +66,11 @@ never rewrites active profiles or host-wide model configuration.
 
 1. **Resolve the requested routes.** From the installed `skills/work`
    directory, use the packaged resolver to read the installed baseline and
-   discovered JSON preferences. Add `--input PATH` only for a separate
+   structured preferences interpreted from Markdown. Add `--input PATH` only for a separate
    invocation patch:
 
    ```sh
-   node scripts/routing.mjs resolve --runtime opencode --project-root <project-root>
+   node scripts/routing.mjs resolve --runtime opencode --input <structured-layer.json>
    ```
 
    The output is a complete version-1 OpenCode policy: seven explicit routes
@@ -91,7 +91,7 @@ never rewrites active profiles or host-wide model configuration.
 
    ```sh
    node scripts/routing.mjs resolve --runtime opencode \
-     --project-root <project-root> > <preparation-path>/resolved-policy.json
+     --input <structured-layer.json> > <preparation-path>/resolved-policy.json
    ```
 5. **Refresh with the existing checkout-based installer.** This is the only
    step that needs the AgenticAle source checkout (the preparation
@@ -146,7 +146,7 @@ task-time model overrides cannot be promised: use a matching installed route,
 or route the change through the explicit preparation/refresh path in
 `ROUTING.md`; do not change global model configuration mid-task. Overrides
 supplied at task time stay within the session and do not rewrite
-`routing.json` or any preference file.
+`routing.md` or any preference file.
 
 ## Limitations (stated honestly)
 

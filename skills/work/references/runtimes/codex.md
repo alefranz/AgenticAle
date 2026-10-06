@@ -26,12 +26,13 @@ not tested here.
 ## Routing bootstrap on this surface
 
 Route resolution for each round follows the shared bootstrap in `ROUTING.md`:
-read the installed contract and defaults, load the personal and project JSON
-patches, apply invocation choices, and resolve this runtime's routes. The
-preference section uses the `codex` runtime name. Precedence is invocation,
-project, personal, then installed baseline. Do not scan unrelated files.
+read the installed contract and defaults, interpret the personal and project
+Markdown preferences, apply invocation choices, and resolve this runtime's
+routes. The preference section uses the `codex` runtime name. Precedence is
+invocation, project, personal, then installed baseline. Do not scan unrelated
+files.
 Invocation choices are session-scoped and do not persist to a preference file
-or `routing.json`.
+or `routing.md`.
 
 ## Requested versus effective settings
 
@@ -53,7 +54,7 @@ an explicit, intentional choice; it is not a fallback and not a missing value.
 An explicit invocation choice wins over discovered preference files for the
 entries it names; every other entry still resolves from the discovered files
 and installed baseline. Invocation choices
-stay within the session and never rewrite `routing.json` or any preference
+stay within the session and never rewrite `routing.md` or any preference
 file.
 
 ## Limitations (stated honestly)

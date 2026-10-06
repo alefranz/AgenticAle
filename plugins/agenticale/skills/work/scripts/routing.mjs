@@ -16,12 +16,11 @@
  *   - concrete route resolution with source/provenance labels and reset
  *     semantics (`role: default`, `tier: default`, `inherit`)
  *   - strict version-1 export (compatible with the existing validator)
- *   - a `resolve` CLI that reads the installed baseline, optional discovered
- *     JSON preferences, and an invocation patch, then exports the active runtime
+ *   - a `resolve` CLI that reads the installed baseline and an optional
+ *     structured invocation patch, then exports the active runtime
  *
- * User preferences are JSON patches. The `resolve` CLI can discover the one
- * personal and one project file, then apply an optional invocation layer.
- * Default builds and publication never discover user preference files.
+ * Users express preferences in routing.md. The workflow interprets that file
+ * into a structured invocation patch for this deterministic resolver.
  */
 
 import { readFileSync } from "node:fs";
@@ -324,9 +323,9 @@ export function validateV2Routing(routing) {
 }
 
 // Validates one structured preference layer and returns its normalized form
-// { source, runtimes }. Disk preference files use the same runtime patch
-// shape, with schemaVersion 2 added by validatePreferenceFile below.
-export function validatePreferenceLayer(layer, index) {
+// { source, runtimes }. A runtime filter validates only the active runtime.
+export function validatePreferenceLayer(layer, index, options = {}) {
+  const activeRuntime = options.runtime;
   const label = `Preference layer ${index + 1}`;
   if (!isPlainObject(layer)) {
     throw new RoutingError(`${label} must be a JSON object.`);
@@ -343,44 +342,51 @@ export function validatePreferenceLayer(layer, index) {
   if (runtimes !== undefined && (!isPlainObject(runtimes) || Object.keys(runtimes).length === 0)) {
     throw new RoutingError(`${label} runtimes, when present, must be a non-empty object.`);
   }
-  for (const [runtime, map] of Object.entries(runtimes ?? {})) {
-    if (!RUNTIME_KEYS.includes(runtime)) {
-      throw new RoutingError(`${label} targets unsupported runtime '${runtime}' (expected one of ${RUNTIME_KEYS.join(", ")}).`);
+  for (const [runtimeName, map] of Object.entries(runtimes ?? {})) {
+    if (activeRuntime && runtimeName !== activeRuntime) {
+      continue;
+    }
+    if (!RUNTIME_KEYS.includes(runtimeName)) {
+      throw new RoutingError(`${label} targets unsupported runtime '${runtimeName}' (expected one of ${RUNTIME_KEYS.join(", ")}).`);
     }
     if (!isPlainObject(map)) {
-      throw new RoutingError(`${label} runtime '${runtime}' must be an object.`);
+      throw new RoutingError(`${label} runtime '${runtimeName}' must be an object.`);
     }
     for (const key of Object.keys(map)) {
       if (!RUNTIME_LAYER_KEYS.includes(key)) {
-        throw new RoutingError(`${label} runtime '${runtime}' has unknown key '${key}' (expected tiers, roles).`);
+        throw new RoutingError(`${label} runtime '${runtimeName}' has unknown key '${key}' (expected tiers, roles).`);
       }
     }
     for (const [name, entry] of Object.entries(map.tiers ?? {})) {
       if (RESERVED_INSTRUCTION_NAMES.includes(name)) {
         throw new RoutingError(`${label} uses reserved tier name '${name}' (a tier cannot be named 'default' or 'inherit').`);
       }
-      validateTierDefinition(`${label} ${runtime}/tier '${name}'`, entry, { allowDefault: true });
+      validateTierDefinition(`${label} ${runtimeName}/tier '${name}'`, entry, { allowDefault: true });
     }
     for (const [role, entry] of Object.entries(map.roles ?? {})) {
       if (!ROLES.includes(role)) {
-        throw new RoutingError(`${label} role '${role}' (runtime: ${runtime}) is not one of the seven routing roles (${ROLES.join(", ")}).`);
+        throw new RoutingError(`${label} role '${role}' (runtime: ${runtimeName}) is not one of the seven routing roles (${ROLES.join(", ")}).`);
       }
-      validateRoleEntry(`${label} ${runtime}/role '${role}'`, entry, { allowDefault: true });
+      validateRoleEntry(`${label} ${runtimeName}/role '${role}'`, entry, { allowDefault: true });
     }
   }
   return {
     source: typeof layer.source === "string" && layer.source.length > 0 ? layer.source : `${label} (unnamed)`,
-    runtimes: runtimes ?? {},
+    runtimes: activeRuntime
+      ? Object.hasOwn(runtimes ?? {}, activeRuntime) ? { [activeRuntime]: runtimes[activeRuntime] } : {}
+      : runtimes ?? {},
   };
 }
 
 // Accepts a single layer object, an array of layers ordered lowest to highest
 // precedence, or null/undefined (no preferences) and returns the validated,
 // source-labeled layer list.
-export function normalizePreferenceInput(input) {
+export function normalizePreferenceInput(input, { runtime } = {}) {
   if (input === null || input === undefined) return [];
   const layers = Array.isArray(input) ? input : [input];
-  return layers.map((layer, index) => validatePreferenceLayer(layer, index));
+  // Entries for another host cannot affect this activation, so validate the
+  // shared layer shape and the active runtime while ignoring inactive maps.
+  return layers.map((layer, index) => validatePreferenceLayer(layer, index, { runtime }));
 }
 
 // Merges preference layers over a version-2 baseline, lowest to highest
@@ -391,9 +397,9 @@ export function normalizePreferenceInput(input) {
 // tiers without a baseline cannot be reset this way) and `role: default`
 // clears the role exception so the role falls back to the default tier
 // mapping. Role-to-tier references are NOT resolved here.
-export function mergePreferenceLayers(baseline, layers) {
+export function mergePreferenceLayers(baseline, layers, runtime) {
   validateV2Routing(baseline);
-  const normalized = normalizePreferenceInput(layers);
+  const normalized = normalizePreferenceInput(layers, { runtime });
   const merged = {
     roleTiers: { ...baseline.roleTiers },
     tiers: {},
@@ -501,7 +507,7 @@ export function resolveRuntime(baseline, layers, runtime) {
   if (!RUNTIME_KEYS.includes(runtime)) {
     throw new RoutingError(`Runtime '${runtime}' is not supported (expected one of ${RUNTIME_KEYS.join(", ")}).`);
   }
-  const merged = mergePreferenceLayers(baseline, layers);
+  const merged = mergePreferenceLayers(baseline, layers, runtime);
   if (!merged.tiers[runtime]) {
     throw new RoutingError(`Runtime '${runtime}' is not declared in the installed baseline.`);
   }
@@ -679,84 +685,35 @@ export async function loadPackagedBaseline() {
   return routing;
 }
 
-// Computes personal then project preference paths, in merge order. Absence is
-// normal; the resolver reports existing but unreadable or invalid files.
-// Deduplicates when the project root and home directory name the same file.
+// Computes the documented personal and project Markdown preference paths.
+// Interpretation belongs to the workflow; the resolver accepts its bounded
+// structured output through --input.
 export function discoverPreferencePaths({ projectRoot, homeDir = homedir() } = {}) {
   const paths = [];
-  paths.push(join(resolve(homeDir), ".agenticale", "routing.json"));
+  paths.push(join(resolve(homeDir), ".agenticale", "routing.md"));
   if (typeof projectRoot === "string" && projectRoot.length > 0) {
-    paths.push(join(resolve(projectRoot), ".agenticale", "routing.json"));
+    paths.push(join(resolve(projectRoot), ".agenticale", "routing.md"));
   }
   return [...new Set(paths)];
 }
 
-function validatePreferenceFile(value, path) {
-  if (!isPlainObject(value) || value.schemaVersion !== 2) {
-    throw new RoutingError(`Preference file ${path} must be a version-2 JSON object.`);
-  }
-  for (const key of Object.keys(value)) {
-    if (key !== "schemaVersion" && key !== "runtimes") {
-      throw new RoutingError(`Preference file ${path} has unknown key '${key}' (expected schemaVersion, runtimes).`);
-    }
-  }
-  if (!isPlainObject(value.runtimes) || Object.keys(value.runtimes).length === 0) {
-    throw new RoutingError(`Preference file ${path} must include a non-empty runtimes object.`);
-  }
-  return { source: path, runtimes: value.runtimes };
-}
-
-async function readPreferenceFiles(projectRoot) {
-  if (!projectRoot) return [];
-  const layers = [];
-  for (const path of discoverPreferencePaths({ projectRoot })) {
-    const legacyPath = path.replace(/\.json$/i, ".md");
-    try {
-      await readFile(legacyPath, "utf8");
-      throw new RoutingError(`Legacy Markdown routing preferences found at ${legacyPath}; convert them to the JSON patch format before dispatch.`);
-    } catch (error) {
-      if (error instanceof RoutingError) throw error;
-      if (error.code !== "ENOENT") {
-        throw new RoutingError(`Cannot inspect legacy routing preferences ${legacyPath}: ${error.message}`);
-      }
-    }
-    let contents;
-    try {
-      contents = await readFile(path, "utf8");
-    } catch (error) {
-      if (error.code === "ENOENT") continue;
-      throw new RoutingError(`Cannot read routing preferences ${path}: ${error.message}`);
-    }
-    let parsed;
-    try {
-      parsed = JSON.parse(contents);
-    } catch {
-      throw new RoutingError(`Routing preferences are not valid JSON: ${path}.`);
-    }
-    layers.push(validatePreferenceFile(parsed, path));
-  }
-  return layers;
-}
-
 function cliUsage() {
   return `Usage:
-  node routing.mjs resolve --runtime RUNTIME [--project-root PATH] [--baseline PATH] [--input PATH]
+  node routing.mjs resolve --runtime RUNTIME [--baseline PATH] [--input PATH]
 
-Resolves the installed version-2 baseline, optional personal/project JSON
-preferences, and an optional invocation layer. Prints a version-1 policy for
-the complete active runtime on stdout.
+Resolves the installed version-2 baseline and an optional structured input
+layer. Prints a version-1 policy for the complete active runtime on stdout.
 
   --runtime RUNTIME   Active runtime: copilot, codex, or opencode (required)
-  --project-root PATH Established project root; enables discovery of
-                      ~/.agenticale/routing.json and
-                      <project-root>/.agenticale/routing.json
   --baseline PATH     Version-2 baseline (default: the packaged
                       references/routing.json beside this module)
-  --input PATH        Optional invocation preference JSON (one layer or an
-                      array of layers); it has highest precedence.
+  --input PATH        Optional structured preference JSON (one layer or an
+                      array of layers), typically interpreted from routing.md.
+  --explain           Wrap the policy with per-role selection/tier provenance.
 
-Preference files are JSON. Absence is normal; malformed or unreadable files
-are errors. Errors identify the affected runtime, role/tier, and source.`;
+The helper does not discover user files. The workflow reads routing.md and
+passes bounded structured preferences here. Errors identify runtime, role,
+tier, and source.`;
 }
 
 function requireCliValue(argv, index, option) {
@@ -784,7 +741,6 @@ async function runResolve(options) {
   }
   validateV2Routing(baseline);
 
-  const layers = await readPreferenceFiles(options.projectRoot);
   let inputText = "";
   if (options.input) {
     try {
@@ -806,12 +762,11 @@ async function runResolve(options) {
     }
   }
 
-  const invocationLayers = isPlainObject(input) && input.schemaVersion === 2
-    ? [validatePreferenceFile(input, options.input ?? "invocation input")]
-    : normalizePreferenceInput(input);
-  const resolution = resolveRuntime(baseline, [...layers, ...invocationLayers], options.runtime);
+  const resolution = resolveRuntime(baseline, input, options.runtime);
+  const routeProvenance = Object.fromEntries(ROLES.map((role) => [role, resolution.routes[role].provenance]));
   const policy = exportV1(resolution.routes, resolution.runtime, `Resolved from the installed version-2 baseline (${options.baseline}).`);
-  process.stdout.write(`${JSON.stringify(policy, null, 2)}\n`);
+  const output = options.explain ? { policy, routeProvenance } : policy;
+  process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
 }
 
 async function main() {
@@ -828,7 +783,7 @@ async function main() {
   let runtime = null;
   let baseline = null;
   let input = null;
-  let projectRoot = null;
+  let explain = false;
   for (let index = 1; index < argv.length; index += 1) {
     const argument = argv[index];
     if (argument === "--runtime") {
@@ -840,9 +795,8 @@ async function main() {
     } else if (argument === "--input") {
       input = resolve(requireCliValue(argv, index, argument));
       index += 1;
-    } else if (argument === "--project-root") {
-      projectRoot = resolve(requireCliValue(argv, index, argument));
-      index += 1;
+    } else if (argument === "--explain") {
+      explain = true;
     } else {
       throw new RoutingError(`Unknown argument '${argument}'. Run with --help for usage.`);
     }
@@ -851,7 +805,7 @@ async function main() {
   if (!RUNTIME_KEYS.includes(runtime)) {
     throw new RoutingError(`--runtime must be one of ${RUNTIME_KEYS.join(", ")} (got '${runtime}').`);
   }
-  await runResolve({ runtime, baseline: baseline ?? packagedBaselinePath(), input, projectRoot });
+  await runResolve({ runtime, baseline: baseline ?? packagedBaselinePath(), input, explain });
 }
 
 if (process.argv[1] && await realpath(process.argv[1]) === await realpath(fileURLToPath(import.meta.url))) {

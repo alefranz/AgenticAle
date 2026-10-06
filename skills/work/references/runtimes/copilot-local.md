@@ -36,7 +36,7 @@ own dispatch limits (the per-call model argument on `runSubagent`, the
 stateless calls, and the parent-model cost-tier ceiling). Precedence is
 invocation, project, personal, then installed baseline. Do not scan unrelated
 files. Invocation choices are session-scoped and do not persist to a preference
-file or `routing.json`.
+file or `routing.md`.
 
 ## Requested versus effective settings
 
@@ -58,7 +58,7 @@ a fallback and not a missing value.
 An explicit invocation choice wins over discovered preference files for the
 entries it names; every other entry still resolves from the discovered files
 and the installed baseline. Invocation choices
-stay within the session and never rewrite `routing.json` or any preference
+stay within the session and never rewrite `routing.md` or any preference
 file.
 
 ## Limitations (stated honestly)

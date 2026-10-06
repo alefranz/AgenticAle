@@ -22,7 +22,7 @@ Four concerns are separated so each can change independently:
 | Task contracts | `skills/work/references/tasks/<role>.md` (six: `explore`, `implement`, `fix`, `review`, `deep-review`, `consult`) |
 | Routing contract | `skills/work/references/ROUTING.md` |
 | Routing defaults baseline | `skills/work/references/routing.json` (schemaVersion 2) |
-| Routing customization example | `skills/work/references/routing.example.json` |
+| Routing customization example | `skills/work/references/routing.example.md` |
 | Shared routing module | `skills/work/scripts/routing.mjs` (dependency-free, packaged with the work skill) |
 | Runtime bindings | `skills/work/references/runtimes/<host>.md` (four: `copilot`, `copilot-local`, `codex`, `opencode`) |
 
@@ -59,7 +59,7 @@ recovery after loss of the host session.
 The authored source-of-truth layout is what `scripts/validate.mjs` asserts
 exists: the two workflow skills plus their `agents/openai.yaml`, the shared
 `rounds.md`, the `ROUTING.md` reference, the `routing.json` defaults baseline,
-the `routing.example.json` customization example, the shared `scripts/routing.mjs`
+the `routing.example.md` customization example, the shared `scripts/routing.mjs`
 module, the four runtime bindings, the six task contracts, the
 `adapters/opencode/` metadata (adapter, command templates, and README), and the
 two supporting skills, for 25 source-of-truth files. The retired layout
@@ -68,7 +68,8 @@ must be absent.
 
 ## The routing contract
 
-Routing uses JSON for defaults and user preferences. The packaged resolver
+Routing uses JSON for the packaged defaults and structured resolver inputs;
+users author preferences in Markdown. The packaged resolver
 reads the optional personal and project files and merges them with the
 installed baseline. The build never discovers user files, so generated
 packages remain reproducible.
@@ -106,13 +107,14 @@ source present. It exposes:
 - version-1 normalization and build overrides (`mergeV2MissingRuntimes`,
   `normalizeV1ToV2`, `legacyInventoryToV2`, `applyBuildOverrides`);
 - strict version-1 export (`exportV1`), compatible with the existing validator;
-- preference discovery and loading for the optional JSON files. Default builds
-  and publication do not call discovery, so their output stays reproducible.
+- personal and project Markdown paths for the workflow to interpret. The
+  resolver does not discover user files.
 
-The `resolve` CLI reads the installed baseline, then optional personal and
-project JSON preferences when given `--project-root PATH`, then an optional
-invocation layer (`--input PATH`). It prints a complete version-1 policy for
-the active runtime (`--runtime copilot|codex|opencode`).
+The `resolve` CLI reads the installed baseline and an optional structured
+layer (`--input PATH`) produced by interpreting the Markdown preferences. It
+prints a complete version-1 policy for the active runtime
+(`--runtime copilot|codex|opencode`); `--explain` includes per-route source
+provenance.
 
 ### One installed defaults file
 
@@ -126,8 +128,8 @@ Precedence is per named entry, from highest to lowest:
 
 ```text
 Invocation preferences
-  > `<project-root>/.agenticale/routing.json`
-  > `~/.agenticale/routing.json`
+  > `<project-root>/.agenticale/routing.md`
+  > `~/.agenticale/routing.md`
   > installed/package baseline
 ```
 

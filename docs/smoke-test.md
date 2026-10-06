@@ -163,15 +163,15 @@ mapping. A role omitted from the JSON object inherits the current session model.
 Re-run the same install without `--replace` and confirm it reports the profile
 is up to date. The uninstall should remove unchanged rendered profiles.
 
-## JSON preference checks
+## Markdown preference checks
 
-These checks use the optional files documented in
+These checks use the optional Markdown files documented in
 [customizing model routing](setup.md#customizing-model-routing). They make no
-model request. From the installed `skills/work` directory, resolve the default
-and discovered preferences with:
+model request. Interpret the Markdown preferences into structured layers and
+pass those layers to the resolver from the installed `skills/work` directory:
 
 ```sh
-node scripts/routing.mjs resolve --runtime opencode --project-root <workspace-root>
+node scripts/routing.mjs resolve --runtime opencode --input <structured-layer.json>
 ```
 
 Check that no files yields the packaged baseline, a personal file overrides
@@ -181,7 +181,7 @@ OpenCode, compare the resolved route against the current profile fields in
 resolver output can be saved and passed to the existing installer:
 
 ```sh
-node scripts/routing.mjs resolve --runtime opencode --project-root <workspace-root> > <preparation-path>/resolved-policy.json
+node scripts/routing.mjs resolve --runtime opencode --input <structured-layer.json> > <preparation-path>/resolved-policy.json
 node scripts/install.mjs --target <isolated-profile-path> --routing <preparation-path>/resolved-policy.json
 ```
 
