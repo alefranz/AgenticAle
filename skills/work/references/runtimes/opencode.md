@@ -45,13 +45,13 @@ per routing key.
 
 ## Routing bootstrap and profile selection on this surface
 
-Route resolution for each round follows the shared bootstrap in `ROUTING.md`:
-read the installed contract and defaults, load the personal and project JSON
-patches (the `opencode` runtime section), apply explicit invocation choices,
-and resolve this runtime's seven routes. Precedence is invocation, project,
-personal, then installed baseline. Do not scan unrelated files. Invocation
-choices are session-scoped and do not persist to `routing.md` or a preference
-file.
+At activation, follow the shared bootstrap in `ROUTING.md`:
+discover personal and project `routing.md` files, interpret the active
+`opencode` runtime preferences, apply explicit invocation choices, and resolve
+this runtime's seven routes once for the activation. Precedence is invocation,
+project, personal, then installed baseline. Do not scan unrelated files.
+Invocation choices are session-scoped and do not persist to `routing.md` or a
+preference file.
 
 Before dispatch, compare each resolved selection with the actual profile's
 `model` and `reasoningEffort` fields. The profile is the installed state; no
@@ -65,12 +65,13 @@ Use this procedure when no installed profile matches. Reading preferences
 never rewrites active profiles or host-wide model configuration.
 
 1. **Resolve the requested routes.** From the installed `skills/work`
-   directory, use the packaged resolver to read the installed baseline and
-   structured preferences interpreted from Markdown. Add `--input PATH` only for a separate
-   invocation patch:
+   directory, use the packaged resolver with the ordered structured layers
+   interpreted from personal Markdown, project Markdown, and any invocation
+   preferences. This preserves persistent customizations when preparing the
+   active profiles:
 
    ```sh
-   node scripts/routing.mjs resolve --runtime opencode --input <structured-layer.json>
+   node scripts/routing.mjs resolve --runtime opencode --input <ordered-structured-layers.json>
    ```
 
    The output is a complete version-1 OpenCode policy: seven explicit routes
@@ -91,7 +92,7 @@ never rewrites active profiles or host-wide model configuration.
 
    ```sh
    node scripts/routing.mjs resolve --runtime opencode \
-     --input <structured-layer.json> > <preparation-path>/resolved-policy.json
+     --input <ordered-structured-layers.json> > <preparation-path>/resolved-policy.json
    ```
 5. **Refresh with the existing checkout-based installer.** This is the only
    step that needs the AgenticAle source checkout (the preparation

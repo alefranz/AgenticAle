@@ -109,9 +109,10 @@ must not be labeled complete based on another client's result.
 ## Routing customization status (this pass)
 
 Model routing customization uses the Markdown preference files described in
-[setup.md](setup.md#customizing-model-routing). This refactor did not run the
-automated suite or a live client, and did not mutate the live OpenCode profile.
-Every row below is therefore **not tested** for live dispatch.
+[setup.md](setup.md#customizing-model-routing). The automated routing, build,
+installer, validation, and publication checks pass. No live client was run, and
+the live OpenCode profile was not changed. Every row below is therefore
+**not tested** for live dispatch.
 
 | Surface | Customization capability | Status (this pass) |
 | --- | --- | --- |

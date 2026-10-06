@@ -147,8 +147,8 @@ Build and install options resolve the policy:
 - `--routing PATH` builds from a caller-supplied version-1 or version-2 file
   (conflicts with `--models`). A complete version-1 policy normalizes to exact
   direct role exceptions over the packaged tiers and undeclared runtimes merge
-  from the packaged defaults. Preference patches use the runtime-discovered
-  JSON files and are not build inputs.
+  from the packaged defaults. Runtime-discovered `routing.md` preferences are
+  interpreted by the workflow and are not build inputs.
 - `--models PATH|PRESET` imports a legacy `provider/model[#variant]` inventory
   and converts it; omitted keys become explicit inheritance and are reported.
 - `--no-model` forces inheritance for every route.

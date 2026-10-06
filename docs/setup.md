@@ -207,12 +207,22 @@ Use the tier table first and add optional role overrides below it. State both
 model and effort for a direct choice. See `references/ROUTING.md` in the
 installed skill for ambiguity, reset, and fallback behavior.
 
-The packaged resolver receives structured preferences interpreted from the
-Markdown file:
+For example, a personal preference file might contain:
 
-```sh
-node scripts/routing.mjs resolve --runtime codex --input <structured-layer.json>
+```markdown
+# Model routing
+
+## codex
+
+| Tier | Model | Reasoning effort |
+| --- | --- | --- |
+| fast | gpt-6-luna | medium |
+| routine | gpt-6-luna | high |
+| standard | gpt-6-sol | high |
+| deep | gpt-6-sol | xhigh |
 ```
+
+Start a new `/work` or `/autonomous` activation to load these preferences.
 
 OpenCode uses preconfigured profiles. A preference change takes effect there
 only after a matching profile is installed and active. If no profile matches,
@@ -381,13 +391,14 @@ Modified files are preserved during uninstall.
   rules for the actions they use; continue `/work` from its retained session, or
   rerun `/autonomous` to resume its durable handoff. Only the autonomous skill
   provides fresh-session recovery.
-- **A model cannot be found:** run `/models`, update the Markdown routing file
-  or the structured build input, and reinstall with `--replace`.
+- **A model cannot be found:** run `/models` and check the Markdown routing
+  file. Plugin users can edit Markdown and start a new `/work` or `/autonomous`
+  activation. OpenCode users may need to refresh their generated profiles; see
+  the preparation procedure in the installed `work` skill.
 - **You are unsure about model routing:** use `--no-model` for a quick trial,
-  then reinstall with `--models /path/to/my-models.json` or
-  `--routing /path/to/routing.json` when you are ready to specialize routes —
-  or, after any install, create a `routing.md` preference file
-  ([customizing model routing](#customizing-model-routing)).
+  then create a `routing.md` preference file
+  ([customizing model routing](#customizing-model-routing)). OpenCode users may
+  need to refresh generated profiles after changing preferences.
 - **You want to understand the implementation:** read the optional
   [technical architecture guide](architecture.md).
 

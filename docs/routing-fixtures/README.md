@@ -10,9 +10,9 @@ resolution, export) is covered by `scripts/test-routing.mjs`, and the
 installed workflow must never need these files to run.
 
 Placement: the installed workflow needs only the packaged contract, defaults,
-resolved snapshot, example, and shared module (see `ROUTING.md`, Packaged
-resources), so these fixtures live under `docs/` and are not shipped in the
-skill tree or counted in the source-of-truth inventory.
+Markdown example, and shared module (see `ROUTING.md`), so these fixtures live
+under `docs/` and are not shipped in the skill tree or counted in the
+source-of-truth inventory.
 
 ## How to use
 

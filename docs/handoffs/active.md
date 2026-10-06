@@ -23,8 +23,9 @@ wrappers.
   OpenCode `autoinvoke: false`, OpenAI `allow_implicit_invocation: false`).
 - **Routing defaults** at `skills/work/references/routing.json` (schemaVersion
   2): four shared tiers map the seven roles to per-runtime model/effort pairs.
-  Optional project and personal overrides use JSON patches; generated bundles
-  carry only the defaults baseline, with no expanded resolved snapshot.
+  Optional project and personal overrides use interpreted `routing.md` files;
+  generated bundles carry only the defaults baseline, with no expanded
+  resolved snapshot.
 - **Seven generated OpenCode profiles**: `consult`, `deep-review`, `explore`,
   `fix`, `implement`, `implement-hard`, `review`. `implement-hard` is a
   distinct profile (the `implement` contract at higher effort), not a reused
@@ -49,9 +50,9 @@ wrappers.
   `publish-default-plugin.mjs` regenerates the plugin and both catalogs;
   `--check` verifies currency.
 - The earlier skills-first implementation pass passed its validation and
-  artifact checks. The current routing simplification was generated through
-  `publish-default-plugin.mjs`; automated routing, installer, and build suites
-  have not been run for this follow-up.
+  artifact checks. The current routing simplification and this documentation
+  cleanup are generated through `publish-default-plugin.mjs`; automated
+  routing, installer, build, validation, and publication checks pass.
 
 ## Review findings (R1-R15: addressed)
 
