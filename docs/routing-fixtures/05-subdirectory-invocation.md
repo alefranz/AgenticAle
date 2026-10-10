@@ -16,7 +16,7 @@ Git worktree root `<repo>` with `<repo>/.agenticale/routing.md`:
 
 | Tier | Model | Reasoning effort |
 | --- | --- | --- |
-| deep | gpt-6-sol | max |
+| deep | gpt-6.1-sol | max |
 ```
 
 Invocation: `/work <task>` with the session's working directory at
@@ -38,4 +38,4 @@ Invocation: `/work <task>` with the session's working directory at
 | explore | tier `fast` | gpt-6-luna / medium | tier: installed baseline |
 | implement / fix | tier `routine` | gpt-6-luna / high | tier: installed baseline |
 | implement-hard / review | tier `standard` | gpt-6.1-sol / high | tier: installed baseline |
-| deep-review / consult | tier `deep` | gpt-6-sol / max | tier: repo routing.md |
+| deep-review / consult | tier `deep` | gpt-6.1-sol / max | tier: repo routing.md |

@@ -26,8 +26,8 @@ come from the host.
 | --- | --- | --- |
 | fast | gpt-6-luna | medium |
 | routine | gpt-6-luna | high |
-| standard | gpt-6-sol | high |
-| deep | gpt-6-sol | xhigh |
+| standard | gpt-6.1-sol | high |
+| deep | gpt-6.1-sol | xhigh |
 
 ### Role overrides
 
