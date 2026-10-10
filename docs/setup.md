@@ -218,8 +218,8 @@ For example, a personal preference file might contain:
 | --- | --- | --- |
 | fast | gpt-6-luna | medium |
 | routine | gpt-6-luna | high |
-| standard | gpt-6-sol | high |
-| deep | gpt-6-sol | xhigh |
+| standard | gpt-6.1-sol | high |
+| deep | gpt-6.1-sol | xhigh |
 ```
 
 Start a new `/work` or `/autonomous` activation to load these preferences.

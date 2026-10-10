@@ -112,7 +112,7 @@ qualification can remain deferred, but resource loading must be wired now.
 Both implementation keys map to one profile. `canonicalRoute()` chooses
 `implement`, so `implement-hard`'s model and effort are never rendered. With the
 packaged mapping, hard slices receive the routine `gpt-6-luna`/`max` profile
-instead of their configured `gpt-6-sol`/`high` route. Passing hard-task context
+instead of their configured `gpt-6.1-sol`/`high` route. Passing hard-task context
 cannot change a model pinned in a profile when per-call overrides are unavailable.
 
 The implementation commit also changed the plan's §4 table from seven profiles

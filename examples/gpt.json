@@ -1,9 +1,9 @@
 {
   "explore": "opencode/gpt-6-luna#max",
   "implement": "opencode/gpt-6-luna#max",
-  "implement-hard": "opencode/gpt-6-sol#high",
+  "implement-hard": "opencode/gpt-6.1-sol#high",
   "fix": "opencode/gpt-6-luna#max",
-  "review": "opencode/gpt-6-sol#high",
-  "deep-review": "opencode/gpt-6-sol#xhigh",
-  "consult": "opencode/gpt-6-sol#xhigh"
+  "review": "opencode/gpt-6.1-sol#high",
+  "deep-review": "opencode/gpt-6.1-sol#xhigh",
+  "consult": "opencode/gpt-6.1-sol#xhigh"
 }
