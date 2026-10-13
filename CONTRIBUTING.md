@@ -95,8 +95,13 @@ for fixes, minor for new capabilities, major for breaking changes (minor for
 breaking changes before 1.0). Documentation-only PRs need no bump. Core-only
 tasks defer versioning to convergence, as described in AGENTS.md.
 
-CI checks the PR's final package against its target branch. In GitHub Settings
-→ Rules → Rulesets, configure the rule for `main` to require `Plugin version`
+CI checks the PR's final package against its target branch, including after
+review corrections at the same bumped version. Merge groups use their target
+branch too; only pushes to `main` compare against the previous push. Feature
+branch pushes still run the platform checks but skip the version gate.
+
+In GitHub Settings → Rules → Rulesets, configure the rule for `main` to require
+`Plugin version`
 and all three `Node 24 / <os>` checks, with branches up to date before merging
 (or use a merge queue). This repository includes merge-group checks. These
 repository settings are separate from workflow files: merely adding a job does

@@ -106,6 +106,16 @@ async function main() {
     const passed = spawnSync(process.execPath, [fixtureScript, "--base", baseSha, "--head", headSha], { encoding: "utf8" });
     assert.equal(passed.status, 0, passed.stderr);
     assert.match(passed.stdout, /0.3.0 -> 0.4.0/);
+    // A review correction retains the PR's bumped version. It must pass against
+    // the target branch; a same-version content change directly on main fails.
+    const corrected = fixture("0.4.0");
+    corrected.set(skill, "Reviewed capability\n");
+    await repo.write(corrected);
+    const correctedSha = await repo.commit("Review correction at the same PR version");
+    assert.equal((await checkPluginVersion({ base: baseSha, head: correctedSha, cwd: repo.cwd })).version, "0.4.0");
+    await assert.rejects(checkPluginVersion({ base: headSha, head: correctedSha, cwd: repo.cwd }), /without a version bump/);
+    const correctedCli = spawnSync(process.execPath, [fixtureScript, "--base", baseSha, "--head", correctedSha], { encoding: "utf8" });
+    assert.equal(correctedCli.status, 0, correctedCli.stderr);
   } finally { await repo.cleanup(); }
   console.log("Plugin version tests passed (content, catalogs, SemVer, concurrent PRs, and Git snapshots).");
 }

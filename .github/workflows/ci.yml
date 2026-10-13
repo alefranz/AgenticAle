@@ -49,6 +49,8 @@ jobs:
 
   plugin-version:
     name: Plugin version
+    # Versioning is per PR, not per review-fix push on a feature branch.
+    if: github.event_name == 'pull_request' || github.event_name == 'merge_group' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
