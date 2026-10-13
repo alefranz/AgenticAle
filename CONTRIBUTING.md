@@ -5,8 +5,9 @@ focused changes with clear verification are easiest to review.
 
 ## Before a change
 
-- Read `AGENTS.md` when present, `docs/architecture.md`, and the relevant skill
-  files.
+- Follow [AGENTS.md](AGENTS.md) for focused core development and the explicit
+  core-only scope. Read the relevant skill source and architecture sections;
+  defer packaging and cross-client convergence when requested.
 - Keep the authored source of truth under the skills-first layout. The two
   workflow skills are `skills/work` and `skills/autonomous`; the two supporting
   skills are `skills/pull-request-description` and
@@ -33,7 +34,9 @@ focused changes with clear verification are easiest to review.
 
 ## Verify
 
-Use Node.js 20 or later and run, in this order:
+Use Node.js 20 or later. For an explicitly core-only task, use the scoped checks
+and convergence handoff in [AGENTS.md](AGENTS.md#core-only-work-and-later-convergence).
+For integrated changes and release readiness, run the full sequence in this order:
 
 ```sh
 node scripts/validate.mjs
