@@ -49,6 +49,10 @@ Choose the smallest useful path:
 - An uncertain request: explore one concrete question first. Present options
   when the findings expose a meaningful user choice, then implement once the
   intended outcome is clear.
+- A complex but bounded change: use the shared contract's sequential
+  decomposition, either immediately or after exploration/consultation exposes
+  useful boundaries. Assign only the next verifiable slice, close its review
+  loop, then reassess before assigning the next one.
 - Investigation or advice only: return findings and options without implementing.
 - Review feedback: inspect the actual feedback and current changes, fix the
   requested issues, and independently review the fix and affected behaviour.
@@ -123,16 +127,35 @@ are conditional, not mandatory stages. Keep the coordinator's context small by
 passing relevant facts and paths rather than full transcripts. Run rounds
 sequentially; never have a worker approve its own change.
 
-For a larger task, split by verifiable outcomes. Review each implementation
-slice and check the combined result before delivery. Use deep review only when
-the interactions merit it. Independent review is the default for changes;
-there is no strict/standard selector in this workflow. An explicit user request
-to skip review can override this; disclose that review was skipped.
+### Sequential decomposition
+
+Use [the shared decomposition guidance](references/rounds.md#sequential-decomposition)
+when smaller outcomes make a difficult task easier to implement and verify.
+Keep a compact ordered outline in session context: accepted outcomes and their
+evidence, the current slice, tentative remaining outcomes, and assumptions that
+could change them. Detail only the current assignment. This is still one user
+task, with shared overall acceptance criteria and one budget; it does not activate
+Autonomous Mode or create project tracking files.
+
+Independent review is the default for each changed slice before the next slice
+starts. There is no strict/standard selector in this workflow. An explicit user
+request to skip review can override this; disclose that review was skipped.
+Ordinary slice review includes its interactions with earlier work. Use deep
+review only where substantial interactions or high-risk shared invariants need
+an integration audit; decomposition alone does not trigger it at every step.
+Prefer an audit at the combined-result boundary, or earlier when later work
+would depend on an uncertain contract. Supply the exact accumulated change
+range, accepted outcomes, and integration checks. A review that already covers
+that range and those checks need not be duplicated at delivery. Any combined
+review target has the same fix/review caps as a slice.
 
 Start with a budget appropriate to the task, normally up to six worker rounds
 (explore, implement, hard implementation, or fix). Allow at most two fix cycles
 per slice, three review passes per slice, and one optional consultation per task.
 Review calls do not consume the worker budget but are bounded by these caps.
+Budget across the whole sequence, leaving room for fixes and integration work;
+splitting or revising the plan does not replenish allowances. Reassess the
+remaining scope against the remaining budget at each slice boundary.
 Caps prevent dispatching another round of that type beyond its allowance;
 verification and the permitted review of the last allowed worker still run.
 If more work is then required, stop and report it. Also stop when the same

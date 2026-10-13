@@ -66,10 +66,10 @@ git diff --check
 
 Installer tests use temporary directories and must not target a real OpenCode
 profile. For a manual release check, follow `docs/smoke-test.md` (OpenCode) and
-`docs/copilot-smoke-test.md` (Copilot); workflow-interpretation evaluation
+`docs/copilot-smoke-test.md` (Copilot). Workflow-interpretation evaluation
 fixtures for the routing customization boundary live in
-Live model-routing and workflow checks are recorded in
-`docs/runtime-compatibility.md`.
+[`docs/routing-fixtures`](docs/routing-fixtures/README.md). Live model-routing
+and workflow checks are recorded in [docs/runtime-compatibility.md](docs/runtime-compatibility.md).
 
 Please describe the problem, the chosen behavior, and the verification in a
 pull request. Do not include credentials, private endpoints, generated build

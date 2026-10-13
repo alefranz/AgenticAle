@@ -267,7 +267,21 @@ strengthen the persistence policy.
 ## Task loop
 
 Tasks come from the handoff (first uncompleted item in the "Next slice") or
-from the previous round's report. For each task:
+from the previous round's report.
+
+Apply the shared contract's
+[sequential decomposition](../work/references/rounds.md#sequential-decomposition)
+within a task when useful, including after exploration or consultation. Keep
+the short provisional sequence in the existing backlog and the current slice's
+acceptance, evidence, and one next action in the active handoff. Reassess after
+each slice or inconclusive attempt before dispatching the next assignment;
+record rejected experiments and reconcile their changes before the next slice.
+This adds no state files and does not reset budgets, review counts, or stop
+conditions. Strict mode gates each changed slice; standard mode retains its
+normal verification policy. The periodic and opportunistic deep-review gates
+below still govern escalation; decomposition adds no per-step deep review.
+
+For each current slice or discovery assignment:
 
 1. **Worker round.** Compose a self-contained prompt from the worker
    template. Invoke one foreground child subagent carrying the matching task

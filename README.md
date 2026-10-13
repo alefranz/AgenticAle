@@ -132,6 +132,13 @@ first. The coordinator brings meaningful choices back to you and continues
 routine work without asking permission at every stage. Investigation-only
 requests return findings and options without starting implementation.
 
+For a complex, bounded task, the coordinator can divide the goal into a short
+sequence of outcomes. It completes and reviews one changed slice before moving
+to the next, and adjusts the remaining plan as evidence comes in. Failed
+experiments are reconciled before work advances; replanning does not reset the
+task's round or review limits. The accumulated changes are checked together
+before delivery.
+
 Each agent gets a bounded task and the relevant context. Routing is an explicit
 per-route policy: high-volume work (explore, routine implement, fix) uses a fast
 or cheap model, while `implement-hard`, `review`, `deep-review`, and `consult`
