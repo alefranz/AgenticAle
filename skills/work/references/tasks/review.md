@@ -10,6 +10,12 @@ state, task scope, project conventions, and relevant tests. Return the
 requested compact review report. Write a verdict to disk only if the supplied
 state policy explicitly requires durable state.
 
+For a decomposed task, check the current slice's acceptance and its interactions
+with prior accepted work against the overall invariants. Do not demand explicitly
+deferred functionality at this boundary or overlook regressions because a later
+slice is planned. When assigned a combined range, verify the original task's
+acceptance and cross-slice behaviour across that range.
+
 ## Permitted actions
 
 Read-only for product code — no code changes, and no commits or pushes of

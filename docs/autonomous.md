@@ -77,6 +77,14 @@ explicitly low-risk mechanical tasks lighter only when a full review gate would
 not add useful value. The workflow records durable state in `BACKLOG.md` and
 `docs/handoffs/active.md` in the project being worked on.
 
+For a complex bounded goal, the coordinator may outline a few provisional,
+dependent outcomes and complete them in sequence. It reassesses the next slice
+after each result, including results from exploration or consultation. A failed
+experiment is evidence for revising the plan, but its changes must be reconciled
+before implementation advances. The task's worker budget, review limits, and
+stop conditions continue across replanning; the accumulated work still gets
+combined acceptance checks before delivery.
+
 ## Permissions for unattended runs
 
 The OpenCode installer leaves `opencode.jsonc` unchanged. For unattended runs,

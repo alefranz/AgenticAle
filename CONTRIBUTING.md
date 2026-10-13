@@ -5,8 +5,9 @@ focused changes with clear verification are easiest to review.
 
 ## Before a change
 
-- Read `AGENTS.md` when present, `docs/architecture.md`, and the relevant skill
-  files.
+- Follow [AGENTS.md](AGENTS.md) for focused core development and the explicit
+  core-only scope. Read the relevant skill source and architecture sections;
+  defer packaging and cross-client convergence when requested.
 - Keep the authored source of truth under the skills-first layout. The two
   workflow skills are `skills/work` and `skills/autonomous`; the two supporting
   skills are `skills/pull-request-description` and
@@ -33,7 +34,9 @@ focused changes with clear verification are easiest to review.
 
 ## Verify
 
-Use Node.js 20 or later and run, in this order:
+Use Node.js 20 or later. For an explicitly core-only task, use the scoped checks
+and convergence handoff in [AGENTS.md](AGENTS.md#core-only-work-and-later-convergence).
+For integrated changes and release readiness, run the full sequence in this order:
 
 ```sh
 node scripts/validate.mjs
@@ -63,10 +66,10 @@ git diff --check
 
 Installer tests use temporary directories and must not target a real OpenCode
 profile. For a manual release check, follow `docs/smoke-test.md` (OpenCode) and
-`docs/copilot-smoke-test.md` (Copilot); workflow-interpretation evaluation
+`docs/copilot-smoke-test.md` (Copilot). Workflow-interpretation evaluation
 fixtures for the routing customization boundary live in
-Live model-routing and workflow checks are recorded in
-`docs/runtime-compatibility.md`.
+[`docs/routing-fixtures`](docs/routing-fixtures/README.md). Live model-routing
+and workflow checks are recorded in [docs/runtime-compatibility.md](docs/runtime-compatibility.md).
 
 Please describe the problem, the chosen behavior, and the verification in a
 pull request. Do not include credentials, private endpoints, generated build

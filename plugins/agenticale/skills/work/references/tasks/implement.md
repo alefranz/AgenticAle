@@ -9,6 +9,14 @@ present and the supplied task packet and reset rules. Verify, follow the
 supplied git persistence policy, and report only in the requested format. Do
 not absorb adjacent work.
 
+The overall goal and later slices are context only. Preserve supplied prior
+invariants and stop at this slice's acceptance boundary. If evidence invalidates
+the boundary or approach, return it with a proposed next action for the
+coordinator; do not implement the rest of the sequence. For an assigned
+experiment, report its result against the decision criterion and identify any
+changes requiring retention or cleanup. A rejected hypothesis is not feature
+completion.
+
 This one contract serves both routine slices and genuinely reasoning-heavy
 ones — concurrency/async/cancellation/timing behaviour, cross-repository
 contract surfaces, subtle shared-state behaviour, or security-relevant code

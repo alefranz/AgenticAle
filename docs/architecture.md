@@ -38,11 +38,15 @@ selected or configured route.
 
 `skills/work/references/rounds.md` is the shared round contract: the child task
 packet, compact reports, reset criteria, and the review/fix gate. Both workflows
-load it, and every build and install includes it. The six task contracts are
-capability-neutral: they carry only the role's instructions, with no
-host-specific protocol. `implement` and `implement-hard` share the same
-`implement` contract; `implement-hard` is a routing key, not a separate contract
-or profile.
+load it, and every build and install includes it. For complex bounded goals, it
+also defines sequential decomposition: the coordinator can outline provisional
+outcomes, complete and review one slice at a time, then reassess based on the
+evidence. Replanning does not reset the task's budgets or failure limits, and
+the accumulated changes receive combined acceptance checks before delivery.
+The six task contracts are capability-neutral: they carry only the role's
+instructions, with no host-specific protocol. `implement` and `implement-hard`
+share the same `implement` contract; `implement-hard` is a routing key, not a
+separate contract or profile.
 
 `pull-request-description` is read before writing or revising a PR body;
 `source-code-lookup` is read when another codebase's behavior matters. Both are
