@@ -209,7 +209,7 @@ installer, then a restart or new session — is documented in
 
 One modern Agent Plugins 1.0 package carries the four public skills, their
 task/routing resources, and optional OpenAI presentation metadata
-(`agents/openai.yaml`). Package identity: name `agenticale`, version `0.3.0`,
+(`agents/openai.yaml`). Package identity: name `agenticale`, version `0.4.0`,
 author "Ale Franz", MIT license, schema
 `https://agent-plugins.org/schemas/1.0.0/plugin.schema.json`.
 
