@@ -70,6 +70,6 @@ async function main() {
   console.log(result.skipped ? "Plugin version unchanged; no release." : `${result.created ? "Published" : "Already published"}: ${result.url}`);
 }
 
-if (process.argv[1] && await realpath(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && await realpath(process.argv[1]) === await realpath(fileURLToPath(import.meta.url))) {
   await main().catch((error) => { console.error(error.message); process.exitCode = 1; });
 }
