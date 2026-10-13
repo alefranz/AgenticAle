@@ -3,6 +3,7 @@ name: CI
 on:
   push:
   pull_request:
+  merge_group:
 
 permissions:
   contents: read
@@ -28,6 +29,9 @@ jobs:
       - name: Validate source of truth
         run: node scripts/validate.mjs
 
+      - name: Test routing
+        run: node scripts/test-routing.mjs
+
       - name: Test installers (OpenCode + standalone)
         run: node scripts/test-installer.mjs
 
@@ -36,3 +40,47 @@ jobs:
 
       - name: Check published plugin and catalogs
         run: node scripts/publish-default-plugin.mjs --check
+
+      - name: Test plugin version enforcement
+        run: node scripts/test-plugin-version.mjs
+
+      - name: Test release safety
+        run: node scripts/test-release-plugin.mjs
+
+  plugin-version:
+    name: Plugin version
+    # Versioning is per PR, not per review-fix push on a feature branch.
+    if: github.event_name == 'pull_request' || github.event_name == 'merge_group' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Check version against target branch or previous push
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
+        run: node scripts/check-plugin-version.mjs --base "$BASE_REF" --head HEAD
+
+  release:
+    name: Publish GitHub release
+    needs: [validate, plugin-version]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'alefranz/AgenticAle'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Tag tested commit and publish release if version increased
+        env:
+          BASE_REF: ${{ github.event.before }}
+          RELEASE_SHA: ${{ github.sha }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/release-plugin.mjs

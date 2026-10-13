@@ -318,6 +318,10 @@ This regenerates `plugins/agenticale/` plus both catalogs,
 `.agents/plugins/marketplace.json` (OpenAI). CI runs the same command with
 `--check` and rejects stale artifacts.
 
+Changes to the distributed plugin also require a version bump in
+`scripts/build.mjs` before regeneration. See [CONTRIBUTING.md](../CONTRIBUTING.md#versions-and-github-releases)
+for the PR gate and automated GitHub releases.
+
 ## Source lookup configuration
 
 Set `SOURCE_ROOT` to your local source directory to customize lookup without

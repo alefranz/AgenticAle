@@ -67,3 +67,22 @@ normal integration. For a convergence or release task, use
 `node scripts/publish-default-plugin.mjs` to regenerate the plugin and catalogs,
 then run the full verification sequence in [CONTRIBUTING.md](CONTRIBUTING.md).
 Do not install into a personal client profile as part of repository validation.
+
+## Plugin versioning and PR delivery
+
+When a PR changes the distributed plugin or its marketplace metadata, increase
+`pluginManifest.version` in `scripts/build.mjs` relative to the target branch,
+then regenerate the plugin and both catalogs. Never edit generated versions by
+hand. Use a patch bump for fixes, a minor bump for new capabilities, and a major
+bump for breaking changes (use a minor bump for breaking changes before 1.0).
+Documentation-only changes do not require a bump. Explicitly core-only tasks
+defer the bump and regeneration to convergence; include both in the handoff.
+
+Before opening or updating an integrated PR, run the full CONTRIBUTING checks
+and `node scripts/check-plugin-version.mjs --base <target-branch-ref>`. If the
+target branch advances, update the branch and recheck the version before merge.
+The stable `Plugin version` CI check must be required on the target branch.
+
+GitHub releases follow successful CI on `main` when the plugin version increases.
+The release automation tags that exact tested commit as `vX.Y.Z`; it does not
+bump manifests after publishing. See CONTRIBUTING.md for setup and recovery.

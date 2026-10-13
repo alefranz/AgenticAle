@@ -43,7 +43,10 @@ node scripts/validate.mjs
 node scripts/test-routing.mjs
 node scripts/test-installer.mjs
 node scripts/test-build.mjs
+node scripts/test-plugin-version.mjs
+node scripts/test-release-plugin.mjs
 node scripts/publish-default-plugin.mjs --check
+node scripts/check-plugin-version.mjs --base public/main
 git diff --check
 ```
 
@@ -62,6 +65,13 @@ git diff --check
   serialization, argument behavior, and artifact drift.
 - `publish-default-plugin.mjs --check` verifies the committed plugin and both
   catalogs are current.
+- `check-plugin-version.mjs` compares the final distributed plugin and both
+  catalogs with the target branch, ignoring only their version fields. Changed
+  content requires a greater version; invalid versions and downgrades fail too.
+  Use your target branch ref instead of `public/main` when it differs.
+- `test-plugin-version.mjs` and `test-release-plugin.mjs` exercise version
+  enforcement and release safety with isolated Git fixtures and mocked GitHub
+  responses. They do not publish releases or change repository settings.
 - `git diff --check` catches whitespace errors in the LF markdown files.
 
 Installer tests use temporary directories and must not target a real OpenCode
@@ -74,3 +84,40 @@ and workflow checks are recorded in [docs/runtime-compatibility.md](docs/runtime
 Please describe the problem, the chosen behavior, and the verification in a
 pull request. Do not include credentials, private endpoints, generated build
 output, or personal client configuration.
+
+## Versions and GitHub releases
+
+For a PR that changes the distributed plugin or marketplace metadata, bump
+`pluginManifest.version` in `scripts/build.mjs` and run
+`node scripts/publish-default-plugin.mjs`. Commit the generated plugin manifest
+and both catalogs in the same PR. Use stable `MAJOR.MINOR.PATCH` versions: patch
+for fixes, minor for new capabilities, major for breaking changes (minor for
+breaking changes before 1.0). Documentation-only PRs need no bump. Core-only
+tasks defer versioning to convergence, as described in AGENTS.md.
+
+CI checks the PR's final package against its target branch, including after
+review corrections at the same bumped version. Merge groups use their target
+branch too; only pushes to `main` compare against the previous push. Feature
+branch pushes still run the platform checks but skip the version gate.
+
+In GitHub Settings → Rules → Rulesets, configure the rule for `main` to require
+`Plugin version`
+and all three `Node 24 / <os>` checks, with branches up to date before merging
+(or use a merge queue). This repository includes merge-group checks. These
+repository settings are separate from workflow files: merely adding a job does
+not prevent merging a failing PR. Recheck the bump after updating the branch;
+two PRs must not publish different plugin contents with the same version.
+
+On a push to `main` in `alefranz/AgenticAle`, the release job waits for all CI
+checks. If the version increased, it creates `vX.Y.Z` and a GitHub release with
+generated notes at the exact tested commit. Only this job has `contents: write`;
+it uses the built-in `GITHUB_TOKEN`, with no additional secret. Documentation
+pushes and pushes in forks do not publish releases. The package and catalogs
+are already committed before tagging; GitHub releases do not update them.
+
+If publishing fails, rerun the failed job in the original CI run. A matching
+existing tag and published release are safe to rerun. A tag pointing elsewhere
+or an existing draft/prerelease causes a failure for investigation; automation
+never moves tags or overwrites releases. Check repository Actions permissions
+if GitHub denies creation. Automated release publishing still needs a live
+post-merge pass; source tests use mocked API responses.
