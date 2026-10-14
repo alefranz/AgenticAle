@@ -18,9 +18,11 @@ The seven roles are `explore`, `implement`, `implement-hard`, `fix`, `review`,
 | `deep` | `deep-review`, `consult` | Intensive analysis and second opinions |
 
 Each runtime has its own model identifiers and supported effort values; see
-`references/runtimes/`. The `copilot-local` binding uses the `copilot`
-preference section. Users may define additional named tiers. A tier selects a
-model and effort together, or explicitly inherits both from the session.
+`references/runtimes/`. Runtimes without effort control (such as `antigravity`)
+omit reasoning effort from explicit selections and fallback pairs. The
+`copilot-local` binding uses the `copilot` preference section. Users may define
+additional named tiers. A tier selects a model and effort together (or model
+only on runtimes without effort control), or explicitly inherits from the session.
 
 ## User customization
 
@@ -38,10 +40,13 @@ clarification. Omitted entries retain the lower-precedence choice. A clear
 higher-precedence entry may repair an ambiguous lower-precedence entry.
 
 Use the tier table first, then add optional role overrides. A role may choose a
-tier, specify a model and effort directly, intentionally inherit both, or
-return to its default tier. State both model and effort for a direct selection;
-do not infer an effort from a lower layer. Fallbacks are optional, ordered
-model/effort pairs and are used only when explicitly requested and supported by
+tier, specify a model directly (with reasoning effort on runtimes that support it),
+intentionally inherit from the session, or return to its default tier. State both
+model and effort for a direct selection on runtimes with effort control; do not
+infer an effort from a lower layer. On runtimes without effort control (such as
+`antigravity`), omit reasoning effort entirely from explicit selections and fallback
+pairs. Fallbacks are optional, ordered pairs (model and effort, or model only on
+effort-less runtimes) and are used only when explicitly requested and supported by
 the runtime binding. Do not invent model identifiers or silently substitute a
 weaker route.
 

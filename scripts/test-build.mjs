@@ -105,9 +105,9 @@ try {
   const standaloneRel = await listRelative(fixture.standaloneRoot);
   const openCodeRel = await listRelative(fixture.openCodeRoot);
 
-  check(pluginRel.length === 22, "plugin bundle has 22 files");
-  check(standaloneRel.length === 21, "standalone bundle has 21 files");
-  check(openCodeRel.length === 30, "OpenCode bundle has 30 files (7 profiles + 2 commands + 21 skills)");
+  check(pluginRel.length === 23, "plugin bundle has 23 files");
+  check(standaloneRel.length === 22, "standalone bundle has 22 files");
+  check(openCodeRel.length === 31, "OpenCode bundle has 31 files (7 profiles + 2 commands + 22 skills)");
 
   // The packaged routing resources (version-2 baseline, Markdown example,
   // and shared resolver module) ship in all three output roots.
@@ -228,6 +228,16 @@ try {
         );
       }
     }
+    const agMap = v2.runtimes?.antigravity;
+    check(agMap && typeof agMap.tiers === "object" && typeof agMap.roles === "object", `${label} routing.json declares tiers+roles for antigravity`);
+    for (const tier of ["fast", "routine", "standard", "deep"]) {
+      const entry = agMap?.tiers?.[tier];
+      check(
+        entry && entry.mode === "explicit" && typeof entry.model === "string" && entry.model.length > 0
+          && entry.reasoningEffort === undefined && Array.isArray(entry.fallbacks),
+        `${label} routing.json antigravity/${tier} is a valid explicit tier`,
+      );
+    }
   };
   // The default build materializes the packaged route defaults and derives
   // concrete selections for the generated OpenCode profiles.
@@ -315,7 +325,7 @@ try {
   const f6Explore = await readText(join(f6Fixture.openCodeRoot, "agents", "autonomous", "explore.md"));
   check(f6Explore.includes("model: openai/gpt-6-luna"), "F6 omitted opencode runtime is filled from the packaged preset (explore profile carries a model)");
   const f6Shipped = JSON.parse(await readText(join(f6Fixture.standaloneRoot, "work", "references", "routing.json")));
-  check(JSON.stringify(Object.keys(f6Shipped.runtimes).sort()) === JSON.stringify(["codex", "copilot", "opencode"].sort()), "F6 shipped v2 baseline declares all three runtimes");
+  check(JSON.stringify(Object.keys(f6Shipped.runtimes).sort()) === JSON.stringify(["antigravity", "codex", "copilot", "opencode"].sort()), "F6 shipped v2 baseline declares all four runtimes");
   check(f6Shipped.runtimes.opencode.tiers.fast.model === "openai/gpt-6-luna", "F6 merged opencode runtime keeps the packaged tier model");
   check(f6Shipped.runtimes.codex.roles.explore.model === legacyV1Baseline.runtimes.codex.explore.model, "F6 declared codex runtime is untouched by the merge");
 

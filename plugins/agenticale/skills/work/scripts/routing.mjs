@@ -42,7 +42,18 @@ export const ROLES = [
   "consult",
 ];
 
-export const RUNTIME_KEYS = ["copilot", "codex", "opencode"];
+export const RUNTIME_KEYS = ["copilot", "codex", "opencode", "antigravity"];
+
+export const RUNTIME_CAPABILITIES = {
+  copilot: { effort: true },
+  codex: { effort: true },
+  opencode: { effort: true },
+  antigravity: { effort: false },
+};
+
+export function runtimeSupportsEffort(runtime) {
+  return Boolean(RUNTIME_CAPABILITIES[runtime]?.effort);
+}
 
 export const EFFORT_LEVELS = ["low", "medium", "high", "xhigh", "max"];
 const effortLevels = new Set(EFFORT_LEVELS);
@@ -60,6 +71,7 @@ export const BASELINE_SOURCE = "installed baseline";
 const TOP_LEVEL_V1_KEYS = ["provenance", "runtimes", "schemaVersion"];
 const TOP_LEVEL_V2_KEYS = ["provenance", "roleTiers", "runtimes", "schemaVersion"];
 const EXPLICIT_ENTRY_KEYS = ["fallbacks", "mode", "model", "reasoningEffort"];
+const EXPLICIT_ENTRY_KEYS_NO_EFFORT = ["fallbacks", "mode", "model"];
 const INHERIT_ENTRY_KEYS = ["mode"];
 const RESET_ENTRY_KEYS = ["mode"];
 const ROLE_TIER_ENTRY_KEYS = ["mode", "tier"];
@@ -77,38 +89,54 @@ function isPlainObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function checkFallbacks(label, fallbacks) {
+function checkFallbacks(label, fallbacks, runtime) {
   if (!Array.isArray(fallbacks)) {
     throw new RoutingError(`${label} fallbacks must be an array.`);
   }
+  const supportsEffort = runtime ? runtimeSupportsEffort(runtime) : true;
+  const requiredKeys = supportsEffort ? ["model", "reasoningEffort"] : ["model"];
   fallbacks.forEach((pair, index) => {
-    if (!isPlainObject(pair)
-        || JSON.stringify(Object.keys(pair).sort()) !== JSON.stringify(["model", "reasoningEffort"])) {
-      throw new RoutingError(`${label} fallback ${index} must be a { model, reasoningEffort } pair.`);
+    if (!isPlainObject(pair)) {
+      throw new RoutingError(`${label} fallback ${index} must be a ${supportsEffort ? "{ model, reasoningEffort }" : "{ model }"} pair.`);
+    }
+    if (!supportsEffort && pair.reasoningEffort !== undefined) {
+      throw new RoutingError(`${label} fallback ${index} must not include reasoningEffort for runtime '${runtime}' (runtime does not support effort).`);
+    }
+    if (JSON.stringify(Object.keys(pair).sort()) !== JSON.stringify(requiredKeys)) {
+      throw new RoutingError(`${label} fallback ${index} must be a ${supportsEffort ? "{ model, reasoningEffort }" : "{ model }"} pair.`);
     }
     if (typeof pair.model !== "string" || pair.model.length === 0) {
       throw new RoutingError(`${label} fallback ${index} requires a non-empty model.`);
     }
-    if (!effortLevels.has(pair.reasoningEffort)) {
-      throw new RoutingError(`${label} fallback ${index} has unsupported effort '${pair.reasoningEffort}'.`);
+    if (supportsEffort) {
+      if (!effortLevels.has(pair.reasoningEffort)) {
+        throw new RoutingError(`${label} fallback ${index} has unsupported effort '${pair.reasoningEffort}'.`);
+      }
     }
   });
 }
 
 // Validates the explicit/inherit selection shape shared by version-1 routes,
 // version-2 tier definitions, and version-2 role selections.
-function checkSelectionEntry(label, entry) {
+function checkSelectionEntry(label, entry, runtime) {
   if (entry.mode === "explicit") {
-    if (JSON.stringify(Object.keys(entry).sort()) !== JSON.stringify(EXPLICIT_ENTRY_KEYS)) {
-      throw new RoutingError(`${label} explicit entry must carry exactly: ${EXPLICIT_ENTRY_KEYS.join(", ")}.`);
+    const supportsEffort = runtime ? runtimeSupportsEffort(runtime) : true;
+    if (!supportsEffort && entry.reasoningEffort !== undefined) {
+      throw new RoutingError(`${label} explicit entry must not include reasoningEffort for runtime '${runtime}' (runtime does not support effort).`);
+    }
+    const expectedKeys = supportsEffort ? EXPLICIT_ENTRY_KEYS : EXPLICIT_ENTRY_KEYS_NO_EFFORT;
+    if (JSON.stringify(Object.keys(entry).sort()) !== JSON.stringify(expectedKeys)) {
+      throw new RoutingError(`${label} explicit entry must carry exactly: ${expectedKeys.join(", ")}.`);
     }
     if (typeof entry.model !== "string" || entry.model.length === 0) {
       throw new RoutingError(`${label} explicit route requires a non-empty model.`);
     }
-    if (!effortLevels.has(entry.reasoningEffort)) {
-      throw new RoutingError(`${label} explicit route requires a supported reasoningEffort (got '${entry.reasoningEffort}').`);
+    if (supportsEffort) {
+      if (!effortLevels.has(entry.reasoningEffort)) {
+        throw new RoutingError(`${label} explicit route requires a supported reasoningEffort (got '${entry.reasoningEffort}').`);
+      }
     }
-    checkFallbacks(label, entry.fallbacks);
+    checkFallbacks(label, entry.fallbacks, runtime);
   } else if (entry.mode === "inherit") {
     if (JSON.stringify(Object.keys(entry).sort()) !== JSON.stringify(INHERIT_ENTRY_KEYS)) {
       throw new RoutingError(`${label} inherit entry must carry only 'mode'.`);
@@ -118,7 +146,7 @@ function checkSelectionEntry(label, entry) {
   }
 }
 
-function validateTierDefinition(label, entry, { allowDefault }) {
+function validateTierDefinition(label, entry, { allowDefault, runtime } = {}) {
   if (!isPlainObject(entry)) {
     throw new RoutingError(`${label} must be an object.`);
   }
@@ -131,10 +159,10 @@ function validateTierDefinition(label, entry, { allowDefault }) {
     }
     return;
   }
-  checkSelectionEntry(label, entry);
+  checkSelectionEntry(label, entry, runtime);
 }
 
-function validateRoleEntry(label, entry, { allowDefault }) {
+function validateRoleEntry(label, entry, { allowDefault, runtime } = {}) {
   if (!isPlainObject(entry)) {
     throw new RoutingError(`${label} must be an object.`);
   }
@@ -159,7 +187,7 @@ function validateRoleEntry(label, entry, { allowDefault }) {
     }
     return;
   }
-  checkSelectionEntry(label, entry);
+  checkSelectionEntry(label, entry, runtime);
 }
 
 // The single authoritative version-1 policy schema (moved out of the builder).
@@ -198,34 +226,49 @@ export function strictValidateRouting(routing) {
     if (JSON.stringify(declaredKeys) !== JSON.stringify([...ROLES].sort())) {
       throw new Error(`Routing runtime '${runtime}' must map exactly the ${ROLES.length} keys: ${[...ROLES].sort().join(", ")}.`);
     }
+    const supportsEffort = runtimeSupportsEffort(runtime);
+    const expectedKeys = supportsEffort ? EXPLICIT_ENTRY_KEYS : EXPLICIT_ENTRY_KEYS_NO_EFFORT;
+    const fallbackKeys = supportsEffort ? ["model", "reasoningEffort"] : ["model"];
     for (const role of ROLES) {
       const entry = map[role];
       if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
         throw new Error(`Routing ${runtime}/${role} must be an object.`);
       }
       if (entry.mode === "explicit") {
-        if (JSON.stringify(Object.keys(entry).sort()) !== JSON.stringify(EXPLICIT_ENTRY_KEYS)) {
-          throw new Error(`Routing ${runtime}/${role} explicit entry must carry exactly: ${EXPLICIT_ENTRY_KEYS.join(", ")}.`);
+        if (!supportsEffort && entry.reasoningEffort !== undefined) {
+          throw new Error(`Routing ${runtime}/${role} explicit route must not specify reasoningEffort.`);
+        }
+        if (JSON.stringify(Object.keys(entry).sort()) !== JSON.stringify(expectedKeys)) {
+          throw new Error(`Routing ${runtime}/${role} explicit entry must carry exactly: ${expectedKeys.join(", ")}.`);
         }
         if (typeof entry.model !== "string" || entry.model.length === 0) {
           throw new Error(`Routing ${runtime}/${role} explicit route requires a non-empty model.`);
         }
-        if (!effortLevels.has(entry.reasoningEffort)) {
-          throw new Error(`Routing ${runtime}/${role} explicit route requires a supported reasoningEffort (got '${entry.reasoningEffort}').`);
+        if (supportsEffort) {
+          if (!effortLevels.has(entry.reasoningEffort)) {
+            throw new Error(`Routing ${runtime}/${role} explicit route requires a supported reasoningEffort (got '${entry.reasoningEffort}').`);
+          }
         }
         if (!Array.isArray(entry.fallbacks)) {
           throw new Error(`Routing ${runtime}/${role} fallbacks must be an array.`);
         }
         entry.fallbacks.forEach((pair, index) => {
-          if (!pair || typeof pair !== "object" || Array.isArray(pair)
-              || JSON.stringify(Object.keys(pair).sort()) !== JSON.stringify(["model", "reasoningEffort"])) {
-            throw new Error(`Routing ${runtime}/${role} fallback ${index} must be a { model, reasoningEffort } pair.`);
+          if (!pair || typeof pair !== "object" || Array.isArray(pair)) {
+            throw new Error(`Routing ${runtime}/${role} fallback ${index} must be a ${supportsEffort ? "{ model, reasoningEffort }" : "{ model }"} pair.`);
+          }
+          if (!supportsEffort && pair.reasoningEffort !== undefined) {
+            throw new Error(`Routing ${runtime}/${role} fallback ${index} must not specify reasoningEffort.`);
+          }
+          if (JSON.stringify(Object.keys(pair).sort()) !== JSON.stringify(fallbackKeys)) {
+            throw new Error(`Routing ${runtime}/${role} fallback ${index} must be a ${supportsEffort ? "{ model, reasoningEffort }" : "{ model }"} pair.`);
           }
           if (typeof pair.model !== "string" || pair.model.length === 0) {
             throw new Error(`Routing ${runtime}/${role} fallback ${index} requires a non-empty model.`);
           }
-          if (!effortLevels.has(pair.reasoningEffort)) {
-            throw new Error(`Routing ${runtime}/${role} fallback ${index} has unsupported effort '${pair.reasoningEffort}'.`);
+          if (supportsEffort) {
+            if (!effortLevels.has(pair.reasoningEffort)) {
+              throw new Error(`Routing ${runtime}/${role} fallback ${index} has unsupported effort '${pair.reasoningEffort}'.`);
+            }
           }
         });
       } else if (entry.mode === "inherit") {
@@ -307,7 +350,7 @@ export function validateV2Routing(routing) {
       if (RESERVED_INSTRUCTION_NAMES.includes(name)) {
         throw new RoutingError(`Routing runtime '${runtime}' uses reserved tier name '${name}' (a tier cannot be named 'default' or 'inherit').`);
       }
-      validateTierDefinition(`Routing ${runtime}/tier '${name}'`, entry, { allowDefault: false });
+      validateTierDefinition(`Routing ${runtime}/tier '${name}'`, entry, { allowDefault: false, runtime });
     }
     const roles = map.roles ?? {};
     if (!isPlainObject(roles)) {
@@ -317,7 +360,7 @@ export function validateV2Routing(routing) {
       if (!ROLES.includes(role)) {
         throw new RoutingError(`Routing ${runtime}/roles has unknown role '${role}' (expected one of ${ROLES.join(", ")}).`);
       }
-      validateRoleEntry(`Routing ${runtime}/role '${role}'`, entry, { allowDefault: false });
+      validateRoleEntry(`Routing ${runtime}/role '${role}'`, entry, { allowDefault: false, runtime });
     }
   }
 }
@@ -361,13 +404,13 @@ export function validatePreferenceLayer(layer, index, options = {}) {
       if (RESERVED_INSTRUCTION_NAMES.includes(name)) {
         throw new RoutingError(`${label} uses reserved tier name '${name}' (a tier cannot be named 'default' or 'inherit').`);
       }
-      validateTierDefinition(`${label} ${runtimeName}/tier '${name}'`, entry, { allowDefault: true });
+      validateTierDefinition(`${label} ${runtimeName}/tier '${name}'`, entry, { allowDefault: true, runtime: runtimeName });
     }
     for (const [role, entry] of Object.entries(map.roles ?? {})) {
       if (!ROLES.includes(role)) {
         throw new RoutingError(`${label} role '${role}' (runtime: ${runtimeName}) is not one of the seven routing roles (${ROLES.join(", ")}).`);
       }
-      validateRoleEntry(`${label} ${runtimeName}/role '${role}'`, entry, { allowDefault: true });
+      validateRoleEntry(`${label} ${runtimeName}/role '${role}'`, entry, { allowDefault: true, runtime: runtimeName });
     }
   }
   return {
@@ -447,13 +490,19 @@ function expandSelection(runtime, role, entry, provenance) {
   if (entry.mode === "inherit") {
     return { mode: "inherit", provenance };
   }
-  return {
+  const supportsEffort = runtimeSupportsEffort(runtime);
+  const result = {
     mode: "explicit",
     model: entry.model,
-    reasoningEffort: entry.reasoningEffort,
-    fallbacks: entry.fallbacks.map((pair) => ({ model: pair.model, reasoningEffort: pair.reasoningEffort })),
-    provenance,
   };
+  if (supportsEffort) {
+    result.reasoningEffort = entry.reasoningEffort;
+    result.fallbacks = entry.fallbacks.map((pair) => ({ model: pair.model, reasoningEffort: pair.reasoningEffort }));
+  } else {
+    result.fallbacks = entry.fallbacks.map((pair) => ({ model: pair.model }));
+  }
+  result.provenance = provenance;
+  return result;
 }
 
 function resolveMergedRuntime(merged, runtime) {
@@ -549,7 +598,7 @@ export function mergeV2MissingRuntimes(input, packaged) {
 // the reasoningEffort of every explicit tier and role entry, leaving
 // inheritance entries and configured fallback pairs untouched. Tier
 // references resolve to the overridden tier definitions after the fact.
-export function applyBuildOverrides(baseline, { noModel = false, effort = null } = {}) {
+export function applyBuildOverrides(baseline, { noModel = false, effort = null, onNotice = null } = {}) {
   validateV2Routing(baseline);
   if (effort !== null && !effortLevels.has(effort)) {
     throw new RoutingError(`Invalid --effort '${effort}'.`);
@@ -559,6 +608,15 @@ export function applyBuildOverrides(baseline, { noModel = false, effort = null }
     const map = v2.runtimes[runtime];
     if (noModel) {
       map.roles = Object.fromEntries(ROLES.map((role) => [role, { mode: "inherit" }]));
+      continue;
+    }
+    if (effort !== null && !runtimeSupportsEffort(runtime)) {
+      const notice = `notice: runtime '${runtime}' has no effort control; skipping --effort override.`;
+      if (typeof onNotice === "function") {
+        onNotice(notice);
+      } else {
+        console.log(notice);
+      }
       continue;
     }
     for (const entry of Object.values(map.tiers ?? {})) {
@@ -585,18 +643,24 @@ export function normalizeV1ToV2(v1, baseline) {
     v2.provenance = v1.provenance;
   }
   for (const runtime of Object.keys(v1.runtimes)) {
+    const supportsEffort = runtimeSupportsEffort(runtime);
     const roles = {};
     for (const role of ROLES) {
       const entry = v1.runtimes[runtime][role];
       if (entry.mode === "inherit") {
         roles[role] = { mode: "inherit" };
       } else {
-        roles[role] = {
+        const roleEntry = {
           mode: "explicit",
           model: entry.model,
-          reasoningEffort: entry.reasoningEffort,
-          fallbacks: entry.fallbacks.map((pair) => ({ model: pair.model, reasoningEffort: pair.reasoningEffort })),
         };
+        if (supportsEffort) {
+          roleEntry.reasoningEffort = entry.reasoningEffort;
+          roleEntry.fallbacks = entry.fallbacks.map((pair) => ({ model: pair.model, reasoningEffort: pair.reasoningEffort }));
+        } else {
+          roleEntry.fallbacks = entry.fallbacks.map((pair) => ({ model: pair.model }));
+        }
+        roles[role] = roleEntry;
       }
     }
     v2.runtimes[runtime].roles = roles;
@@ -622,11 +686,16 @@ export function legacyInventoryToV2(inventory, baseline) {
   }
   const v2 = structuredClone(baseline);
   const omitted = [];
+  const skippedRuntimes = [];
+  if (v2.runtimes.antigravity) {
+    skippedRuntimes.push("antigravity");
+  }
   for (const role of ROLES) {
     const raw = inventory[role];
     if (typeof raw !== "string" || raw.length === 0) {
       omitted.push(role);
       for (const runtime of Object.keys(v2.runtimes)) {
+        if (runtime === "antigravity") continue;
         v2.runtimes[runtime].roles[role] = { mode: "inherit" };
       }
       continue;
@@ -639,6 +708,7 @@ export function legacyInventoryToV2(inventory, baseline) {
     }
     const entry = { mode: "explicit", model, reasoningEffort: variant ?? "high", fallbacks: [] };
     for (const runtime of Object.keys(v2.runtimes)) {
+      if (runtime === "antigravity") continue;
       const runtimeEntry = structuredClone(entry);
       if (runtime !== "opencode") {
         runtimeEntry.model = runtimeEntry.model.replace(/^(?:openai|opencode)\//i, "");
@@ -646,17 +716,23 @@ export function legacyInventoryToV2(inventory, baseline) {
       v2.runtimes[runtime].roles[role] = runtimeEntry;
     }
   }
-  return { baseline: v2, omitted };
+  return { baseline: v2, omitted, skippedRuntimes };
 }
 
-function routeToV1Entry(route) {
+function routeToV1Entry(route, runtime) {
   if (route.mode === "inherit") return { mode: "inherit" };
-  return {
+  const supportsEffort = runtime ? runtimeSupportsEffort(runtime) : route.reasoningEffort !== undefined;
+  const entry = {
     mode: "explicit",
     model: route.model,
-    reasoningEffort: route.reasoningEffort,
-    fallbacks: route.fallbacks.map((pair) => ({ model: pair.model, reasoningEffort: pair.reasoningEffort })),
   };
+  if (supportsEffort) {
+    entry.reasoningEffort = route.reasoningEffort;
+    entry.fallbacks = route.fallbacks.map((pair) => ({ model: pair.model, reasoningEffort: pair.reasoningEffort }));
+  } else {
+    entry.fallbacks = route.fallbacks.map((pair) => ({ model: pair.model }));
+  }
+  return entry;
 }
 
 // Exports the concrete routes of one runtime as a strict version-1 policy.
@@ -667,7 +743,7 @@ export function exportV1(routes, runtime, provenance) {
     schemaVersion: 1,
     provenance,
     runtimes: {
-      [runtime]: Object.fromEntries(ROLES.map((role) => [role, routeToV1Entry(routes[role])])),
+      [runtime]: Object.fromEntries(ROLES.map((role) => [role, routeToV1Entry(routes[role], runtime)])),
     },
   };
 }
@@ -704,7 +780,7 @@ function cliUsage() {
 Resolves the installed version-2 baseline and an optional structured input
 layer. Prints a version-1 policy for the complete active runtime on stdout.
 
-  --runtime RUNTIME   Active runtime: copilot, codex, or opencode (required)
+  --runtime RUNTIME   Active runtime: copilot, codex, opencode, or antigravity (required)
   --baseline PATH     Version-2 baseline (default: the packaged
                       references/routing.json beside this module)
   --input PATH        Optional structured preference JSON (one layer or an
@@ -801,7 +877,7 @@ async function main() {
       throw new RoutingError(`Unknown argument '${argument}'. Run with --help for usage.`);
     }
   }
-  if (!runtime) throw new RoutingError("--runtime is required (copilot, codex, or opencode).");
+  if (!runtime) throw new RoutingError("--runtime is required (copilot, codex, opencode, or antigravity).");
   if (!RUNTIME_KEYS.includes(runtime)) {
     throw new RoutingError(`--runtime must be one of ${RUNTIME_KEYS.join(", ")} (got '${runtime}').`);
   }
