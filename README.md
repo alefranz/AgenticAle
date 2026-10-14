@@ -123,49 +123,25 @@ leaves your `opencode.jsonc` unchanged.
 ### Google Antigravity (App and CLI)
 
 Google Antigravity supports AgenticAle as an installed plugin across both the
-desktop application and the terminal CLI (`agy`). Because the desktop app does
-not include plugin installation instructions and Antigravity does not yet
-support installing directly from remote GitHub repositories, install the
-plugin via the CLI from a local clone.
+desktop application and the terminal CLI (`agy`). Because Antigravity does not
+support remote repository installs, install the plugin via the
+[Antigravity CLI](https://antigravity.google/docs/cli/install/) from a local clone:
 
-1. Install and authenticate the Antigravity CLI (`agy`) by following the
-   official [Installation and auth](https://antigravity.google/docs/cli/install/)
-   guide.
-2. Clone the AgenticAle repository:
+```sh
+git clone https://github.com/alefranz/AgenticAle.git
+```
 
-   ```sh
-   git clone https://github.com/alefranz/AgenticAle.git
-   ```
+In the CLI, run `/plugin`, select **Discover**, choose **Install from local directory**,
+and select `plugins/agenticale`.
 
-3. Open the Antigravity CLI (`agy`) and run the plugin command:
-
-   ```text
-   /plugin
-   ```
-
-   Select **Discover**, choose **Install from local directory**, and select the
-   `plugins/agenticale` directory from the cloned repository.
-
-The plugin installs into `~/.gemini/config/plugins/agenticale`, which is shared
-by both the CLI and the desktop app. Restart your Antigravity CLI or desktop
-app session to discover the skills, then invoke them directly:
+The install is shared by the app and CLI; restart, then invoke the skills directly:
 
 ```text
 /work Fix the date filtering bug
 /work Address the review feedback on this branch
-/work Investigate why export is slow and suggest an approach
-/work --pr Add CSV export
 ```
 
-For model selection in Antigravity, a recommended baseline is:
-
-- **Fast and routine work** (`explore`, `implement`, `fix`): `Gemini 3.8 Flash`
-  (experimenting with `medium` or `high` reasoning effort).
-- **Complex delegation and review** (`implement-hard`, `review`, `deep-review`,
-  `consult`): `Gemini 4 Argon` for users on the Google AI Ultra plan, or
-  `Claude Opus 5.5` for other plans.
-
-See [setup and customization](docs/setup.md) for full configuration details.
+See [setup and customization](docs/setup.md) and [customizing model routing](#customize-model-routing).
 
 ## What happens when you use it
 
@@ -208,10 +184,12 @@ configuration file. Copy the Markdown example to either
 
 The packaged routes use four tiers — `fast` for exploration, `routine` for
 implementation and fixes, `standard` for hard implementation and review, and
-`deep` for deep review and consultation. The Markdown file can replace tiers or
-override individual roles per runtime. Repository entries override personal
-entries one at a time, and explicit invocation choices take precedence. Start
-from `references/routing.example.md` in the installed `work` skill. See
+`deep` for deep review and consultation. For Antigravity, packaged tiers route
+to `flash` for fast/routine work and `pro` for standard/deep work. The Markdown
+file can replace tiers or override individual roles per runtime. Repository
+entries override personal entries one at a time, and explicit invocation choices
+take precedence. Start from `references/routing.example.md` in the installed
+`work` skill. See
 [setup and customization](docs/setup.md#customizing-model-routing) for the
 recommended form, precedence examples, and the OpenCode refresh path.
 

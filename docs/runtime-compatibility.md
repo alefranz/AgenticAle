@@ -33,6 +33,7 @@ are inputs to the matrix, not verified working versions.
 | Codex CLI | 0.159.3 |
 | OpenCode V2 | 2.0.9 |
 | VS Code (Local harness / Agent Host) | 1.140.0 |
+| Google Antigravity App | 2.23.1 |
 | Google Antigravity CLI (agy) | 1.3.5 |
 
 ## Target runtimes
@@ -46,7 +47,7 @@ are inputs to the matrix, not verified working versions.
 | 5 | Official Codex VS Code extension | Shared plugin through the Codex marketplace, or standalone skill folders |
 | 6 | Codex in the ChatGPT desktop app | Shared plugin through the Codex marketplace, or standalone skill folders |
 | 7 | OpenCode V2 | Generated model-routing profiles, command entries, and direct skill invocation |
-| 8 | Google Antigravity (App and CLI) | Discovered shared plugin (`~/.gemini/config/plugins/agenticale`), direct skill invocation |
+| 8 | Google Antigravity (App and CLI) | Shared plugin installed from a local clone; direct skill invocation; `antigravity` routing binding |
 
 ## Capabilities to record per runtime
 
@@ -123,6 +124,7 @@ the live OpenCode profile was not changed. Every row below is therefore
 | Codex (CLI, VS Code extension, desktop app) | Markdown preference interpretation and per-spawn dispatch of resolved routes | **not tested** — no live client runs in this environment |
 | OpenCode V2 | Requested-versus-installed profile comparison and mismatch reporting | **not tested** — no live client runs in this environment; structured export and normalization covered by `scripts/test-routing.mjs` |
 | OpenCode V2 | OpenCode profile-refresh activation | **not tested** (live profile mutation disallowed; temp-dir installer tests cover ownership/collision/rollback) |
+| Google Antigravity (App and CLI) | Markdown preference interpretation and direct child dispatch of resolved routes | **not tested** (live); deterministic structured resolution is covered by `scripts/test-routing.mjs` |
 | All surfaces | Install/update/uninstall preservation of user-owned `routing.md` files | **not tested** live; deterministic evidence in `scripts/test-installer.mjs` |
 
 The workflow interprets Markdown into structured preferences. No live client

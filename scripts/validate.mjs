@@ -6,13 +6,14 @@ import { fileURLToPath } from "node:url";
 import {
   STANDARD_TIERS,
   resolveAllRuntimes,
+  runtimeSupportsEffort,
   validateV2Routing,
 } from "../skills/work/scripts/routing.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(scriptDirectory, "..");
 
-// The seven routing keys that define every route across all three runtimes.
+// The seven routing keys that define every route across all four runtimes.
 const routes = [
   "consult",
   "deep-review",
@@ -34,7 +35,7 @@ const taskContracts = [
   "review",
 ];
 
-const runtimes = ["codex", "copilot", "opencode"];
+const runtimes = ["antigravity", "codex", "copilot", "opencode"];
 const profileNames = ["consult", "deep-review", "explore", "fix", "implement", "implement-hard", "review"];
 const skillNames = ["work", "autonomous", "pull-request-description", "source-code-lookup"];
 const retiredSkillNames = ["work-mode", "autonomous-mode"];
@@ -54,6 +55,7 @@ const requiredPaths = [
   "skills/work/references/runtimes/copilot-local.md",
   "skills/work/references/runtimes/codex.md",
   "skills/work/references/runtimes/opencode.md",
+  "skills/work/references/runtimes/antigravity.md",
   ...taskContracts.map((name) => `skills/work/references/tasks/${name}.md`),
   "skills/work/scripts/routing.mjs",
   "skills/autonomous/SKILL.md",
@@ -291,7 +293,7 @@ function validateRoutingContract() {
       fail(path, `runtime '${runtime}' must not carry role exceptions in the authored baseline`, "keep roles empty; role exceptions are runtime preferences");
     }
   }
-  // The baseline must resolve to exactly 21 explicit routes with no fallbacks.
+  // The baseline must resolve to exactly 28 explicit routes with no fallbacks.
   let resolved;
   try {
     resolved = resolveAllRuntimes(routing, []);
@@ -313,8 +315,14 @@ function validateRoutingContract() {
       if (typeof entry.model !== "string" || entry.model.length === 0) {
         fail(path, `route ${runtime}/${route} must have a non-empty model string`, "set a model identifier valid for the selected runtime");
       }
-      if (typeof entry.reasoningEffort !== "string" || entry.reasoningEffort.length === 0) {
-        fail(path, `route ${runtime}/${route} must have a non-empty reasoningEffort string`, "set the reasoning effort");
+      if (runtimeSupportsEffort(runtime)) {
+        if (typeof entry.reasoningEffort !== "string" || entry.reasoningEffort.length === 0) {
+          fail(path, `route ${runtime}/${route} must have a non-empty reasoningEffort string`, "set the reasoning effort");
+        }
+      } else {
+        if (entry.reasoningEffort !== undefined) {
+          fail(path, `route ${runtime}/${route} must not have reasoningEffort (runtime does not support effort)`, "remove reasoningEffort for runtimes without effort control");
+        }
       }
       if (!Array.isArray(entry.fallbacks) || entry.fallbacks.length !== 0) {
         fail(path, `route ${runtime}/${route} fallbacks must be an empty array (no fallbacks)`, "remove the fallbacks");

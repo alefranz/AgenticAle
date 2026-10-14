@@ -27,6 +27,7 @@ import {
   normalizeV1ToV2,
   resolveAllRuntimes,
   resolveRuntime,
+  runtimeSupportsEffort,
   strictValidateRouting,
   validatePreferenceLayer,
   validateRouting,
@@ -168,7 +169,11 @@ function v1Policy(mutate) {
     runtimes: Object.fromEntries(
       RUNTIME_KEYS.map((runtime) => {
         const entries = {};
-        for (const role of ROLES) entries[role] = explicit(`m/${role}`, "high");
+        for (const role of ROLES) {
+          entries[role] = runtimeSupportsEffort(runtime)
+            ? explicit(`m/${role}`, "high")
+            : { mode: "explicit", model: `m/${role}`, fallbacks: [] };
+        }
         return [runtime, entries];
       }),
     ),
@@ -180,13 +185,13 @@ function v1Policy(mutate) {
 try {
   // --- No preferences: the packaged baseline resolves to exactly the 21
   // concrete selections of the version-1 baseline, all explicit, all
-  // default-tier-mapped. ---
+  // default-tier-mapped, plus the 7 antigravity selections. ---
   const defaultResolution = resolveAllRuntimes(packaged, []);
   check(
     JSON.stringify(Object.keys(defaultResolution.runtimes).sort()) === JSON.stringify([...RUNTIME_KEYS].sort()),
-    "no-preference resolution covers all three runtimes",
+    "no-preference resolution covers all four runtimes",
   );
-  for (const runtime of RUNTIME_KEYS) {
+  for (const runtime of ["copilot", "codex", "opencode"]) {
     for (const role of ROLES) {
       const route = defaultResolution.runtimes[runtime].routes[role];
       const old = OLD_V1.runtimes[runtime][role];
@@ -198,6 +203,30 @@ try {
       );
     }
   }
+
+  // --- Antigravity defaults resolution ---
+  const agRoutes = defaultResolution.runtimes.antigravity.routes;
+  check(Object.keys(agRoutes).length === 7, "antigravity resolves all 7 roles");
+  for (const role of ROLES) {
+    const route = agRoutes[role];
+    check(route.mode === "explicit", `antigravity/${role} mode is explicit`);
+    check(route.reasoningEffort === undefined, `antigravity/${role} has no reasoningEffort`);
+    check(Array.isArray(route.fallbacks) && route.fallbacks.length === 0, `antigravity/${role} has empty fallbacks`);
+  }
+  for (const role of ["explore", "implement", "fix"]) {
+    check(agRoutes[role].model === "flash", `antigravity/${role} resolves to flash`);
+  }
+  for (const role of ["implement-hard", "review", "deep-review", "consult"]) {
+    check(agRoutes[role].model === "pro", `antigravity/${role} resolves to pro`);
+  }
+  const agPolicy = exportV1(defaultResolution.runtimes.antigravity.routes, "antigravity", packaged.provenance);
+  let agStrictError = null;
+  try {
+    strictValidateRouting(agPolicy);
+  } catch (error) {
+    agStrictError = error;
+  }
+  check(agStrictError === null, `antigravity export passes strictValidateRouting${agStrictError ? ` (${agStrictError.message})` : ""}`);
   const defaultRoute = defaultResolution.runtimes.codex.routes.review;
   check(
     defaultRoute.provenance.selection === "default-tier-mapping"
@@ -460,6 +489,94 @@ try {
     ["unsupported runtime 'bogus'"],
   );
 
+  // --- Personal and project routing.md override for antigravity ---
+  const agPersonalLayer = {
+    source: "personal routing.md",
+    runtimes: {
+      antigravity: {
+        tiers: { fast: { mode: "explicit", model: "flash_lite", fallbacks: [] } },
+        roles: { review: { mode: "inherit" } },
+      },
+    },
+  };
+  const agProjectLayer = {
+    source: "project routing.md",
+    runtimes: {
+      antigravity: {
+        roles: { consult: { mode: "explicit", model: "flash", fallbacks: [] } },
+      },
+    },
+  };
+  const agResolved = resolveRuntime(packaged, [agPersonalLayer, agProjectLayer], "antigravity");
+  check(agResolved.routes.explore.model === "flash_lite", "personal routing.md tier override applies to fast tier in antigravity");
+  check(agResolved.routes.review.mode === "inherit", "personal routing.md role override applies inherit in antigravity");
+  check(agResolved.routes.consult.model === "flash", "project routing.md role override applies explicit model in antigravity");
+  check(agResolved.routes["deep-review"].model === "pro", "untouched role in antigravity keeps baseline selection");
+
+  // --- Effort-less entry is accepted for antigravity and rejected for codex ---
+  const effortlessAg = {
+    source: "repo",
+    runtimes: {
+      antigravity: {
+        roles: { review: { mode: "explicit", model: "flash", fallbacks: [] } },
+      },
+    },
+  };
+  const validatedAgLayer = validatePreferenceLayer(effortlessAg, 0, { runtime: "antigravity" });
+  check(validatedAgLayer.runtimes.antigravity.roles.review.model === "flash", "an effort-less entry is accepted for antigravity");
+
+  const effortlessCodex = {
+    source: "repo",
+    runtimes: {
+      codex: {
+        roles: { review: { mode: "explicit", model: "gpt-6.1-sol", fallbacks: [] } },
+      },
+    },
+  };
+  checkError(
+    () => validatePreferenceLayer(effortlessCodex, 0, { runtime: "codex" }),
+    "an effort-less entry is rejected for codex",
+    ["codex/role 'review'", "must carry exactly"],
+  );
+
+  // --- An entry with reasoningEffort on antigravity is rejected with RoutingError ---
+  checkError(
+    () => mergePreferenceLayers(packaged, [
+      { source: "repo", runtimes: { antigravity: { roles: { review: explicit("pro", "high") } } } },
+    ], "antigravity"),
+    "an entry with reasoningEffort on antigravity role is rejected with RoutingError",
+    ["antigravity/role 'review'", "must not include reasoningEffort"],
+  );
+  checkError(
+    () => mergePreferenceLayers(packaged, [
+      { source: "repo", runtimes: { antigravity: { tiers: { deep: explicit("pro", "high") } } } },
+    ], "antigravity"),
+    "an entry with reasoningEffort on antigravity tier is rejected with RoutingError",
+    ["antigravity/tier 'deep'", "must not include reasoningEffort"],
+  );
+
+  // --- A fallback with reasoningEffort on antigravity is rejected with RoutingError ---
+  checkError(
+    () => mergePreferenceLayers(packaged, [
+      {
+        source: "repo",
+        runtimes: {
+          antigravity: {
+            roles: {
+              review: {
+                mode: "explicit",
+                model: "pro",
+                fallbacks: [{ model: "flash", reasoningEffort: "medium" }],
+              },
+            },
+          },
+        },
+      },
+    ], "antigravity"),
+    "a fallback with reasoningEffort on antigravity is rejected with RoutingError",
+    ["antigravity/role 'review'", "fallback 0", "must not include reasoningEffort"],
+  );
+
   // --- Atomic replacement at the role level removes old fallbacks. ---
   const atomicRole = resolveRuntime(synthetic(), [
     { source: "personal", runtimes: { codex: { roles: { review: explicit("pers/review", "medium", [{ model: "pers/fb", reasoningEffort: "low" }]) } } } },
@@ -501,7 +618,7 @@ try {
   const partialV1 = { schemaVersion: 1, runtimes: { codex: structuredClone(OLD_V1.runtimes.codex) } };
   strictValidateRouting(partialV1);
   const v2Partial = normalizeV1ToV2(partialV1, packaged);
-  check(Object.keys(v2Partial.runtimes).length === 3, "a partial version-1 import keeps all three runtimes");
+  check(Object.keys(v2Partial.runtimes).length === 4, "a partial version-1 import keeps all four runtimes");
   check(JSON.stringify(v2Partial.runtimes.copilot.roles) === "{}", "undeclared runtimes keep the baseline defaults");
   const resolvedPartial = resolveAllRuntimes(v2Partial, []);
   check(resolvedPartial.runtimes.copilot.routes.review.model === OLD_V1.runtimes.copilot.review.model, "undeclared runtimes resolve to the packaged defaults");
@@ -514,7 +631,7 @@ try {
     },
     packaged,
   );
-  check(JSON.stringify(added) === JSON.stringify(["copilot", "opencode"]), "mergeV2MissingRuntimes reports the filled runtimes");
+  check(JSON.stringify(added) === JSON.stringify(["copilot", "opencode", "antigravity"]), "mergeV2MissingRuntimes reports the filled runtimes");
   check(v2Merged.runtimes.codex.tiers.fast.model === "mine/fast", "mergeV2MissingRuntimes leaves declared runtimes untouched");
   check(JSON.stringify(v2Merged.runtimes.copilot) === JSON.stringify(packaged.runtimes.copilot), "mergeV2MissingRuntimes fills undeclared runtimes from the packaged baseline");
 
@@ -542,6 +659,18 @@ try {
   checkError(() => legacyInventoryToV2({ explore: "x#ultra" }, synthetic()), "the legacy import rejects an unsupported variant", ["#ultra"]);
   checkError(() => legacyInventoryToV2("nope", synthetic()), "the legacy import rejects a non-object inventory", ["JSON object keyed by role name"]);
 
+  // --- Legacy --models import with packaged baseline leaves antigravity untouched ---
+  const { baseline: legacyAgBaseline, skippedRuntimes } = legacyInventoryToV2(
+    { explore: "openai/gpt-6-luna#max", review: "openai/gpt-6.1-sol" },
+    packaged,
+  );
+  check(skippedRuntimes.includes("antigravity"), "legacyInventoryToV2 reports antigravity in skippedRuntimes");
+  check(
+    JSON.stringify(legacyAgBaseline.runtimes.antigravity) === JSON.stringify(packaged.runtimes.antigravity),
+    "legacyInventoryToV2 leaves antigravity untouched",
+  );
+  check(Object.keys(legacyAgBaseline.runtimes.antigravity.roles).length === 0, "antigravity roles remain empty");
+
   // --- Build overrides. ---
   const noModelBaseline = applyBuildOverrides(synthetic(), { noModel: true });
   for (const runtime of Object.keys(noModelBaseline.runtimes)) {
@@ -562,6 +691,16 @@ try {
   );
   check(JSON.stringify(applyBuildOverrides(synthetic(), { effort: null })) === JSON.stringify(synthetic()), "a null effort is a no-op");
   checkError(() => applyBuildOverrides(synthetic(), { effort: "ultra" }), "applyBuildOverrides rejects an invalid effort", ["Invalid --effort 'ultra'"]);
+
+  // --- --effort skips antigravity with a notice ---
+  const notices = [];
+  const effortResult = applyBuildOverrides(packaged, {
+    effort: "low",
+    onNotice: (msg) => notices.push(msg),
+  });
+  check(notices.some((n) => n.includes("runtime 'antigravity' has no effort control; skipping --effort override.")), "--effort override reports notice for antigravity");
+  check(effortResult.runtimes.codex.tiers.fast.reasoningEffort === "low", "--effort overrides codex tier effort");
+  check(effortResult.runtimes.antigravity.tiers.fast.reasoningEffort === undefined, "--effort leaves antigravity tier without reasoningEffort");
 
   // --- Discovery helper: personal then project, dedup, exact roots. ---
   check(
@@ -666,6 +805,20 @@ try {
   check(cliOcPolicy.runtimes.opencode.review.model === packaged.runtimes.opencode.tiers.standard.model, "opencode export leaves unmapped tiers at their packaged selection");
   check(JSON.stringify(cliOcPolicy.runtimes.opencode.consult) === JSON.stringify({ mode: "inherit" }), "opencode export preserves the intentional inheritance");
   check(cliOcPolicy.runtimes.opencode.explore.model === packaged.runtimes.opencode.tiers.fast.model, "opencode export leaves unmapped roles at their packaged selection");
+
+  // Antigravity CLI resolve export
+  const cliAg = cli(["resolve", "--runtime", "antigravity"]);
+  check(cliAg.status === 0, `installed-fixture antigravity resolve CLI exits 0${cliAg.status === 0 ? "" : ` (stderr: ${cliAg.stderr.trim()})`}`);
+  const cliAgPolicy = JSON.parse(cliAg.stdout);
+  let cliAgStrictError = null;
+  try {
+    strictValidateRouting(cliAgPolicy);
+  } catch (error) {
+    cliAgStrictError = error;
+  }
+  check(cliAgStrictError === null, `antigravity CLI output passes strictValidateRouting${cliAgStrictError ? ` (${cliAgStrictError.message})` : ""}`);
+  check(cliAgPolicy.runtimes.antigravity.explore.model === "flash", "antigravity CLI resolves explore to flash");
+  check(cliAgPolicy.runtimes.antigravity.explore.reasoningEffort === undefined, "antigravity CLI route has no reasoningEffort");
   await writeFile(join(fixtureRoot, "references", "v1.json"), `${JSON.stringify(OLD_V1, null, 2)}\n`, "utf8");
   const cliV1 = cli(["resolve", "--runtime", "codex", "--baseline", join(fixtureRoot, "references", "v1.json")]);
   check(cliV1.status === 1 && /version-1 policy/.test(cliV1.stderr), "CLI rejects a version-1 baseline with an actionable message");

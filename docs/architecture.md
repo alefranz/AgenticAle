@@ -24,7 +24,7 @@ Four concerns are separated so each can change independently:
 | Routing defaults baseline | `skills/work/references/routing.json` (schemaVersion 2) |
 | Routing customization example | `skills/work/references/routing.example.md` |
 | Shared routing module | `skills/work/scripts/routing.mjs` (dependency-free, packaged with the work skill) |
-| Runtime bindings | `skills/work/references/runtimes/<host>.md` (four: `copilot`, `copilot-local`, `codex`, `opencode`) |
+| Runtime bindings | `skills/work/references/runtimes/<host>.md` (five: `copilot`, `copilot-local`, `codex`, `opencode`, `antigravity`) |
 
 The two workflow skills are explicit-only: each sets
 `copilot/disable-model-invocation: true` and `opencode/autoinvoke: false`, and
@@ -64,9 +64,9 @@ The authored source-of-truth layout is what `scripts/validate.mjs` asserts
 exists: the two workflow skills plus their `agents/openai.yaml`, the shared
 `rounds.md`, the `ROUTING.md` reference, the `routing.json` defaults baseline,
 the `routing.example.md` customization example, the shared `scripts/routing.mjs`
-module, the four runtime bindings, the six task contracts, the
+module, the five runtime bindings, the six task contracts, the
 `adapters/opencode/` metadata (adapter, command templates, and README), and the
-two supporting skills, for 25 source-of-truth files. The retired layout
+two supporting skills, for 26 source-of-truth files. The retired layout
 (`commands/`, `agents/autonomous/`, `skills/work-mode`, `skills/autonomous-mode`)
 must be absent.
 
@@ -83,14 +83,16 @@ packages remain reproducible.
 `skills/work/references/routing.json` (schemaVersion 2) is the packaged
 defaults contract: a common `roleTiers` map (the seven exposed role names to
 `fast`, `routine`, `standard`, or `deep`) plus per-runtime `tiers` definitions and
-optional per-runtime `roles` exceptions, for the three runtimes (`copilot`,
-`codex`, `opencode`). A version-2 role entry is a tier reference
+optional per-runtime `roles` exceptions, for the four runtimes (`copilot`,
+`codex`, `opencode`, `antigravity`). A version-2 role entry is a tier reference
 (`{ "mode": "tier", "tier": ... }`), an explicit model/effort selection with
 optional ordered fallback pairs, or an inheritance entry. The packaged
-baseline declares all three runtimes and mirrors `examples/openai.json`: Copilot
+baseline declares all four runtimes and mirrors `examples/openai.json`: Copilot
 and Codex use native bare model IDs, while OpenCode keeps the `openai/` provider
-prefix. Its `provenance` note records that model access depends on each host and
-account. `default` and `inherit` are reserved instructions, not tier names.
+prefix; Antigravity uses host-native tier choices (`flash`, `pro`) with no
+reasoning-effort parameter. Its `provenance` note records that model access
+depends on each host and account. `default` and `inherit` are reserved
+instructions, not tier names.
 
 ### The shared module
 
