@@ -120,6 +120,53 @@ account. Routing options, project-scoped child permissions, and custom installs
 are covered in [setup and customization](docs/setup.md). The OpenCode installer
 leaves your `opencode.jsonc` unchanged.
 
+### Google Antigravity (App and CLI)
+
+Google Antigravity supports AgenticAle as an installed plugin across both the
+desktop application and the terminal CLI (`agy`). Because the desktop app does
+not include plugin installation instructions and Antigravity does not yet
+support installing directly from remote GitHub repositories, install the
+plugin via the CLI from a local clone.
+
+1. Install and authenticate the Antigravity CLI (`agy`) by following the
+   official [Installation and auth](https://antigravity.google/docs/cli/install/)
+   guide.
+2. Clone the AgenticAle repository:
+
+   ```sh
+   git clone https://github.com/alefranz/AgenticAle.git
+   ```
+
+3. Open the Antigravity CLI (`agy`) and run the plugin command:
+
+   ```text
+   /plugin
+   ```
+
+   Select **Discover**, choose **Install from local directory**, and select the
+   `plugins/agenticale` directory from the cloned repository.
+
+The plugin installs into `~/.gemini/config/plugins/agenticale`, which is shared
+by both the CLI and the desktop app. Restart your Antigravity CLI or desktop
+app session to discover the skills, then invoke them directly:
+
+```text
+/work Fix the date filtering bug
+/work Address the review feedback on this branch
+/work Investigate why export is slow and suggest an approach
+/work --pr Add CSV export
+```
+
+For model selection in Antigravity, a recommended baseline is:
+
+- **Fast and routine work** (`explore`, `implement`, `fix`): `Gemini 3.8 Flash`
+  (experimenting with `medium` or `high` reasoning effort).
+- **Complex delegation and review** (`implement-hard`, `review`, `deep-review`,
+  `consult`): `Gemini 4 Argon` for users on the Google AI Ultra plan, or
+  `Claude Opus 5.5` for other plans.
+
+See [setup and customization](docs/setup.md) for full configuration details.
+
 ## What happens when you use it
 
 For a clear change, an implementation agent does the work and a fresh reviewer

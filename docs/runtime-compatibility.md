@@ -33,6 +33,7 @@ are inputs to the matrix, not verified working versions.
 | Codex CLI | 0.159.3 |
 | OpenCode V2 | 2.0.9 |
 | VS Code (Local harness / Agent Host) | 1.140.0 |
+| Google Antigravity CLI (agy) | 1.3.5 |
 
 ## Target runtimes
 
@@ -45,6 +46,7 @@ are inputs to the matrix, not verified working versions.
 | 5 | Official Codex VS Code extension | Shared plugin through the Codex marketplace, or standalone skill folders |
 | 6 | Codex in the ChatGPT desktop app | Shared plugin through the Codex marketplace, or standalone skill folders |
 | 7 | OpenCode V2 | Generated model-routing profiles, command entries, and direct skill invocation |
+| 8 | Google Antigravity (App and CLI) | Discovered shared plugin (`~/.gemini/config/plugins/agenticale`), direct skill invocation |
 
 ## Capabilities to record per runtime
 

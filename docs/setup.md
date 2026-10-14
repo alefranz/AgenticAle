@@ -129,6 +129,55 @@ non-blocking `notice: another AgenticAle install appears present (<path>)`
 line instead of failing. Review it and remove the duplicate layout if the
 two installs were meant to be a single one.
 
+### Google Antigravity (App and CLI)
+
+Google Antigravity supports AgenticAle as an installed plugin discovered from
+global configuration. Because the Antigravity desktop application does not
+currently include plugin installation instructions and Antigravity does not yet
+support installing directly from remote GitHub repositories, install the
+plugin via the CLI from a local clone.
+
+1. **Install and authenticate the CLI**: Follow the official guide at
+   [Installation and auth | Google Antigravity Docs](https://antigravity.google/docs/cli/install/)
+   to install `agy` and authenticate your Google account.
+2. **Clone the AgenticAle repository**:
+
+   ```sh
+   git clone https://github.com/alefranz/AgenticAle.git
+   ```
+
+3. **Install the plugin from local directory**: Launch `agy` in your terminal:
+
+   ```sh
+   agy
+   ```
+
+   Run the `/plugin` slash command:
+
+   ```text
+   /plugin
+   ```
+
+   Select **Discover**, choose **Install from local directory**, and select the
+   `plugins/agenticale` directory from the cloned repository.
+
+The plugin installs into `~/.gemini/config/plugins/agenticale`, which is
+automatically shared by both the Antigravity CLI and the Antigravity desktop app.
+Restart any running CLI or desktop app sessions to discover the skills.
+
+You can then run the workflows directly:
+
+```text
+/work Fix the date filtering bug
+/work Address the review feedback on this branch
+/work Investigate why export is slow and suggest an approach
+/work --pr Add CSV export
+/autonomous 10 Implement the new feature
+```
+
+To manage, enable, disable, or remove installed plugins, run `/plugin` in the
+Antigravity CLI at any time.
+
 ## Model routing
 
 Routing is an explicit per-route policy. The single packaged defaults baseline is
@@ -277,6 +326,25 @@ out inherit the session model and the install reports the conversion.
 The `openai/` and `opencode/` prefixes used by the bundled examples select
 OpenCode providers; imports remove those prefixes when creating Copilot and
 Codex routes, which use native bare model IDs.
+
+### Google Antigravity model selection
+
+Google Antigravity coordinates work within the active chat session (CLI or
+desktop app) and delegates specialized child tasks to fresh subagents.
+Recommended baselines for Antigravity include:
+
+- **Session coordinator**: Set your active session model to a responsive model
+  such as `Gemini 3.8 Flash (High)` for everyday speed or a high-tier model for
+  large refactors.
+- **Fast and routine delegation** (`explore`, `implement`, `fix`): Use
+  `Gemini 3.8 Flash`, experimenting with `medium` or `high` reasoning effort
+  levels for fast turnaround and low token usage.
+- **Complex delegation and independent review** (`implement-hard`, `review`,
+  `deep-review`, `consult`):
+  - **Google AI Ultra plan**: Use `Gemini 4 Argon` for deepest reasoning on
+    concurrency, security invariants, and critical reviews.
+  - **Standard or multi-provider plans**: Use `Claude Opus 5.5` (or
+    `Claude 3.7 Sonnet` / `Gemini 3.8 Pro`) for strong independent review.
 
 ## OpenCode permissions
 
