@@ -8,7 +8,7 @@ routing:
 
 File creation is an explicit user action; AgenticAle never creates, overwrites,
 migrates, or removes these files. See `ROUTING.md` for the full contract.
-Runtime sections use `codex`, `copilot`, and `opencode` (the `copilot-local`
+Runtime sections use `codex`, `copilot`, `opencode`, and `antigravity` (the `copilot-local`
 binding uses the `copilot` section). Apply only the active runtime's
 preferences; omit a section to keep the installed defaults for that runtime.
 The model names below are illustrative; actual identifiers and effort support
@@ -33,3 +33,19 @@ come from the host.
 
 - review: use the deep tier.
 - consult: use gpt-6-astra with high reasoning effort.
+
+## antigravity
+
+### Tiers
+
+| Tier | Model |
+| --- | --- |
+| fast | flash |
+| routine | flash |
+| standard | pro |
+| deep | pro |
+
+### Role overrides
+
+- review: use the deep tier.
+- consult: use inherit.

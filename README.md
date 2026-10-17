@@ -120,6 +120,29 @@ account. Routing options, project-scoped child permissions, and custom installs
 are covered in [setup and customization](docs/setup.md). The OpenCode installer
 leaves your `opencode.jsonc` unchanged.
 
+### Google Antigravity (App and CLI)
+
+Google Antigravity supports AgenticAle as an installed plugin across both the
+desktop application and the terminal CLI (`agy`). Because Antigravity does not
+support remote repository installs, install the plugin via the
+[Antigravity CLI](https://antigravity.google/docs/cli/install/) from a local clone:
+
+```sh
+git clone https://github.com/alefranz/AgenticAle.git
+```
+
+In the CLI, run `/plugin`, select **Discover**, choose **Install from local directory**,
+and select `plugins/agenticale`.
+
+The install is shared by the app and CLI; restart, then invoke the skills directly:
+
+```text
+/work Fix the date filtering bug
+/work Address the review feedback on this branch
+```
+
+See [setup and customization](docs/setup.md) and [customizing model routing](#customize-model-routing).
+
 ## What happens when you use it
 
 For a clear change, an implementation agent does the work and a fresh reviewer
@@ -161,10 +184,12 @@ configuration file. Copy the Markdown example to either
 
 The packaged routes use four tiers — `fast` for exploration, `routine` for
 implementation and fixes, `standard` for hard implementation and review, and
-`deep` for deep review and consultation. The Markdown file can replace tiers or
-override individual roles per runtime. Repository entries override personal
-entries one at a time, and explicit invocation choices take precedence. Start
-from `references/routing.example.md` in the installed `work` skill. See
+`deep` for deep review and consultation. For Antigravity, packaged tiers route
+to `flash` for fast/routine work and `pro` for standard/deep work. The Markdown
+file can replace tiers or override individual roles per runtime. Repository
+entries override personal entries one at a time, and explicit invocation choices
+take precedence. Start from `references/routing.example.md` in the installed
+`work` skill. See
 [setup and customization](docs/setup.md#customizing-model-routing) for the
 recommended form, precedence examples, and the OpenCode refresh path.
 

@@ -129,13 +129,23 @@ non-blocking `notice: another AgenticAle install appears present (<path>)`
 line instead of failing. Review it and remove the duplicate layout if the
 two installs were meant to be a single one.
 
+### Google Antigravity (App and CLI)
+
+Follow the initial installation steps in the [README](../README.md#google-antigravity-app-and-cli).
+The plugin is copied to `~/.gemini/config/plugins/agenticale` and shared across
+both the Antigravity CLI and desktop application.
+
+To update AgenticAle, pull the latest changes with `git pull` in your local clone
+and reinstall the plugin through `/plugin` in the CLI. You can also use `/plugin`
+at any time to manage, enable, disable, or remove the plugin.
+
 ## Model routing
 
 Routing is an explicit per-route policy. The single packaged defaults baseline is
 [`skills/work/references/routing.json`](../skills/work/references/routing.json)
 (schemaVersion 2): a common role-to-tier map plus per-runtime tier definitions
-for the three runtimes (`copilot`, `codex`, `opencode`). The resolver derives
-the seven concrete routes for the active runtime from this baseline and any
+for the four runtimes (`copilot`, `codex`, `opencode`, `antigravity`). The resolver
+derives the seven concrete routes for the active runtime from this baseline and any
 optional preference files. It does not package a redundant resolved snapshot.
 
 The packaged choices mirror `examples/openai.json`: Copilot and Codex use their
@@ -143,10 +153,12 @@ native bare model IDs; OpenCode keeps the `openai/` provider prefix. The four
 tiers are `fast` (`explore`: `gpt-6-luna`, `medium`), `routine`
 (`implement`, `fix`: `gpt-6-luna`, `high`), `standard`
 (`implement-hard`, `review`: `gpt-6.1-sol`, `high`), and `deep`
-(`deep-review`, `consult`: `gpt-6.1-sol`, `xhigh`). Model access depends on the
-host, plan, and account; confirm the
-IDs are available in the target runtime before relying on strict routing, or
-customize it with a routing preference file (below) or an install-time option.
+(`deep-review`, `consult`: `gpt-6.1-sol`, `xhigh`). Antigravity defaults use
+host-native tier choices (`flash` for fast and routine, `pro` for standard and
+deep) without reasoning effort. Model access depends on the host, plan, and
+account; confirm the IDs are available in the target runtime before relying on
+strict routing, or customize it with a routing preference file (below) or an
+install-time option.
 
 `implement` and `implement-hard` share the same implementation contract but
 route to different models and effort. OpenCode materializes the resolved routes
@@ -161,13 +173,15 @@ build:
 
 | Option | Effect |
 | --- | --- |
-| `--models PATH\|PRESET` | Legacy import. Reads an `examples` mapping (`gpt`, `openai`, `zen`, `local`, `example`) or a JSON file and converts it to the routing contract. Known OpenCode provider prefixes (`openai/`, `opencode/`) are removed for Copilot and Codex, and retained for OpenCode. Omitted roles become explicit inheritance and are reported. |
+| `--models PATH\|PRESET` | Legacy import. Reads an `examples` mapping (`gpt`, `openai`, `zen`, `local`, `example`) or a JSON file and converts it to the routing contract. Known OpenCode provider prefixes (`openai/`, `opencode/`) are removed for Copilot and Codex, and retained for OpenCode. Omitted roles become explicit inheritance and are reported. Does not apply to `antigravity` tiers (packaged tiers are preserved). |
 | `--routing PATH` | Build from a complete caller-supplied routing file instead of the packaged `routing.json`. Conflicts with `--models`. |
 | `--no-model` | Omit model and effort for every route; each route inherits the session model. Conflicts with `--models`. |
-| `--effort LEVEL` | Route-wide reasoning-effort override (`low`/`medium`/`high`/`xhigh`/`max`); overrides the effort of every route. |
+| `--effort LEVEL` | Route-wide reasoning-effort override (`low`/`medium`/`high`/`xhigh`/`max`); overrides the effort of every route. Skips runtimes without effort control (`antigravity`) with a notice. |
 
 `--coordinator-effort` is retired: the session now owns its own effort, so the
-option is ignored and a notice is reported.
+option is ignored and a notice is reported. `--effort` skips runtimes without
+effort control (`antigravity`) with a notice, and `--models` does not apply to
+`antigravity` tiers (packaged tiers are preserved).
 
 Examples:
 
@@ -277,7 +291,6 @@ out inherit the session model and the install reports the conversion.
 The `openai/` and `opencode/` prefixes used by the bundled examples select
 OpenCode providers; imports remove those prefixes when creating Copilot and
 Codex routes, which use native bare model IDs.
-
 ## OpenCode permissions
 
 The OpenCode installer leaves `opencode.jsonc` unchanged. The foreground agent
@@ -389,7 +402,7 @@ Modified files are preserved during uninstall.
 
 - **`/work` or `/autonomous` is not found:** restart the client after running
   the installer. For OpenCode, restart OpenCode; for Copilot, restart the
-  Copilot session.
+  Copilot session; for Antigravity, restart the CLI or desktop app session.
 - **A worker stops for approval or does not resume (OpenCode):** review the
   permission setup above. Child sessions need deterministic `allow`/`deny`
   rules for the actions they use; continue `/work` from its retained session, or

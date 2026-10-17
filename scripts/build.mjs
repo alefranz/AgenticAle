@@ -9,6 +9,7 @@ import {
   mergeV2MissingRuntimes,
   normalizeV1ToV2,
   resolveAllRuntimes,
+  runtimeSupportsEffort,
   strictValidateRouting,
   validateRouting,
   validateV2Routing,
@@ -56,7 +57,7 @@ const SKILL_NAMES = ["work", "autonomous", "pull-request-description", "source-c
 export const pluginManifest = {
   $schema: "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   name: "agenticale",
-  version: "0.4.0",
+  version: "0.5.0",
   description: "Reviewed coding tasks with focused specialist agents, optional PR delivery, and durable autonomous project work.",
   author: { name: "Ale Franz" },
   homepage: "https://github.com/alefranz/AgenticAle",
@@ -255,11 +256,17 @@ async function loadRouting(options) {
 
   if (options.models) {
     const inventory = await readLegacyModels(options.models);
-    const { baseline, omitted } = legacyInventoryToV2(inventory, packaged);
+    const { baseline, omitted, skippedRuntimes } = legacyInventoryToV2(inventory, packaged);
     baseline.provenance = "Imported from a legacy --models inventory.";
-    const report = omitted.length
-      ? `Imported legacy --models inventory; ${omitted.length} omitted key(s) converted to explicit inheritance (${omitted.join(", ")}).`
-      : "Imported legacy --models inventory (all roles present; none converted to inheritance).";
+    const reportParts = [
+      omitted.length
+        ? `Imported legacy --models inventory; ${omitted.length} omitted key(s) converted to explicit inheritance (${omitted.join(", ")}).`
+        : "Imported legacy --models inventory (all roles present; none converted to inheritance).",
+    ];
+    if (skippedRuntimes && skippedRuntimes.length > 0) {
+      reportParts.push(`Skipped runtime(s) ${skippedRuntimes.join(", ")} (kept packaged defaults).`);
+    }
+    const report = reportParts.join(" ");
     return { baseline, routingSource: `--models ${options.models} (legacy import)`, importReport: report };
   }
 
@@ -280,6 +287,7 @@ function assertEffortOverrideCompatible(resolution, options) {
   }
   const inherited = [];
   for (const [runtime, runtimeResolution] of Object.entries(resolution.runtimes)) {
+    if (!runtimeSupportsEffort(runtime)) continue;
     for (const [role, entry] of Object.entries(runtimeResolution.routes)) {
       if (entry.mode === "inherit") inherited.push(`${runtime}/${role}`);
     }

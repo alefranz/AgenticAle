@@ -178,13 +178,13 @@ try {
     check(state.schema === STATE_VERSION, "install fresh: state schema 6");
     check(state.mode === "copy", "install fresh: state mode copy");
     check(state.package === PACKAGE, "install fresh: state package");
-    check(state.entries.length === 30, "install fresh: 30 entries");
+    check(state.entries.length === 31, "install fresh: 31 entries");
     const profiles = state.entries.filter((e) => e.path.startsWith("agents/autonomous/"));
     check(profiles.length === 7, "install fresh: 7 generated profiles");
     check(state.entries.some((e) => e.path === "agents/autonomous/implement-hard.md"), "install fresh: implements implement-hard.md profile");
     check(state.entries.some((e) => e.path === "commands/work.md") && state.entries.some((e) => e.path === "commands/autonomous.md"), "install fresh: two command entries in state");
     const files = (await relFiles(t)).filter((f) => f !== STATE);
-    check(files.length === 30, "install fresh: 30 files on disk");
+    check(files.length === 31, "install fresh: 31 files on disk");
     const workCommand = await readFile(join(t, "commands", "work.md"), "utf8");
     check(workCommand.includes("`work`") && workCommand.includes("$ARGUMENTS"), "install fresh: work command loads the skill by exact ID");
     const autonomousCommand = await readFile(join(t, "commands", "autonomous.md"), "utf8");
@@ -353,7 +353,7 @@ try {
     check(r.out.includes("preserve-modified: commands/autonomous.md"), `migration copy schema ${schema}: modified command entry reported`);
     const state = await readState(t);
     check(state.schema === STATE_VERSION, `migration copy schema ${schema}: advanced to schema ${STATE_VERSION}`);
-    check(state.entries.length === 30, `migration copy schema ${schema}: 30 entries`);
+    check(state.entries.length === 31, `migration copy schema ${schema}: 31 entries`);
     check(r.out.includes("backup created:"), `migration copy schema ${schema}: replaced command entry backed up`);
     check((await readFile(modPath, "utf8")).includes("$ARGUMENTS"), `migration copy schema ${schema}: commands/autonomous.md now carries the generated entry`);
     check((await readFile(join(t, "commands", "work.md"), "utf8")).includes("$ARGUMENTS"), `migration copy schema ${schema}: commands/work.md now carries the generated entry`);
@@ -368,7 +368,7 @@ try {
     check(r.out.includes(`  migrating from schema ${LEGACY_GENERATED_SCHEMA} copy install`), "migration generated schema 5: migrating message");
     const state = await readState(t);
     check(state.schema === STATE_VERSION, "migration generated schema 5: advanced to schema 6");
-    check(state.entries.length === 30, "migration generated schema 5: 30 entries");
+    check(state.entries.length === 31, "migration generated schema 5: 31 entries");
     check(await exists(join(t, "agents", "autonomous", "implement-hard.md")), "migration generated schema 5: implement-hard profile now present");
     check(state.entries.some((e) => e.path === "agents/autonomous/implement-hard.md"), "migration generated schema 5: implement-hard in state");
     check((await readFile(join(t, "commands", "work.md"), "utf8")).includes("$ARGUMENTS"), "migration generated schema 5: command entries added");
@@ -388,7 +388,7 @@ try {
     check(r.exit === 0, "migration current-release schema 6: exits 0 without --replace");
     check(!r.out.includes("Already up to date"), "migration current-release schema 6: reconciles instead of reporting up-to-date");
     const state2 = await readState(t);
-    check(state2.entries.length === 30, "migration current-release schema 6: 30 entries");
+    check(state2.entries.length === 31, "migration current-release schema 6: 31 entries");
     check((await readFile(join(t, "commands", "autonomous.md"), "utf8")).includes("$ARGUMENTS"), "migration current-release schema 6: command entries added");
   }
   {
@@ -429,7 +429,7 @@ try {
     check(r.out.includes("  migrating from schema 4 link install"), "migration link schema 4: migrating message");
     check(r.out.includes("  converted: the previous link install was converted to a copy install of the generated bundle."), "migration link schema 4: converted message");
     const state = await readState(t);
-    check(state.schema === STATE_VERSION && state.mode === "copy" && state.entries.length === 30, "migration link schema 4: now schema 6 copy 30 entries");
+    check(state.schema === STATE_VERSION && state.mode === "copy" && state.entries.length === 31, "migration link schema 4: now schema 6 copy 31 entries");
     check((await readFile(join(t, "commands", "work.md"), "utf8")).includes("$ARGUMENTS"), "migration link schema 4: command links replaced by the generated files");
   }
   // Build the full schema-4 link inventory (the validator requires the exact set).
@@ -488,7 +488,7 @@ try {
     check(r.exit === 0, "R6 link→dir: exits 0 with --replace");
     check(r.out.includes("preserve-modified: agents/autonomous"), "R6 link→dir: replaced-by-directory preserved");
     const state = await readState(t);
-    check(state.schema === STATE_VERSION && state.mode === "copy" && state.entries.length === 30, "R6 link→dir: converted to schema 6 copy 30 entries");
+    check(state.schema === STATE_VERSION && state.mode === "copy" && state.entries.length === 31, "R6 link→dir: converted to schema 6 copy 31 entries");
     check(await exists(join(t, "agents", "autonomous", "consult.md")), "R6 link→dir: profile copies written into the preserved directory");
   }
 
@@ -551,9 +551,9 @@ try {
     check(state.schema === 1, "standalone fresh: schema 1");
     check(state.scope === "project", "standalone fresh: scope project");
     check(state.sourceLayout === "autonomous,pull-request-description,source-code-lookup,work", "standalone fresh: sourceLayout string");
-    check(state.entries.length === 21, "standalone fresh: 21 entries");
+    check(state.entries.length === 22, "standalone fresh: 22 entries");
     const files = (await relFiles(t)).filter((f) => f !== STANDALONE_STATE);
-    check(files.length === 21, "standalone fresh: 21 files on disk");
+    check(files.length === 22, "standalone fresh: 22 files on disk");
     check(!files.some((f) => f.startsWith("agents/")), "standalone fresh: no agents/");
     check(!files.some((f) => f.startsWith("commands/")), "standalone fresh: no commands/");
     check(await exists(join(t, "work", "references", "routing.json")), "standalone fresh: materializes work/references/routing.json");
