@@ -34,7 +34,8 @@ focused changes with clear verification are easiest to review.
 
 ## Verify
 
-Use Node.js 20 or later. For an explicitly core-only task, use the scoped checks
+Use Node.js 20 or later for repository scripts. The documentation site requires
+Node.js 24 or later. For an explicitly core-only task, use the scoped checks
 and convergence handoff in [AGENTS.md](AGENTS.md#core-only-work-and-later-convergence).
 For integrated changes and release readiness, run the full sequence in this order:
 

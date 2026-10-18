@@ -1,4 +1,4 @@
-import { withMermaid } from 'vitepress-plugin-mermaid'
+import { withMermaid } from 'vitepress-mermaid-viewer'
 import { defineConfig } from 'vitepress'
 import { readdirSync } from 'node:fs'
 import { dirname, join, sep } from 'node:path'

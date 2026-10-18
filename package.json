@@ -2,6 +2,9 @@
   "name": "agenticale-docs",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
@@ -9,8 +12,8 @@
     "docs:check": "npm run docs:build && node scripts/check-docs.mjs"
   },
   "devDependencies": {
-    "mermaid": "11.17.2",
+    "mermaid": "12.2.0",
     "vitepress": "1.6.4",
-    "vitepress-plugin-mermaid": "2.0.17"
+    "vitepress-mermaid-viewer": "0.5.0"
   }
 }
