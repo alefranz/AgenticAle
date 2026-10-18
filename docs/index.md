@@ -4,6 +4,13 @@ AgenticAle is a collection of portable coding skills for working with an AI
 coding assistant. Its everyday workflow coordinates focused implementation,
 independent review, and fixes, with optional delivery.
 
+The workflow is designed to lower model cost by using fast, inexpensive, or
+local models for routine high-volume work, and stronger models for difficult
+implementation and independent review. Successful delivery, including a
+requested pull request, includes independent review, acceptance checks, and
+fixes for blocking findings, so your attention goes to completed work. Routes
+are configurable and can inherit your session model.
+
 **[Get started](./getting-started.md)** · **[Explore the Work skill](./skills/work/index.md)**
 
 ## Choose a workflow

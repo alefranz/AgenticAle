@@ -1,8 +1,13 @@
 # Model routing
 
 AgenticAle routes each worker role through an explicit per-route policy. The
-packaged defaults provide four tiers, while you can set a custom model and
-reasoning effort for supported clients. Model access and enforcement depend on
+four packaged tiers express a cost/value design: fast exploration, routine
+implementation and fixes, standard review and hard implementation, and deep
+review when the combined work warrants it. Use inexpensive or local models for
+high-volume routine work where your host and provider support them; reserve
+stronger models for difficult reasoning and independent review. Checks and
+focused fixes aim to reduce time spent on unfinished work. They do not promise
+perfect results or universal savings. Model access and enforcement depend on
 the client, account, and provider; the published runtime matrix remains
 **not tested** until a live check is recorded.
 
@@ -103,8 +108,9 @@ interpretation and fallback details.
 ## Choosing models by role
 
 The intended routing keeps high-volume work (explore, routine implement, fix)
-on a fast, cheap, or local model and reserves a stronger model for
-`implement-hard`, `review`, `deep-review`, and `consult`.
+on a fast, inexpensive, or local model when supported, and reserves stronger
+capacity for `implement-hard` and `review`. Use `deep-review` conditionally for
+substantial interactions or risk; `consult` is an optional second opinion.
 
 | Route | What it does | Good default |
 | --- | --- | --- |
@@ -115,6 +121,12 @@ on a fast, cheap, or local model and reserves a stronger model for
 | `review` | Checks a worker's changes independently | Stronger model when available |
 | `deep-review` | Audits interactions across the whole slice | Best model, used sparingly |
 | `consult` | Gives a second opinion on one stuck decision | Best model, used sparingly |
+
+Review independence comes from a fresh agent checking the work. It does not
+require a different model, and an explicitly configured route can inherit the
+session model. The packaged tiers are defaults, not guarantees that a specific
+model is available or cheaper for your account. Check your provider's current
+catalog and pricing before relying on either assumption.
 
 Use a `--models` preset as shorthand for a checked-in example mapping; it does
 not probe your provider account or `/models` catalog. Run `/models` and confirm
