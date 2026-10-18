@@ -85,6 +85,17 @@ before implementation advances. The task's worker budget, review limits, and
 stop conditions continue across replanning; the accumulated work still gets
 combined acceptance checks before delivery.
 
+If the host reports a provider usage quota, Autonomous Mode records the evidence,
+retry time, affected role, partial progress, and next action in the active
+handoff. The initial quota failure sets the no-work retry rejection count to
+zero. It waits about 30 minutes by default (or longer when reliable reset
+metadata requires it) and resumes from the inspected working tree. Up to eight
+automatic cooldown retries may follow the initial failure; eight rejected
+retries without resumed progress end in a resumable stop. A fresh activation
+preserves this count, and only resumed material progress resets it.
+Automatic wake is available only when the current host exposes a supported
+wait; otherwise the handoff keeps the exact retry time for a later session.
+
 ## Permissions for unattended runs
 
 The OpenCode installer leaves `opencode.jsonc` unchanged. For unattended runs,

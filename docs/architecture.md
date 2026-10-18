@@ -60,6 +60,13 @@ continuation policies. The target project owns `BACKLOG.md` and
 own development state. Everyday `work` does not resume those files or promise
 recovery after loss of the host session.
 
+Autonomous mode also persists provider-quota cooldown and retry state in its
+existing active handoff. It can resume long work from verified partial progress
+after a supported wait or a later activation; it does not promise an automatic
+wake when the host exposes no such capability. See the
+[quota recovery examples](autonomous-quota-fixtures.md) for the behavior
+boundaries.
+
 The authored source-of-truth layout is what `scripts/validate.mjs` asserts
 exists: the two workflow skills plus their `agents/openai.yaml`, the shared
 `rounds.md`, the `ROUTING.md` reference, the `routing.json` defaults baseline,

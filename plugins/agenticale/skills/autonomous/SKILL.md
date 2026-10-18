@@ -291,13 +291,17 @@ For each current slice or discovery assignment:
    routing rules above), and the fix contract for a review-directed fix.
    Check the report against a quick verification (`git -C <repo> status` and,
    when applicable, `git -C <repo> log -1`). If the
-   report is missing, malformed, or its claims do not match, send one
-   correction round with the observed discrepancy — do not restart the task.
+   host result proves provider quota exhaustion, handle it under
+   [Provider quota recovery](#provider-quota-recovery) before report repair or
+   interruption handling. Otherwise, if the report is missing, malformed, or
+   its claims do not match, send one correction round with the observed
+   discrepancy — do not restart the task.
 2. **Reset/handoff gate.** If the report hit a reset trigger, record its
    ledger line and start the next worker as a fresh investigation, diagnostic,
    or implementation round from the compact handoff. A reset is normal
    progress and counts as one worker round; do not make it a free, hidden
-   continuation. Do not review an unfinished task.
+   continuation. Do not review an unfinished task. If host evidence shows
+   quota exhaustion, use Provider quota recovery before applying this gate.
 3. **[strict] Review round.** Compose the review template with the task
    definition, the worker's 15-line report, and its commit hashes or recorded
    change range. A fresh child carrying the review contract verifies
@@ -307,6 +311,88 @@ For each current slice or discovery assignment:
    re-review. After a clean gate, check the opportunistic deep-review escalation
    triggers below before moving to the next task.
 5. **Record the ledger line(s)** (one per round) and move to the next task.
+
+### Provider quota recovery
+
+Inspect the host's terminal child or dispatch result for a provider-reported
+usage quota or rate-limit exhaustion before applying malformed-report
+correction or ordinary interrupted-round handling. Treat explicit host/provider
+evidence such as `The usage limit has been reached` as quota evidence. A generic
+crash, timeout, cancellation, permission denial, authentication failure, or
+billing/account suspension is not quota evidence; follow the existing error or
+stop policy for those cases. Do not infer quota exhaustion from silence or a
+child's unverified claim when host status is available. This policy applies to
+all dispatched child roles, including workers, reviewers, fixers, explorers,
+consultants, and deep reviewers.
+
+When quota exhaustion is established, first confirm that the child is terminal
+and has no background work still running. Never overlap a replacement child
+with a live one. Persist a `QUOTA RECOVERY` record in the existing active
+handoff: affected role and slice, exact evidence, observed time and retry time,
+whether work began, the next concrete resume action, and the consecutive
+no-work quota-retry rejection count. The initial quota failure starts the
+outage sequence with this count at zero, even if the child made partial
+material progress before being interrupted; it is not one of the cooldown
+retry rejections. Honor reliable provider retry/reset metadata
+when it gives a later time; otherwise use a 30-minute cooldown. Do not assume
+all providers share a four-hour usage window. The cooldown and counters survive
+session resumes and handoff repairs.
+
+Read the current time from a reliable clock and compare it with the persisted
+retry time. Never launch before that deadline, including after a fresh session
+or an early return from a wait. Inspect the current host's actual tool surface
+for a supported, timer-backed foreground wait. If available, wait for the
+remaining duration, composing multiple waits only as needed to stay within the
+tool's supported duration. After every return, re-read the clock and recompute
+the remaining time; do not busy-poll, probe children, or dispatch early. User
+input may interrupt a wait: an explicit request to stop or cancel pauses or
+stops the task according to that request while preserving the cooldown and
+work; a status request or correction alone does not cancel recovery and must
+still respect the deadline. If elapsed time cannot be measured reliably, or no
+supported timer-backed wait is available, preserve the exact retry time and
+resume action in the handoff and stop cleanly for a later activation; do not
+attempt coordinator work while the coordinator itself is quota-exhausted. Do
+not claim an automatic wakeup or invent scheduler support. Runtime bindings do
+not promise a common wait or wakeup capability, so report it as unavailable
+unless the active host exposes it.
+
+Before resuming, inspect the actual working tree, including untracked files and
+partial edits. The fresh child validates the handoff against that state and
+continues from its one `NEXT` action; it must not reset files, discard work, or
+reimplement the whole assignment based only on the interrupted report. If the
+handoff is missing or stale, the coordinator may repair it from verified tree
+and tool evidence without dispatching another child. Preserve role policy: a
+reviewer stays read-only, and Git actions remain governed by the existing
+authorization rules. Completed changes still require the ordinary verification
+and review gates.
+
+Write small durable handoff checkpoints at natural progress points, including
+before a long action likely to cross a provider usage window. Record completed
+work and evidence, remaining work, and exactly one next action so a fresh child
+can make forward progress rather than replaying the task. Productive rounds
+that made material progress, even when later interrupted, consume their normal
+worker or review allowance. A pure quota-blocked launch or cooldown wait does
+not consume those allowances and is not a malformed-report correction, a
+second interruption, or a no-progress failure. It must not erase genuine prior
+no-progress evidence either. A quota rejection with no resumed work is quota
+only even if the host created a child session before returning the rejection.
+
+Allow at most eight automatic cooldown retries after the initial quota
+failure. Count only quota rejections from those retries that find no resumed
+material progress: retry 1 raises the count from zero to one, through retry 8
+raising it to eight. Persist the count across sessions and failed probes; a
+fresh activation does not start a new set of retries. Reset it only after a
+resumed child makes material progress. At eight, stop with a resumable handoff
+and the next retry action; a later activation may make one fresh probe after
+the recorded time, but another no-work rejection leaves the count capped at
+eight, records the new retry time, and stops again without an automatic retry
+loop. A quota interruption after resumed material progress starts a new
+sequence at zero, including when the productive child was interrupted after
+partial progress.
+Quota waits and quota-only launch failures do not count as two consecutive task
+blockers. When a resumed child makes material progress, charge that productive
+round against its normal allowance. All normal worker, fix, review,
+consultation, budget, and stop limits otherwise remain in force.
 
 ### Interrupted-round recovery
 
@@ -320,6 +406,10 @@ validate or repair the compact handoff before doing one concrete `NEXT`
 action. This is a normal reset, not a malformed-report correction and not an
 automatic retry loop. If the same task is interrupted twice without a material
 decision or persisted outcome, stop and report it as blocked.
+
+When host/provider evidence identifies quota exhaustion, use the quota recovery
+path above instead of recording an ordinary interruption. Quota-only waits and
+launch rejections do not trigger this section's repeated-interruption limit.
 
 ## Periodic deep-review gate
 
@@ -508,6 +598,12 @@ Before you finish you must:
 - follow the stated git persistence policy in every repo you changed, in
   dependency order, then update applicable outer-repository pins;
 - update the handoff section so the next round starts from it.
+
+For a long-running assignment, persist small, verified progress checkpoints in
+the handoff at natural milestones and before a long action likely to cross a
+provider usage window. Include completed work, evidence, remaining work, and
+one concrete next action so a fresh child can resume without replaying the
+assignment.
 
 For a read-only exploration assignment, return the handoff facts in your report
 instead of editing files; the coordinator will persist them.
