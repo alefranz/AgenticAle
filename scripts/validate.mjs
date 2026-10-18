@@ -612,6 +612,8 @@ function walkFiles(directory) {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     if (entry.name === ".git" || entry.name === "node_modules") continue;
     const absolute = join(directory, entry.name);
+    const repositoryPath = portablePath(relative(repositoryRoot, absolute));
+    if (entry.isDirectory() && ["docs/.vitepress/dist", "docs/.vitepress/cache"].includes(repositoryPath)) continue;
     if (entry.isDirectory()) results.push(...walkFiles(absolute));
     else if (entry.isFile()) results.push(absolute);
   }
@@ -710,6 +712,7 @@ function validateSanitation() {
     const text = contents.toString("utf8");
     const screenedText = text.toLowerCase()
       .replaceAll(`https://github.com/${publicRepository}`.toLowerCase(), "PUBLIC_REPOSITORY")
+      .replaceAll("https://alefranz.github.io/agenticale", "PUBLIC_SITE")
       .replaceAll(publicRepository.toLowerCase(), "PUBLIC_REPOSITORY");
     for (const term of forbidden) {
       if (screenedText.includes(term.toLowerCase())) {

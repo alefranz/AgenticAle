@@ -1,9 +1,10 @@
 # Setup and customization
 
-Start with the [README quick start](../README.md). This guide covers the plugin
-and standalone install paths, model routing, and client limitations. Live runtime behavior is
-tracked separately in [runtime-compatibility.md](runtime-compatibility.md);
-nothing in this file is a live test result.
+Choose your client below to install AgenticAle. This page is the canonical
+installation guide; the [getting started page](getting-started.md) is the short
+reader entry point. Live runtime behavior is tracked separately in
+[runtime compatibility](runtime-compatibility.md), and is **not tested** until
+live evidence is recorded.
 
 The package exposes two public workflows, both explicit-only skills:
 
@@ -19,9 +20,32 @@ skill in is the coordinator.
 
 ### GitHub Copilot (CLI and VS Code)
 
-Builds a temporary Agent Plugins 1.0 package and installs it with
-`copilot plugin install`. GitHub Copilot in VS Code discovers the same install.
-It makes no model request.
+With Copilot CLI installed and authenticated, install the published plugin from
+the AgenticAle marketplace:
+
+```sh
+copilot plugin marketplace add alefranz/AgenticAle
+copilot plugin install agenticale@agenticale
+```
+
+Restart the Copilot session and invoke a workflow directly; there is no agent
+picker. For example, from the CLI:
+
+```text
+/agenticale:work Fix the date filtering bug
+/agenticale:work Address the review feedback on this branch
+/agenticale:work Investigate why export is slow and suggest an approach
+/agenticale:work --pr Add CSV export
+```
+
+VS Code discovers the same plugin. Its autocomplete may display the work skill
+as `/agenticale work` even though the CLI uses `/agenticale:work`; select the
+suggested autocomplete entry in VS Code.
+
+#### Alternative: install from a local checkout
+
+Alternatively, clone this repository or use your current checkout, then run the
+installer from the repository root:
 
 ```sh
 node scripts/install-copilot.mjs
@@ -131,209 +155,45 @@ two installs were meant to be a single one.
 
 ### Google Antigravity (App and CLI)
 
-Follow the initial installation steps in the [README](../README.md#google-antigravity-app-and-cli).
-The plugin is copied to `~/.gemini/config/plugins/agenticale` and shared across
-both the Antigravity CLI and desktop application.
+Antigravity installs the plugin from a local clone. Clone the repository, then
+in the CLI run `/plugin`, choose **Discover** > **Install from local
+directory**, and select `plugins/agenticale`. Restart the CLI or app before
+invoking the skills. Updates are installed from the same local clone through
+`/plugin`.
 
-To update AgenticAle, pull the latest changes with `git pull` in your local clone
-and reinstall the plugin through `/plugin` in the CLI. You can also use `/plugin`
-at any time to manage, enable, disable, or remove the plugin.
+See the [Antigravity installation reference](https://antigravity.google/docs/cli/install/)
+and [model routing guide](guides/model-routing.md).
 
 ## Model routing
 
-Routing is an explicit per-route policy. The single packaged defaults baseline is
-[`skills/work/references/routing.json`](../skills/work/references/routing.json)
-(schemaVersion 2): a common role-to-tier map plus per-runtime tier definitions
-for the four runtimes (`copilot`, `codex`, `opencode`, `antigravity`). The resolver
-derives the seven concrete routes for the active runtime from this baseline and any
-optional preference files. It does not package a redundant resolved snapshot.
-
-The packaged choices mirror `examples/openai.json`: Copilot and Codex use their
-native bare model IDs; OpenCode keeps the `openai/` provider prefix. The four
-tiers are `fast` (`explore`: `gpt-6-luna`, `medium`), `routine`
-(`implement`, `fix`: `gpt-6-luna`, `high`), `standard`
-(`implement-hard`, `review`: `gpt-6.1-sol`, `high`), and `deep`
-(`deep-review`, `consult`: `gpt-6.1-sol`, `xhigh`). Antigravity defaults use
-host-native tier choices (`flash` for fast and routine, `pro` for standard and
-deep) without reasoning effort. Model access depends on the host, plan, and
-account; confirm the IDs are available in the target runtime before relying on
-strict routing, or customize it with a routing preference file (below) or an
-install-time option.
-
-`implement` and `implement-hard` share the same implementation contract but
-route to different models and effort. OpenCode materializes the resolved routes
-as **seven** generated profiles (`explore`, `implement`, `implement-hard`,
-`fix`, `review`, `deep-review`, `consult`); `implement-hard` is a distinct
-profile rendering the `implement` contract at a higher reasoning effort.
+The complete policy, preference precedence, and client-specific behavior live in
+[the model routing guide](guides/model-routing.md). The following legacy
+section anchors remain available for existing links.
 
 ### Routing options
 
-All three installers accept the same routing options, passed through to the
-build:
+See [routing options and install examples](guides/model-routing.md#install-time-routing-options)
+in the focused guide.
 
-| Option | Effect |
-| --- | --- |
-| `--models PATH\|PRESET` | Legacy import. Reads an `examples` mapping (`gpt`, `openai`, `zen`, `local`, `example`) or a JSON file and converts it to the routing contract. Known OpenCode provider prefixes (`openai/`, `opencode/`) are removed for Copilot and Codex, and retained for OpenCode. Omitted roles become explicit inheritance and are reported. Does not apply to `antigravity` tiers (packaged tiers are preserved). |
-| `--routing PATH` | Build from a complete caller-supplied routing file instead of the packaged `routing.json`. Conflicts with `--models`. |
-| `--no-model` | Omit model and effort for every route; each route inherits the session model. Conflicts with `--models`. |
-| `--effort LEVEL` | Route-wide reasoning-effort override (`low`/`medium`/`high`/`xhigh`/`max`); overrides the effort of every route. Skips runtimes without effort control (`antigravity`) with a notice. |
+### Customizing model routing
 
-`--coordinator-effort` is retired: the session now owns its own effort, so the
-option is ignored and a notice is reported. `--effort` skips runtimes without
-effort control (`antigravity`) with a notice, and `--models` does not apply to
-`antigravity` tiers (packaged tiers are preserved).
+See [customizing model routing](guides/model-routing.md#user-preferences-and-precedence)
+for the preference file locations and precedence.
 
-Examples:
+### Choosing models: cheap by default, strong when it matters
 
-```sh
-# Copilot, packaged routing
-node scripts/install-copilot.mjs
+See [choosing routes](guides/model-routing.md#choosing-models-by-role) for the
+packaged tier intent.
 
-# Copilot, inherit the session model everywhere
-node scripts/install-copilot.mjs --no-model
+### OpenCode permissions
 
-# Copilot, a complete caller policy
-node scripts/install-copilot.mjs --routing /path/to/routing.json --effort high
+See the [OpenCode permissions guidance](guides/troubleshooting.md#opencode-permissions) and the
+[detailed Autonomous guide](https://github.com/alefranz/AgenticAle/blob/main/docs/autonomous.md#permissions-for-unattended-runs).
 
-# Standalone Codex skills, project scope
-node scripts/install-standalone.mjs --scope project --models zen
+### Useful build and publish commands
 
-# OpenCode, isolated target and session inheritance
-node scripts/install.mjs --target /path/to/opencode --no-model
-```
-
-`--source-root PATH` on any installer writes a different default source-lookup
-root into the installed skill; `SOURCE_ROOT` still takes precedence at lookup
-time.
-
-## Customizing model routing
-
-The packaged `references/routing.json` supplies defaults. To customize them,
-copy `references/routing.example.md` from the installed `work` skill to either
-`<repo>/.agenticale/routing.md` for one repository or
-`~/.agenticale/routing.md` for all repositories. The project file overrides
-the personal file, which overrides the packaged baseline; invocation choices
-have the highest precedence. For Git projects, use the worktree root even
-from a subdirectory. For non-Git projects, establish the workspace root
-explicitly.
-
-Use the tier table first and add optional role overrides below it. State both
-model and effort for a direct choice. See `references/ROUTING.md` in the
-installed skill for ambiguity, reset, and fallback behavior.
-
-For example, a personal preference file might contain:
-
-```markdown
-# Model routing
-
-## codex
-
-| Tier | Model | Reasoning effort |
-| --- | --- | --- |
-| fast | gpt-6-luna | medium |
-| routine | gpt-6-luna | high |
-| standard | gpt-6.1-sol | high |
-| deep | gpt-6.1-sol | xhigh |
-```
-
-Start a new `/work` or `/autonomous` activation to load these preferences.
-
-OpenCode uses preconfigured profiles. A preference change takes effect there
-only after a matching profile is installed and active. If no profile matches,
-the workflow exports a resolved policy and reports the existing installer
-command needed to refresh it; see `references/runtimes/opencode.md`.
-
-Preference files are user-owned. Install, update, publication, and uninstall
-never create, overwrite, migrate, or remove them. The resolver does not
-discover user files; Markdown remains the only automatically discovered human
-customization format.
-## Choosing models: cheap by default, strong when it matters
-
-The intended routing keeps high-volume work (explore, routine implement, fix)
-on a fast, cheap, or local model and reserves a stronger model for
-`implement-hard`, `review`, `deep-review`, and `consult`. This split is the main
-reason to configure a mapping.
-
-| Route | What it does | Good default |
-| --- | --- | --- |
-| `explore` | Understands the project and gathers evidence | Fast, cheap, or local |
-| `implement` | Makes routine changes | Fast, cheap, or local |
-| `fix` | Applies specific review findings | Fast, cheap, or local |
-| `implement-hard` | Handles difficult or security-sensitive work | Stronger model when needed |
-| `review` | Checks a worker's changes independently | Stronger model when available |
-| `deep-review` | Audits interactions across the whole slice | Best model, used sparingly |
-| `consult` | Gives a second opinion on one stuck decision | Best model, used sparingly |
-
-Use a `--models` preset as shorthand for one of the checked-in example mappings
-(`openai`, `zen` from `examples/gpt.json`, `local`, `example`); a preset does
-not probe your provider account or `/models` catalog. To build your own, write a
-routing file and pass it with `--routing`, or start from a legacy
-`provider/model[#variant]` JSON and pass it with `--models`. Run `/models` first
-and confirm the IDs exist. The `local` preset is intentionally a starting point
-because local provider names and model IDs vary between machines.
-
-The legacy `--models` JSON names roles and omits ones to inherit:
-
-```json
-{
-  "explore": "cheap-provider/fast-model",
-  "implement": "cheap-provider/fast-model",
-  "fix": "cheap-provider/fast-model",
-  "review": "strong-provider/review-model",
-  "deep-review": "strong-provider/best-model",
-  "consult": "strong-provider/best-model"
-}
-```
-
-Values use the `provider/model[#variant]` form; an optional `#variant`
-(`low`/`medium`/`high`/`xhigh`/`max`) sets the effort for that route. Roles left
-out inherit the session model and the install reports the conversion.
-The `openai/` and `opencode/` prefixes used by the bundled examples select
-OpenCode providers; imports remove those prefixes when creating Copilot and
-Codex routes, which use native bare model IDs.
-## OpenCode permissions
-
-The OpenCode installer leaves `opencode.jsonc` unchanged. The foreground agent
-needs permission to run the `/work` and `/autonomous` command entries, to load
-the `work` and `autonomous` skills, and to launch the generated
-`autonomous/*` profiles; those profile IDs are shared by both workflows. Child sessions cannot ask the user questions or launch nested
-agents. Configure the actions your task needs so they resolve without
-interactive child prompts, scoped to the project and your environment. See the
-[OpenCode V2 permissions guide](https://opencode.ai/v2/docs/permissions) for
-syntax. A denied child action should return a blocker to the coordinator; do not
-bypass a denial or assume a paused child can resume. For unattended setup, see
-[Autonomous Mode](autonomous.md#permissions-for-unattended-runs).
-
-## Useful build and publish commands
-
-Generate inspectable plugin, standalone, and OpenCode output without installing:
-
-```sh
-node scripts/build.mjs
-```
-
-The three output roots are written beneath `--output` (default `dist`), which
-Git ignores: `plugin/agenticale` (the Agent Plugins 1.0 package),
-`standalone/.agents/skills` (the four standalone skills), and `opencode`
-(seven generated profiles plus the same skills). The build writes
-`.agenticale-build.json` (schemaVersion 2) describing what it produced. Build
-output must not target the repository root or a source directory.
-
-Regenerate the committed plugin and both catalogs after changing the canonical
-skills, routing, or plugin metadata:
-
-```sh
-node scripts/publish-default-plugin.mjs
-```
-
-This regenerates `plugins/agenticale/` plus both catalogs,
-`.github/plugin/marketplace.json` (Copilot) and
-`.agents/plugins/marketplace.json` (OpenAI). CI runs the same command with
-`--check` and rejects stale artifacts.
-
-Changes to the distributed plugin also require a version bump in
-`scripts/build.mjs` before regeneration. See [CONTRIBUTING.md](../CONTRIBUTING.md#versions-and-github-releases)
-for the PR gate and automated GitHub releases.
+See [build, preview, and contribution checks](contributing.md) and the
+[site maintenance guide](site-maintenance.md).
 
 ## Source lookup configuration
 
@@ -400,24 +260,8 @@ Modified files are preserved during uninstall.
 
 ## Troubleshooting
 
-- **`/work` or `/autonomous` is not found:** restart the client after running
-  the installer. For OpenCode, restart OpenCode; for Copilot, restart the
-  Copilot session; for Antigravity, restart the CLI or desktop app session.
-- **A worker stops for approval or does not resume (OpenCode):** review the
-  permission setup above. Child sessions need deterministic `allow`/`deny`
-  rules for the actions they use; continue `/work` from its retained session, or
-  rerun `/autonomous` to resume its durable handoff. Only the autonomous skill
-  provides fresh-session recovery.
-- **A model cannot be found:** run `/models` and check the Markdown routing
-  file. Plugin users can edit Markdown and start a new `/work` or `/autonomous`
-  activation. OpenCode users may need to refresh their generated profiles; see
-  the preparation procedure in the installed `work` skill.
-- **You are unsure about model routing:** use `--no-model` for a quick trial,
-  then create a `routing.md` preference file
-  ([customizing model routing](#customizing-model-routing)). OpenCode users may
-  need to refresh generated profiles after changing preferences.
-- **You want to understand the implementation:** read the optional
-  [technical architecture guide](architecture.md).
+See the focused [troubleshooting guide](guides/troubleshooting.md) for common
+invocation, routing, and OpenCode permission issues.
 
 ## Limitations
 
