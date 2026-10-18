@@ -33,7 +33,7 @@ check validates output pages, internal links, fragments, assets, and the
 
 ## Local build and preview
 
-Use Node.js 20 or later from a checkout:
+Use Node.js 24 or later from a checkout:
 
 ```sh
 npm ci
