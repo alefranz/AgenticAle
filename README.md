@@ -5,6 +5,12 @@ Its everyday workflow coordinates implementation, independent review, and
 focused fixes. A durable workflow carries larger goals across multiple rounds
 and sessions.
 
+The workflow is designed to lower model cost by using fast, inexpensive, or
+local models for routine high-volume work, and stronger models for difficult
+implementation and independent review. Successful delivery, including a
+requested pull request, includes independent review, acceptance checks, and
+fixes for blocking findings, so your attention goes to completed work.
+
 Describe the outcome you want and invoke a workflow explicitly. The session
 where you invoke it coordinates the work; there is no separate coordinator to
 select.

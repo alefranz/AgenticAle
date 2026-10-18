@@ -60,6 +60,13 @@ continuation policies. The target project owns `BACKLOG.md` and
 own development state. Everyday `work` does not resume those files or promise
 recovery after loss of the host session.
 
+Work's routing defaults express a cost/value design: fast exploration and
+routine implementation/fixes, standard review and hard implementation, and
+conditional deep review. Fresh-agent review can use the same model as the
+worker, and route inheritance can select the session model. Work stops and
+reports explicit provider quota exhaustion without durable recovery; only
+Autonomous applies the cooldown and handoff policy below.
+
 Autonomous mode also persists provider-quota cooldown and retry state in its
 existing active handoff. It can resume long work from verified partial progress
 after a supported wait or a later activation; it does not promise an automatic
