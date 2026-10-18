@@ -27,6 +27,37 @@ The portable policy is specified in the
 [routing contract](https://github.com/alefranz/AgenticAle/blob/main/skills/work/references/ROUTING.md). The details below
 cover install-time choices and user-owned preferences.
 
+## Choosing models by role
+
+Each tier is a named configuration: a model plus requested reasoning effort
+where the host supports it. The same model at different effort levels can be
+different tiers; a tier can also inherit the session model. The packaged tiers
+are for different kinds of work, not a fixed ranking of model quality.
+Exploration, routine implementation, and focused fixes make up much of the
+workload, so the defaults use a lighter configuration there when supported. A
+capable lower-cost implementer may need extra focused implementation or fix
+passes, yet still cost less overall than using the strongest model throughout.
+A fresh, stronger reviewer can catch issues and give actionable feedback, while
+checks and re-review can improve the result. Extra review and fix work counts
+toward the total, and savings and quality depend on the task and provider.
+
+| Tier | Typical roles | Packaged example for Copilot and Codex |
+| --- | --- | --- |
+| Fast | `explore` | `gpt-6-luna` at `medium` effort |
+| Routine | `implement`, `fix` | `gpt-6-luna` at `high` effort |
+| Standard | `implement-hard`, `review` | `gpt-6.1-sol` at `high` effort |
+| Deep | `deep-review`, optional `consult` | `gpt-6.1-sol` at `xhigh` effort |
+
+These examples come from the packaged defaults, not a claim about current
+availability or account pricing. OpenCode uses the corresponding `openai/`
+model prefix. Antigravity uses its host-native `flash` and `pro` choices and has
+no reasoning-effort setting.
+
+Review independence comes from a fresh agent checking the work. It does not
+require a different model, and an explicitly configured route can inherit the
+session model. Check your host's available models before relying on a specific
+choice.
+
 ## Install-time routing options
 
 All three installers accept the same routing options, passed through to the
@@ -104,29 +135,6 @@ changed preferences. See the example preference file at
 [`references/routing.example.md`](https://github.com/alefranz/AgenticAle/blob/main/skills/work/references/routing.example.md)
 and the full [routing contract](https://github.com/alefranz/AgenticAle/blob/main/skills/work/references/ROUTING.md) for
 interpretation and fallback details.
-
-## Choosing models by role
-
-The intended routing keeps high-volume work (explore, routine implement, fix)
-on a fast, inexpensive, or local model when supported, and reserves stronger
-capacity for `implement-hard` and `review`. Use `deep-review` conditionally for
-substantial interactions or risk; `consult` is an optional second opinion.
-
-| Route | What it does | Good default |
-| --- | --- | --- |
-| `explore` | Understands the project and gathers evidence | Fast, cheap, or local |
-| `implement` | Makes routine changes | Fast, cheap, or local |
-| `fix` | Applies specific review findings | Fast, cheap, or local |
-| `implement-hard` | Handles difficult or security-sensitive work | Stronger model when needed |
-| `review` | Checks a worker's changes independently | Stronger model when available |
-| `deep-review` | Audits interactions across the whole slice | Best model, used sparingly |
-| `consult` | Gives a second opinion on one stuck decision | Best model, used sparingly |
-
-Review independence comes from a fresh agent checking the work. It does not
-require a different model, and an explicitly configured route can inherit the
-session model. The packaged tiers are defaults, not guarantees that a specific
-model is available or cheaper for your account. Check your provider's current
-catalog and pricing before relying on either assumption.
 
 Use a `--models` preset as shorthand for a checked-in example mapping; it does
 not probe your provider account or `/models` catalog. Run `/models` and confirm
