@@ -19,6 +19,17 @@ refresh generated profiles; see the
 [model routing guide](model-routing.md#opencode-profile-refresh). For a quick
 routing trial, use `--no-model` and then create a `routing.md` preference file.
 
+## Provider quota exhaustion
+
+When a host or provider explicitly reports that a usage quota or rate limit is
+exhausted, Work stops and reports the affected role, evidence, partial work,
+unchecked work, and any retry or reset details supplied by the host. Inspect
+the working tree before resuming so partial changes are preserved. Work does
+not automatically wait, retry, change the route, or create durable cooldown
+state. Missing output, a generic `429`, or an authentication, network, billing,
+or account error alone does not confirm quota exhaustion; handle those through
+the ordinary error guidance. Autonomous has a separate durable recovery policy.
+
 ## OpenCode permissions
 
 The OpenCode installer leaves `opencode.jsonc` unchanged. The foreground agent

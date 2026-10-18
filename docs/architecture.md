@@ -60,6 +60,20 @@ continuation policies. The target project owns `BACKLOG.md` and
 own development state. Everyday `work` does not resume those files or promise
 recovery after loss of the host session.
 
+Work's routing defaults express a cost/value design: fast exploration and
+routine implementation/fixes, standard review and hard implementation, and
+conditional deep review. Fresh-agent review can use the same model as the
+worker, and route inheritance can select the session model. Work stops and
+reports explicit provider quota exhaustion without durable recovery; only
+Autonomous applies the cooldown and handoff policy below.
+
+Autonomous mode also persists provider-quota cooldown and retry state in its
+existing active handoff. It can resume long work from verified partial progress
+after a supported wait or a later activation; it does not promise an automatic
+wake when the host exposes no such capability. See the
+[quota recovery examples](https://github.com/alefranz/AgenticAle/blob/main/docs/autonomous-quota-fixtures.md) for the behavior
+boundaries.
+
 The authored source-of-truth layout is what `scripts/validate.mjs` asserts
 exists: the two workflow skills plus their `agents/openai.yaml`, the shared
 `rounds.md`, the `ROUTING.md` reference, the `routing.json` defaults baseline,

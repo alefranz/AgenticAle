@@ -167,6 +167,30 @@ Start a fresh child with the last known facts and one next action; do not infer
 completion from a partial response. A repeated interruption without progress
 is a blocker to report.
 
+### Provider quota exhaustion
+
+Before applying report repair or ordinary interrupted-round handling, inspect
+the host's dispatch result or child output for explicit evidence that the host
+or provider exhausted a usage quota or rate limit (for example, `The usage
+limit has been reached`). This applies to every child role, including a launch
+failure and an interruption after partial work.
+Do not infer quota exhaustion from missing or empty output, a generic `429`, or
+an authentication, network, billing, or account error without explicit quota
+evidence; handle those through the ordinary error policy.
+
+When quota exhaustion is confirmed, check whether the child is terminal using
+the available host status. Do not race a child that may still be running or
+launch overlapping work. Stop further dispatch and report the affected role and
+task, the evidence, what work or verification was completed and remains
+unchecked, and any retry/reset information the host supplied. Inspect the
+actual working tree and preserve partial changes. Keep unfinished work and
+review blockers visibly incomplete, and do not publish a pull request before
+its required checks and review gates pass. Do not switch routes or models, do
+the child's work in the coordinator, wait or retry automatically, or create
+durable cooldown state. The user can decide when to resume Work; provide the
+next concrete action. These session-scoped rules do not use Autonomous Mode's
+quota cooldown and handoff recovery.
+
 ## State stays in the session
 
 Pass the shared task packet to each child and retain compact reports in the

@@ -40,6 +40,23 @@ source. Do not search duplicate copies to understand core behavior.
 - Expand scope when evidence requires it. Report a runtime dependency precisely
   instead of inventing a capability or turning a core task into a harness audit.
 
+## Public and repository-only documentation
+
+Public documentation is the explicit allowlist in
+`docs/.vitepress/published-pages.mjs`. User-facing skill explanations live at
+`docs/skills/<name>/index.md`; other files under `docs/` can be repository-only
+technical notes, development records, or fixtures (for example, the older
+`docs/autonomous.md`). A file's location under `docs/` does not make it public.
+
+When behavior changes, assess both user-facing public documentation and
+repository-only contributor, technical, or reference documentation for
+relevance to their audiences. Update each affected document; a change may
+warrant updating one, both, or neither, and details need not be duplicated
+mechanically. Skill sources define behavior, while documentation explains it
+for its audience. For links and publication checks, follow
+[`docs/site-maintenance.md`](docs/site-maintenance.md); run `npm run docs:check`
+when changing public site content.
+
 ## Core-only work and later convergence
 
 When the user asks for "core only", "focus on skill content", or to defer

@@ -5,25 +5,50 @@ independent review, and fixes. It can also handle delivery when you explicitly
 request a pull request. Invoke it when you want a change completed and checked
 as one task, or when you want feedback on a change already in progress.
 
+Work gives a coding task a clear path from implementation through independent
+review, focused fixes, and delivery. A capable lower-cost or local implementer
+may need extra focused implementation or fix passes, yet still cost less overall
+than using the strongest model throughout. A fresh, stronger reviewer can catch
+issues and give actionable feedback; checks and re-review can improve the
+result. Added rounds count toward total effort, and savings and quality depend
+on the task, models, provider, and account. A fresh reviewer provides
+independence; it does not have to use a different model.
+
+## Try Work
+
+Invoke the installed skill for a bounded task and describe the outcome you want:
+
+- `/work Fix the date filtering bug`
+- `/work Add CSV export for the report table`
+- `/work Investigate why export is slow and recommend a fix`
+
+Add `--pr` when you want Work to prepare and open a pull request. The examples
+use conceptual slash syntax; select the installed skill or use the
+client-specific invocation described in [setup](../../setup.md). Work starts
+only when explicitly invoked. The invoking session coordinates the task; there
+is no separate coordinator agent to choose.
+
 ## When to use it
 
 Use Work for a bounded feature, bug fix, investigation that should produce a
 concrete recommendation, or review feedback on a pull request. It is a good fit
 when the task can be divided into clear implementation and review steps.
 
-Examples:
+Other good fits include addressing review feedback on a branch and requesting a
+pull request with `/work --pr`.
 
-- `/work Fix the date filtering bug`
-- `/work Add CSV export for the report table`
-- `/work Investigate why export is slow and recommend a fix`
-- `/work Address the review feedback on this branch`
-- `/work --pr Add CSV export for the report table`
+## The routing tiers
 
-The `/work` examples use conceptual slash syntax. Select the installed skill or
-use the client-specific invocation described in [setup](../../setup.md).
-Work is explicit-only: an ordinary request to an assistant does not start the
-workflow by itself. The session where you invoke it is the coordinator; there
-is no separate coordinator agent to choose.
+The packaged defaults assign a tier by role. These are named configurations,
+not a universal ranking of models; see [Choosing models by role](../../guides/model-routing.md#choosing-models-by-role)
+for concrete examples and customization guidance.
+
+| Tier | Typical use in Work |
+| --- | --- |
+| Fast | Exploration |
+| Routine | Implementation and focused fixes |
+| Standard | Hard implementation and independent review |
+| Deep | Conditional review of substantial interactions or risk |
 
 ## How a change request moves through Work
 
@@ -38,25 +63,28 @@ can investigate it first; otherwise it proceeds directly to implementation.
 ```mermaid
 flowchart TD
     Task[Task] --> ExploreNeeded{Explore first?}
-    ExploreNeeded -->|Yes| Explore[Focused exploration]
-    ExploreNeeded -->|No| Implement[Implement a bounded slice]
+    ExploreNeeded -->|Yes| Explore[Focused exploration · fast tier]
+    ExploreNeeded -->|No| Implement[Routine implementation · routine tier]
     Explore --> Implement
-    Implement --> Review[Independent review]
+    Implement --> Review[Independent review · standard tier]
     Review --> SliceAccepted[Slice accepted]
     SliceAccepted --> MoreSlices{More slices useful?}
     MoreSlices -->|Yes| Implement
     MoreSlices -->|No| DeepReviewNeeded{Substantial interactions or high risk?}
-    DeepReviewNeeded -->|Yes| DeepReview[Deep review of combined work]
+    DeepReviewNeeded -->|Yes| DeepReview[Deep review of combined work · deep tier]
     DeepReviewNeeded -->|No| Checks[Acceptance checks and report]
     DeepReview --> Checks
 ```
+
+Focused fixes use the routine tier; hard implementation uses the standard tier.
+These are packaged defaults, and routes remain configurable.
 
 Every review uses the same findings gate:
 
 ```mermaid
 flowchart TD
     Review[Review] --> Findings{Blocking findings?}
-    Findings -->|Yes| Fix[Focused fix]
+    Findings -->|Yes| Fix[Focused fix · routine tier]
     Fix --> Review
     Findings -->|No| Accepted[Accept this review]
 ```
@@ -86,6 +114,14 @@ Without that request, changes stay uncommitted in the current branch by default.
 Work asks for your input when a meaningful behavior choice is unresolved,
 required information is missing, a pull request destination is ambiguous, or
 existing user edits overlap the requested change and cannot be safely attributed.
+
+If the host explicitly reports provider quota or rate-limit exhaustion, Work
+stops and reports the affected role, evidence, partial work, unchecked work, and
+any supplied retry information. It preserves partial changes and does not
+automatically retry, wait, switch models, or create durable recovery state.
+Missing output or generic network, authentication, billing, or `429` errors
+alone do not establish quota exhaustion. See
+[troubleshooting](../../guides/troubleshooting.md#provider-quota-exhaustion).
 
 ## What you receive
 
