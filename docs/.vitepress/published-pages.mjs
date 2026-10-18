@@ -1,0 +1,15 @@
+export const publishedPages = new Set([
+  'index.md',
+  'getting-started.md',
+  'setup.md',
+  'architecture.md',
+  'runtime-compatibility.md',
+  'contributing.md',
+  'site-maintenance.md',
+  'guides/model-routing.md',
+  'guides/troubleshooting.md',
+  'skills/work/index.md',
+  'skills/autonomous/index.md',
+  'skills/source-code-lookup/index.md',
+  'skills/pull-request-description/index.md',
+])

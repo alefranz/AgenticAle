@@ -1,259 +1,94 @@
-# AgenticAle: coding tasks with independent review
+# AgenticAle
 
-Describe the change. AgenticAle coordinates focused agents to implement it,
-review it independently, and fix the findings. Use it for a feature, a bug fix,
-or feedback on a PR. Ask for a PR when you want it to take care of delivery too.
+AgenticAle is a free, open-source collection of coding skills for AI assistants.
+Its everyday workflow coordinates implementation, independent review, and
+focused fixes. A durable workflow carries larger goals across multiple rounds
+and sessions.
 
-This is a free, open-source collection of portable coding skills with explicit
-model routing, distributed as one Agent Plugins 1.0 package. It runs inside your
-coding assistant using your available models; there is no separate service. Your
-model provider's usage costs still apply.
+Describe the outcome you want and invoke a workflow explicitly. The session
+where you invoke it coordinates the work; there is no separate coordinator to
+select.
 
-The public experience is two explicit-only skills:
+```text
+/work Fix the date filtering bug
+/work Investigate why export is slow and recommend a fix
+/work --pr Add CSV export to the report table
+/autonomous 4 Migrate the report pipeline and verify the new behavior
+```
 
-- `/work [task]` (optionally `/work --pr <task>`) for a reviewed everyday task;
-- `/autonomous [budget] [goal]` for a durable, multi-round project.
+These examples use conceptual slash syntax. Select the skill or use the
+invocation supported by your client, as described in the
+[installation guide](https://alefranz.github.io/AgenticAle/setup.html).
 
-Two supporting skills, `source-code-lookup` and `pull-request-description`, are
-loaded by the workflows when their tasks arise. There is no coordinator to select
-and no `commands/` entry: the session you invoke the skill in is the coordinator.
-Live runtime support per client is recorded in
-[runtime-compatibility.md](docs/runtime-compatibility.md), where every capability
-is **not tested** in this documentation-only pass.
+**[Open the documentation site](https://alefranz.github.io/AgenticAle/)** for
+[getting started](https://alefranz.github.io/AgenticAle/getting-started.html),
+[skill guides](https://alefranz.github.io/AgenticAle/skills/work/),
+[installation and routing](https://alefranz.github.io/AgenticAle/setup.html),
+and [contributing](https://alefranz.github.io/AgenticAle/contributing.html).
 
 ## Start here
 
+Choose the client setup in the [installation guide](https://alefranz.github.io/AgenticAle/setup.html).
+The four skills are `work`, `autonomous`, `source-code-lookup`, and
+`pull-request-description`. The two workflow skills are explicit-only; the
+supporting skills are loaded when their tasks call for them.
+
 ### GitHub Copilot (CLI and VS Code)
 
-With Copilot CLI installed and authenticated, install the shared plugin:
-
-```sh
-copilot plugin marketplace add alefranz/AgenticAle
-copilot plugin install agenticale@agenticale
-```
-
-Or build and install it locally from a checkout:
-
-```sh
-node scripts/install-copilot.mjs
-```
-
-Restart the Copilot session and invoke the skill directly; there is no agent
-picker. From the CLI:
-
-```sh
-/agenticale:work Fix the date filtering bug
-/agenticale:work Address the review feedback on this branch
-/agenticale:work Investigate why export is slow and suggest an approach
-/agenticale:work --pr Add CSV export
-```
-
-VS Code discovers the same plugin; the work skill may display as `/agenticale
-work` in the autocomplete even though the CLI uses `/agenticale:work`. Select
-the suggested autocomplete entry in VS Code.
+See [Copilot installation](https://alefranz.github.io/AgenticAle/setup.html#github-copilot-cli-and-vs-code).
 
 ### Codex (CLI, VS Code extension, and ChatGPT desktop app)
 
-Install the packaged plugin from this repository's marketplace:
-
-```sh
-codex plugin marketplace add alefranz/AgenticAle
-codex plugin add agenticale@agenticale
-```
-
-Start a new Codex chat or session. In Codex CLI or the VS Code extension, use
-`/skills` or type `$work` or `$autonomous`. In Codex mode in the ChatGPT desktop
-app, find the installed skills under Skills or mention them in the chat. The
-plugin already includes `agents/openai.yaml` metadata for both public workflow
-skills. See [setup and customization](docs/setup.md) for local testing and
-updates.
+See [Codex plugin installation](https://alefranz.github.io/AgenticAle/setup.html#codex-plugin-cli-vs-code-extension-and-chatgpt-desktop-app)
+or the [standalone skill option](https://alefranz.github.io/AgenticAle/setup.html#alternative-standalone-codex-skills).
 
 #### Alternative: install standalone skills
 
-Codex CLI, the VS Code extension, and Codex mode in the ChatGPT desktop app
-also discover local skills from `.agents/skills`. This path lets you choose
-custom routing at install time: `--no-model` (inherit), `--models PATH|PRESET`,
-or `--routing PATH`.
-
-From a checkout, install to user scope (the checkout's own `.agents/skills` is
-off limits to the installer, so project scope does not apply here):
-
-```sh
-node scripts/install-standalone.mjs --no-model --scope user
-```
-
-From any other project, run the checkout's script by absolute path so the
-skills land in that project's own `<project>/.agents/skills`:
-
-```sh
-node /path/to/AgenticAle/scripts/install-standalone.mjs --no-model
-```
-
-Use `--scope user` for user scope (`~/.agents/skills`) or `--target PATH` to
-override the destination explicitly. Use either the plugin or standalone
-install for a given scope to avoid duplicate skill entries.
+See the [standalone skills installation guide](https://alefranz.github.io/AgenticAle/setup.html#alternative-standalone-codex-skills).
 
 ### OpenCode V2
 
-Install [OpenCode V2](https://opencode.ai/v2/docs) and Node.js 20 or later. From
-a checkout of this repository, install the generated OpenCode binding (the four
-skills, seven generated routing profiles, and the `/work` and `/autonomous`
-command entries):
-
-```sh
-node scripts/install.mjs --no-model
-```
-
-Restart OpenCode and run:
-
-```text
-/work Fix the date filtering bug
-/work Address the review feedback on this branch
-/work Investigate why export is slow and suggest an approach
-/work --pr Add CSV export
-```
-
-`--no-model` uses your active model for every route. To use the included role
-mapping with OpenCode Zen, install with `--models zen` instead, or pass a full
-policy with `--routing PATH`. Check that its model IDs are available in your
-account. Routing options, project-scoped child permissions, and custom installs
-are covered in [setup and customization](docs/setup.md). The OpenCode installer
-leaves your `opencode.jsonc` unchanged.
+See [OpenCode installation](https://alefranz.github.io/AgenticAle/setup.html#opencode-v2-generated-profiles).
 
 ### Google Antigravity (App and CLI)
 
-Google Antigravity supports AgenticAle as an installed plugin across both the
-desktop application and the terminal CLI (`agy`). Because Antigravity does not
-support remote repository installs, install the plugin via the
-[Antigravity CLI](https://antigravity.google/docs/cli/install/) from a local clone:
-
-```sh
-git clone https://github.com/alefranz/AgenticAle.git
-```
-
-In the CLI, run `/plugin`, select **Discover**, choose **Install from local directory**,
-and select `plugins/agenticale`.
-
-The install is shared by the app and CLI; restart, then invoke the skills directly:
-
-```text
-/work Fix the date filtering bug
-/work Address the review feedback on this branch
-```
-
-See [setup and customization](docs/setup.md) and [customizing model routing](#customize-model-routing).
+See [Antigravity installation](https://alefranz.github.io/AgenticAle/setup.html#google-antigravity-app-and-cli).
 
 ## What happens when you use it
 
-For a clear change, an implementation agent does the work and a fresh reviewer
-checks the actual changes and relevant tests. Blocking findings go to a focused
-fix agent and are verified or independently reviewed again. Optional nits do not
-keep the task running indefinitely.
-
-When the request needs investigation, an exploration agent gathers evidence
-first. The coordinator brings meaningful choices back to you and continues
-routine work without asking permission at every stage. Investigation-only
-requests return findings and options without starting implementation.
-
-For a complex, bounded task, the coordinator can divide the goal into a short
-sequence of outcomes. It completes and reviews one changed slice before moving
-to the next, and adjusts the remaining plan as evidence comes in. Failed
-experiments are reconciled before work advances; replanning does not reset the
-task's round or review limits. The accumulated changes are checked together
-before delivery.
-
-Each agent gets a bounded task and the relevant context. Routing is an explicit
-per-route policy: high-volume work (explore, routine implement, fix) uses a fast
-or cheap model, while `implement-hard`, `review`, `deep-review`, and `consult`
-reserve a stronger model. `implement` and `implement-hard` share the same
-implementation contract but route to different models and effort. You can
-customize routes, and a fresh child context does not by itself mean a different
-model family. Actual cost depends on the task, models, and number of rounds; a
-tiny task does not need every specialist.
-
-At the end, you get the changes, verification results, review outcome, and any
-remaining limitations. Independent review helps catch issues before your own
-review; it does not guarantee defect-free code.
+Work completes a bounded task through implementation, independent review,
+focused fixes for blocking findings, and acceptance checks. When investigation
+is needed, it gathers evidence first. Autonomous applies the same review gates
+to long goals and saves a durable next action for a later session. Each
+workflow reports its checks and remaining limitations.
 
 ## Customize model routing
 
-You can customize routes without editing the plugin or a harness
-configuration file. Copy the Markdown example to either
-`<repo>/.agenticale/routing.md` for that repository or
-`~/.agenticale/routing.md` for every repository you work in.
-
-The packaged routes use four tiers — `fast` for exploration, `routine` for
-implementation and fixes, `standard` for hard implementation and review, and
-`deep` for deep review and consultation. For Antigravity, packaged tiers route
-to `flash` for fast/routine work and `pro` for standard/deep work. The Markdown
-file can replace tiers or override individual roles per runtime. Repository
-entries override personal entries one at a time, and explicit invocation choices
-take precedence. Start from `references/routing.example.md` in the installed
-`work` skill. See
-[setup and customization](docs/setup.md#customizing-model-routing) for the
-recommended form, precedence examples, and the OpenCode refresh path.
-
-`work` and `autonomous` discover and read these files when they start or
-resume; missing files use the packaged defaults, and installation,
-updates, and uninstallation never create, overwrite, or remove your files.
+Routing preferences and install options are documented in the
+[model routing guide](https://alefranz.github.io/AgenticAle/guides/model-routing.html).
 
 ## Choose where the task finishes
 
-| Request | Result |
-| --- | --- |
-| `/work <task>` | Reviewed changes on the current branch, left uncommitted |
-| `/work --pr <task>` | Feature branch, reviewed changes, coherent commits, push, and GitHub PR |
-| "Investigate … and suggest an approach" | Findings and options, without implementation |
-| "Address feedback on this PR" | Reviewed fixes on its current branch; no implicit commit or push |
-
-Explicit instructions and repository conventions take precedence. "Open a PR"
-authorizes that delivery sequence once; it does not authorize merging. Existing
-task branches and PRs are reused where appropriate, and unrelated local changes
-are preserved. Ambiguous destinations or overlapping edits may need your input.
-
-Everyday work keeps coordination in the session. It adds no handoff files,
-workflow backlog, or agent archives to your project unless your repository
-explicitly requires durable notes. Continue in the same session when needed.
+Work leaves changes ready for your review unless you ask it to prepare and open
+a pull request. Autonomous keeps a durable handoff in the target project;
+commit, branch, push, and pull request actions are separate requests. See the
+[skill guides](https://alefranz.github.io/AgenticAle/skills/work/).
 
 ## Advanced: long-running autonomous projects
 
-For a project that should keep progressing across many rounds, restarts, and
-fresh sessions, invoke the `autonomous` skill: `/autonomous [budget] [goal]`.
-
-It is a skill, not a selectable profile: the invoking session coordinates. It
-uses the same specialist roles and independent review, with durable backlog,
-handoff, and archive files so a new session can resume the next action. Those
-files are intentional working memory for unattended project development.
-Working-tree persistence remains the default; request commits when desired.
-
-See [Autonomous Mode](docs/autonomous.md) for budgets, continuation, Git policy,
-and disposable sandbox setup.
+Use [Autonomous](https://alefranz.github.io/AgenticAle/skills/autonomous/) for
+a goal that spans multiple rounds or sessions.
 
 ## Other included skills
 
-- **[Source Code Lookup](skills/source-code-lookup/SKILL.md)** finds and inspects
-  local dependency or related-project source before guessing how it works.
-- **[Pull Request Description](skills/pull-request-description/SKILL.md)** writes
-  a PR narrative around the problem, resulting behaviour, and useful validation.
-
-Both workflows require agents to read and apply these skills when their tasks
-arise: PR descriptions use Pull Request Description, and investigations of
-another codebase use Source Code Lookup. Both can also be used independently.
-
-Set `SOURCE_ROOT` to your source directory (for example, a Windows Dev Drive) to
-customize lookup without reinstalling the plugin; the default is `~/dev`.
-Existing checkouts are reused, and missing repositories are cloned into that
-root for later use. See [source lookup setup](docs/setup.md) for precedence and
-configuration examples.
+The supporting [source code lookup](https://alefranz.github.io/AgenticAle/skills/source-code-lookup/)
+and [pull request description](https://alefranz.github.io/AgenticAle/skills/pull-request-description/)
+guides explain when each skill is loaded and what it returns.
 
 ## Customize or contribute
 
-- [Setup, model routing, updates, and troubleshooting](docs/setup.md)
-- [Architecture and client bindings](docs/architecture.md)
-- [Runtime compatibility matrix (not tested)](docs/runtime-compatibility.md)
-- [Skills-first Copilot and Codex implementation plan](docs/skills-first-coding-plan.md)
-- [Contributing and verification](CONTRIBUTING.md)
-
-AgenticAle grew out of my own coding workflow. Everyday reviewed tasks are the
-main starting point; the autonomous skill remains available for longer runs.
-Available under the [MIT License](LICENSE).
+- [Installation, updates, and client options](https://alefranz.github.io/AgenticAle/setup.html)
+- [Model routing](https://alefranz.github.io/AgenticAle/guides/model-routing.html)
+- [Troubleshooting](https://alefranz.github.io/AgenticAle/guides/troubleshooting.html)
+- [Site maintenance](https://alefranz.github.io/AgenticAle/site-maintenance.html)
+- [Contributing checks](https://alefranz.github.io/AgenticAle/contributing.html)
