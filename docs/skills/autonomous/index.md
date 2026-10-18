@@ -25,6 +25,15 @@ remaining limitations. By default changes stay uncommitted; commit, branch,
 push, and pull request actions are separate requests. An investigation-only
 goal returns findings and a next step.
 
+When the host reports provider quota exhaustion, the coordinator records the
+evidence, affected role, retry time, inspected partial progress, remaining work,
+and next action in the active handoff. It waits about 30 minutes by default, or
+longer when reliable provider reset metadata requires it, then resumes from the
+inspected working tree. Up to eight quota retries without resumed progress are
+allowed, with the count preserved across sessions and reset only after material
+progress. A supported host wait can keep the session waiting; otherwise the
+handoff is ready for a later activation, without a promised automatic wakeup.
+
 The coordinator may ask you to settle a meaningful behavior choice, provide
 missing information, or clarify an ambiguous pull request destination. If a
 round cannot proceed because of a permission or capability limit, it reports
