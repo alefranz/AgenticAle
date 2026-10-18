@@ -5,14 +5,28 @@ independent review, and fixes. It can also handle delivery when you explicitly
 request a pull request. Invoke it when you want a change completed and checked
 as one task, or when you want feedback on a change already in progress.
 
-Work is designed to lower model cost by routing high-volume exploration,
-routine implementation, and focused fixes to fast, inexpensive, or local models
-where supported. Reserve stronger models for hard implementation and
-independent review, and use deep review sparingly when combined changes warrant
-it. Successful delivery, including a requested pull request, includes
-independent review, acceptance checks, and fixes for blocking findings, so your
-attention goes to completed work. Review independence means a fresh agent; it
-does not require a different model, and routes may inherit the session model.
+Work gives a coding task a clear path from implementation through independent
+review, focused fixes, and delivery. A capable lower-cost or local implementer
+may need extra focused implementation or fix passes, yet still cost less overall
+than using the strongest model throughout. A fresh, stronger reviewer can catch
+issues and give actionable feedback; checks and re-review can improve the
+result. Added rounds count toward total effort, and savings and quality depend
+on the task, models, provider, and account. A fresh reviewer provides
+independence; it does not have to use a different model.
+
+## Try Work
+
+Invoke the installed skill for a bounded task and describe the outcome you want:
+
+- `/work Fix the date filtering bug`
+- `/work Add CSV export for the report table`
+- `/work Investigate why export is slow and recommend a fix`
+
+Add `--pr` when you want Work to prepare and open a pull request. The examples
+use conceptual slash syntax; select the installed skill or use the
+client-specific invocation described in [setup](../../setup.md). Work starts
+only when explicitly invoked. The invoking session coordinates the task; there
+is no separate coordinator agent to choose.
 
 ## When to use it
 
@@ -20,19 +34,21 @@ Use Work for a bounded feature, bug fix, investigation that should produce a
 concrete recommendation, or review feedback on a pull request. It is a good fit
 when the task can be divided into clear implementation and review steps.
 
-Examples:
+Other good fits include addressing review feedback on a branch and requesting a
+pull request with `/work --pr`.
 
-- `/work Fix the date filtering bug`
-- `/work Add CSV export for the report table`
-- `/work Investigate why export is slow and recommend a fix`
-- `/work Address the review feedback on this branch`
-- `/work --pr Add CSV export for the report table`
+## The routing tiers
 
-The `/work` examples use conceptual slash syntax. Select the installed skill or
-use the client-specific invocation described in [setup](../../setup.md).
-Work is explicit-only: an ordinary request to an assistant does not start the
-workflow by itself. The session where you invoke it is the coordinator; there
-is no separate coordinator agent to choose.
+The packaged defaults assign a tier by role. These are named configurations,
+not a universal ranking of models; see [Choosing models by role](../../guides/model-routing.md#choosing-models-by-role)
+for concrete examples and customization guidance.
+
+| Tier | Typical use in Work |
+| --- | --- |
+| Fast | Exploration |
+| Routine | Implementation and focused fixes |
+| Standard | Hard implementation and independent review |
+| Deep | Conditional review of substantial interactions or risk |
 
 ## How a change request moves through Work
 
