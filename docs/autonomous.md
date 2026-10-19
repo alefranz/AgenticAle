@@ -100,7 +100,7 @@ wait; otherwise the handoff keeps the exact retry time for a later session.
 
 The OpenCode installer leaves `opencode.jsonc` unchanged. For unattended runs,
 the foreground agent must be able to load the `autonomous` skill and launch the
-generated `autonomous/*` profiles, and child actions must resolve as `allow` or
+generated `agenticale/*` profiles, and child actions must resolve as `allow` or
 `deny` rather than waiting for approval. Configure this in the global file
 (`~/.config/opencode/opencode.jsonc`) or the project file (`opencode.jsonc` or
 `.opencode/opencode.jsonc`). See the [OpenCode V2
@@ -126,7 +126,7 @@ For example, an isolated container might start with:
     { "action": "skill", "resource": "autonomous", "effect": "allow" },
     { "action": "skill", "resource": "pull-request-description", "effect": "allow" },
     { "action": "skill", "resource": "source-code-lookup", "effect": "allow" },
-    { "action": "subagent", "resource": "autonomous/*", "effect": "allow" },
+    { "action": "subagent", "resource": "agenticale/*", "effect": "allow" },
     { "action": "edit", "resource": "*", "effect": "allow" },
     { "action": "shell", "resource": "*", "effect": "allow" },
     { "action": "external_directory", "resource": "*", "effect": "allow" },
@@ -139,7 +139,10 @@ For example, an isolated container might start with:
 
 Adjust the action and folder rules to your environment, risk profile, and the
 directories your work actually needs. The installed child profiles already
-deny interactive questions and nested subagents.
+deny interactive questions and nested subagents. If your configuration carries
+a pre-rename `autonomous/*` `subagent` rule, update it to `agenticale/*`:
+after a profile refresh the generated profiles live under the new namespace,
+so the old rule no longer matches them.
 
 **Approval/resume warning:** Some OpenCode V2 builds can leave a child unable
 to resume after you manually approve an action. Pre-allow or pre-deny the

@@ -35,7 +35,7 @@ the ordinary error guidance. Autonomous has a separate durable recovery policy.
 
 The OpenCode installer leaves `opencode.jsonc` unchanged. The foreground agent
 needs permission to run the `/work` and `/autonomous` command entries, load the
-`work` and `autonomous` skills, and launch the generated `autonomous/*`
+`work` and `autonomous` skills, and launch the generated `agenticale/*`
 profiles. Those profile IDs are shared by both workflows. Child sessions
 cannot ask the user questions or launch nested agents, so configure the actions
 the task needs to resolve without interactive child prompts and scope the rules

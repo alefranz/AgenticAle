@@ -3,7 +3,7 @@
 // so these tests exercise the real install/update/migrate/collide/uninstall
 // behaviours end to end and assert on both the on-disk tree and the state file.
 import { spawnSync } from "node:child_process";
-import { mkdtemp, rm, readFile, writeFile, mkdir, symlink, access, readdir, cp, link, stat } from "node:fs/promises";
+import { mkdtemp, rm, readFile, writeFile, mkdir, symlink, access, readdir, cp, link, lstat, readlink, stat } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join, resolve, dirname } from "node:path";
@@ -95,6 +95,11 @@ const linkPaths = [
   "skills/pull-request-description",
   "skills/source-code-lookup",
 ];
+const versionThreeLinkPaths = linkPaths.filter((p) => !["commands/work.md", "skills/work-mode"].includes(p));
+const versionTwoLinkPaths = versionThreeLinkPaths.filter((p) => p !== "skills/pull-request-description");
+const legacyLinkPaths = versionTwoLinkPaths.filter((p) => p !== "skills/source-code-lookup");
+const linkSet = (schema) =>
+  schema === 1 ? legacyLinkPaths : schema === 2 ? versionTwoLinkPaths : schema === 3 ? versionThreeLinkPaths : linkPaths;
 
 async function readState(target) {
   return JSON.parse(await readFile(join(target, STATE), "utf8"));
@@ -126,10 +131,12 @@ async function makeCopyFixture(target, schema) {
 
 // Build a valid generated (copy) state file with a chosen schema and profile
 // set. Files are created on disk with deterministic content so digests match.
-async function makeGeneratedFixture(target, schema, profiles, skillFiles) {
+// The namespace names the profile directory: "agenticale" for the current
+// layout, "autonomous" for pre-rename states.
+async function makeGeneratedFixture(target, schema, profiles, skillFiles, namespace = "agenticale") {
   const entries = [];
   for (const name of profiles) {
-    const p = `agents/autonomous/${name}.md`;
+    const p = `agents/${namespace}/${name}.md`;
     const content = `GEN ${schema} ${p}\n`;
     await mkdir(dirname(join(target, p)), { recursive: true });
     await writeFile(join(target, p), content, { encoding: "utf8" });
@@ -179,9 +186,9 @@ try {
     check(state.mode === "copy", "install fresh: state mode copy");
     check(state.package === PACKAGE, "install fresh: state package");
     check(state.entries.length === 31, "install fresh: 31 entries");
-    const profiles = state.entries.filter((e) => e.path.startsWith("agents/autonomous/"));
+    const profiles = state.entries.filter((e) => e.path.startsWith("agents/agenticale/"));
     check(profiles.length === 7, "install fresh: 7 generated profiles");
-    check(state.entries.some((e) => e.path === "agents/autonomous/implement-hard.md"), "install fresh: implements implement-hard.md profile");
+    check(state.entries.some((e) => e.path === "agents/agenticale/implement-hard.md"), "install fresh: implements implement-hard.md profile");
     check(state.entries.some((e) => e.path === "commands/work.md") && state.entries.some((e) => e.path === "commands/autonomous.md"), "install fresh: two command entries in state");
     const files = (await relFiles(t)).filter((f) => f !== STATE);
     check(files.length === 31, "install fresh: 31 files on disk");
@@ -234,9 +241,9 @@ try {
     await writeFile(map, JSON.stringify({ review: "acme/rev#high" }));
     const r = run("install.mjs", ["install", "--target", t, "--models", map]);
     check(r.exit === 0, "models install exits 0");
-    const review = await readFile(join(t, "agents", "autonomous", "review.md"), "utf8");
+    const review = await readFile(join(t, "agents", "agenticale", "review.md"), "utf8");
     check(review.includes("model: acme/rev"), "models: review.md has model line");
-    const consult = await readFile(join(t, "agents", "autonomous", "consult.md"), "utf8");
+    const consult = await readFile(join(t, "agents", "agenticale", "consult.md"), "utf8");
     check(!consult.includes("model: "), "models: consult.md has no model line");
   }
   {
@@ -322,7 +329,7 @@ try {
       ["wrong package", (s) => { s.package = "nope"; }, "Install state is invalid:"],
       ["schema 6 link mode", (s) => { s.mode = "link"; }, `Schema ${STATE_VERSION} install state must be a copy install:`],
       ["path outside bundle", (s) => { s.entries.push({ path: "commands/extra.md", kind: "file", digest: digest(Buffer.from("x")) }); }, "Install state has a generated path outside the bundle:"],
-      ["unexpected profile", (s) => { s.entries = s.entries.filter((e) => e.path !== "agents/autonomous/consult.md"); s.entries.push({ path: "agents/autonomous/implhard.md", kind: "file", digest: digest(Buffer.from("x")) }); s.entries.push({ path: "agents/autonomous/consult.md", kind: "file", digest: digest(Buffer.from("y")) }); }, "Install state has an unexpected generated profile:"],
+      ["unexpected profile", (s) => { s.entries = s.entries.filter((e) => e.path !== "agents/agenticale/consult.md"); s.entries.push({ path: "agents/agenticale/implhard.md", kind: "file", digest: digest(Buffer.from("x")) }); s.entries.push({ path: "agents/agenticale/consult.md", kind: "file", digest: digest(Buffer.from("y")) }); }, "Install state has an unexpected generated profile:"],
     ];
     for (const [label, mutate, expect] of cases) {
       const s = JSON.parse(JSON.stringify(base));
@@ -334,7 +341,7 @@ try {
   }
 
   // ---------------------------------------------------------------------
-  // B. Migration fixtures (schema 1-4 copy, schema 4 link, schema 5 generated).
+  // B. Migration fixtures (schema 1-4 copy, schema 1-4 link, schema 5 generated).
   // ---------------------------------------------------------------------
   for (const schema of [1, 2, 3, 4]) {
     const t = join(scratch, `b-copy${schema}`);
@@ -369,8 +376,8 @@ try {
     const state = await readState(t);
     check(state.schema === STATE_VERSION, "migration generated schema 5: advanced to schema 6");
     check(state.entries.length === 31, "migration generated schema 5: 31 entries");
-    check(await exists(join(t, "agents", "autonomous", "implement-hard.md")), "migration generated schema 5: implement-hard profile now present");
-    check(state.entries.some((e) => e.path === "agents/autonomous/implement-hard.md"), "migration generated schema 5: implement-hard in state");
+    check(await exists(join(t, "agents", "agenticale", "implement-hard.md")), "migration generated schema 5: implement-hard profile now present");
+    check(state.entries.some((e) => e.path === "agents/agenticale/implement-hard.md"), "migration generated schema 5: implement-hard in state");
     check((await readFile(join(t, "commands", "work.md"), "utf8")).includes("$ARGUMENTS"), "migration generated schema 5: command entries added");
   }
   {
@@ -392,15 +399,19 @@ try {
     check((await readFile(join(t, "commands", "autonomous.md"), "utf8")).includes("$ARGUMENTS"), "migration current-release schema 6: command entries added");
   }
   {
-    // Modified-but-REUSED file (consult.md is in the new inventory) collides without --replace.
-    const t = join(scratch, "b-collide-reused");
+    // Modified retired-namespace file: after the rename the old profile paths are no
+    // longer in the new inventory, so a user edit at agents/autonomous/consult.md
+    // cannot collide — it is preserved (reported, not removed) while the renamed
+    // profiles install without --replace.
+    const t = join(scratch, "b-retired-modified");
     await mkdir(t, { recursive: true });
     await makeCopyFixture(t, 4);
     await writeFile(join(t, "agents", "autonomous", "consult.md"), "USER-EDITED-CONSULT\n");
     const r = run("install.mjs", ["install", "--target", t, "--no-model"]);
-    check(r.exit === 1 && r.err.includes("Differing content already exists at:"), "migration: modified reused file collides without --replace");
-    const r2 = run("install.mjs", ["install", "--target", t, "--no-model", "--replace"]);
-    check(r2.exit === 0 && r2.out.includes("preserve-modified: agents/autonomous/consult.md"), "migration: modified reused file reported with --replace");
+    check(r.exit === 0, "migration: modified retired profile refreshes without --replace");
+    check(r.out.includes("preserve-modified: agents/autonomous/consult.md"), "migration: modified retired profile reported as preserved");
+    check((await readFile(join(t, "agents", "autonomous", "consult.md"), "utf8")) === "USER-EDITED-CONSULT\n", "migration: the user edit is left in place");
+    check(await exists(join(t, "agents", "agenticale", "consult.md")), "migration: the renamed profile is installed");
   }
   {
     // Link schema 4 → converted to copy.
@@ -432,11 +443,12 @@ try {
     check(state.schema === STATE_VERSION && state.mode === "copy" && state.entries.length === 31, "migration link schema 4: now schema 6 copy 31 entries");
     check((await readFile(join(t, "commands", "work.md"), "utf8")).includes("$ARGUMENTS"), "migration link schema 4: command links replaced by the generated files");
   }
-  // Build the full schema-4 link inventory (the validator requires the exact set).
-  async function makeLinkFixture(target, srcDir) {
+  // Build the link inventory for a schema (the validator requires the exact
+  // set; schema 4 carries the full set, schemas 1-3 the smaller retired sets).
+  async function makeLinkFixture(target, srcDir, schema = 4) {
     await mkdir(srcDir, { recursive: true });
     const entries = [];
-    for (const p of linkPaths) {
+    for (const p of linkSet(schema)) {
       const dest = join(target, p);
       const stored = join(srcDir, p.replace(/\//g, "_").replace(/\.md$/, ".txt"));
       await mkdir(dirname(dest), { recursive: true });
@@ -446,14 +458,33 @@ try {
     }
     entries.sort((a, b) => a.path.localeCompare(b.path));
     await writeFile(join(target, STATE), JSON.stringify({
-      entries, installedAt: new Date().toISOString(), mode: "link", package: PACKAGE, schema: 4,
+      entries, installedAt: new Date().toISOString(), mode: "link", package: PACKAGE, schema,
     }, null, 2));
   }
+  for (const schema of [1, 2, 3]) {
+    // Link schema 1-3 → converted to copy, mirroring the schema-4 link test.
+    const t = join(scratch, `b-link${schema}`);
+    const srcDir = join(scratch, `b-link${schema}-src`);
+    await makeLinkFixture(t, srcDir, schema);
+    // The retired command link (commands/autonomous.md) collides with the
+    // generated command entries, so the conversion needs explicit approval,
+    // as in b-link4.
+    const blocked = run("install.mjs", ["install", "--target", t, "--no-model"]);
+    check(blocked.exit === 1 && blocked.err.includes("Differing content already exists at:"), `migration link schema ${schema}: command links collide without --replace`);
+    const r = run("install.mjs", ["install", "--target", t, "--no-model", "--replace"]);
+    check(r.exit === 0, `migration link schema ${schema}: exits 0 with --replace`);
+    check(r.out.includes(`  migrating from schema ${schema} link install`), `migration link schema ${schema}: migrating message`);
+    check(r.out.includes("  converted: the previous link install was converted to a copy install of the generated bundle."), `migration link schema ${schema}: converted message`);
+    const state = await readState(t);
+    check(state.schema === STATE_VERSION && state.mode === "copy" && state.entries.length === 31, `migration link schema ${schema}: now schema 6 copy 31 entries`);
+  }
   {
-    // R6 + physical boundary: the profile home (agents/autonomous) is a symlink the
-    // installer does NOT own (live target differs from the stored one). It must never
-    // be deleted, and the profile copies must not be written THROUGH it — the install
-    // fails safely and rolls back rather than writing outside the managed root.
+    // R6 + physical boundary: the stored retired profile link (agents/autonomous)
+    // is a symlink the installer does NOT own (live target differs from the stored
+    // one). It must never be deleted, and no profile copy may be written THROUGH it.
+    // The new profiles install under the renamed namespace (agents/agenticale), so
+    // the repointed old path is simply preserved and reported while the migration
+    // still completes.
     const t = join(scratch, "b-link4-repoint");
     const srcDir = join(scratch, "b-link4-repoint-src");
     await makeLinkFixture(t, srcDir);
@@ -462,24 +493,34 @@ try {
     await writeFile(otherTarget, "other\n");
     await rm(dest);
     await symlink(otherTarget, dest, "file");
-    // --replace clears the retired-command-link collision so the install reaches
-    // the repointed profile home, which it must refuse rather than write through.
+    // As in b-link4, the retired command links collide with the generated
+    // command entries until the conversion is explicitly approved.
+    const blocked = run("install.mjs", ["install", "--target", t, "--no-model"]);
+    check(blocked.exit === 1 && blocked.err.includes("Differing content already exists at:"), "R6 link repoint: command links collide without --replace");
     const r = run("install.mjs", ["install", "--target", t, "--no-model", "--replace"]);
-    check(r.exit === 1, "R6 link repoint: non-owned profile link fails the install safely");
+    check(r.exit === 0, "R6 link repoint: migration completes; the repointed retired link is left alone");
     check(r.out.includes("preserve-modified: agents/autonomous"), "R6 link repoint: repointed link reported as preserved");
-    check(await exists(dest), "R6 link repoint: repointed link NOT deleted");
-    check(!(await exists(join(t, "agents", "autonomous", "consult.md"))), "R6 link repoint: no profile copies written through the link (rollback)");
+    check((await lstat(dest)).isSymbolicLink(), "R6 link repoint: repointed link NOT deleted (still the same symlink)");
+    check((await readlink(dest)) === otherTarget, "R6 link repoint: repointed link still points at the unowned target");
+    check((await readFile(otherTarget, "utf8")) === "other\n", "R6 link repoint: repointed link's target content untouched");
+    check(!(await exists(join(t, "agents", "autonomous", "consult.md"))), "R6 link repoint: no profile copies written through the old path");
+    const state = await readState(t);
+    check(state.schema === STATE_VERSION && state.mode === "copy" && state.entries.length === 31, "R6 link repoint: converted to schema 6 copy 31 entries");
+    check(await exists(join(t, "agents", "agenticale", "consult.md")), "R6 link repoint: new profiles installed under the renamed namespace");
   }
   {
     // R6: a link replaced by a plain directory is preserved (ownership of the bytes
-    // cannot be proven), and — unlike a symlink — a real directory is inside the
-    // managed root, so the profile copies write into it and the install completes.
+    // cannot be proven). The new profiles install under the renamed namespace
+    // (agents/agenticale), so the real directory at the retired agents/autonomous
+    // path keeps its pre-existing bytes while the migration still completes.
     const t = join(scratch, "b-link4-dir");
     const srcDir = join(scratch, "b-link4-dir-src");
     await makeLinkFixture(t, srcDir);
     const dest = join(t, "agents/autonomous");
+    const kept = join(dest, "user-note.md");
     await rm(dest);
     await mkdir(dest, { recursive: true });
+    await writeFile(kept, "USER-KEPT\n");
     // As in b-link4, the retired command links collide with the generated
     // command entries until the conversion is explicitly approved.
     const blocked = run("install.mjs", ["install", "--target", t, "--no-model"]);
@@ -487,9 +528,11 @@ try {
     const r = run("install.mjs", ["install", "--target", t, "--no-model", "--replace"]);
     check(r.exit === 0, "R6 link→dir: exits 0 with --replace");
     check(r.out.includes("preserve-modified: agents/autonomous"), "R6 link→dir: replaced-by-directory preserved");
+    check((await readFile(kept, "utf8")) === "USER-KEPT\n", "R6 link→dir: pre-existing bytes in the preserved directory are not deleted");
     const state = await readState(t);
     check(state.schema === STATE_VERSION && state.mode === "copy" && state.entries.length === 31, "R6 link→dir: converted to schema 6 copy 31 entries");
-    check(await exists(join(t, "agents", "autonomous", "consult.md")), "R6 link→dir: profile copies written into the preserved directory");
+    check(await exists(join(t, "agents", "agenticale", "consult.md")), "R6 link→dir: new profiles installed under the renamed namespace");
+    check(!(await exists(join(t, "agents", "autonomous", "consult.md"))), "R6 link→dir: no profile copies written into the preserved directory");
   }
 
   // ---------------------------------------------------------------------
@@ -516,6 +559,46 @@ try {
     check(!(await exists(extra)), "R12 retirement: extra owned file removed");
     const state2 = await readState(t);
     check(!state2.entries.some((e) => e.path === extraRel), "R12 retirement: extra file no longer in state");
+  }
+
+  // ---------------------------------------------------------------------
+  // B3a. Namespace rename: a schema-6 state from the pre-rename release
+  //      (profiles under the old namespace) refreshes by retiring the old
+  //      profiles under a backup while the new profiles are installed under
+  //      the current namespace.
+  // ---------------------------------------------------------------------
+  {
+    const t = join(scratch, "b3a-rename");
+    await mkdir(t, { recursive: true });
+    await makeGeneratedFixture(t, STATE_VERSION, PROFILES, fourSkills, "autonomous");
+    const r = run("install.mjs", ["install", "--target", t, "--no-model"]);
+    check(r.exit === 0, "namespace rename: the refresh exits 0");
+    check(r.out.includes("migrate-remove: agents/autonomous/review.md") && r.out.includes("backup created:"), "namespace rename: the old profiles are retired under a backup");
+    check(r.out.includes("create: agents/agenticale/review.md"), "namespace rename: the new profile paths are installed");
+    const state = await readState(t);
+    check(state.schema === STATE_VERSION && state.entries.length === 31, "namespace rename: 31 entries in the refreshed state");
+    check(state.entries.every((e) => !e.path.startsWith("agents/autonomous/")), "namespace rename: no old-namespace entries remain in state");
+    check(state.entries.some((e) => e.path === "agents/agenticale/implement-hard.md"), "namespace rename: the new implement-hard profile is in state");
+    check(await exists(join(t, "agents", "agenticale", "implement-hard.md")), "namespace rename: the new implement-hard profile is on disk");
+    check(!(await exists(join(t, "agents", "autonomous", "review.md"))), "namespace rename: the old profile files are removed");
+  }
+  {
+    // A pre-rename schema-5 generated copy (the six profiles under the old
+    // namespace) refreshes through the dual-namespace acceptance: the
+    // old-namespace profiles are retired under a backup while all seven current
+    // profiles (including implement-hard) install under the renamed namespace.
+    const t = join(scratch, "b3a-rename-schema5");
+    await mkdir(t, { recursive: true });
+    await makeGeneratedFixture(t, LEGACY_GENERATED_SCHEMA, LEGACY_PROFILES, fourSkills, "autonomous");
+    const r = run("install.mjs", ["install", "--target", t, "--no-model"]);
+    check(r.exit === 0, "namespace rename schema 5: the refresh exits 0");
+    check(r.out.includes("migrate-remove: agents/autonomous/review.md") && r.out.includes("backup created:"), "namespace rename schema 5: the old profiles are retired under a backup");
+    check(r.out.includes("create: agents/agenticale/implement-hard.md"), "namespace rename schema 5: the added implement-hard profile is created");
+    const state = await readState(t);
+    check(state.schema === STATE_VERSION && state.entries.length === 31, "namespace rename schema 5: 31 entries in the refreshed state");
+    check(state.entries.every((e) => !e.path.startsWith("agents/autonomous/")), "namespace rename schema 5: no old-namespace entries remain in state");
+    check(await exists(join(t, "agents", "agenticale", "implement-hard.md")), "namespace rename schema 5: the new implement-hard profile is on disk");
+    check(!(await exists(join(t, "agents", "autonomous", "review.md"))), "namespace rename schema 5: the old profile files are removed");
   }
 
   // ---------------------------------------------------------------------
@@ -847,7 +930,7 @@ try {
     const t = join(scratch, "f-prep");
     const fresh = run("install.mjs", ["install", "--target", t, "--routing", pathA]);
     check(fresh.exit === 0, "prep refresh: fresh install with --routing exits 0");
-    let review = await readFile(join(t, "agents", "autonomous", "review.md"), "utf8");
+    let review = await readFile(join(t, "agents", "agenticale", "review.md"), "utf8");
     check(review.includes("model: acme/review-a"), "prep refresh: review profile renders the requested model");
     check(!review.includes("acme/review-a-fb"), "prep refresh: the requested fallback is not materialized into the profile");
 
@@ -861,10 +944,10 @@ try {
     // owned content).
     const updated = run("install.mjs", ["install", "--target", t, "--routing", pathB]);
     check(updated.exit === 0 && updated.out.includes("Installation complete."), "prep refresh: the installer update applies the new requested policy");
-    check(updated.out.includes("migrate-remove: agents/autonomous/review.md") && updated.out.includes("backup created:"), "prep refresh: the update retires the old profiles under a backup");
-    review = await readFile(join(t, "agents", "autonomous", "review.md"), "utf8");
+    check(updated.out.includes("migrate-remove: agents/agenticale/review.md") && updated.out.includes("backup created:"), "prep refresh: the update retires the old profiles under a backup");
+    review = await readFile(join(t, "agents", "agenticale", "review.md"), "utf8");
     check(review.includes("model: acme/review-b"), "prep refresh: review profile now renders the requested model");
-    check(await exists(join(t, "agents", "autonomous", "implement-hard.md")), "prep refresh: seven profiles retained with a distinct implement-hard");
+    check(await exists(join(t, "agents", "agenticale", "implement-hard.md")), "prep refresh: seven profiles retained with a distinct implement-hard");
 
     // The refreshed install's own helper (install-relative, no checkout)
     // resolves its packaged routing baseline to the selected OpenCode routes.
@@ -880,18 +963,18 @@ try {
     const t = join(scratch, "f-prep-modified");
     const fresh = run("install.mjs", ["install", "--target", t, "--routing", pathA]);
     check(fresh.exit === 0, "prep modified: setup install exits 0");
-    const fix = join(t, "agents", "autonomous", "fix.md");
+    const fix = join(t, "agents", "agenticale", "fix.md");
     await writeFile(fix, "USER-EDITED-FIX\n", "utf8");
     const blockedMod = run("install.mjs", ["install", "--target", t, "--routing", pathB]);
     check(blockedMod.exit === 1 && blockedMod.err.includes("Differing content already exists at:"), "prep modified: a user-modified profile collides without --replace");
     check(blockedMod.err.includes("No changes were made."), "prep modified: the collision is reported before any mutation");
-    let review = await readFile(join(t, "agents", "autonomous", "review.md"), "utf8");
+    let review = await readFile(join(t, "agents", "agenticale", "review.md"), "utf8");
     check(review.includes("model: acme/review-a"), "prep modified: the blocked update left the other profiles untouched");
     check((await readFile(fix, "utf8")) === "USER-EDITED-FIX\n", "prep modified: the user-modified profile is left in place");
     const replacedMod = run("install.mjs", ["install", "--target", t, "--routing", pathB, "--replace"]);
-    check(replacedMod.exit === 0 && replacedMod.out.includes("preserve-modified: agents/autonomous/fix.md"), "prep modified: the user edit is reported as preserved");
+    check(replacedMod.exit === 0 && replacedMod.out.includes("preserve-modified: agents/agenticale/fix.md"), "prep modified: the user edit is reported as preserved");
     check(replacedMod.out.includes("backup created:"), "prep modified: --replace backs up the user edit before replacing");
-    review = await readFile(join(t, "agents", "autonomous", "review.md"), "utf8");
+    review = await readFile(join(t, "agents", "agenticale", "review.md"), "utf8");
     check(review.includes("model: acme/review-b"), "prep modified: --replace applies the new policy to the unmodified profiles");
     check((await readFile(fix, "utf8")) !== "USER-EDITED-FIX\n" && (await readFile(fix, "utf8")).includes("model: acme/fix-b"), "prep modified: --replace backs up and replaces the modified profile with the new policy");
   }

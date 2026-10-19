@@ -30,7 +30,7 @@ renders it per selected model/effort.
 
 From this adapter plus the resolved routing, the build emits:
 
-- `dist/opencode/agents/autonomous/<role>.md` — seven generated profiles, one
+- `dist/opencode/agents/agenticale/<role>.md` — seven generated profiles, one
   per routing key (see the note in §3). Each carries the profile's `mode`,
   `steps`, and `permissions` frontmatter plus the model/effort for that route
   (see §5), and the body is copied verbatim from the matching neutral task
@@ -72,8 +72,8 @@ OpenCode profile name the build renders:
 **`implement` and `implement-hard` are separate profiles** that render the same
 implementation task contract (`tasks/implement.md`) with different routing. The
 profile body does not change — the difference is routing, not instructions — so
-`implement-hard` renders as its own `autonomous/implement-hard` profile rather
-than reusing `autonomous/implement`. Every routing key maps 1:1 to its own
+`implement-hard` renders as its own `agenticale/implement-hard` profile rather
+than reusing `agenticale/implement`. Every routing key maps 1:1 to its own
 profile, yielding **seven** distinct profiles.
 
 ## 4. Per-profile steps and permission policy
