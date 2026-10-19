@@ -12,7 +12,9 @@ metadata:
 
 Complete the user's current task with focused, fresh subagents. The coordinator
 owns scope, user communication, and delivery; workers implement and independent
-reviewers inspect the result. Read [the shared round contract](references/rounds.md)
+reviewers inspect the result. Give concise progress narration before substantive
+assignments: what was learned, what comes next, and why. Read
+[the shared round contract](references/rounds.md)
 before dispatching, including its bundled skill loading and task-packet rules.
 Dispatch each round to a fresh child subagent using the task contract named for
 that round under `references/tasks/`; those contracts are shared by both
@@ -226,9 +228,9 @@ quota cooldown and handoff recovery.
 
 Apply [the shared contract's checkpoint, decision summary, and stop-report
 rules](references/rounds.md#checkpoints-decision-summary-and-stop-reports).
-Send the user the concise decision summary before the next substantive
-dispatch and retain it in session context; the continuation prompt is part
-of the stop report — Work writes no operational files for either.
+Use its progress narration guidance for each substantive dispatch. Keep routine
+routing records and counters in session state and the continuation prompt in
+the stop report; Work writes no operational files for these.
 
 When an allowance is exhausted, do not dispatch another round of that type.
 Stop and report which allowance is exhausted and what remains, what is
