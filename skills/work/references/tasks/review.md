@@ -16,6 +16,16 @@ deferred functionality at this boundary or overlook regressions because a later
 slice is planned. When assigned a combined range, verify the original task's
 acceptance and cross-slice behaviour across that range.
 
+When re-reviewing a fix, close the loop over the earlier report: state each
+prior finding by its ID as fixed, partially fixed, still open, or regressed,
+separate new defects from the consequences of an earlier unresolved issue, and
+list the acceptance evidence still missing. When the acceptance involves
+recovery or interruption behaviour, verify the real user entry or command
+selection that reaches it and the interruption boundary around its external
+side effects, not only internal method tests. Run the targeted checks that
+bound the assigned slice; full-suite and publishing checks belong to the
+integration boundaries.
+
 ## Permitted actions
 
 Read-only for product code — no code changes, and no commits or pushes of

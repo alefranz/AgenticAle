@@ -68,6 +68,27 @@ is needed, it gathers evidence first. Autonomous applies the same review gates
 to long goals and saves a durable next action for a later session. Each
 workflow reports its checks and remaining limitations.
 
+Before dispatching implementation, the coordinator briefly assesses what the
+request would touch — which sources other actors can also mutate, which side
+effects would survive an interruption, and which compatibility surfaces are
+involved — and inspects only as much as a concrete uncertainty requires. A
+small question is answered with a direct read; a focused exploration round runs
+only when a question needs its own context, so no discovery round is mandatory.
+A blocking finding that needs concurrency, durability, state-machine, or
+ownership reasoning keeps the fix role but is dispatched on the configured
+hard route.
+
+Both workflows keep you informed: a concise decision summary precedes each
+substantive step. When an allowance is exhausted, the stop report says which
+allowance is spent, what is completed and what is blocked, and recommends a
+bounded correction, a bounded replan, or a stop that preserves the current
+work. Where your host offers choices, it offers them — for example one
+additional fix-and-review cycle — and a granted extension adds exactly the
+named rounds without resetting counters or granting extra rights; declining
+ends the stop. Every incomplete stop includes a copy-pasteable continuation
+prompt. Provider quota exhaustion is separate: Work stops without durable
+recovery, while Autonomous applies its own cooldown and handoff policy.
+
 ## Customize model routing
 
 Routing preferences and install options are documented in the

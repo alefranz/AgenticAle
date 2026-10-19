@@ -61,6 +61,9 @@ Do not send the full conversation or require another agent to reconstruct it.
 For review, include the original acceptance criteria and actual diff scope;
 label worker claims as unverified. The reviewer inspects the change and evidence
 independently, including untracked files, rather than approving the report.
+For a re-review after a fix, carry the prior findings with stable IDs and their
+evidence so the review can report each as fixed, partially fixed, still open,
+or regressed.
 
 ## Sequential decomposition
 
@@ -151,6 +154,43 @@ explicit review waiver still follows that workflow's verification requirements.
 | A later slice invalidates an earlier assumption | Recheck affected accepted behaviour and revise the remaining outline; do not rerun unrelated reviews or silently change the goal. |
 | Individually clean slices fail an integration check | Keep the task open and fix/re-review the affected interactions within existing caps; escalate to deep review when warranted. |
 | Budget or repeated-failure limits are reached mid-sequence | Stop with accepted outcomes, actual unfinished state, and the next action; a new slice name does not grant more rounds. |
+| The same underlying invariant is flagged in consecutive rounds | Repeated findings about one invariant trigger replanning: a real design issue reopens the plan with the original acceptance and counters intact, while a drifting reviewer standard is settled once, not chased as a defect. |
+
+## Checkpoints, decision summary, and stop reports
+
+After every substantive worker or reviewer result, checkpoint before the next
+round: what was established and what remains unverified, which assumptions
+changed or the problem grew, whether a local correction suffices or the design
+needs reconsideration, and the allowance still available for the next action
+and its review. Repeated findings about the same underlying invariant are a
+replanning signal, not a reason to keep fixing: a real design problem reopens
+the plan with the original acceptance criteria intact, while reviewer standard
+drift is settled once through the invoking workflow's decision policy.
+Replanning never resets the fix and review counters for the same unresolved
+target.
+
+Before the next substantive dispatch, send the user a concise, visible
+decision summary: the prior outcome, any change of approach, the next
+evidence to collect, and any approaching limit or material uncertainty. It
+is not tool narration, internal chain-of-thought, or a round ledger, and a
+routine verification-only check needs no summary. Also retain the compact
+state in the invoking workflow's existing state: session context in
+reviewed task work, the active handoff in Autonomous Mode. Both workflows
+communicate material progress and limits to the user visibly; a hidden-only
+state update does not satisfy this rule.
+
+Every incomplete stop — an exhausted allowance, a repeated blocker, quota
+exhaustion, a declined or unavailable user option, or a publication blockage —
+includes a self-contained, copyable continuation prompt: the outcome and the
+blockers with their evidence, what actually exists (files, branches, commits,
+working tree) and what must be preserved, the recommended next approach, the
+checks and independent review still required before delivery, and the exact
+delivery permissions and restrictions. A fresh session must inspect the current
+checkout and re-establish missing context rather than trusting the prompt.
+Reviewed task work keeps the prompt in the stop report only; Autonomous Mode
+carries it in the durable handoff and records allowance usage and any granted
+extensions in the existing state, so a resume or a renamed target cannot evade
+the unresolved-target caps.
 
 ## Roles and reports
 
@@ -209,6 +249,16 @@ Send blocking findings to a fresh fix worker with the original acceptance
 criteria. Allow at most two fix cycles (three review passes) per task/slice.
 If blockers survive, follow the invoking workflow's stop/decision policy rather
 than repeatedly attempting the same fix.
+
+A re-review closes the loop over the earlier report: it states each prior
+finding by ID as fixed, partially fixed, still open, or regressed, separates
+new defects from the consequences of an earlier unresolved issue, and lists
+the acceptance evidence still missing. Run the targeted checks that bound the
+current slice; reserve full-suite and publishing checks for the integration
+boundaries where they are meaningful. When a change makes recovery or
+interruption behaviour part of the acceptance, the evidence comes from the
+real user entry or command selection that reaches it and the interruption
+boundary around its external side effects, not only from internal method tests.
 
 A purely mechanical finding has a sufficient deterministic acceptance check.
 After its fix, the coordinator can close it by running that check. Behaviour,

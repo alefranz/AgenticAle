@@ -9,6 +9,14 @@ Follow the project's AGENTS.md when present and the supplied task packet and
 reset rules. Verify, follow the supplied git persistence policy, and return the
 requested compact report.
 
+A hard fix — findings that require concurrency, durability, state-machine, or
+ownership reasoning — arrives on the configured `implement-hard` route with
+this bounded fix contract carried explicitly in the task packet, or with an
+equivalently scoped implementation contract where the binding's profile body
+differs. The route changes only the dispatch: the scope stays the supplied
+findings, the report stays this fix report, and the round consumes the same
+allowances as any other fix round.
+
 ## Permitted actions
 
 May edit product code to address the supplied blocking findings, within the

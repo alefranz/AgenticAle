@@ -111,6 +111,7 @@ fresh context and a bounded task:
 | Normal implementation slice | [implement](../work/references/tasks/implement.md) | Small, verifiable coding task. |
 | Hard implementation slice | [implement](../work/references/tasks/implement.md) with hard-task routing context | Reasoning-heavy work that benefits from an explicitly bounded specialist context. |
 | Review-findings fix pass | [fix](../work/references/tasks/fix.md) | Narrow, evidence-led changes. |
+| Hard review-findings fix pass | [fix](../work/references/tasks/fix.md) contract on the `implement-hard` route (hard-task routing context) | Findings needing concurrency, durability, state-machine, or ownership reasoning. |
 | Per-slice independent review | [review](../work/references/tasks/review.md) | Adversarial verification in a context independent from the worker. |
 | Periodic integration audit / escalated slice review | [deep-review](../work/references/tasks/deep-review.md) | Cross-slice review in a fresh context. |
 | Stuck decision second opinion | [consult](../work/references/tasks/consult.md) | One read-only recommendation on a decision the loop cannot settle. |
@@ -121,6 +122,14 @@ reasoning-heavy: concurrency/async/cancellation/timing behaviour, the
 cross-repository contract surface, subtle shared-state behaviour, or
 security-relevant code paths. Mechanical renames, dependency swaps, packaging,
 and docs never qualify.
+A hard fix keeps the fix task role and the fix counters: dispatch it on the
+configured `implement-hard` route, carrying the bounded fix contract
+explicitly in the packet, or an equivalently scoped implement contract where
+the binding's profile body differs. The task role and the routing key are
+separate choices; record both, with the reason for the hard route, in the
+round's routing record. Respect the configured policy and the profiles the
+binding exposes — never silently substitute a stronger or weaker route, and
+surface a requested route the binding cannot honour.
 Independent review is required even when every role inherits the same model.
 Hard slices are prime candidates for the deep-review escalation below.
 
@@ -256,6 +265,17 @@ strengthen the persistence policy.
    material: read it only by an exact archive pointer, never as general
    archaeology. Do NOT read source code — that is what the subagents are
    for.
+   Before defining round 1, run the brief material-risk assessment:
+   which independently mutable sources the request would touch (local
+   working trees, remote branches or pull requests, persisted state such
+   as databases or caches) and which of them other actors can also
+   mutate; external side effects that would survive an interruption;
+   concurrent humans; ownership-sensitive cleanup; and compatibility
+   surfaces. The signals justify a focused explore round or decomposition,
+   not a long planning round. The main loop stays thin: when source
+   evidence is needed to define a round, dispatch the focused explore round
+   with its one question and stop condition instead of reading source
+   itself.
 3. Run the shared routing bootstrap above. For a resume, compare the fresh
    resolution against the recorded routing summary first and report material
    changes. Persist the compact routing summary in the active handoff's
@@ -280,6 +300,11 @@ This adds no state files and does not reset budgets, review counts, or stop
 conditions. Strict mode gates each changed slice; standard mode retains its
 normal verification policy. The periodic and opportunistic deep-review gates
 below still govern escalation; decomposition adds no per-step deep review.
+Apply [the shared contract's checkpoint](../work/references/rounds.md#checkpoints-decision-summary-and-stop-reports)
+after every substantive worker or reviewer result: send the user the
+concise decision summary before the next substantive dispatch, and keep
+the compact state in the active handoff's `CURRENT STATE` next to the
+ledger — state, not narration.
 
 For each current slice or discovery assignment:
 
@@ -502,6 +527,15 @@ one that hedges despite its format, counts as no answer: ask the user.
 At most one consult per decision and two per session. Consult rounds do not
 consume the worker-round budget.
 
+A consult settles a reversible technical or design decision within the
+allowances that remain; adopting its recommendation never starts a round the
+caps do not cover. The shared two fix cycles, three review passes, and the
+worker budget gate every dispatch: a consult cannot grant an allowance or
+justify a correction beyond those caps, and extending an allowance is a
+user-only decision that is never delegated to a consult. When a cap is hit,
+stop under the stop conditions and offer the user the named increment the
+continuation needs instead.
+
 ## Reset and handoff gate
 
 End a worker round and start a fresh subagent when the first of these occurs:
@@ -533,10 +567,15 @@ blocker to report, not noise to suppress.
 ## Review gate
 
 Apply the shared round contract's independent review, finding classification,
-and two-fix-cycle limit. In strict mode every implementation slice must pass
-that gate before work advances. A violation of this workflow's required
-persistence, handoff, or submodule-pin policy is also blocking. Record verdicts
-and nits in the durable state as specified by the templates below.
+re-review closure, and two-fix-cycle limit. In strict mode every
+implementation slice must pass that gate before work advances. A re-review
+reports each prior finding by ID as fixed, partially fixed, still open, or
+regressed; when the acceptance involves recovery or interruption behaviour,
+require the real user entry or command selection and the interruption boundary
+around external side effects, not only internal method tests. A violation of
+this workflow's required persistence, handoff, or submodule-pin policy is also
+blocking. Record verdicts and nits in the durable state as specified by the
+templates below.
 
 A small pre-existing finding may receive a separately scoped fix round;
 otherwise preserve it in the backlog without expanding the current task.
@@ -544,26 +583,37 @@ Mechanical findings close after the coordinator runs their sufficient acceptance
 check; judgmental findings require independent re-review of the fix and affected
 invariants. Consultation and the autonomy envelope below govern stuck decisions.
 
-**Standard drift.** If the same invariant is flagged in consecutive rounds
-at a stricter standard (e.g., list mismatch → missing scope → verbatim
-identity), treat it as a standard-setting question, not a defect: set the
-standard once — codify the canonical form in this skill or the document —
-apply it everywhere, and stop iterating against the reviewer's drift. A
+**Repeated findings on the same invariant.** First classify what the
+repeated finding actually is. If the invariant is genuinely unmet — an
+acceptance or correctness failure the fixes did not address — it is a real
+design defect, not drift: reopen the plan through the checkpoint's
+replanning signal, reconsidering the state model or approach, with the
+original acceptance criteria and the target's fix/review counters intact
+and no scope weakening. Only when the behaviour already meets the
+acceptance and the later rounds merely introduce a novel preference or
+tighten the standard (e.g., list mismatch → missing scope → verbatim
+identity) is it a standard-setting question: settle the standard once —
+codify the canonical form in this skill or the document — apply it
+everywhere, and stop iterating against the reviewer's drift. A
 standard-setting question is one of the few cases where the user's
 judgement genuinely adds value; take a consult (see Decision consultation)
 and codify its recommended standard — recorded as an independently advised
-decision the user can veto — instead of guessing or stalling.
+decision the user can veto — instead of guessing or stalling. Neither path
+resets counters or weakens scope.
 
 **Autonomy envelope.** The coordinator continues the fix → verify →
 re-review loop without asking the user while all of these hold: the work
 stays docs/config-only or is reversible under the active persistence policy;
 the session's deep-review work stays within one opportunistic escalation plus
-two re-audits plus two consults; and no single target has passed three fix
-rounds. Breach any guard, or
-reach an irreversible action — stop and ask. A standard-setting question
-goes to a consult first (see Decision consultation). Asking is for guard
-breaches, irreversible actions, and what a consult could not settle — not
-for routine continuation inside the envelope.
+two re-audits plus two consults; the worker budget and the shared gate's
+two fix cycles (three review passes) per target remain available; and no
+irreversible action is required. The shared caps and worker budget gate
+every dispatch: a consult may settle a reversible design or standard-setting
+question (see Decision consultation) but never grants an allowance or
+authorizes work beyond a cap — only the user can, through a named increment.
+Breach any guard, or reach an irreversible action — stop and ask. Asking is
+for guard breaches, irreversible actions, and what a consult could not settle
+— not for routine continuation inside the envelope.
 
 ## Worker prompt template
 
@@ -717,17 +767,39 @@ Stop the loop and report to the user when any of these hit:
 - **Goal met** — the final review (or, standard mode, the final worker
   round) shows it (green tests, persistence policy satisfied, handoff updated).
   Verify with one cheap command, then give the final report.
-- **Budget exhausted** — give the final report; the handoff must make the
-  next step explicit so work can resume.
-- **Same task blocked two rounds in a row** — stop; a consult may open a
-  materially different path (one more round if so), otherwise do not burn
-  rounds on a wall that only the user can decide.
+- **Budget or allowance exhausted** — do not dispatch another round of that
+  type. Report which allowance is exhausted and what remains, what is
+  completed and what is blocked, and the recent material progress. Where the
+  host offers an interaction tool, offer the situation-appropriate choices —
+  a bounded replan (child rounds of a replan consume allowances), one
+  additional bounded fix-and-review cycle, or a stop that preserves the
+  current work — and name the worker, fix, and review increments each choice
+  consumes; without one, state the same options in the stop report. Persist
+  the allowance usage and any user-granted extension in the active handoff —
+  the existing state, no new tracking system — so a resume or a renamed
+  target cannot evade the unresolved-target caps. A user grant is a named
+  increment: it adds exactly the worker, fix, and review rounds it names,
+  never resets counters, and grants no scope, review, or Git rights beyond
+  what it names; a consult cannot grant any of these increments (see
+  Decision consultation). A declined or unanswered option ends the stop: do
+  not ask again, do not schedule a resume, and leave the work in its
+  preserved state. Give the final report with the continuation prompt; the
+  handoff must make the next step explicit so work can resume.
+- **Same task blocked two rounds in a row** — stop; a consult may recommend
+  a materially different path, but that path still consumes the worker
+  allowance and a consult cannot grant one — otherwise do not burn rounds on
+  a wall that only the user can decide.
 - **[strict] Three review passes with blocking findings** — stop; one
-  consult on the surviving findings first (see Decision consultation), then
-  ask if it does not commit.
-- **Autonomy-envelope guard breach** — deep-review work beyond one escalation
-  plus two re-audits, a fourth fix round on one target, or work leaving
-  docs/config-only/reversible scope — stop and ask.
+  consult on the surviving findings may settle which are genuine defects and
+  which are standard drift (see Repeated findings on the same invariant), and
+  a hedged consult counts as no answer: ask the user. Either way, the
+  consult authorizes no further fix cycle or review pass — the user alone
+  grants those as named increments. Report the exhaustion with the
+  continuation prompt so a resume can act on the grant.
+- **Autonomy-envelope guard breach** — deep-review work beyond one
+  escalation plus two re-audits, a target that has reached the shared gate's
+  two fix cycles (three review passes) without a clean result, or work
+  leaving docs/config-only/reversible scope — stop and ask.
 - **A decision or irreversible action is required** (force-push, deleting
   branches, publishing, or anything `AGENTS.md` flags) — irreversible
   actions and user preference stop and ask (consult does not apply);
@@ -744,6 +816,10 @@ Stop the loop and report to the user when any of these hit:
 - Where the work now stands (handoff state, including the current routing
   summary or the material changes reported on resume) and the exact next step.
 - Open blockers or decisions needed.
+- For an incomplete stop, the continuation prompt: outcome and blockers with
+  evidence, what actually exists (files, branches, commits) and what to
+  preserve, the next recommended approach, the checks and independent review
+  still required, and the delivery permissions and restrictions.
 
 **Persist before printing.** State lives on disk, not in the conversation
 (core rule 3) — the printed report is not the record. Before giving the
@@ -753,8 +829,11 @@ monthly archive, following the active git persistence policy): the round ledger
 (one line per round with change references and verdicts), the final verified
 state (build/test evidence, per-repo persistence state and pin match), the
 current routing summary (or the material-change note against the previously
-recorded one), the open nits already tracked as checkboxes, and the exact next
-step. Update `BACKLOG.md` and
+recorded one), the open nits already tracked as checkboxes, the allowance
+usage and any granted extensions, the continuation prompt for an incomplete
+stop, and the exact next step. A fresh resume validates the handoff against
+the actual checkout and re-establishes missing context rather than trusting
+it. Update `BACKLOG.md` and
 `docs/handoffs/active.md` so they retain only current state, the carried
 open items, and one exact next action; add an archive pointer for the closed
 session. Update any stale references in place where repository policy
@@ -785,9 +864,10 @@ the main loop may make itself even though it normally does not edit files.
 - Re-running the full review after a mechanical fix — a deterministic edit
   verified by its own deterministic check closes within the cycle; review
   budget is a scarce resource.
-- Iterating against a reviewer's drifting standard — consecutive rounds
-  flagging the same invariant at stricter precision is a standard-setting
-  question to fix once, not a defect to chase.
+- Iterating against a reviewer's drifting standard — when the behaviour
+  already meets the acceptance and later rounds only tighten the standard,
+  settle it once instead of chasing each new preference; a genuinely
+  unmet invariant is a real defect to replan around, not drift.
 - Asking the user for routine continuation inside the autonomy envelope —
   asks are for guard breaches, irreversible actions, and what a consult
   could not settle.

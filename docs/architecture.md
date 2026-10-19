@@ -43,10 +43,14 @@ also defines sequential decomposition: the coordinator can outline provisional
 outcomes, complete and review one slice at a time, then reassess based on the
 evidence. Replanning does not reset the task's budgets or failure limits, and
 the accumulated changes receive combined acceptance checks before delivery.
+It also defines the checkpoint and decision summary after substantive rounds,
+the review-closure rules for re-reviews, and the self-contained continuation
+prompt that every incomplete stop carries.
 The six task contracts are capability-neutral: they carry only the role's
 instructions, with no host-specific protocol. `implement` and `implement-hard`
 share the same `implement` contract; `implement-hard` is a routing key, not a
-separate contract or profile.
+separate contract or profile. A hard review finding keeps the `fix` contract
+and the fix counters while it dispatches on the `implement-hard` route.
 
 `pull-request-description` is read before writing or revising a PR body;
 `source-code-lookup` is read when another codebase's behavior matters. Both are
@@ -225,7 +229,7 @@ installer, then a restart or new session — is documented in
 
 One modern Agent Plugins 1.0 package carries the four public skills, their
 task/routing resources, and optional OpenAI presentation metadata
-(`agents/openai.yaml`). Package identity: name `agenticale`, version `0.4.0`,
+(`agents/openai.yaml`). Package identity: name `agenticale`, version `0.7.0`,
 author "Ale Franz", MIT license, schema
 `https://agent-plugins.org/schemas/1.0.0/plugin.schema.json`.
 
@@ -282,6 +286,26 @@ return reports. Autonomous Mode persists those reports to the target repository;
 everyday work keeps them in session context. Git operations follow the user's
 requested endpoint and applicable repository instructions, and default delivery
 is uncommitted.
+
+Before implementation, the coordinator runs a brief material-risk assessment
+— which independently mutable sources the request would touch (local working
+trees, remote branches or pull requests, persisted state such as databases or
+caches) and which of them other actors can also mutate, external side effects
+that would survive an interruption, concurrent humans, ownership-sensitive
+cleanup, and compatibility surfaces — and inspects only as much as the
+request's concrete uncertainties require. Everyday work may answer
+small questions with direct reads; Autonomous Mode keeps the main loop thin and
+routes needed source evidence to a focused explore round. When an allowance or
+the budget is exhausted, no further round of exhausted type is dispatched: the
+workflow reports the exhausted allowance, the completed and blocked state, and
+recent material progress, and recommends a bounded correction, a bounded
+replan, or a stop. Every incomplete stop carries a self-contained, copyable
+continuation prompt; everyday work keeps it in the session only, while
+Autonomous Mode persists it, with allowance usage and any granted extension,
+in the existing handoff so a resume or a renamed target cannot evade the
+unresolved-target caps. See the
+[work-coordination examples](https://github.com/alefranz/AgenticAle/blob/main/docs/work-coordination-fixtures.md)
+for the expected decisions.
 
 Skills can request a model and effort but cannot prevent host-side fallback. An
 adapter documents which guarantees are enforced by the harness and which are
