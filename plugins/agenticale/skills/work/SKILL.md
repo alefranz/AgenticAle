@@ -43,6 +43,25 @@ Use the current request and relevant conversation to identify the task and its
 acceptance criteria. Empty command input uses an unambiguous current task;
 otherwise ask what to work on. Never resume an autonomous handoff implicitly.
 
+Before dispatching implementation, run a brief material-risk assessment of the
+request, even when its intent is clear: identify the multiple independently
+mutable sources the request would touch — local working trees, remote
+branches or pull requests, and persisted state such as databases or caches —
+and flag which of them other actors can also mutate, the external side
+effects that would survive an interruption, concurrent humans on the same
+branch or resources, ownership-sensitive cleanup, and compatibility
+surfaces such as public APIs, contracts, or generated artifacts. The signals
+justify focused inspection or decomposition; they do not require lengthy
+planning.
+
+Inspect enough of the request to ask whether a concrete uncertainty could
+materially change the slice's boundary or approach. Answer small questions with
+direct reads in the coordinator context and dispatch a focused explore round
+only when the question needs a separate context; no cheap discovery round is
+mandatory. Give every discovery round its one question and stop condition, and
+do not assume a question about subtle semantics is automatically suitable for
+a fast route — resolve its route through the routing contract.
+
 Choose the smallest useful path:
 
 - A clear change: implement, independently review, and finish.
@@ -71,9 +90,19 @@ Child agents return blockers to the coordinator rather than asking the user.
 | Routine implementation | [implement](references/tasks/implement.md) |
 | Concurrency, subtle state, security, or difficult contract reasoning | [implement](references/tasks/implement.md) with hard-task routing context |
 | Fix specific review findings | [fix](references/tasks/fix.md) |
+| Review findings requiring concurrency, durability, state-machine, or ownership reasoning | [fix](references/tasks/fix.md) contract on the `implement-hard` route (hard-task routing context) |
 | Independent review of changes | [review](references/tasks/review.md) |
 | Integration review across substantial interacting slices | [deep-review](references/tasks/deep-review.md) |
 | Optional technical second opinion | [consult](references/tasks/consult.md) |
+
+A hard fix keeps the fix task role and the fix counters: dispatch it on the
+configured `implement-hard` route, carrying the bounded fix contract explicitly
+in the task packet, or an equivalently scoped implement contract where the
+binding's profile body differs. The task role and the routing key are separate
+choices; record both, with the reason for the hard route, in the routing
+record. Respect the configured policy and the profiles the binding exposes —
+never silently substitute a stronger or weaker route, and surface a requested
+route the binding cannot honour.
 
 ### Resolve routing before dispatching
 
@@ -158,9 +187,10 @@ splitting or revising the plan does not replenish allowances. Reassess the
 remaining scope against the remaining budget at each slice boundary.
 Caps prevent dispatching another round of that type beyond its allowance;
 verification and the permitted review of the last allowed worker still run.
-If more work is then required, stop and report it. Also stop when the same
-blocker recurs or two consecutive workers make no material progress. Do not
-quietly replenish the budget or return incomplete work as finished.
+If more work is then required, stop under the stop and continuation rules
+below. Also stop when the same blocker recurs or two consecutive workers make
+no material progress. Do not quietly replenish the budget or return incomplete
+work as finished.
 
 If a child is interrupted, inspect its actual changes and verification state.
 Start a fresh child with the last known facts and one next action; do not infer
@@ -188,8 +218,36 @@ review blockers visibly incomplete, and do not publish a pull request before
 its required checks and review gates pass. Do not switch routes or models, do
 the child's work in the coordinator, wait or retry automatically, or create
 durable cooldown state. The user can decide when to resume Work; provide the
-next concrete action. These session-scoped rules do not use Autonomous Mode's
+next concrete action, with the continuation prompt that every incomplete stop
+carries. These session-scoped rules do not use Autonomous Mode's
 quota cooldown and handoff recovery.
+
+### Stop and continuation
+
+Apply [the shared contract's checkpoint, decision summary, and stop-report
+rules](references/rounds.md#checkpoints-decision-summary-and-stop-reports).
+Send the user the concise decision summary before the next substantive
+dispatch and retain it in session context; the continuation prompt is part
+of the stop report — Work writes no operational files for either.
+
+When an allowance is exhausted, do not dispatch another round of that type.
+Stop and report which allowance is exhausted and what remains, what is
+completed and what is blocked, and the recent material progress. Recommend,
+from the evidence, a bounded correction within the remaining allowances, a
+replan — also bounded, since a replan that needs child rounds consumes those
+allowances — or a stop. Where the host offers an interaction tool, offer the
+situation-appropriate choices, for example "Replan before continuing",
+"Continue for one additional fix-and-review cycle", or "Stop and preserve
+current work"; without one, state the same options in the stop report.
+
+A user grant is a specific increment: it adds the named allowance, including
+the worker, fix, or review rounds the grant covers. It never resets existing
+counters and grants no scope, review, or Git rights beyond what it names; a
+replan requested through it stays bounded the same way. A declined or
+unanswered option ends the stop: do not ask again, do not schedule a resume,
+and leave the work in its preserved state. Provider quota exhaustion stops
+under its own rules above; it is separate from these allowance stops and from
+Autonomous Mode's quota cooldown.
 
 ## State stays in the session
 
@@ -242,7 +300,8 @@ For the PR endpoint:
    an existing matching PR before creation, including after an uncertain tool
    response. Never retry a creation blindly.
 5. Return the PR URL and verification result. If publication is blocked, report
-   exactly what succeeded and what remains; preserve the completed local work.
+   exactly what succeeded and what remains, preserve the completed local work,
+   and include the continuation prompt that every incomplete stop carries.
 
 This endpoint does not authorize merging, force-pushing, changing remotes,
 discarding unrelated changes, or publishing a release. If the requested task

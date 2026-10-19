@@ -25,6 +25,32 @@ remaining limitations. By default changes stay uncommitted; commit, branch,
 push, and pull request actions are separate requests. An investigation-only
 goal returns findings and a next step.
 
+Before round 1, the coordinator briefly assesses what the goal would touch —
+sources other actors can also mutate, side effects that would survive an
+interruption, concurrent humans, ownership-sensitive cleanup, and
+compatibility surfaces — and keeps the main loop thin: source evidence needed
+to define a round goes to a focused exploration round with one question and a
+stop condition, not into the main loop. After every substantive result it
+sends you a concise decision summary and keeps the compact state in the active
+handoff next to the round ledger.
+
+When a budget or allowance is exhausted, the loop stops without another round
+of that type. The report says which allowance is exhausted, what is completed
+and what is blocked, and the recent material progress, and offers bounded
+choices — a bounded replan, one additional fix-and-review cycle, or a stop
+that preserves the current work — naming the rounds each choice consumes. A
+granted extension adds exactly the named worker, fix, and review rounds: it
+never resets counters and grants no extra scope, review, or Git rights. A
+consult can settle a reversible decision but cannot grant one, and declining
+or not answering ends the stop. Allowance usage and any granted extension are
+persisted in the active handoff, and the incomplete stop carries a
+copy-pasteable continuation prompt so a later activation can act on the
+grant. Repeated findings on the same invariant are classified as a real
+design issue — replanned with the original acceptance and counters intact —
+or as reviewer standard drift, settled once rather than chased. Provider
+quota exhaustion is separate: it follows the recovery policy below, not these
+allowance stops.
+
 When the host reports provider quota exhaustion, the coordinator records the
 evidence, affected role, retry time, inspected partial progress, remaining work,
 and next action in the active handoff. It waits about 30 minutes by default, or

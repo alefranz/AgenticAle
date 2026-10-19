@@ -53,6 +53,14 @@ availability or account pricing. OpenCode uses the corresponding `openai/`
 model prefix. Antigravity uses its host-native `flash` and `pro` choices and has
 no reasoning-effort setting.
 
+Not every fix dispatches on the routine `fix` route. A blocking finding that
+needs concurrency, durability, state-machine, or ownership reasoning keeps the
+fix role and its fix counters, but is dispatched on the `implement-hard`
+route, which the packaged defaults place in the standard tier. The task role
+and the routing key are separate choices; the configured policy decides the
+route, and a requested route the binding cannot honour is reported rather
+than silently substituted.
+
 Review independence comes from a fresh agent checking the work. It does not
 require a different model, and an explicitly configured route can inherit the
 session model. Check your host's available models before relying on a specific

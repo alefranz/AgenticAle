@@ -9,8 +9,9 @@ their own skill or plugin interface. See [setup](../setup.md) for installation.
 If an OpenCode child stops for approval or cannot resume, review the configured
 permissions below. Child actions need preconfigured allow or deny rules so they
 can finish without an interactive prompt. Continue `/work` from its retained
-session, or rerun `/autonomous` to resume its durable handoff; only Autonomous
-provides fresh-session recovery.
+session — an incomplete stop report carries a copy-pasteable continuation
+prompt for a fresh session — or rerun `/autonomous` to resume its durable
+handoff; only Autonomous persists recovery state on disk.
 
 If a model cannot be found, check that its identifier is available in your
 account and inspect the Markdown routing file. Plugin users can edit Markdown

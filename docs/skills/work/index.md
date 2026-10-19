@@ -52,13 +52,20 @@ for concrete examples and customization guidance.
 
 ## How a change request moves through Work
 
-The coordinator reads the project instructions and current changes, then sends
-a compact task packet to an implementation agent. After implementation, a
-different agent reviews the result against the request, project conventions,
-and relevant checks. The coordinator assigns a focused fix when the review finds
-a defect, then verifies the result and delivers it according to your request.
-Exploration is conditional: when a concrete uncertainty needs resolving, Work
-can investigate it first; otherwise it proceeds directly to implementation.
+The coordinator reads the project instructions and current changes, then
+briefly assesses what the request would touch: sources other actors can also
+mutate, side effects that would survive an interruption, concurrent humans,
+and compatibility surfaces. It inspects only as much as a concrete
+uncertainty requires — a small question is answered with a direct read, and a
+focused exploration round runs only when the question needs its own context,
+with one question and a stop condition. No discovery round is mandatory, and a
+question about subtle semantics is not automatically a fast route: each
+exploration round's route is resolved through the routing contract. It then
+sends a compact task packet to an implementation agent. After implementation,
+a different agent reviews the result against the request, project conventions,
+and relevant checks. The coordinator assigns a focused fix when the review
+finds a defect, then verifies the result and delivers it according to your
+request.
 
 ```mermaid
 flowchart TD
@@ -76,22 +83,50 @@ flowchart TD
     DeepReview --> Checks
 ```
 
-Focused fixes use the routine tier; hard implementation uses the standard tier.
-These are packaged defaults, and routes remain configurable.
+Focused fixes use the routine tier; hard implementation uses the standard
+tier. A blocking finding that needs concurrency, durability, state-machine, or
+ownership reasoning keeps the fix role and its fix counters, but is
+dispatched on the configured hard route — the standard tier in the packaged
+defaults. The task role and the routing key are separate choices, the
+configured policy decides the route, and a route the binding cannot honour is
+reported rather than silently substituted. These are packaged defaults, and
+routes remain configurable.
 
 Every review uses the same findings gate:
 
 ```mermaid
 flowchart TD
     Review[Review] --> Findings{Blocking findings?}
-    Findings -->|Yes| Fix[Focused fix · routine tier]
+    Findings -->|Yes| Fix[Focused fix · configured routine or hard route]
     Fix --> Review
     Findings -->|No| Accepted[Accept this review]
 ```
 
+A re-review closes the loop over the earlier report: each prior finding is
+reported by ID as fixed, partially fixed, still open, or regressed, with new
+defects kept separate from the consequences of an earlier unresolved issue.
+When the acceptance involves recovery or interruption behavior, the evidence
+comes through the real user entry or command selection that reaches that path,
+including the interruption boundary around its external side effects — not
+internal method tests alone. Targeted checks bound each slice; full-suite and
+publishing checks belong to the integration boundary.
+
 Work allows at most two fix cycles and three review passes per slice or
 combined-review target. When a limit is reached with blockers remaining, Work
-stops and reports the unresolved blockers.
+stops without another round of that type and reports which allowance is
+exhausted, what is completed and what is blocked, and the recent material
+progress. It recommends a bounded correction, a bounded replan, or a stop that
+preserves the current work; where your host offers choices, it offers the
+situation-appropriate ones, such as one additional fix-and-review cycle. A
+granted extension adds exactly the named rounds — it never resets counters and
+grants no extra scope, review, or Git rights — and declining or not answering
+ends the stop. The stop report carries a copy-pasteable continuation prompt so
+a fresh session can pick up where it left off.
+
+Repeated findings on the same invariant are classified before another round:
+a genuinely unmet invariant is a real design issue — the plan is reopened with
+the original acceptance and counters intact — while reviewer standard drift is
+settled once, not chased as a defect.
 
 Each slice passes review before Work moves to the next one. Deep review is an
 additional gate when the combined changes have substantial interactions or a
@@ -120,13 +155,16 @@ stops and reports the affected role, evidence, partial work, unchecked work, and
 any supplied retry information. It preserves partial changes and does not
 automatically retry, wait, switch models, or create durable recovery state.
 Missing output or generic network, authentication, billing, or `429` errors
-alone do not establish quota exhaustion. See
+alone do not establish quota exhaustion. This stop is separate from an
+allowance stop above and from Autonomous Mode's durable quota recovery. See
 [troubleshooting](../../guides/troubleshooting.md#provider-quota-exhaustion).
 
 ## What you receive
 
 Work returns the implemented change, relevant verification results, and any
-remaining limitations. If you request a PR, it prepares the change for review
+remaining limitations. You see a concise decision summary before each
+substantive step, and an incomplete stop ends with the copy-pasteable
+continuation prompt. If you request a PR, it prepares the change for review
 and returns the PR link. If the task is investigation-only, it returns the
 findings and a concrete next step.
 
