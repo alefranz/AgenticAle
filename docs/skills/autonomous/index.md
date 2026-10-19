@@ -18,6 +18,10 @@ coordinator and proceeds in sequential, bounded rounds. Code and configuration
 changes receive independent review by default, with focused fixes for blocking
 findings.
 
+Concise progress narration keeps the sequence readable in the main conversation:
+what was learned, what happens next, and why. When your client collapses subagent
+activity, these updates let you follow the work without opening every subtask.
+
 You provide the goal, constraints, and any acceptance examples. The workflow
 records durable progress in the target project's `BACKLOG.md` and
 `docs/handoffs/active.md`, and returns the completed work, verification, and
@@ -30,9 +34,20 @@ sources other actors can also mutate, side effects that would survive an
 interruption, concurrent humans, ownership-sensitive cleanup, and
 compatibility surfaces — and keeps the main loop thin: source evidence needed
 to define a round goes to a focused exploration round with one question and a
-stop condition, not into the main loop. After every substantive result it
-sends you a concise decision summary and keeps the compact state in the active
-handoff next to the round ledger.
+stop condition, not into the main loop. Before each substantive assignment,
+including the first, it explains the next step and its purpose. After a result,
+the next update connects the evidence to the next decision; a finished task ends
+with the delivery report. The compact state stays in the active handoff next to
+the round ledger.
+
+The narration follows the [same guidance as Work](../work/index.md#progress-narration):
+short updates about outcomes, trade-offs, and verification, with model details
+and counters surfaced when they affect a decision or you ask for them. For
+example: "The new reader passes its compatibility checks. I'm assigning the
+writer update next, keeping the old format readable during the transition."
+These summaries add tokens in exchange for an easier-to-follow account of a
+long task. The durable handoff preserves the state needed to resume; the visible
+updates help you understand how the work reached that state.
 
 When a budget or allowance is exhausted, the loop stops without another round
 of that type. The report says which allowance is exhausted, what is completed

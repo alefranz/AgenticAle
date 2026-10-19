@@ -43,9 +43,14 @@ also defines sequential decomposition: the coordinator can outline provisional
 outcomes, complete and review one slice at a time, then reassess based on the
 evidence. Replanning does not reset the task's budgets or failure limits, and
 the accumulated changes receive combined acceptance checks before delivery.
-It also defines the checkpoint and decision summary after substantive rounds,
-the review-closure rules for re-reviews, and the self-contained continuation
-prompt that every incomplete stop carries.
+It also defines checkpoints after substantive rounds and visible progress
+narration before substantive assignments: the result, next action, and reason
+in a short paragraph. Detailed routing records and budget counters remain in
+workflow state; the coordinator surfaces them when they affect a decision or
+the user asks. This keeps the main conversation understandable even when a
+host collapses child activity, without relying on any particular host layout.
+The contract also defines review-closure rules for re-reviews and the
+self-contained continuation prompt that every incomplete stop carries.
 The six task contracts are capability-neutral: they carry only the role's
 instructions, with no host-specific protocol. `implement` and `implement-hard`
 share the same `implement` contract; `implement-hard` is a routing key, not a

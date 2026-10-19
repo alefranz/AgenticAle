@@ -77,8 +77,61 @@ Expected behavior:
   limit or material uncertainty.
 - Also retain the compact state in the workflow's existing state: session
   context in reviewed task work, the active handoff in Autonomous Mode.
-- The summary is not tool narration or internal chain-of-thought; a
-  routine verification-only check needs no summary.
+- The summary is progress narration about decisions and evidence, not
+  individual tool calls or internal chain-of-thought; a routine
+  verification-only check needs no summary.
+
+## Readable narration across a fix and review
+
+Local checks pass, but coordinator verification finds that a rename broke
+migration from older installs. The next assignment is a focused fix, followed
+by independent review. The routes are valid and unchanged.
+
+Expected behavior:
+
+- Combine outcome, consequence, and next assignment into one short paragraph:
+  "The checks passed, but verification found that the rename breaks migration
+  from older installs. I'm assigning a focused fix to preserve those paths."
+- After verifying the targeted checks, connect the fix to the next gate:
+  "The migration fix passes the targeted checks. An independent reviewer will
+  now check the full change, including compatibility with older installs."
+- Do not add separate checkpoint/dispatch announcements or recite role codes,
+  model/effort strings, default provenance, "no fallback", or routine counters.
+  Keep the complete routing records and counters in the workflow's state.
+- A configured model differing from the packaged default needs no recurring
+  explanation. If the user requests model visibility, add a short selection
+  label; do not claim configured settings prove what actually ran.
+
+## Routing trouble and approaching limits remain visible
+
+Expected behavior in either workflow:
+
+- If the next assignment uses the hard route because a finding involves shared
+  state, explain the reason: "This fix involves concurrent writes, so I'm using
+  the configured route for complex changes." Include model details
+  when useful to distinguish the selection, not a full provenance dump.
+- If an installed profile does not match the resolved request, report the
+  requested and available settings and the next action under the binding's
+  rules. Do not hide the mismatch as routine configuration or silently dispatch
+  the available profile.
+- If a permitted fallback is attempted, explain what was unavailable and which
+  configured alternative is being tried. Narration does not authorize a fallback
+  or override either workflow's provider-quota policy.
+- If the next fix uses the last permitted attempt, say so and explain what
+  happens if blockers remain. Preserve exact counts in state and the stop report.
+
+## First assignment, final result, and collapsed children
+
+Expected behavior in either workflow:
+
+- Before the first assignment, state its purpose without inventing prior work:
+  "I'll start with a focused investigation of where the migration loses the old
+  paths, so the fix preserves existing installs."
+- Make the main conversation understandable without opening child activity;
+  do not rely on a particular host collapsing it or repeat the full child report.
+- On completion, deliver the result and verification once. Do not insert a
+  redundant checkpoint summary before the final report, and do not issue updates
+  for unchanged waits or routine verification-only checks.
 
 ## Repeated invariant: real design issue versus reviewer drift
 
