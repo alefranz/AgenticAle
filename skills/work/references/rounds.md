@@ -169,15 +169,44 @@ drift is settled once through the invoking workflow's decision policy.
 Replanning never resets the fix and review counters for the same unresolved
 target.
 
-Before the next substantive dispatch, send the user a concise, visible
-decision summary: the prior outcome, any change of approach, the next
-evidence to collect, and any approaching limit or material uncertainty. It
-is not tool narration, internal chain-of-thought, or a round ledger, and a
-routine verification-only check needs no summary. Also retain the compact
-state in the invoking workflow's existing state: session context in
-reviewed task work, the active handoff in Autonomous Mode. Both workflows
-communicate material progress and limits to the user visibly; a hidden-only
-state update does not satisfy this rule.
+Before each substantive dispatch, including the first, send the user a concise,
+visible decision summary. This is **progress narration**: what was established,
+why the next assignment is useful, and what it should resolve. On the first
+assignment, state the intended outcome and first step; do not invent a prior
+result. Include a changed approach, material uncertainty, or approaching limit
+when it affects the next decision. Both workflows communicate these updates
+visibly; a hidden-only state update does not satisfy this rule.
+
+Normally use one short paragraph of one to three sentences, combining the
+previous result and next assignment rather than announcing each separately.
+Lead with the task and its consequence: "The checks passed, but verification
+found that the rename breaks migration from older installs. I'm assigning a
+focused fix to preserve those paths." Name the next agent's purpose in ordinary
+language (for example, "an independent review of the fix"). Avoid stock labels
+such as "Checkpoint" or "Dispatching", role/tier codes, and repeated workflow
+explanations. Include concrete evidence when it helps assess progress, without
+reciting every check or copying the child's report. Distinguish reported results
+from what the coordinator or reviewer actually verified.
+
+Keep routine round counters and routing details in workflow state; the
+[routing-record guidance](#routing-records) below defines when they belong in
+the visible update. Surface a budget when it constrains the next action, in
+plain language: "This is the last permitted fix attempt; if it leaves blockers,
+I'll stop with the remaining work and options." Give the exact allowance in a
+stop report or when the user asks. A material change of plan needs its reason;
+an unchanged plan needs no repeated justification.
+
+Explain decisions and evidence, not internal chain-of-thought or individual tool
+calls. Routine verification-only checks and unchanged waits need no separate
+summary. If the result ends the task, use the delivery or stop report rather
+than adding a duplicate progress message. The main conversation should remain
+understandable when the host collapses child activity; do not assume it always
+does or promise control over its presentation.
+
+Also retain the compact state in the invoking workflow's existing state:
+session context in reviewed task work, the active handoff in Autonomous Mode.
+Preserve the required evidence, counters, and routing records there without
+copying the narration into a second log.
 
 Every incomplete stop — an exhausted allowance, a repeated blocker, quota
 exhaustion, a declined or unavailable user option, or a publication blockage —
@@ -230,6 +259,23 @@ reviewed task work, the handoff routing summary and the round ledger in
 Autonomous Mode. A child's self-reported model name never fills the effective
 field, and an unknown effective setting stays unknown rather than being
 estimated.
+
+Routing records are diagnostic state, not a script to recite before every
+child. In ordinary progress narration, omit model identifiers, reasoning effort,
+default-versus-configured comparisons, and "no fallback". If the user asks to
+see model choices, include a short, clearly labelled selection alongside the
+assignment; provide full provenance when requested.
+
+Surface routing details when they explain a consequential route change, an
+attempted configured fallback, a requested-versus-available mismatch, or a
+capability limit. State the practical effect and next action; include exact
+model/effort identifiers when needed to distinguish choices or diagnose the
+issue. Explain an unchanged limitation once, then repeat it only when it affects
+a new decision. A valid user customization differing from the packaged default
+is not itself a mismatch. An installed profile describes configured settings,
+not proof of the effective model. Say "configured for" or "requested" unless
+native evidence confirms what ran. These presentation rules never relax routing
+validation, permit silent substitution, or remove required records.
 
 ## Review and fix gate
 

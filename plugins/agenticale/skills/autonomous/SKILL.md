@@ -301,10 +301,11 @@ conditions. Strict mode gates each changed slice; standard mode retains its
 normal verification policy. The periodic and opportunistic deep-review gates
 below still govern escalation; decomposition adds no per-step deep review.
 Apply [the shared contract's checkpoint](../work/references/rounds.md#checkpoints-decision-summary-and-stop-reports)
-after every substantive worker or reviewer result: send the user the
-concise decision summary before the next substantive dispatch, and keep
-the compact state in the active handoff's `CURRENT STATE` next to the
-ledger — state, not narration.
+after every substantive worker or reviewer result. Use its progress narration
+guidance before each substantive dispatch, including the first: what was learned,
+what comes next, and why. Keep the compact state in the active handoff's
+`CURRENT STATE` next to the ledger. Routine routing records and counters belong
+in that state, not in every visible update.
 
 For each current slice or discovery assignment:
 

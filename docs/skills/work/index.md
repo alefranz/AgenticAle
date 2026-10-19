@@ -14,6 +14,10 @@ result. Added rounds count toward total effort, and savings and quality depend
 on the task, models, provider, and account. A fresh reviewer provides
 independence; it does not have to use a different model.
 
+Throughout the task, concise progress narration connects the agents' work:
+what was learned, what happens next, and why. You can follow the decisions in
+the main conversation even when your client collapses the subagent activity.
+
 ## Try Work
 
 Invoke the installed skill for a bounded task and describe the outcome you want:
@@ -135,6 +139,37 @@ review loop. An investigation-only request ends after exploration with findings
 and a recommended next step. Work opens a pull request only when you explicitly
 request PR delivery; otherwise it reports what it checked and any limitations.
 
+## Progress narration
+
+Before the first assignment, the coordinator explains the intended outcome and
+first step. Subsequent updates link the last result to the next step. For example:
+
+> The checks passed, but verification found that the rename breaks migration
+> from older installs. I'm assigning a focused fix to preserve those paths.
+
+Then, once that fix has been checked:
+
+> The migration fix passes the targeted checks. An independent reviewer will
+> now check the full change, including compatibility with older installs.
+
+These updates explain the purpose of each assignment, significant trade-offs,
+and what remains uncertain. Model names and routine round counters stay out of
+the normal updates. A routing change, fallback, or limitation is explained when
+it affects the work; an approaching budget limit is called out when it constrains
+the next step. You can ask for model choices or routing details when useful.
+
+This makes the main conversation a readable account of the work, with detailed
+subagent activity available according to the client's interface. Where that
+activity is collapsed, the progress updates let you follow the task without
+opening every subtask. The skill controls the summaries, not the client's layout.
+
+Narration adds tokens. The deliberate trade-off is a few sentences at meaningful
+transitions to make decisions and verification easier to follow; the cost varies
+with the task and number of rounds. Code shows the resulting behavior, while
+these updates can explain why an approach changed, which trade-offs mattered,
+and what was checked. They complement the diff and test evidence, and help you
+decide where a closer look is worthwhile.
+
 ## What to provide
 
 Describe the outcome you want, the relevant behavior, and any constraints that
@@ -162,9 +197,9 @@ allowance stop above and from Autonomous Mode's durable quota recovery. See
 ## What you receive
 
 Work returns the implemented change, relevant verification results, and any
-remaining limitations. You see a concise decision summary before each
-substantive step, and an incomplete stop ends with the copy-pasteable
-continuation prompt. If you request a PR, it prepares the change for review
+remaining limitations. [Progress narration](#progress-narration) keeps the
+decisions visible along the way, and an incomplete stop ends with the
+copy-pasteable continuation prompt. If you request a PR, it prepares the change for review
 and returns the PR link. If the task is investigation-only, it returns the
 findings and a concrete next step.
 
