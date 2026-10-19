@@ -30,13 +30,13 @@ The compatibility mapping from routing key to generated OpenCode profile is:
 
 | Routing key | OpenCode profile ID |
 | --- | --- |
-| `explore` | `autonomous/explore` |
-| `implement` | `autonomous/implement` |
-| `implement-hard` | `autonomous/implement-hard` |
-| `fix` | `autonomous/fix` |
-| `review` | `autonomous/review` |
-| `deep-review` | `autonomous/deep-review` |
-| `consult` | `autonomous/consult` |
+| `explore` | `agenticale/explore` |
+| `implement` | `agenticale/implement` |
+| `implement-hard` | `agenticale/implement-hard` |
+| `fix` | `agenticale/fix` |
+| `review` | `agenticale/review` |
+| `deep-review` | `agenticale/deep-review` |
+| `consult` | `agenticale/consult` |
 
 `implement` and `implement-hard` are separate generated profiles that select the
 same underlying implementation task contract with different routing context; the
@@ -77,7 +77,7 @@ never rewrites active profiles or host-wide model configuration.
    The output is a complete version-1 OpenCode policy: seven explicit routes
    or intentional inheritance.
 2. **Compare with the active profiles.** Read the `model` and
-   `reasoningEffort` frontmatter of each `agents/autonomous/<role>.md` profile
+   `reasoningEffort` frontmatter of each `agents/agenticale/<role>.md` profile
    in the OpenCode target directory. If profiles are unavailable or unreadable,
    report the comparison as a limitation and do not dispatch as if matched.
 3. **Use a matching profile.** A route matches when the profile's model and

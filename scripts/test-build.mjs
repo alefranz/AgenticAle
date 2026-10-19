@@ -142,7 +142,7 @@ try {
 
   // OpenCode root: seven profiles, one per routing key (including implement-hard).
   const allProfiles = ["consult", "deep-review", "explore", "fix", "implement", "implement-hard", "review"];
-  const profileNames = openCodeRel.filter((path) => path.startsWith("agents/autonomous/")).map((path) => path.split("/").pop().replace(".md", ""));
+  const profileNames = openCodeRel.filter((path) => path.startsWith("agents/agenticale/")).map((path) => path.split("/").pop().replace(".md", ""));
   check(JSON.stringify([...profileNames].sort()) === JSON.stringify([...allProfiles].sort()), "OpenCode bundle has exactly seven profiles, one per routing key");
   check(!openCodeRel.some((path) => path.endsWith("coordinator.md")), "OpenCode bundle has no coordinator profile");
 
@@ -154,32 +154,32 @@ try {
   check(autonomousCommand.includes("`autonomous`") && autonomousCommand.includes("$ARGUMENTS"), "autonomous command loads the autonomous skill by exact ID and passes $ARGUMENTS");
 
   // Default models are rendered per route (OpenCode's OpenAI provider ID).
-  const explore = await readText(join(fixture.openCodeRoot, "agents", "autonomous", "explore.md"));
+  const explore = await readText(join(fixture.openCodeRoot, "agents", "agenticale", "explore.md"));
   check(explore.includes("model: openai/gpt-6-luna"), "explore profile renders the OpenAI provider's luna model");
   check(explore.includes("reasoningEffort: medium"), "explore profile renders medium effort");
-  const implement = await readText(join(fixture.openCodeRoot, "agents", "autonomous", "implement.md"));
+  const implement = await readText(join(fixture.openCodeRoot, "agents", "agenticale", "implement.md"));
   check(implement.includes("model: openai/gpt-6-luna"), "implement profile renders the OpenAI provider's luna model");
   check(implement.includes("reasoningEffort: high"), "implement profile renders high effort");
-  const fix = await readText(join(fixture.openCodeRoot, "agents", "autonomous", "fix.md"));
+  const fix = await readText(join(fixture.openCodeRoot, "agents", "agenticale", "fix.md"));
   check(fix.includes("model: openai/gpt-6-luna"), "fix profile renders the OpenAI provider's luna model");
   check(fix.includes("reasoningEffort: high"), "fix profile renders high effort");
-  const review = await readText(join(fixture.openCodeRoot, "agents", "autonomous", "review.md"));
+  const review = await readText(join(fixture.openCodeRoot, "agents", "agenticale", "review.md"));
   check(review.includes("model: openai/gpt-6.1-sol"), "review profile renders GPT-6.1 Sol on the OpenAI provider");
   check(review.includes("reasoningEffort: high"), "review profile renders high effort");
-  const deepReview = await readText(join(fixture.openCodeRoot, "agents", "autonomous", "deep-review.md"));
+  const deepReview = await readText(join(fixture.openCodeRoot, "agents", "agenticale", "deep-review.md"));
   check(deepReview.includes("model: openai/gpt-6.1-sol"), "deep-review profile renders GPT-6.1 Sol on the OpenAI provider");
   check(deepReview.includes("reasoningEffort: xhigh"), "deep-review profile renders xhigh effort");
-  const consult = await readText(join(fixture.openCodeRoot, "agents", "autonomous", "consult.md"));
+  const consult = await readText(join(fixture.openCodeRoot, "agents", "agenticale", "consult.md"));
   check(consult.includes("model: openai/gpt-6.1-sol"), "consult profile renders GPT-6.1 Sol on the OpenAI provider");
   check(consult.includes("reasoningEffort: xhigh"), "consult profile renders xhigh effort");
-  const implementHard = await readText(join(fixture.openCodeRoot, "agents", "autonomous", "implement-hard.md"));
+  const implementHard = await readText(join(fixture.openCodeRoot, "agents", "agenticale", "implement-hard.md"));
   check(implementHard.includes("model: openai/gpt-6.1-sol"), "implement-hard profile renders GPT-6.1 Sol on the OpenAI provider");
   check(implementHard.includes("reasoningEffort: high"), "implement-hard profile renders high effort");
 
   // Each profile keeps its adapter metadata (subagent mode + exact deny set).
   const readOnly = ["explore", "consult"];
   for (const name of ["consult", "deep-review", "explore", "fix", "implement", "implement-hard", "review"]) {
-    const text = await readText(join(fixture.openCodeRoot, "agents", "autonomous", `${name}.md`));
+    const text = await readText(join(fixture.openCodeRoot, "agents", "agenticale", `${name}.md`));
     check(text.includes("mode: subagent"), `${name} profile is a subagent`);
     if (readOnly.includes(name)) {
       check(text.includes("- action: edit"), `${name} (read-only) profile denies edit`);
@@ -203,7 +203,7 @@ try {
   // inherit-only routing.json into every skill tree (all three output roots).
   const noModel = await buildFixture("no-model", ["--no-model"]);
   for (const name of allProfiles) {
-    const text = await readText(join(noModel.openCodeRoot, "agents", "autonomous", `${name}.md`));
+    const text = await readText(join(noModel.openCodeRoot, "agents", "agenticale", `${name}.md`));
     check(!/^model:/m.test(text) && !/^reasoningEffort:/m.test(text), `${name} profile has no model/effort lines under --no-model`);
   }
   const pluginHashes = async (root) => {
@@ -259,17 +259,17 @@ try {
 
   // --models with a provider-qualified preset renders provider prefixes.
   const openaiFixture = await buildFixture("openai-preset", ["--models", "openai"]);
-  const openaiReview = await readText(join(openaiFixture.openCodeRoot, "agents", "autonomous", "review.md"));
+  const openaiReview = await readText(join(openaiFixture.openCodeRoot, "agents", "agenticale", "review.md"));
   check(/model: openai\//.test(openaiReview), "openai preset renders a provider-qualified model for review");
 
   // --effort is a route-wide reasoning-effort override: every explicit profile
   // renders the override instead of its per-route default, but keeps its model.
   const effortFixture = await buildFixture("effort-override", ["--effort", "low"]);
   for (const name of allProfiles) {
-    const text = await readText(join(effortFixture.openCodeRoot, "agents", "autonomous", `${name}.md`));
+    const text = await readText(join(effortFixture.openCodeRoot, "agents", "agenticale", `${name}.md`));
     check(text.includes("reasoningEffort: low"), `--effort low overrides the ${name} profile effort`);
   }
-  check((await readText(join(effortFixture.openCodeRoot, "agents", "autonomous", "review.md"))).includes("model: openai/gpt-6.1-sol"), "--effort override keeps the per-route model");
+  check((await readText(join(effortFixture.openCodeRoot, "agents", "agenticale", "review.md"))).includes("model: openai/gpt-6.1-sol"), "--effort override keeps the per-route model");
 
   // --routing accepts BOTH version-1 policies and version-2 baselines. A
   // version-1 input is a complete policy: it normalizes to exact direct role
@@ -281,8 +281,8 @@ try {
   const callerV1Path = join(scratch, "caller-routing-v1.json");
   await writeFile(callerV1Path, JSON.stringify(callerV1), "utf8");
   const v1Fixture = await buildFixture("caller-routing-v1", ["--routing", callerV1Path]);
-  check((await readText(join(v1Fixture.openCodeRoot, "agents", "autonomous", "review.md"))).includes("model: acme/test-model"), "--routing v1 policy model is rendered into the review profile");
-  check((await readText(join(v1Fixture.openCodeRoot, "agents", "autonomous", "explore.md"))).includes("model: openai/gpt-6-luna"), "--routing v1 policy leaves unmodified routes at their packaged model");
+  check((await readText(join(v1Fixture.openCodeRoot, "agents", "agenticale", "review.md"))).includes("model: acme/test-model"), "--routing v1 policy model is rendered into the review profile");
+  check((await readText(join(v1Fixture.openCodeRoot, "agents", "agenticale", "explore.md"))).includes("model: openai/gpt-6-luna"), "--routing v1 policy leaves unmodified routes at their packaged model");
   // The changed role materializes as a direct role exception, not a tier rewrite.
   const v1Shipped = JSON.parse(await readText(join(v1Fixture.standaloneRoot, "work", "references", "routing.json")));
   check(v1Shipped.runtimes.opencode.roles.review.mode === "explicit" && v1Shipped.runtimes.opencode.roles.review.model === "acme/test-model", "--routing v1 policy change materializes as an opencode/review role exception");
@@ -297,9 +297,9 @@ try {
   const callerV2Path = join(scratch, "caller-routing-v2.json");
   await writeFile(callerV2Path, JSON.stringify(callerV2), "utf8");
   const v2Fixture = await buildFixture("caller-routing-v2", ["--routing", callerV2Path]);
-  check((await readText(join(v2Fixture.openCodeRoot, "agents", "autonomous", "review.md"))).includes("model: acme/v2-model"), "--routing v2 tier override renders into the review profile");
-  check((await readText(join(v2Fixture.openCodeRoot, "agents", "autonomous", "implement-hard.md"))).includes("model: acme/v2-model"), "--routing v2 tier override renders into the implement-hard profile");
-  check((await readText(join(v2Fixture.openCodeRoot, "agents", "autonomous", "explore.md"))).includes("model: openai/gpt-6-luna"), "--routing v2 leaves unmapped tiers at their packaged model");
+  check((await readText(join(v2Fixture.openCodeRoot, "agents", "agenticale", "review.md"))).includes("model: acme/v2-model"), "--routing v2 tier override renders into the review profile");
+  check((await readText(join(v2Fixture.openCodeRoot, "agents", "agenticale", "implement-hard.md"))).includes("model: acme/v2-model"), "--routing v2 tier override renders into the implement-hard profile");
+  check((await readText(join(v2Fixture.openCodeRoot, "agents", "agenticale", "explore.md"))).includes("model: openai/gpt-6-luna"), "--routing v2 leaves unmapped tiers at their packaged model");
   const v2Shipped = JSON.parse(await readText(join(v2Fixture.standaloneRoot, "work", "references", "routing.json")));
   check(v2Shipped.runtimes.opencode.tiers.standard.model === "acme/v2-model", "--routing v2 customization is materialized into the standalone routing.json");
   check(v2Shipped.runtimes.opencode.tiers.fast.model === "openai/gpt-6-luna", "--routing v2 leaves the fast tier untouched");
@@ -322,7 +322,7 @@ try {
   const codexOnlyPath = join(scratch, "f6-codex-only.json");
   await writeFile(codexOnlyPath, JSON.stringify(codexOnly), "utf8");
   const f6Fixture = await buildFixture("f6-codex-only", ["--routing", codexOnlyPath]);
-  const f6Explore = await readText(join(f6Fixture.openCodeRoot, "agents", "autonomous", "explore.md"));
+  const f6Explore = await readText(join(f6Fixture.openCodeRoot, "agents", "agenticale", "explore.md"));
   check(f6Explore.includes("model: openai/gpt-6-luna"), "F6 omitted opencode runtime is filled from the packaged preset (explore profile carries a model)");
   const f6Shipped = JSON.parse(await readText(join(f6Fixture.standaloneRoot, "work", "references", "routing.json")));
   check(JSON.stringify(Object.keys(f6Shipped.runtimes).sort()) === JSON.stringify(["antigravity", "codex", "copilot", "opencode"].sort()), "F6 shipped v2 baseline declares all four runtimes");
@@ -344,15 +344,15 @@ try {
   const prepV1Path = join(scratch, "prep-routing-v1.json");
   await writeFile(prepV1Path, JSON.stringify(prepV1), "utf8");
   const prepFixture = await buildFixture("prep-routing-v1", ["--routing", prepV1Path]);
-  const prepReview = await readText(join(prepFixture.openCodeRoot, "agents", "autonomous", "review.md"));
+  const prepReview = await readText(join(prepFixture.openCodeRoot, "agents", "agenticale", "review.md"));
   check(prepReview.includes("model: acme/review-prep"), "prep v1: review profile renders the requested primary model");
   check((prepReview.match(/^model:/gm) ?? []).length === 1, "prep v1: the profile materializes exactly one model (no fallback chain)");
   check(!prepReview.includes("acme/review-fb-1") && !prepReview.includes("acme/review-fb-2"), "prep v1: requested fallbacks are not rendered into the profile");
   check(prepReview.includes("steps: 56") && prepReview.includes("mode: subagent") && prepReview.includes("- action: subagent") && prepReview.includes("- action: question") && !/- action: edit/.test(prepReview), "prep v1: review profile keeps its permission/step fields");
-  const prepConsult = await readText(join(prepFixture.openCodeRoot, "agents", "autonomous", "consult.md"));
+  const prepConsult = await readText(join(prepFixture.openCodeRoot, "agents", "agenticale", "consult.md"));
   check(!/^model:/m.test(prepConsult) && !/^reasoningEffort:/m.test(prepConsult), "prep v1: an inherit request renders a profile with no forced model");
   check(prepConsult.includes("steps: 20") && prepConsult.includes("- action: edit"), "prep v1: consult profile keeps its permission/step fields");
-  const prepProfileNames = (await listRelative(prepFixture.openCodeRoot)).filter((path) => path.startsWith("agents/autonomous/")).map((path) => path.split("/").pop().replace(".md", ""));
+  const prepProfileNames = (await listRelative(prepFixture.openCodeRoot)).filter((path) => path.startsWith("agents/agenticale/")).map((path) => path.split("/").pop().replace(".md", ""));
   check(JSON.stringify([...prepProfileNames].sort()) === JSON.stringify([...allProfiles].sort()), "prep v1: seven profiles with a distinct implement-hard");
   const prepShipped = JSON.parse(await readText(join(prepFixture.pluginRoot, "skills", "work", "references", "routing.json")));
   check(JSON.stringify(prepShipped.runtimes.opencode.roles.review.fallbacks) === JSON.stringify(prepV1.runtimes.opencode.review.fallbacks), "prep v1: the shipped v2 baseline preserves the fallback list in the role exception");

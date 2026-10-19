@@ -40,7 +40,7 @@ node scripts/install.mjs --target (Join-Path $profileRoot "opencode") --no-model
 node scripts/validate.mjs
 opencode debug paths
 $agents = opencode debug agents | ConvertFrom-Json
-$agents | Where-Object { $_.id -like 'autonomous/*' } |
+$agents | Where-Object { $_.id -like 'agenticale/*' } |
   Select-Object id, mode, steps, @{Name='model';Expression={ "$($_.model.providerID)/$($_.model.id)" }}
 opencode debug config
 
@@ -76,7 +76,7 @@ node scripts/install.mjs --target "$profile_root/opencode" --no-model
 node scripts/validate.mjs
 opencode debug paths
 opencode debug agents > "$smoke_root/agents.json"
-node -e 'const a=JSON.parse(require("node:fs").readFileSync(process.argv[1],"utf8")); for(const x of a.filter(x=>x.id.startsWith("autonomous/"))) console.log(x.id,x.mode,x.steps,`${x.model?.providerID}/${x.model?.id}`)' "$smoke_root/agents.json"
+node -e 'const a=JSON.parse(require("node:fs").readFileSync(process.argv[1],"utf8")); for(const x of a.filter(x=>x.id.startsWith("agenticale/"))) console.log(x.id,x.mode,x.steps,`${x.model?.providerID}/${x.model?.id}`)' "$smoke_root/agents.json"
 opencode debug config
 
 opencode service stop
@@ -96,7 +96,7 @@ rm -rf "$smoke_root"
   reading or replacing another profile;
 - `opencode debug paths` reports config, data, cache, and state paths beneath
   the generated smoke-test root;
-- `opencode debug agents` lists the seven generated `autonomous/*` profiles
+- `opencode debug agents` lists the seven generated `agenticale/*` profiles
   (`explore`, `implement`, `implement-hard`, `fix`, `review`, `deep-review`,
   `consult`) as subagents with their step limits and permission denials. There
   is no `coordinator` profile. With `--no-model`, each profile omits a
@@ -158,7 +158,7 @@ temporary smoke root and replace each example ID with a model ID shown by
 `/models` in the isolated OpenCode profile. Before the uninstall command above,
 run `node scripts/install.mjs --target <isolated-profile-path> --models
 <edited-json-path> --replace`, then inspect `opencode debug agents`: the `model`
-values for `autonomous/explore` and `autonomous/review` should match the edited
+values for `agenticale/explore` and `agenticale/review` should match the edited
 mapping. A role omitted from the JSON object inherits the current session model.
 Re-run the same install without `--replace` and confirm it reports the profile
 is up to date. The uninstall should remove unchanged rendered profiles.

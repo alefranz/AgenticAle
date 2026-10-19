@@ -445,7 +445,11 @@ function validateGeneratedEntries(entries, statePath, expectedProfiles) {
     }
     const parts = entry.path.split("/");
     if (parts[0] === "agents") {
-      if (parts.length !== 3 || parts[1] !== "autonomous" || !parts[2].endsWith(".md") || !expectedProfiles.has(parts[2].replace(/\.md$/, ""))) {
+      // The generated profile namespace was renamed; states written before the
+      // rename still carry the old namespace directory. Accept both so those
+      // states validate and refresh retires the old profile paths, installing
+      // the new ones under the current namespace.
+      if (parts.length !== 3 || !["agenticale", "autonomous"].includes(parts[1]) || !parts[2].endsWith(".md") || !expectedProfiles.has(parts[2].replace(/\.md$/, ""))) {
         throw new Error(`Install state has an unexpected generated profile: ${statePath}. Move it aside and retry.`);
       }
       if (profiles.has(parts[2])) throw new Error(`Install state duplicates generated profile: ${statePath}.`);
@@ -907,6 +911,7 @@ async function installBundle(options) {
 async function removeEmptyPackageDirectories(target) {
   const directories = [
     // Generated (schema 5) layout, leaf-first.
+    "agents/agenticale",
     "skills/work/references/runtimes",
     "skills/work/references/tasks",
     "skills/work/references",
@@ -917,7 +922,7 @@ async function removeEmptyPackageDirectories(target) {
     "skills/autonomous",
     "skills/pull-request-description",
     "skills/source-code-lookup",
-    // Retired (schema 1-4) layout, leaf-first.
+    // Retired (schema 1-4 and pre-rename generated) layout, leaf-first.
     "skills/work-mode/references",
     "skills/work-mode",
     "skills/autonomous-mode",

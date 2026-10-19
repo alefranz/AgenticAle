@@ -191,7 +191,7 @@ tier edits alone preserve them.
 OpenCode V2 is the one runtime whose documented subagent interface selects a
 preconfigured profile with no documented per-call model override, so the resolved
 routes are materialized as **seven** generated profiles under
-`agents/autonomous/`: `explore`, `implement`, `implement-hard`, `fix`, `review`,
+`agents/agenticale/`: `explore`, `implement`, `implement-hard`, `fix`, `review`,
 `deep-review`, and `consult`. There is no coordinator profile. `implement-hard`
 is a distinct profile that reuses the `implement` task-contract body at a higher
 reasoning effort. Each generated profile carries the adapter's `mode`, `steps`, and

@@ -130,7 +130,7 @@ invocation details.
 ### OpenCode V2 (generated profiles)
 
 Installs the *generated* OpenCode binding: the four skills, seven generated
-agent profiles under `agents/autonomous/`, and the two command entries
+agent profiles under `agents/agenticale/`, and the two command entries
 `commands/work.md` and `commands/autonomous.md` that expose `/work` and
 `/autonomous` in the OpenCode TUI. It copies into the OpenCode configuration
 directory and does not link to the repository source. The default target is
