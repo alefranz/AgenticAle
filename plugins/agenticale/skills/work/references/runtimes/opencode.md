@@ -57,7 +57,77 @@ Before dispatch, compare each resolved selection with the actual profile's
 `model` and `reasoningEffort` fields. The profile is the installed state; no
 second resolved-policy file is needed. Dispatch only a matching profile. If
 none matches, report the limitation and follow the explicit preparation and
-refresh procedure below.
+refresh procedure below. When the activation selected a routing profile, the
+comparison runs against that profile's named set — see the next section.
+
+## Named routing sets on this surface
+
+The seven default generated profile IDs (`agenticale/<role>`) are unchanged.
+When a routing profile is selected for the activation — with `--profile NAME`
+or an unambiguous natural-language instruction per the routing contract — the
+activation resolves its routes with that profile, and the coordinator must use
+an explicitly prepared **named set**: additional user-owned agent files in
+the namespace `agents/agenticale/routing/<profile>/<role>.md`, with dispatch
+identifier `agenticale/routing/<profile>/<role>` (for example
+`agenticale/routing/server-b/implement`). Each named-set profile carries the
+selected profile's resolved model and effort for that role.
+
+Named sets live in the same target directory the installer uses
+(`XDG_CONFIG_HOME/opencode`, otherwise `~/.config/opencode`), but they are
+outside the installer's ownership. The current installer generates and
+manages only the flat default seven under `agents/agenticale/` — its
+install-state validation rejects nested named-set paths — so it never
+creates, refreshes, or touches named-set files. Preparing or refreshing a
+named set is a manual, explicit, user-approved action. Selecting a profile
+never invokes or changes the installer, the default profiles,
+`opencode.jsonc`, or any global host configuration.
+
+**Host acceptance of the `agenticale/routing/...` identifier namespace is not
+verified in this environment.** Before dispatching to a named set, the
+coordinator must confirm that the host accepts the identifier — the child tool
+resolves it to the intended prepared profile, and the available-agents
+listing shows it — and record that confirmation in the session. If the host
+does not accept it, report the limitation with the exact preparation steps
+instead of dispatching.
+
+Selection rule: dispatch a named-set profile only when it matches the routing
+key **and** the current resolved selection — the same model/effort comparison
+as the procedure below. If the named set is missing a file or stale (its
+prepared values differ from the currently resolved selection, for example
+because routing files changed since preparation), report the missing or stale
+routes with the exact preparation steps. Never fall back to the default
+`agenticale/<role>` set for a selected profile, and never treat a
+default-set profile as a substitute for a named one. The exact preparation
+steps reported for a missing or stale named set:
+
+1. Resolve the requested routes with the selected profile:
+
+   ```sh
+   node scripts/routing.mjs resolve --runtime opencode \
+     --input <ordered-structured-layers.json> --profile <name>
+   ```
+
+   The output is the version-1 OpenCode policy: seven routes, each an
+   explicit selection or an intentional inheritance.
+
+2. For each route, create or refresh `agents/agenticale/routing/<name>/<role>.md`
+   by mirroring the matching default profile `agents/agenticale/<role>.md` —
+   the same `description`, `mode`, `steps`, `permissions`, and
+   task-contract body — but with the `model:` and `reasoningEffort:` lines
+   set from that route's resolved selection. Omit both lines for an
+   `inherit` route so the prepared profile inherits the session model. These
+   are user-owned files outside the installer's management; the installer
+   does not create, refresh, or remove them.
+3. Start a new OpenCode session; confirm the host accepts the
+   `agenticale/routing/<name>/<role>` identifiers — they appear in the
+   available-agents listing and the child tool resolves them to the intended
+   prepared profiles — and record the confirmation in the session. If the
+   host does not accept them, report the limitation with these exact steps
+   and do not dispatch.
+4. Before dispatch, compare each route's requested selection with the
+   prepared file's `model` and `reasoningEffort`; report missing or stale
+   routes with these exact steps. Never fall back to the default
+   `agenticale/<role>` set for a selected profile.
 
 ## OpenCode preparation and refresh
 
@@ -176,6 +246,21 @@ supplied at task time stay within the session and do not rewrite
   automatic profile refresh is a later extension, and automatic in-workflow
   refresh is deferred until reload behavior and ownership integration have been
   verified.
+- Named-set identifier acceptance is unverified. Host acceptance of the
+  `agenticale/routing/<profile>/<role>` namespace is not verified in this
+  environment; the coordinator confirms it in the session before dispatch and,
+  when the host does not accept it, reports the limitation with the exact
+  preparation steps.
+- Profile selection never regenerates profiles implicitly. The current
+  installer generates only the default seven — its install-state validation
+  rejects nested named-set paths — so named-set preparation and refresh are
+  manual, and automatic named-set refresh is a later extension; selecting a
+  profile changes no installed profile, `opencode.jsonc`, or global host
+  configuration.
+- Stale or missing named sets are reported, not substituted. A selected
+  profile whose named set is missing or out of date is reported with the exact
+  preparation steps; it is never silently served by the default
+  `agenticale/<role>` set.
 
 The skill selects this binding from the actual runtime/tool surface, not from the
 chosen language model. A surface that is not OpenCode V2 does not use this

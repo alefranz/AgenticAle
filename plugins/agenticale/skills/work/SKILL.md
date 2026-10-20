@@ -1,6 +1,6 @@
 ---
 name: work
-description: "Coordinate an everyday coding task through focused implementation, independent review, and fixes, optionally through opening a PR. Explicit-only: invoke with /work (optionally /work --pr) to start a reviewed task; the model does not start this workflow on its own."
+description: "Coordinate an everyday coding task through focused implementation, independent review, and fixes, optionally through opening a PR. Explicit-only: invoke with /work (optionally /work --pr and /work --profile NAME) to start a reviewed task; the model does not start this workflow on its own."
 version: 1
 slash: true
 disable-model-invocation: true
@@ -32,6 +32,26 @@ current task or ask what to work on; never implicitly resume an autonomous
 handoff. Investigation-only requests stay investigation-only, and a mention of
 an existing PR or a request to address its feedback alone does not authorize
 publishing.
+
+A routing profile is a separate leading option:
+
+- A leading `--profile NAME` or `--profile=NAME` option selects a routing
+  profile; `--` is an explicit option delimiter; option parsing stops at the
+  first non-option token, and the remaining text is the task.
+- A missing profile name (a trailing `--profile`, or one followed by another
+  option), or two different profile names, is reported before dispatch,
+  listing the profile names available for the active runtime.
+- An unambiguous natural-language instruction (for example, "use the
+  server-b routing profile") selects the profile; merely mentioning a profile
+  while discussing the task does not select it.
+- No selector, or `--profile default`, uses the ordinary default routing
+  (installed baseline, personal preferences, project preferences).
+- The selection stays in session state for the activation: a fresh `/work`
+  invocation without a selector returns to default, and the continuation
+  prompt that every incomplete stop carries includes the selected profile so
+  the user can preserve it deliberately.
+- A profile controls child routing only: it never changes the coordinator's
+  model, the runtime, or credentials or endpoints.
 
 ## Start from the requested outcome
 
@@ -119,24 +139,27 @@ mode uses — once per activation, at start:
    non-Git project. Read `<root>/.agenticale/routing.md` and
    `~/.agenticale/routing.md` when present; the project file takes precedence.
    Absence is normal, while a present but unreadable file must be reported.
-3. Interpret active-runtime preferences, then resolve the seven routes. Where
-   Node is available, pass the interpreted structured preferences to the
-   packaged helper:
+3. Interpret active-runtime preferences, including the selected profile's
+   sections, then resolve the seven routes. Where Node is available, pass the
+   interpreted structured preferences to the packaged helper:
 
    ```sh
-   node scripts/routing.mjs resolve --runtime <runtime> --input <structured-layer.json>
+   node scripts/routing.mjs resolve --runtime <runtime> --input <structured-layer.json> [--profile <name>]
    ```
 
    The in-context path follows the same merge rules and keeps each route's
-   source in session state. `--explain` exposes per-route provenance to tools.
+   source in session state. `--explain` exposes per-route provenance and the
+   selected profile to tools.
 4. Check each selection against the binding's exposed dispatch capabilities.
    Surface missing capabilities, unsupported choices, and unresolved
    preferences (unknown roles, undefined tier references) before the affected
-   child runs.
-5. Keep a compact tier summary and role exceptions in session state, with
-   sources (for a tier reference, both the role-selection source and the
-   tier-definition source), and dispatch each round with the snapshot's
-   concrete choice through the binding's native schema.
+   child runs. A selected profile unavailable for the active runtime is
+   surfaced with the actionable list of available names before any dispatch.
+5. Keep the selected profile name (or `default`) with the compact tier
+   summary and role exceptions in session state, with sources (for a tier
+   reference, both the role-selection source and the tier-definition source),
+   and dispatch each round with the snapshot's concrete choice through the
+   binding's native schema.
 
 A missing key in a complete policy is an error, not an implicit inheritance. An
 unsupported request can use only an explicitly configured fallback; it must

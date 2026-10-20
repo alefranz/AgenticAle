@@ -70,7 +70,9 @@ Routing preferences govern only model, effort, and explicit fallback choices.
 They cannot change task scope, workflow budgets, permissions, installation
 ownership, or other skill behavior. Keep the resolved routing snapshot fixed
 for an activation, including context compaction; reload it on a new invocation
-or an explicit request.
+or an explicit request. The selected profile (or the absence of one) is part
+of the snapshot: Work keeps it in session state and Autonomous persists the
+goal's selected name (see the workflow skills).
 
 Preference files belong to the user. Install, update, build, publication, and
 uninstall do not create, overwrite, migrate, or remove them. Missing files mean
@@ -80,26 +82,132 @@ directories, or plugin caches. For Git projects, use the worktree root even
 when invoked below it; for non-Git projects, use the explicitly established
 workspace root.
 
+## Named routing profiles
+
+A routing profile is a collection of overrides — tier definitions and role
+overrides — inside a preference file, selected once per activation. Keep the
+concepts distinct: a tier is one model/effort choice; a role selects a tier or
+an explicit choice; a profile groups overrides for a purpose, such as another
+server or provider. A profile is not a runtime, an account, an endpoint, or a
+machine.
+
+Express profiles as optional `## Profile: <name>` sections in `routing.md`.
+Inside one, runtime sections, tier tables, and role overrides are interpreted
+exactly as in the file's default sections, including the same tolerance for
+clear equivalent prose. Recommended format (a default section plus one partial
+profile):
+
+```markdown
+# AgenticAle model routing
+
+## opencode
+
+### Tiers
+
+| Tier | Model | Reasoning effort |
+| --- | --- | --- |
+| fast | server-a/small-coder | medium |
+| routine | server-a/main-coder | high |
+| standard | provider-main/reviewer | high |
+| deep | provider-main/reviewer | xhigh |
+
+### Role overrides
+
+- review: use the deep tier.
+
+## Profile: server-b
+
+### opencode
+
+#### Tiers
+
+| Tier | Model | Reasoning effort |
+| --- | --- | --- |
+| fast | server-b/small-coder | medium |
+| routine | server-b/main-coder | high |
+```
+
+Profile names are stable lowercase identifiers: 1–40 characters, starting
+with a lowercase letter, then lowercase letters, digits, or hyphens, with no
+trailing hyphen. `default` and `inherit` are reserved. `default` selects the
+ordinary routing — installed baseline, then personal preferences, then project
+preferences, then invocation — and does not mean "ignore my routing.md and use
+the packaged settings".
+
+For a selected profile, precedence is lowest to highest:
+
+1. The installed baseline.
+2. Personal default entries.
+3. Personal entries for the selected profile.
+4. Project default entries.
+5. Project entries for the selected profile.
+6. Default and selected-profile entries from an explicitly supplied
+   invocation Markdown file.
+7. Direct invocation overrides.
+
+A project default entry can override a personal profile entry with the same
+key: if a personal profile redefines the `fast` tier and the project default
+also redefines `fast`, the project's `fast` wins for every default-mapped role
+such as `explore`.
+
+Matching profile names merge across files by entry, following the same
+precedence, so a project file may extend a personal profile by specifying only
+its differences.
+
+Inside a profile, all existing routing semantics apply: omitted entries retain
+the lower-precedence choice, a replacement carries its model, effort, and
+fallbacks atomically, tier definitions and role overrides merge independently,
+tier references resolve after merging, and `role: default`, `tier: default`,
+and `inherit` keep their existing meanings. Changing all four tiers in a
+profile does not clear an existing direct role exception; clear it explicitly
+in the profile's role overrides (`- review: default.`) or at a higher layer.
+
+Select exactly one profile per activation. There is no profile inheritance,
+profile stacking, automatic load balancing, or automatic profile failover.
+
+Selecting an unknown profile produces an actionable error for the active
+runtime: it lists the available profile names, or says that none are defined
+for the runtime and suggests adding a `## Profile: <name>` section to a
+routing.md preference file or omitting the profile selector. A profile defined
+only for another runtime never silently resolves to default. Invalid entries
+in unselected profiles, or in inactive runtime sections, never block an
+otherwise valid selection.
+
+Profiles control child routing only. A profile does not change the actual
+runtime, authenticate an account, configure an endpoint, or move work to
+another machine; different servers or subscriptions are selectable only where
+the current host exposes them as distinct usable provider/model
+configurations. Keep credentials and endpoint setup out of routing files.
+
 ## Deterministic resolution and exports
 
 The workflow interprets Markdown into structured layers and passes those
-layers to the dependency-free helper. The helper validates the active runtime,
-merges entries from lowest to highest precedence, replaces each selected entry
-atomically, resolves all seven roles, and exports a complete version-1 policy.
-It does not discover or parse user files. Without Node, apply these same rules
-in context and keep the source of each role and tier selection so the chosen
-route can be explained.
+layers to the dependency-free helper. A layer optionally carries a `profiles`
+map — profile name to per-runtime tier/role sections in the same shape as the
+layer's `runtimes` — which the workflow interprets from the file's
+`## Profile:` sections. The helper validates the active runtime, checks a
+selected profile's grammar and availability, merges entries from lowest to
+highest precedence, replaces each selected entry atomically, resolves all
+seven roles, and exports a complete version-1 policy. It does not discover or
+parse user files. Without Node, apply these same rules in context and keep the
+source of each role and tier selection so the chosen route can be explained.
 
 ```sh
-node scripts/routing.mjs resolve --runtime codex --input <structured-layer.json>
+node scripts/routing.mjs resolve --runtime codex --input <structured-layer.json> [--profile NAME]
 ```
 
 `--input` is a tooling interface for the interpreted preferences, not a
-second automatically discovered user format. `--explain` returns the policy
-with per-role selection and tier provenance. The plain output remains a strict
-version-1 policy for build tools and OpenCode's installer. Build-time
-`--routing PATH` also accepts complete version-1 policies or version-2
-baselines; `--models` remains the legacy examples importer.
+second automatically discovered user format. `--profile NAME` selects a named
+routing profile from the layers' `profiles` maps; `default` or omission
+selects ordinary routing. `--explain` returns the policy with per-role
+selection and tier provenance plus the selected profile (null for ordinary
+routing); a selected profile's entries resolve through sub-layers labeled
+`<layer source> (profile <name>)`. The plain output remains a strict version-1
+policy for build tools and OpenCode's installer; profile-selection metadata
+and provenance stay in the explanatory output and workflow state, never in the
+strict version-1 export. Build-time `--routing PATH` also accepts complete
+version-1 policies or version-2 baselines; `--models` remains the legacy
+examples importer.
 
 For OpenCode preparation, compare the requested choices against the installed
 profiles and actual profile fields. If refresh is needed, export a complete
