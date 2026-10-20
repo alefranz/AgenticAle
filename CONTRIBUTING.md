@@ -98,13 +98,13 @@ tasks defer versioning to convergence, as described in AGENTS.md.
 
 CI checks the PR's final package against its target branch, including after
 review corrections at the same bumped version. Merge groups use their target
-branch too; only pushes to `main` compare against the previous push. Feature
-branch pushes still run the `Node 24 / ubuntu-latest` check but skip the
-version gate. The `Node 24 / windows-latest` and `Node 24 / macos-latest`
-checks are on-demand: run the Cross-platform workflow (Actions tab or
-`gh workflow run cross-platform.yml`, with `--ref <branch>` to test a
-feature branch) when cross-platform coverage is needed, for example after
-installer or build changes.
+branch too; only pushes to `main` compare against the previous push. Pushes
+to feature branches no longer trigger a direct CI run; the checks for that
+work come from the associated pull request or merge group event. The `Node 24
+/ windows-latest` and `Node 24 / macos-latest` checks are on-demand: run the
+Cross-platform workflow (Actions tab or `gh workflow run cross-platform.yml`,
+with `--ref <branch>` to test a feature branch) when cross-platform coverage
+is needed, for example after installer or build changes.
 
 In GitHub Settings → Rules → Rulesets, configure the rule for `main` to require
 `Plugin version`
