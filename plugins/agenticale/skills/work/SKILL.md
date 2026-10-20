@@ -1,6 +1,6 @@
 ---
 name: work
-description: "Coordinate an everyday coding task through focused implementation, independent review, and fixes, optionally through opening a PR. Explicit-only: invoke with /work (optionally /work --pr and /work --profile NAME) to start a reviewed task; the model does not start this workflow on its own."
+description: "Coordinate an everyday coding task through focused implementation, independent review, and fixes, optionally through a new or existing pull request. Explicit-only: invoke with /work (optionally /work --pr and /work --profile NAME) to start a reviewed task; the model does not start this workflow on its own."
 version: 1
 slash: true
 disable-model-invocation: true
@@ -23,13 +23,20 @@ workflows and do not activate Autonomous Mode.
 ## Entry and arguments
 
 Consume the invoking user's task text directly; do not treat a placeholder
-arguments token as the task. A leading `--pr` option selects delivery through a
-GitHub pull request, and a leading `--stats` option requests a session usage
-summary in the final report; the options are combinable, in either order, and
-the remaining text is the task. `--stats` changes only the delivery report, not
-the task's scope, budget, or permissions. A clear
-natural-language request to open a PR selects the same endpoint. Otherwise use
-the current branch and leave changes uncommitted unless the user or applicable
+arguments token as the task. A leading `--pr` option selects PR delivery:
+complete the implementation and its checks, complete the independent review,
+make coherent task commits, push, and create or update a pull request. A
+leading `--stats` option requests a session usage summary in the final report;
+the options — `--pr`, `--stats`, and `--profile` — are combinable in any
+order, and the remaining text is the task. `--pr` never takes a bare argument:
+task text is never consumed as a PR target, so `/work --pr fix the bug` is PR
+delivery for the task "fix the bug". `--pr=<PR-URL>` selects an exact existing
+PR and authorizes committing and pushing the requested changes to its head
+branch; it is the explicit targeting form for another chat or checkout.
+`--stats` changes only the delivery report, not the task's scope, budget, or
+permissions. An unambiguous natural-language request to commit and push the
+task's updates to a pull request selects the same endpoint. Otherwise use the
+current branch and leave changes uncommitted unless the user or applicable
 repository instructions specify otherwise. With empty input, use an unambiguous
 current task or ask what to work on; never implicitly resume an autonomous
 handoff. Investigation-only requests stay investigation-only, and a mention of
@@ -364,20 +371,34 @@ push, open a PR, or make operational-note commits. Explicit requests to commit
 or push authorize those endpoints without automatically authorizing later ones.
 Repository instructions governing commits still apply.
 
-A leading `--pr` option, or a clear request to complete this task and open a PR,
-authorizes creating a feature branch, making coherent commits, pushing that
-branch, and opening the PR. This is one delivery request: do not ask again for
-each of those actions. A mention of an existing PR or a request to address its
-feedback alone does not select this endpoint. Requests to update an existing PR
-use its branch and PR rather than creating duplicates; push only when requested.
+A leading `--pr` option, or an unambiguous request to commit and push the
+task's updates to a pull request, selects PR delivery: complete the
+implementation and its checks, complete the independent review, make coherent
+task commits, push the task branch, and create or update a pull request. This
+is one delivery request: do not ask again for each of those actions. A mention
+of an existing PR or a request to address its feedback alone does not select
+this endpoint. Publishing intent is task-scoped: a fresh invocation without
+`--pr` (or an unambiguous equivalent request) does not inherit a previous
+task's PR delivery endpoint, while resuming an unfinished task preserves its
+recorded destination and delivery permissions, with the current repository
+state rechecked.
 
 For the PR endpoint:
 
-1. Before implementation, identify the repository, intended base, remote, and
-   whether the task already has a feature branch or PR. Use an existing task
-   branch when appropriate; otherwise create a feature branch from the intended
-   base without discarding work. Resolve ambiguous destinations or unrelated
-   branch history with the user. Check available authentication/tooling early.
+1. Before implementation, resolve the delivery destination: the repository,
+   intended base, the task branch's head branch and head remote identity
+   (including fork pull requests), and whether the task already has a feature
+   branch or an open PR. Select an existing pull request by that identity,
+   never by title or conversation memory alone. When the task branch has a
+   matching open PR, update it; otherwise open a pull request using a suitable
+   existing task branch or a new feature branch from the intended base, in the
+   appropriate checkout and without discarding existing work. `--pr=<PR-URL>`
+   selects that exact existing PR and authorizes committing and pushing the
+   requested changes to its head branch. Briefly announce before
+   implementation whether delivery will create or update a pull request,
+   identifying the resolved destination. Ask only when a material ambiguity or
+   conflict cannot be resolved safely. Check available authentication/tooling
+   early.
 2. Keep worker rounds uncommitted unless repository instructions require
    otherwise. Review the task changes independently before committing; make
    coherent task commits, not one commit for every agent round. Stage only task
@@ -385,15 +406,24 @@ For the PR endpoint:
 3. Before pushing, inspect the full branch diff and outgoing commits against
    the intended base. Ensure they match the requested scope and final reviewed
    content; additional edits must be verified and reviewed as appropriate.
-4. Push the task branch with ordinary Git semantics. Before drafting the PR
+4. Push the task branch with ordinary Git semantics. If a push is rejected
+   because the branch advanced, re-establish the current state and verification
+   requirements before retrying; do not force-push. Before drafting the PR
    body, load `pull-request-description` by exact ID or read its full
    [SKILL.md](../pull-request-description/SKILL.md); apply it to the final
-   reviewed branch diff. Use available GitHub tools to open the PR. Check for
-   an existing matching PR before creation, including after an uncertain tool
-   response. Never retry a creation blindly.
-5. Return the PR URL and verification result. If publication is blocked, report
-   exactly what succeeded and what remains, preserve the completed local work,
-   and include the continuation prompt that every incomplete stop carries.
+   reviewed branch diff. When creating a pull request, check for an existing
+   matching PR before creating one, including after an uncertain tool
+   response, and never retry a creation blindly. A confirmed absence of a
+   matching open PR is safe to create from; a failed lookup is not. Repeated
+   `--pr` refinements reuse the task branch's matching open PR; never create a
+   nested branch or a duplicate PR merely because `--pr` was repeated.
+5. State the actual delivery result and the PR URL in the final report. An
+   inaccessible, closed, merged, or ambiguous explicit `--pr=<PR-URL>` target
+   never falls back to creating a different PR: preserve the completed work
+   and report what is needed to continue. If publication is blocked or
+   interrupted, report exactly what succeeded and what remains, preserve the
+   completed local work, and include the continuation prompt that every
+   incomplete stop carries, with the exact delivery target.
 
 This endpoint does not authorize merging, force-pushing, changing remotes,
 discarding unrelated changes, or publishing a release. If the requested task

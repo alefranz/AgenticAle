@@ -274,6 +274,121 @@ Expected behavior:
   prompt.
 - Do not retry the creation blindly and do not weaken the persistence policy.
 
+## Initial PR creation on a feature branch
+
+The task is requested with `--pr`, the work happens on a feature branch that
+has no open pull request, and the lookup confirms that none exists.
+
+Expected behavior:
+
+- Resolve the repository, intended base, remote, and branch identity before
+  implementation, and briefly announce that delivery will create a pull
+  request, identifying the resolved destination.
+- Check for a matching open PR, create exactly one pull request after
+  confirming its absence, and state the actual delivery result and PR URL in
+  the final report.
+
+## Repeated `--pr` refinements update the same PR
+
+A first `--pr` task created the pull request for the task branch. The user
+refines the work with `/work --pr Tweak the CSV column widths`.
+
+Expected behavior:
+
+- Reuse the task branch's matching open pull request: the refinement commits
+  and pushes to the same branch and the report updates the same pull request.
+- Do not create a nested branch or a duplicate pull request merely because
+  `--pr` was repeated.
+
+## Fresh `/work` after a successful PR task
+
+A `--pr` task finished and its pull request was published. Later, the user
+invokes `/work` without `--pr` and mentions the earlier pull request or asks
+to address its feedback.
+
+Expected behavior:
+
+- Deliver on the current branch with changes uncommitted by default: a fresh
+  invocation without publishing intent does not inherit the previous task's
+  pull request endpoint.
+- The mention of the earlier pull request, or the request to address its
+  feedback alone, does not select the PR delivery endpoint.
+
+## Exact-URL targeting from another chat
+
+From another chat or checkout, the user invokes
+`/work --pr=<PR-URL> Fix the last review comment`.
+
+Expected behavior:
+
+- Resolve the destination before implementation from the repository, head
+  branch, and head remote identity, including fork pull requests; use the
+  appropriate checkout without discarding existing work.
+- Committing and pushing to that pull request's head branch is authorized for
+  the requested changes; the final report states the delivery result and PR
+  URL.
+- Never select a pull request by title or conversation memory alone, and a
+  bare `--pr` never consumes task text as a target: `/work --pr fix the bug`
+  is PR delivery for the task "fix the bug".
+
+## Ambiguous destinations and unusable PR targets
+
+A `--pr` destination cannot be resolved safely; an explicit `--pr=<PR-URL>`
+target is closed, merged, or inaccessible; or the lookup for a matching open
+pull request fails.
+
+Expected behavior:
+
+- Ask only when a material ambiguity or conflict cannot be resolved safely;
+  do not guess the destination.
+- A closed, merged, inaccessible, or ambiguous explicit target never falls
+  back to creating a different pull request: preserve the completed work and
+  report what is needed to continue, with the continuation prompt carrying the
+  exact delivery target.
+- Distinguish a confirmed absence of a matching open PR — safe to create one
+  under a bare `--pr` — from a failed lookup, which is not.
+
+## Unrelated local edits under a `--pr` request
+
+The working tree contains unrelated staged and unstaged changes, and the task
+branch history differs from the intended base beyond the task's own commits.
+
+Expected behavior:
+
+- Stage and commit only the task's changes; preserve unrelated staged and
+  unstaged work.
+- Before pushing, inspect the full branch diff and outgoing commits against
+  the intended base; additional edits must be verified and reviewed as
+  appropriate.
+- When overlapping edits cannot be attributed to the task safely, ask before
+  committing them.
+
+## No-change tasks and interrupted publication
+
+Two situations: a `--pr` task needs no code changes, and publication is
+interrupted after some steps have already succeeded.
+
+Expected behavior:
+
+- No-change task: explain the finding instead of manufacturing an empty pull
+  request.
+- Interrupted publication: report exactly what succeeded and what remains,
+  preserve the completed local work, and include the continuation prompt with
+  the exact delivery target.
+
+## Option parsing alongside `--pr`
+
+The invocation combines a leading `--profile` (or `--profile=NAME`), a
+`--stats`, the `--` option delimiter, or any ordering of them with `--pr` or
+`--pr=<PR-URL>`.
+
+Expected behavior:
+
+- The options are combinable in any order; option parsing stops at the first
+  non-option token, and the remaining text is the task.
+- Existing task-text parsing is unchanged: a bare `--pr` never consumes task
+  text as a PR target, and `--` remains the explicit option delimiter.
+
 ## Hard fix with a configured-policy mismatch
 
 A blocking finding requires ownership-sensitive state-machine reasoning, so

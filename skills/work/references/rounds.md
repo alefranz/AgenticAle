@@ -214,8 +214,13 @@ includes a self-contained, copyable continuation prompt: the outcome and the
 blockers with their evidence, what actually exists (files, branches, commits,
 working tree) and what must be preserved, the recommended next approach, the
 checks and independent review still required before delivery, and the exact
-delivery permissions and restrictions. A fresh session must inspect the current
-checkout and re-establish missing context rather than trusting the prompt.
+delivery permissions and restrictions. When the delivery is PR-based, the
+prompt also carries the exact delivery target: the pull request URL when one
+exists, otherwise the intended repository and head destination — stated as
+not yet created, and including fork destinations — so a fresh session resumes
+the same pull request instead of duplicating it. A fresh session must
+inspect the current checkout and re-establish missing context rather than
+trusting the prompt.
 Reviewed task work keeps the prompt in the stop report only; Autonomous Mode
 carries it in the durable handoff and records allowance usage and any granted
 extensions in the existing state, so a resume or a renamed target cannot evade
