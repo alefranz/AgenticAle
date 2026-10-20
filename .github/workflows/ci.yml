@@ -32,6 +32,9 @@ jobs:
       - name: Test routing
         run: node scripts/test-routing.mjs
 
+      - name: Test session usage stats
+        run: node scripts/test-session-stats.mjs
+
       - name: Test installers (OpenCode + standalone)
         run: node scripts/test-installer.mjs
 

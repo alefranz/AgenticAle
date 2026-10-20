@@ -87,9 +87,10 @@ The authored source-of-truth layout is what `scripts/validate.mjs` asserts
 exists: the two workflow skills plus their `agents/openai.yaml`, the shared
 `rounds.md`, the `ROUTING.md` reference, the `routing.json` defaults baseline,
 the `routing.example.md` customization example, the shared `scripts/routing.mjs`
-module, the five runtime bindings, the six task contracts, the
-`adapters/opencode/` metadata (adapter, command templates, and README), and the
-two supporting skills, for 26 source-of-truth files. The retired layout
+module, the shared `scripts/session-stats.mjs` helper, the five runtime
+bindings, the six task contracts, the `adapters/opencode/` metadata (adapter,
+command templates, and README), and the two supporting skills, for 27
+source-of-truth files. The retired layout
 (`commands/`, `agents/autonomous/`, `skills/work-mode`, `skills/autonomous-mode`)
 must be absent.
 

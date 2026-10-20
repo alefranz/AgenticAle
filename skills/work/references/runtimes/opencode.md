@@ -219,6 +219,24 @@ or route the change through the explicit preparation/refresh path in
 supplied at task time stay within the session and do not rewrite
 `routing.md` or any preference file.
 
+## Session usage summary (opt-in)
+
+The `--stats` option is supported on this surface. The coordinator process's
+`OPENCODE_SESSION_ID` environment variable identifies the coordinator session.
+After the final diff and acceptance checks and before the delivery report, run
+the skill's own stats helper from the installed `skills/work` directory — the
+environment variable supplies the session id, so no argument is needed:
+
+```sh
+node scripts/session-stats.mjs
+```
+
+Include its summary, or a compact excerpt when the table is large, in the
+final report. The helper issues only read-only API queries against the
+running OpenCode server and changes nothing. If the server is unreachable,
+report that the summary could not be produced and continue with the
+remaining delivery.
+
 ## Limitations (stated honestly)
 
 - Task-time arbitrary model overrides are not supported. The child tool selects

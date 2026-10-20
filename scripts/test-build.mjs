@@ -105,9 +105,9 @@ try {
   const standaloneRel = await listRelative(fixture.standaloneRoot);
   const openCodeRel = await listRelative(fixture.openCodeRoot);
 
-  check(pluginRel.length === 23, "plugin bundle has 23 files");
-  check(standaloneRel.length === 22, "standalone bundle has 22 files");
-  check(openCodeRel.length === 31, "OpenCode bundle has 31 files (7 profiles + 2 commands + 22 skills)");
+  check(pluginRel.length === 24, "plugin bundle has 24 files");
+  check(standaloneRel.length === 23, "standalone bundle has 23 files");
+  check(openCodeRel.length === 32, "OpenCode bundle has 32 files (7 profiles + 2 commands + 23 skills)");
 
   // The packaged routing resources (version-2 baseline, Markdown example,
   // and shared resolver module) ship in all three output roots.
@@ -130,6 +130,7 @@ try {
   for (const name of ["work", "autonomous", "pull-request-description", "source-code-lookup"]) {
     check(pluginRel.includes(`skills/${name}/SKILL.md`), `plugin bundle ships ${name}/SKILL.md`);
   }
+  check(pluginRel.includes("skills/work/scripts/session-stats.mjs"), "plugin bundle ships skills/work/scripts/session-stats.mjs");
   const manifest = JSON.parse(await readText(join(fixture.pluginRoot, "plugin.json")));
   check(manifest.name === "agenticale", "plugin manifest name is agenticale");
   check(typeof manifest.$schema === "string" && manifest.$schema.length > 0, "plugin manifest declares a schema");
@@ -139,6 +140,7 @@ try {
   const standaloneTop = new Set(standaloneRel.map((path) => path.split("/")[0]));
   check(JSON.stringify([...standaloneTop].sort()) === JSON.stringify(["autonomous", "pull-request-description", "source-code-lookup", "work"]), "standalone bundle has exactly the four skill folders");
   check(!standaloneRel.some((path) => ["agents", "commands"].includes(path.split("/")[0])), "standalone bundle has no top-level agents/ or commands/");
+  check(standaloneRel.includes("work/scripts/session-stats.mjs"), "standalone bundle ships work/scripts/session-stats.mjs");
 
   // OpenCode root: seven profiles, one per routing key (including implement-hard).
   const allProfiles = ["consult", "deep-review", "explore", "fix", "implement", "implement-hard", "review"];
@@ -148,6 +150,7 @@ try {
 
   // OpenCode command entries: thin launchers for the explicit-only skills.
   check(openCodeRel.includes("commands/work.md") && openCodeRel.includes("commands/autonomous.md"), "OpenCode bundle has the two command entries");
+  check(openCodeRel.includes("skills/work/scripts/session-stats.mjs"), "OpenCode bundle ships skills/work/scripts/session-stats.mjs");
   const workCommand = await readText(join(fixture.openCodeRoot, "commands", "work.md"));
   check(workCommand.includes("`work`") && workCommand.includes("$ARGUMENTS"), "work command loads the work skill by exact ID and passes $ARGUMENTS");
   const autonomousCommand = await readText(join(fixture.openCodeRoot, "commands", "autonomous.md"));

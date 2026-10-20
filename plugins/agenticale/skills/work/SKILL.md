@@ -24,7 +24,10 @@ workflows and do not activate Autonomous Mode.
 
 Consume the invoking user's task text directly; do not treat a placeholder
 arguments token as the task. A leading `--pr` option selects delivery through a
-GitHub pull request, and the remaining text is the task. A clear
+GitHub pull request, and a leading `--stats` option requests a session usage
+summary in the final report; the options are combinable, in either order, and
+the remaining text is the task. `--stats` changes only the delivery report, not
+the task's scope, budget, or permissions. A clear
 natural-language request to open a PR selects the same endpoint. Otherwise use
 the current branch and leave changes uncommitted unless the user or applicable
 repository instructions specify otherwise. With empty input, use an unambiguous
@@ -339,3 +342,10 @@ tests/checks and independent review performed, any material limitations or open
 findings, and the delivery state (uncommitted changes, commits, or PR link).
 Keep the agent ledger out of the default user-facing summary. A clean review
 is evidence of checking, not a guarantee that the change has no defects.
+
+When `--stats` was supplied, follow the active runtime binding's session
+usage summary procedure against the coordinator session and include a compact
+result — overall duration, the per-session table (or a compact excerpt of
+it), totals, and the per-provider breakdown — in the final report. If the
+active binding has no such procedure, state that the option is unsupported
+on the active runtime.
