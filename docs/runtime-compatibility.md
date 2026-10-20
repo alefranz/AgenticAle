@@ -126,6 +126,8 @@ the live OpenCode profile was not changed. Every row below is therefore
 | OpenCode V2 | OpenCode profile-refresh activation | **not tested** (live profile mutation disallowed; temp-dir installer tests cover ownership/collision/rollback) |
 | Google Antigravity (App and CLI) | Markdown preference interpretation and direct child dispatch of resolved routes | **not tested** (live); deterministic structured resolution is covered by `scripts/test-routing.mjs` |
 | All surfaces | Install/update/uninstall preservation of user-owned `routing.md` files | **not tested** live; deterministic evidence in `scripts/test-installer.mjs` |
+| All surfaces | Named routing profile selection, interpretation, and precedence | **not tested** live; deterministic structured resolution is covered by `scripts/test-routing.mjs` |
+| OpenCode V2 | Named routing set (`agenticale/routing/<profile>/<role>`) preparation, requested-versus-prepared comparison, and staleness reporting | **not tested**; host acceptance of the identifier namespace is unverified |
 
 The workflow interprets Markdown into structured preferences. No live client
 was run for this refactor. Live interpretation and dispatch checks follow the same
