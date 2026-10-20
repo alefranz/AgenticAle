@@ -106,6 +106,44 @@ node scripts/install.mjs --target /path/to/opencode --no-model
 root into the installed skill; `SOURCE_ROOT` still takes precedence at lookup
 time.
 
+## The default startup path
+
+You do not need a preference file. With no `routing.md` anywhere and no
+invocation-level preferences — no direct task-time routing choice, no
+explicitly supplied invocation Markdown file, and no profile selected at
+invocation — each activation resolves the installed choices with one
+mechanical helper call from the installed skill and finalizes directly from
+its `resolved` output: no manual bootstrap, and no AgenticAle checkout, even
+when the task is developing AgenticAle itself. With invocation-level
+preferences, that startup output is not final: the workflow interprets the
+choices into the ordered preference layers, lowest to highest precedence as
+the precedence sections below describe, writes them to a temporary file, and
+resolves them with `resolve --input <file> --explain`; that `--explain`
+output is the routing snapshot. The choices apply to that activation only and
+never create a preference file, and an invocation-selected profile that no
+preference file defines fails with the actionable unknown-profile error that
+lists the available names. Missing preference files are
+normal: the workflow never creates configuration and never asks you to
+set up routing, and it stays quiet about routine routing — the details stay
+in the session, and routing information is surfaced only to explain a
+selected profile, a material change, a limitation, or a required user
+action.
+
+The installed choices are whatever your install was built with. For a custom
+install (a `--models` preset, a `--routing` policy, `--no-model`, or an
+`--effort` override), the installed baseline IS your customization: nothing
+is re-derived from the packaged defaults at activation time.
+
+When preference files exist, the workflow reads and interprets them itself
+and resolves the interpreted layers with the helper; the resolver's
+`--input` is a file path of those interpreted layers and is omitted when
+there are no preferences.
+
+On OpenCode, each role's route is compared with its generated profile before
+dispatch. An unavailable role — a missing, stale, or unreadable profile —
+blocks only its own dispatch and is reported with the preparation steps;
+the other roles proceed.
+
 ## User preferences and precedence
 
 The packaged `references/routing.json` supplies defaults. To customize them,

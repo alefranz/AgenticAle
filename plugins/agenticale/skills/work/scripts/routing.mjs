@@ -19,13 +19,18 @@
  *   - strict version-1 export (compatible with the existing validator)
  *   - a `resolve` CLI that reads the installed baseline and an optional
  *     structured invocation patch, then exports the active runtime
+ *   - a `startup` CLI fast path that probes the documented preference
+ *     locations without reading them and either reports that interpretation
+ *     is required or resolves the installed baseline directly, comparing the
+ *     opencode routes (or an explicit --agents-dir) against the installed
+ *     agent profiles
  *
  * Users express preferences in routing.md. The workflow interprets that file
  * into a structured invocation patch for this deterministic resolver.
  */
 
-import { readFileSync } from "node:fs";
-import { readFile, realpath } from "node:fs/promises";
+import { constants, readFileSync } from "node:fs";
+import { access, readFile, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { join, resolve } from "node:path";
@@ -900,27 +905,304 @@ export function discoverPreferencePaths({ projectRoot, homeDir = homedir() } = {
   return [...new Set(paths)];
 }
 
+// The OpenCode install places generated agent profiles at
+// <install>/agents/agenticale/<role>.md: three levels up from this module
+// (<install>/skills/work/scripts/routing.mjs).
+export function installedAgentsDir() {
+  return fileURLToPath(new URL("../../../agents/agenticale/", import.meta.url));
+}
+
+// Probes one documented preference location without ever reading or
+// interpreting its contents: stat (plus an R_OK access probe for regular
+// files) classifies it as "absent", "present", or "unreadable". A directory
+// at the path is unreadable (EISDIR), as is a regular file that is not
+// readable. stat-level failures other than ENOENT/ENOTDIR are treated as
+// unreadable, because the location cannot then be proven empty.
+async function inspectPreferenceFile(location, path) {
+  let stats;
+  try {
+    stats = await stat(path);
+  } catch (error) {
+    if (error.code === "ENOENT" || error.code === "ENOTDIR") {
+      return { location, path, state: "absent" };
+    }
+    return { location, path, state: "unreadable", reason: error.code ?? error.message };
+  }
+  if (!stats.isFile()) {
+    return {
+      location,
+      path,
+      state: "unreadable",
+      reason: stats.isDirectory()
+        ? "the path is a directory (EISDIR), not a preference file"
+        : "the path is not a regular file",
+    };
+  }
+  try {
+    await access(path, constants.R_OK);
+  } catch (error) {
+    return { location, path, state: "unreadable", reason: error.code ?? error.message };
+  }
+  return { location, path, state: "present" };
+}
+
+function unreadablePreferenceFileError(info) {
+  return new RoutingError(
+    `The ${info.location} routing.md preference file ${info.path} exists but cannot be read: ${info.reason}. startup never creates or modifies preference files; make the file readable (or remove it) and retry.`,
+  );
+}
+
+// Minimal frontmatter reader for generated agent profiles: the file must
+// start with a '---' line and carry a closing '---' line. Only top-level
+// 'model:' and 'reasoningEffort:' lines are extracted; this is not a general
+// YAML parser, and indented (nested) lines are ignored. Returns
+// { fields, duplicate }: fields is null when the file has no parseable
+// frontmatter, and duplicate names the field (or is null) when the same
+// top-level 'model:' or 'reasoningEffort:' line appears more than once, which
+// makes the profile ambiguous.
+function parseAgentFrontmatter(text) {
+  const lines = text.split(/\r?\n/);
+  if (lines.length === 0 || lines[0].trim() !== "---") return { fields: null, duplicate: null };
+  let close = -1;
+  for (let index = 1; index < lines.length; index += 1) {
+    if (lines[index].trim() === "---") {
+      close = index;
+      break;
+    }
+  }
+  if (close === -1) return { fields: null, duplicate: null };
+  const fields = {};
+  let duplicate = null;
+  for (let index = 1; index < close; index += 1) {
+    const line = lines[index];
+    if (line.length === 0 || line.startsWith(" ") || line.startsWith("\t")) continue;
+    const colon = line.indexOf(":");
+    if (colon <= 0) continue;
+    const key = line.slice(0, colon).trim();
+    if (key !== "model" && key !== "reasoningEffort") continue;
+    let value = line.slice(colon + 1).trim();
+    if (value.length >= 2 && ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'")))) {
+      value = value.slice(1, -1);
+    }
+    if (fields[key] === undefined) {
+      fields[key] = value;
+    } else if (duplicate === null) {
+      duplicate = key;
+    }
+  }
+  return { fields, duplicate };
+}
+
+// Compares the resolved routes of one runtime against the installed agent
+// profiles. Per-role statuses: "match", "mismatch" (with a compact note plus
+// the expected and installed values), "missing" (no file), "unreadable"
+// (file unreadable, no parseable frontmatter, or a duplicated 'model:' /
+// 'reasoningEffort:' field that makes the profile ambiguous). A missing or unreadable
+// agents directory reports every role as "missing" plus a directory-level
+// agentsNote. An inherit route matches a profile with no 'model:' line; an
+// explicit route matches on model equality and, for effort-capable runtimes,
+// reasoningEffort equality.
+async function compareAgentProfiles(agentsDir, routes, runtime) {
+  let dirProblem = null;
+  try {
+    const dirStats = await stat(agentsDir);
+    if (!dirStats.isDirectory()) {
+      dirProblem = `agents directory ${agentsDir} is not a directory`;
+    }
+  } catch (error) {
+    dirProblem = error.code === "ENOENT" || error.code === "ENOTDIR"
+      ? `agents directory ${agentsDir} does not exist`
+      : `agents directory ${agentsDir} cannot be read (${error.code ?? error.message})`;
+  }
+  if (dirProblem !== null) {
+    return {
+      agentsNote: `${dirProblem}; no installed agent profiles were found, so every role is reported missing.`,
+      agents: Object.fromEntries(ROLES.map((role) => [role, { status: "missing" }])),
+    };
+  }
+  const supportsEffort = runtimeSupportsEffort(runtime);
+  const agents = {};
+  for (const role of ROLES) {
+    const profilePath = join(agentsDir, `${role}.md`);
+    let text;
+    try {
+      text = await readFile(profilePath, "utf8");
+    } catch (error) {
+      if (error.code === "ENOENT" || error.code === "ENOTDIR") {
+        agents[role] = { status: "missing" };
+      } else {
+        agents[role] = { status: "unreadable", note: `cannot read ${role}.md: ${error.code ?? error.message}` };
+      }
+      continue;
+    }
+    const parsed = parseAgentFrontmatter(text);
+    if (parsed.fields === null) {
+      agents[role] = {
+        status: "unreadable",
+        note: `${role}.md has no parseable frontmatter (expected a leading '---' block with a closing '---' line).`,
+      };
+      continue;
+    }
+    if (parsed.duplicate !== null) {
+      agents[role] = {
+        status: "unreadable",
+        note: `${role}.md declares the '${parsed.duplicate}' frontmatter field more than once; the profile is ambiguous and cannot be compared.`,
+      };
+      continue;
+    }
+    const fields = parsed.fields;
+    const route = routes[role];
+    const installed = { model: fields.model ?? null };
+    if (fields.reasoningEffort !== undefined) {
+      installed.reasoningEffort = fields.reasoningEffort;
+    }
+    if (route.mode === "inherit") {
+      if (installed.model === null) {
+        agents[role] = { status: "match" };
+      } else {
+        agents[role] = {
+          status: "mismatch",
+          note: `expected inherit (no model line) but ${role}.md declares model '${installed.model}'.`,
+          expected: { mode: "inherit" },
+          installed,
+        };
+      }
+      continue;
+    }
+    const expected = { model: route.model };
+    if (supportsEffort) {
+      expected.reasoningEffort = route.reasoningEffort;
+    }
+    const problems = [];
+    if (installed.model !== expected.model) {
+      problems.push(`model expected '${expected.model}' but ${role}.md declares '${installed.model}'`);
+    }
+    if (supportsEffort && installed.reasoningEffort !== expected.reasoningEffort) {
+      problems.push(`reasoningEffort expected '${expected.reasoningEffort}' but ${role}.md declares '${installed.reasoningEffort ?? "(none)"}'`);
+    }
+    if (problems.length === 0) {
+      agents[role] = { status: "match" };
+    } else {
+      agents[role] = { status: "mismatch", note: `${problems.join("; ")}.`, expected, installed };
+    }
+  }
+  return { agentsNote: null, agents };
+}
+
+// The startup fast path: probe the documented preference locations without
+// reading their contents. When a file is present the workflow must interpret
+// the Markdown itself and then call `resolve --input <file>` with the
+// interpreted structured layers; when none is present the installed baseline
+// is resolved directly with no preference layers (no temporary file is
+// created), the selected profile is applied, and for opencode (or an explicit
+// --agents-dir) the resolved routes are compared against the installed agent
+// profiles.
+async function runStartup(options) {
+  const profile = normalizeProfileSelection(options.profile);
+  const home = resolve(homedir());
+  const targets = [{ location: "personal", path: join(home, ".agenticale", "routing.md") }];
+  let projectPath = null;
+  if (options.root !== null) {
+    const root = resolve(options.root);
+    // Same dedup rule as discoverPreferencePaths: when the exact project root
+    // resolves to the home directory the two documented locations are the
+    // same file; it is reported once under 'personal' and the project key
+    // stays 'not-checked'.
+    if (root !== home) {
+      projectPath = join(root, ".agenticale", "routing.md");
+      targets.push({ location: "project", path: projectPath });
+    }
+  }
+  const stateByLocation = new Map();
+  const presentFiles = [];
+  for (const target of targets) {
+    const info = await inspectPreferenceFile(target.location, target.path);
+    if (info.state === "unreadable") throw unreadablePreferenceFileError(info);
+    stateByLocation.set(target.location, info.state);
+    if (info.state === "present") presentFiles.push(info.path);
+  }
+  const preferenceFiles = {
+    personal: stateByLocation.get("personal"),
+    project: projectPath === null ? "not-checked" : stateByLocation.get("project"),
+  };
+  if (presentFiles.length > 0) {
+    process.stdout.write(`${JSON.stringify({
+      status: "interpretation-required",
+      runtime: options.runtime,
+      profile,
+      preferenceFiles,
+      presentFiles,
+    }, null, 2)}\n`);
+    return;
+  }
+  let baseline;
+  try {
+    baseline = await loadPackagedBaseline();
+  } catch (error) {
+    if (error instanceof RoutingError) throw error;
+    throw new RoutingError(`Cannot load the installed baseline ${packagedBaselinePath()}: ${error.message}`);
+  }
+  const resolution = resolveRuntime(baseline, [], options.runtime, profile);
+  const routeProvenance = Object.fromEntries(ROLES.map((role) => [role, resolution.routes[role].provenance]));
+  const policy = exportV1(resolution.routes, resolution.runtime, `Resolved from the installed version-2 baseline (${packagedBaselinePath()}).`);
+  const output = {
+    status: "resolved",
+    runtime: options.runtime,
+    profile,
+    preferenceFiles,
+    policy,
+    routeProvenance,
+  };
+  if (options.runtime === "opencode" || options.agentsDir !== null) {
+    const agentsDir = options.agentsDir !== null ? options.agentsDir : installedAgentsDir();
+    const comparison = await compareAgentProfiles(agentsDir, resolution.routes, options.runtime);
+    output.agents = comparison.agents;
+    if (comparison.agentsNote !== null) output.agentsNote = comparison.agentsNote;
+  }
+  process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
+}
+
 function cliUsage() {
   return `Usage:
-  node routing.mjs resolve --runtime RUNTIME [--baseline PATH] [--input PATH] [--profile NAME]
+  node routing.mjs resolve --runtime RUNTIME [--baseline PATH] [--input PATH] [--profile NAME] [--explain]
+  node routing.mjs startup --runtime RUNTIME [--root PATH] [--profile NAME] [--agents-dir PATH]
 
-Resolves the installed version-2 baseline and an optional structured input
-layer. Prints a version-1 policy for the complete active runtime on stdout.
+resolve reads the installed version-2 baseline and an optional structured
+input layer, then prints a version-1 policy for the complete active runtime
+on stdout. startup checks the documented preference locations without
+reading their contents: when a file is present it prints an
+"interpretation-required" result for the workflow (which then interprets the
+Markdown and calls \`resolve --input <file>\`); when none is present it
+resolves the installed baseline directly and, for opencode or with
+--agents-dir, compares the resolved routes against the installed agent
+profiles.
 
   --runtime RUNTIME   Active runtime: copilot, codex, opencode, or antigravity (required)
-  --baseline PATH     Version-2 baseline (default: the packaged
+  --baseline PATH     (resolve) Version-2 baseline (default: the packaged
                       references/routing.json beside this module)
-  --input PATH        Optional structured preference JSON (one layer or an
-                      array of layers), typically interpreted from routing.md.
+  --input PATH        (resolve) Optional FILE PATH of structured preference
+                      JSON (one layer or an array of layers), typically the
+                      interpreted form of a routing.md preference file. It is
+                      a path to a JSON file, never inline JSON, and it is
+                      omitted when there are no preferences.
   --profile NAME      Optional named routing profile from a preference layer's
                       profiles section; 'default' (or omission) selects
                       ordinary routing.
-  --explain           Wrap the policy with per-role selection/tier provenance
-                      and the selected profile (null for ordinary routing).
+  --explain           (resolve) Wrap the policy with per-role selection/tier
+                      provenance and the selected profile (null for ordinary
+                      routing).
+  --root PATH         (startup) Project root for the project preference
+                      location <root>/.agenticale/routing.md (exact path, no
+                      parent scanning); deduplicated against the personal
+                      location when it is the home directory.
+  --agents-dir PATH   (startup) Agents directory to compare against, holding
+                      <role>.md files. Default for opencode:
+                      <install>/agents/agenticale/ beside this skill.
 
-The helper does not discover user files. The workflow reads routing.md and
-passes bounded structured preferences here. Errors identify runtime, role,
-tier, and source.`;
+resolve does not discover or parse user files: the workflow reads routing.md
+and passes bounded structured preferences here as \`resolve --input <file>\`.
+startup only checks the documented locations' existence and readability; it
+never reads their contents. Errors identify runtime, role, tier, and source.`;
 }
 
 function requireCliValue(argv, index, option) {
@@ -983,34 +1265,40 @@ async function main() {
     console.log(cliUsage());
     return;
   }
-  if (argv.length === 0 || argv[0] !== "resolve") {
+  if (argv.length === 0 || (argv[0] !== "resolve" && argv[0] !== "startup")) {
     console.error(cliUsage());
     process.exitCode = 1;
     return;
   }
+  const command = argv[0];
   let runtime = null;
-  let baseline = null;
-  let input = null;
   let profile = null;
-  let explain = false;
+  const resolveOptions = { baseline: null, input: null, explain: false };
+  const startupOptions = { root: null, agentsDir: null };
   for (let index = 1; index < argv.length; index += 1) {
     const argument = argv[index];
     if (argument === "--runtime") {
       runtime = requireCliValue(argv, index, argument);
-      index += 1;
-    } else if (argument === "--baseline") {
-      baseline = resolve(requireCliValue(argv, index, argument));
-      index += 1;
-    } else if (argument === "--input") {
-      input = resolve(requireCliValue(argv, index, argument));
       index += 1;
     } else if (argument === "--profile") {
       profile = requireCliValue(argv, index, argument);
       index += 1;
     } else if (argument.startsWith("--profile=")) {
       profile = argument.slice("--profile=".length);
-    } else if (argument === "--explain") {
-      explain = true;
+    } else if (command === "resolve" && argument === "--baseline") {
+      resolveOptions.baseline = resolve(requireCliValue(argv, index, argument));
+      index += 1;
+    } else if (command === "resolve" && argument === "--input") {
+      resolveOptions.input = resolve(requireCliValue(argv, index, argument));
+      index += 1;
+    } else if (command === "resolve" && argument === "--explain") {
+      resolveOptions.explain = true;
+    } else if (command === "startup" && argument === "--root") {
+      startupOptions.root = requireCliValue(argv, index, argument);
+      index += 1;
+    } else if (command === "startup" && argument === "--agents-dir") {
+      startupOptions.agentsDir = resolve(requireCliValue(argv, index, argument));
+      index += 1;
     } else {
       throw new RoutingError(`Unknown argument '${argument}'. Run with --help for usage.`);
     }
@@ -1019,7 +1307,22 @@ async function main() {
   if (!RUNTIME_KEYS.includes(runtime)) {
     throw new RoutingError(`--runtime must be one of ${RUNTIME_KEYS.join(", ")} (got '${runtime}').`);
   }
-  await runResolve({ runtime, baseline: baseline ?? packagedBaselinePath(), input, profile, explain });
+  if (command === "resolve") {
+    await runResolve({
+      runtime,
+      baseline: resolveOptions.baseline ?? packagedBaselinePath(),
+      input: resolveOptions.input,
+      profile,
+      explain: resolveOptions.explain,
+    });
+  } else {
+    await runStartup({
+      runtime,
+      root: startupOptions.root,
+      profile,
+      agentsDir: startupOptions.agentsDir,
+    });
+  }
 }
 
 if (process.argv[1] && await realpath(process.argv[1]) === await realpath(fileURLToPath(import.meta.url))) {

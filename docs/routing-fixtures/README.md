@@ -56,3 +56,6 @@ explore to `fast`, implement/fix to `routine`, implement-hard/review to
 | `13-profile-exceptions.md` | A direct role exception survives profile tier changes unless explicitly cleared |
 | `14-profile-inactive-and-invalid.md` | Invalid or other-runtime profiles never block an otherwise valid selection |
 | `15-opencode-named-sets.md` | OpenCode named sets: stale or missing routes are reported, never substituted by the default set |
+| `16-default-startup-short-path.md` | No preference files: one mechanical `startup` call finalizes the installed choices, quietly, creating nothing |
+| `17-startup-errors.md` | Startup-path errors: an unreadable preference file fails the probe itself; an invocation-selected profile with no files is reported once by the final resolution, the startup's unknown-profile result being provisional |
+| `18-unavailable-agent-roles.md` | An unavailable OpenCode role blocks only its own dispatch; invocation overrides compare against the final snapshot, not the startup's baseline `agents` entries; a profile defined by the invocation Markdown itself is valid, the startup's unknown-profile result being provisional |

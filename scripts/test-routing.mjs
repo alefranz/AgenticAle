@@ -3,10 +3,10 @@
 // (skills/work/scripts/routing.mjs): the phase 1-2 machine contracts of
 // docs/model-routing-customization-plan.md section 10.1. These prove the
 // resolver, validators, normalization, export, and the installed-fixture
-// `resolve` CLI; they do not interpret prose and never touch the real
-// user's home, plugin store, or live profile.
+// `resolve` and `startup` CLIs; they do not interpret prose and never touch
+// the real user's home, plugin store, or live profile.
 
-import { mkdtemp, mkdir, readFile, rm, cp, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, rm, cp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -1181,6 +1181,320 @@ try {
   check(cliProfUnknown.stderr.includes("server-b") && cliProfUnknown.stderr.includes("alternate-provider"), "the unknown-profile stderr lists the available names");
   const cliProfBadName = cli(["resolve", "--runtime", "codex", "--profile", "Bad-Name"], cliProfilePref);
   check(cliProfBadName.status === 1 && /Invalid routing profile 'Bad-Name'/.test(cliProfBadName.stderr), "an invalid profile name exits non-zero with the grammar error");
+
+  // --- Installed-fixture `startup` CLI: the fast path probes the documented
+  // preference locations without reading them, reports interpretation-required
+  // or resolves the installed baseline directly, and compares opencode routes
+  // against the installed agent profiles. A deep fixture mirrors the real
+  // install layout so the install-relative agents directory works. ---
+  const startupFixture = await mkdtemp(join(scratch, "startup-"));
+  const startupHome = join(startupFixture, "home");
+  const startupProject = join(startupFixture, "project");
+  const startupAgentsDir = join(startupFixture, "agents", "agenticale");
+  const startupBaselinePath = join(startupFixture, "skills", "work", "references", "routing.json");
+  await mkdir(startupHome, { recursive: true });
+  await mkdir(startupProject, { recursive: true });
+  await mkdir(join(startupFixture, "skills", "work", "scripts"), { recursive: true });
+  await mkdir(join(startupFixture, "skills", "work", "references"), { recursive: true });
+  await cp(modulePath, join(startupFixture, "skills", "work", "scripts", "routing.mjs"), { recursive: true });
+  await writeFile(startupBaselinePath, `${JSON.stringify(packaged, null, 2)}\n`, "utf8");
+  const startupCli = (args, homeOverride = startupHome) => spawnSync(process.execPath, [join(startupFixture, "skills", "work", "scripts", "routing.mjs"), ...args], {
+    encoding: "utf8",
+    input: "",
+    cwd: startupFixture,
+    env: { ...process.env, HOME: homeOverride, USERPROFILE: homeOverride },
+  });
+  const personalRoutingMd = join(startupHome, ".agenticale", "routing.md");
+  const projectRoutingMd = join(startupProject, ".agenticale", "routing.md");
+  const putPersonalRouting = async () => {
+    await mkdir(join(startupHome, ".agenticale"), { recursive: true });
+    await writeFile(personalRoutingMd, "# Personal routing\nExplore on the fast tier.\n", "utf8");
+  };
+  const putProjectRouting = async () => {
+    await mkdir(join(startupProject, ".agenticale"), { recursive: true });
+    await writeFile(projectRoutingMd, "# Project routing\nReview on the standard tier.\n", "utf8");
+  };
+  const clearPersonal = () => rm(personalRoutingMd, { recursive: true, force: true });
+  const clearProject = () => rm(projectRoutingMd, { recursive: true, force: true });
+  const opencodeRouteFor = (role) => resolveRuntime(packaged, [], "opencode").routes[role];
+  const agentProfileFile = (model, reasoningEffort) => {
+    const lines = ["---", "description: Generated test profile.", "mode: subagent", "steps: 12"];
+    if (model !== null) lines.push(`model: ${model}`);
+    if (reasoningEffort !== null) lines.push(`reasoningEffort: ${reasoningEffort}`);
+    lines.push("permissions:", '  - action: subagent', '    resource: "*"', "    effect: deny", "---", "", "# Role task contract", "");
+    return lines.join("\n");
+  };
+
+  // 1. No preference files: exit 0, status resolved, both locations absent,
+  // the packaged baseline resolution, and a read-only bootstrap (no files
+  // created under the scratch home or project). A non-opencode runtime without
+  // --agents-dir omits the agents key entirely (15).
+  const st1 = startupCli(["startup", "--runtime", "codex", "--root", startupProject]);
+  check(st1.status === 0, `startup with no preference files exits 0${st1.status === 0 ? "" : ` (stderr: ${st1.stderr.trim()})`}`);
+  const st1Out = JSON.parse(st1.stdout);
+  check(st1Out.status === "resolved", "no preference files resolve the installed baseline directly");
+  check(JSON.stringify(Object.keys(st1Out)) === JSON.stringify(["status", "runtime", "profile", "preferenceFiles", "policy", "routeProvenance"]), "resolved output uses the documented key order and omits agents for non-opencode without --agents-dir");
+  check(st1Out.runtime === "codex" && st1Out.profile === null, "resolved output reports the runtime and a null profile");
+  check(st1Out.preferenceFiles.personal === "absent" && st1Out.preferenceFiles.project === "absent", "no preference files report both documented locations absent");
+  let st1StrictError = null;
+  try {
+    strictValidateRouting(st1Out.policy);
+  } catch (error) {
+    st1StrictError = error;
+  }
+  check(st1StrictError === null, `startup policy passes strictValidateRouting${st1StrictError ? ` (${st1StrictError.message})` : ""}`);
+  const st1Expected = exportV1(resolveRuntime(packaged, [], "codex").routes, "codex", "startup expected");
+  check(JSON.stringify(st1Out.policy.runtimes) === JSON.stringify(st1Expected.runtimes), "startup policy equals the packaged baseline resolution");
+  check(JSON.stringify(Object.keys(st1Out.routeProvenance).sort()) === JSON.stringify([...ROLES].sort()), "startup reports per-role routeProvenance for all seven roles");
+  check(st1Out.routeProvenance.explore.selection === "default-tier-mapping" && st1Out.routeProvenance.explore.tier === "fast" && st1Out.routeProvenance.explore.tierSource === BASELINE_SOURCE, "startup provenance carries the default-tier-mapping labels");
+  check(st1Out.policy.runtimes.codex.explore.model === packaged.runtimes.codex.tiers.fast.model, "the startup policy keeps the packaged explicit selection");
+  const st1HomeEntries = await readdir(startupHome);
+  check(st1HomeEntries.length === 0, "startup creates no files under the home directory (read-only bootstrap)");
+  const st1ProjectEntries = await readdir(startupProject);
+  check(st1ProjectEntries.length === 0, "startup creates no files under the project directory (read-only bootstrap)");
+
+  // 14. Agents dir missing for opencode: every role "missing" + agentsNote.
+  const st14 = startupCli(["startup", "--runtime", "opencode", "--root", startupProject]);
+  check(st14.status === 0, `startup for opencode exits 0 with the installed agents directory missing${st14.status === 0 ? "" : ` (stderr: ${st14.stderr.trim()})`}`);
+  const st14Out = JSON.parse(st14.stdout);
+  check(st14Out.status === "resolved", "opencode resolves even when the agents directory is missing");
+  check(JSON.stringify(Object.keys(st14Out.agents).sort()) === JSON.stringify([...ROLES].sort()), "opencode compares all seven agent profiles");
+  for (const role of ROLES) {
+    check(st14Out.agents[role].status === "missing", `a missing agents directory reports ${role} missing`);
+  }
+  check(typeof st14Out.agentsNote === "string" && st14Out.agentsNote.includes(startupAgentsDir) && st14Out.agentsNote.includes("does not exist"), "agentsNote explains the missing agents directory");
+
+  // 2. Personal file present: interpretation-required listing exactly the
+  // personal path, with no policy.
+  await putPersonalRouting();
+  const st2 = startupCli(["startup", "--runtime", "codex", "--root", startupProject]);
+  check(st2.status === 0, `startup with a personal preference file exits 0${st2.status === 0 ? "" : ` (stderr: ${st2.stderr.trim()})`}`);
+  const st2Out = JSON.parse(st2.stdout);
+  check(st2Out.status === "interpretation-required", "a present preference file requires workflow interpretation");
+  check(JSON.stringify(Object.keys(st2Out)) === JSON.stringify(["status", "runtime", "profile", "preferenceFiles", "presentFiles"]), "interpretation-required output uses the documented key order");
+  check(JSON.stringify(st2Out.presentFiles) === JSON.stringify([personalRoutingMd]), "interpretation-required lists exactly the personal file");
+  check(st2Out.preferenceFiles.personal === "present" && st2Out.preferenceFiles.project === "absent", "preferenceFiles records the personal file as present");
+  check(st2Out.profile === null, "interpretation-required reports a null profile by default");
+  check(!("policy" in st2Out) && !("routeProvenance" in st2Out) && !("agents" in st2Out), "interpretation-required resolves nothing and compares no agents");
+  await clearPersonal();
+
+  // 3. Project file present; both present.
+  await putProjectRouting();
+  const st3 = startupCli(["startup", "--runtime", "codex", "--root", startupProject]);
+  const st3Out = JSON.parse(st3.stdout);
+  check(st3.status === 0 && st3Out.status === "interpretation-required", "a project preference file requires interpretation");
+  check(JSON.stringify(st3Out.presentFiles) === JSON.stringify([projectRoutingMd]), "interpretation-required lists exactly the project file");
+  check(st3Out.preferenceFiles.personal === "absent" && st3Out.preferenceFiles.project === "present", "preferenceFiles records the project file as present");
+  await putPersonalRouting();
+  const st3b = startupCli(["startup", "--runtime", "codex", "--root", startupProject]);
+  const st3bOut = JSON.parse(st3b.stdout);
+  check(st3b.status === 0 && st3bOut.status === "interpretation-required", "both preference files present requires interpretation");
+  check(JSON.stringify(st3bOut.presentFiles) === JSON.stringify([personalRoutingMd, projectRoutingMd]), "interpretation-required lists the personal file first, then the project file");
+  check(st3bOut.preferenceFiles.personal === "present" && st3bOut.preferenceFiles.project === "present", "preferenceFiles records both files as present");
+  await clearPersonal();
+  await clearProject();
+
+  // 4/5. A directory at the preference path simulates an unreadable file
+  // without relying on chmod (the tests may run as root).
+  await mkdir(personalRoutingMd, { recursive: true });
+  const st4 = startupCli(["startup", "--runtime", "codex", "--root", startupProject]);
+  check(st4.status === 1, "an unreadable personal preference file exits 1");
+  check(st4.stderr.includes("personal") && st4.stderr.includes(personalRoutingMd) && st4.stderr.includes("cannot be read"), "the unreadable-personal error names the location, the path, and that it cannot be read");
+  check(st4.stderr.includes("never creates or modifies preference files"), "the unreadable-personal error states that startup never writes preference files");
+  check(st4.stdout === "", "an unreadable personal preference file prints no JSON on stdout");
+  await clearPersonal();
+  await mkdir(projectRoutingMd, { recursive: true });
+  const st5 = startupCli(["startup", "--runtime", "codex", "--root", startupProject]);
+  check(st5.status === 1, "an unreadable project preference file exits 1");
+  check(st5.stderr.includes("project") && st5.stderr.includes(projectRoutingMd) && st5.stderr.includes("cannot be read"), "the unreadable-project error names the project location and the path");
+  await clearProject();
+
+  // 6. An unknown profile with no preference files fails with the same
+  // actionable unknown-profile RoutingError resolve produces.
+  const st6 = startupCli(["startup", "--runtime", "codex", "--root", startupProject, "--profile", "nope"]);
+  check(st6.status === 1, "an unknown profile with no preference files exits 1");
+  check(st6.stderr.includes("Unknown routing profile 'nope'"), "the startup unknown-profile error is the resolve unknown-profile error");
+  check(st6.stderr.includes("add a '## Profile: nope' section"), "the startup unknown-profile error suggests adding a Profile section");
+  check(st6.stderr.includes("omit the profile selector"), "the startup unknown-profile error suggests omitting the selector");
+
+  // 7. --profile default equals the no-profile run.
+  const st7a = startupCli(["startup", "--runtime", "codex", "--root", startupProject]);
+  const st7b = startupCli(["startup", "--runtime", "codex", "--root", startupProject, "--profile", "default"]);
+  check(st7a.status === 0 && st7b.status === 0, `startup --profile default exits 0${st7a.status === 0 && st7b.status === 0 ? "" : ` (stderr: ${st7a.stderr.trim()} ${st7b.stderr.trim()})`}`);
+  check(JSON.stringify(st7a.stdout) === JSON.stringify(st7b.stdout), "startup --profile default equals the no-profile run");
+  const st7c = startupCli(["startup", "--runtime", "codex", "--root", startupProject, "--profile=fast"]);
+  check(st7c.status === 1 && st7c.stderr.includes("Unknown routing profile 'fast'"), "the --profile=NAME form with an unknown name fails like the space form");
+
+  // 8. A customized installed baseline (install-time role exceptions) is
+  // resolved directly by startup.
+  const customBaseline = structuredClone(packaged);
+  customBaseline.provenance = "customized install baseline";
+  customBaseline.runtimes.codex.roles.review = explicit("custom/codex-review", "low");
+  await writeFile(startupBaselinePath, `${JSON.stringify(customBaseline, null, 2)}\n`, "utf8");
+  const st8 = startupCli(["startup", "--runtime", "codex", "--root", startupProject]);
+  check(st8.status === 0, `startup resolves a customized installed baseline${st8.status === 0 ? "" : ` (stderr: ${st8.stderr.trim()})`}`);
+  const st8Out = JSON.parse(st8.stdout);
+  check(st8Out.status === "resolved", "a customized installed baseline still takes the short resolved path");
+  check(st8Out.policy.runtimes.codex.review.model === "custom/codex-review" && st8Out.policy.runtimes.codex.review.reasoningEffort === "low", "install-time role choices are preserved in the startup resolution");
+  check(st8Out.routeProvenance.review.selection === "role-exception" && st8Out.routeProvenance.review.roleSource === BASELINE_SOURCE, "the install-time role exception carries baseline provenance");
+  check(st8Out.policy.runtimes.codex.explore.model === packaged.runtimes.codex.tiers.fast.model, "roles without install-time choices keep the packaged selection");
+  await writeFile(startupBaselinePath, `${JSON.stringify(packaged, null, 2)}\n`, "utf8");
+
+  // 9. Build the installed agent profiles so every opencode route matches.
+  await mkdir(startupAgentsDir, { recursive: true });
+  for (const role of ROLES) {
+    const route = opencodeRouteFor(role);
+    await writeFile(join(startupAgentsDir, `${role}.md`), agentProfileFile(route.model, route.reasoningEffort), "utf8");
+  }
+  const st9 = startupCli(["startup", "--runtime", "opencode", "--root", startupProject]);
+  check(st9.status === 0, `startup with installed agent profiles exits 0${st9.status === 0 ? "" : ` (stderr: ${st9.stderr.trim()})`}`);
+  const st9Out = JSON.parse(st9.stdout);
+  check(st9Out.status === "resolved", "opencode with installed profiles resolves");
+  check(!("agentsNote" in st9Out), "a fully readable agents directory produces no agentsNote");
+  for (const role of ROLES) {
+    check(st9Out.agents[role].status === "match", `the installed profile for ${role} matches the resolved route`);
+  }
+
+  // 10. One role file deleted: that role "missing", the others "match".
+  await rm(join(startupAgentsDir, "consult.md"), { force: true });
+  const st10 = startupCli(["startup", "--runtime", "opencode", "--root", startupProject]);
+  const st10Out = JSON.parse(st10.stdout);
+  check(st10Out.agents.consult.status === "missing", "a deleted agent profile file reports missing for its role");
+  for (const role of ROLES.filter((r) => r !== "consult")) {
+    check(st10Out.agents[role].status === "match", `the other agent profiles still match when ${role} is checked`);
+  }
+  await writeFile(join(startupAgentsDir, "consult.md"), agentProfileFile(opencodeRouteFor("consult").model, opencodeRouteFor("consult").reasoningEffort), "utf8");
+
+  // 11. One role file with a different model and one with a different
+  // reasoningEffort: "mismatch" with the expected/installed values in the note.
+  const exploreRoute = opencodeRouteFor("explore");
+  const reviewRoute = opencodeRouteFor("review");
+  await writeFile(join(startupAgentsDir, "explore.md"), agentProfileFile("other/explore-model", exploreRoute.reasoningEffort), "utf8");
+  await writeFile(join(startupAgentsDir, "review.md"), agentProfileFile(reviewRoute.model, "low"), "utf8");
+  const st11 = startupCli(["startup", "--runtime", "opencode", "--root", startupProject]);
+  const st11Out = JSON.parse(st11.stdout);
+  check(st11Out.agents.explore.status === "mismatch", "a different model reports mismatch");
+  check(st11Out.agents.explore.note.includes(exploreRoute.model) && st11Out.agents.explore.note.includes("other/explore-model"), "the model mismatch note names the expected and installed models");
+  check(st11Out.agents.review.status === "mismatch", "a different reasoningEffort reports mismatch");
+  check(st11Out.agents.review.note.includes(reviewRoute.reasoningEffort) && st11Out.agents.review.note.includes("'low'"), "the effort mismatch note names the expected and installed efforts");
+  check(st11Out.agents.implement.status === "match", "an untouched agent profile still matches");
+  await writeFile(join(startupAgentsDir, "explore.md"), agentProfileFile(exploreRoute.model, exploreRoute.reasoningEffort), "utf8");
+  await writeFile(join(startupAgentsDir, "review.md"), agentProfileFile(reviewRoute.model, reviewRoute.reasoningEffort), "utf8");
+
+  // 12. A route resolved to inherit matches a profile with no model line.
+  const inheritBaseline = structuredClone(packaged);
+  inheritBaseline.runtimes.opencode.roles.fix = { mode: "inherit" };
+  await writeFile(startupBaselinePath, `${JSON.stringify(inheritBaseline, null, 2)}\n`, "utf8");
+  await writeFile(join(startupAgentsDir, "fix.md"), agentProfileFile(null, null), "utf8");
+  const st12 = startupCli(["startup", "--runtime", "opencode", "--root", startupProject]);
+  const st12Out = JSON.parse(st12.stdout);
+  check(st12Out.policy.runtimes.opencode.fix.mode === "inherit", "the inherit role exception resolves to inheritance");
+  check(st12Out.agents.fix.status === "match", "an inherit route matches a profile with no model line");
+  for (const role of ROLES.filter((r) => r !== "fix")) {
+    check(st12Out.agents[role].status === "match", `the other installed profiles still match under the inherit baseline (${role})`);
+  }
+  await writeFile(startupBaselinePath, `${JSON.stringify(packaged, null, 2)}\n`, "utf8");
+  await writeFile(join(startupAgentsDir, "fix.md"), agentProfileFile(opencodeRouteFor("fix").model, opencodeRouteFor("fix").reasoningEffort), "utf8");
+
+  // 13. An agent file without frontmatter: "unreadable" with a note, other
+  // roles unaffected.
+  await writeFile(join(startupAgentsDir, "implement.md"), "# Implement task contract\n\nNo frontmatter here.\n", "utf8");
+  const st13 = startupCli(["startup", "--runtime", "opencode", "--root", startupProject]);
+  const st13Out = JSON.parse(st13.stdout);
+  check(st13Out.agents.implement.status === "unreadable", "an agent file without frontmatter reports unreadable");
+  check(typeof st13Out.agents.implement.note === "string" && st13Out.agents.implement.note.length > 0, "the unreadable agent entry carries a note with the reason");
+  check(st13Out.agents.explore.status === "match", "the other agent profiles are unaffected by one unreadable file");
+  await writeFile(join(startupAgentsDir, "implement.md"), agentProfileFile(opencodeRouteFor("implement").model, opencodeRouteFor("implement").reasoningEffort), "utf8");
+
+  // 13b. A duplicated top-level frontmatter field makes the profile ambiguous:
+  // "unreadable" with a note naming the duplicated field, while a valid
+  // single-field profile still matches (no false positive).
+  const dupExploreRoute = opencodeRouteFor("explore");
+  const dupReviewRoute = opencodeRouteFor("review");
+  const duplicateModelFile = [
+    "---",
+    "description: Generated test profile.",
+    "mode: subagent",
+    "steps: 12",
+    `model: ${dupExploreRoute.model}`,
+    "model: other/conflicting-model",
+    `reasoningEffort: ${dupExploreRoute.reasoningEffort}`,
+    "permissions:",
+    '  - action: subagent',
+    '    resource: "*"',
+    "    effect: deny",
+    "---",
+    "",
+    "# Role task contract",
+    "",
+  ].join("\n");
+  await writeFile(join(startupAgentsDir, "explore.md"), duplicateModelFile, "utf8");
+  const st13b = startupCli(["startup", "--runtime", "opencode", "--root", startupProject]);
+  const st13bOut = JSON.parse(st13b.stdout);
+  check(st13bOut.agents.explore.status === "unreadable", "a duplicated model frontmatter field reports unreadable");
+  check(st13bOut.agents.explore.note.includes("'model'"), "the duplicated-model note names the 'model' field");
+  check(st13bOut.agents.implement.status === "match", "a non-duplicate profile still matches alongside a duplicated one (no false positive)");
+  await writeFile(join(startupAgentsDir, "explore.md"), agentProfileFile(dupExploreRoute.model, dupExploreRoute.reasoningEffort), "utf8");
+
+  const duplicateEffortFile = [
+    "---",
+    "description: Generated test profile.",
+    "mode: subagent",
+    "steps: 12",
+    `model: ${dupReviewRoute.model}`,
+    `reasoningEffort: ${dupReviewRoute.reasoningEffort}`,
+    "reasoningEffort: low",
+    "permissions:",
+    '  - action: subagent',
+    '    resource: "*"',
+    "    effect: deny",
+    "---",
+    "",
+    "# Role task contract",
+    "",
+  ].join("\n");
+  await writeFile(join(startupAgentsDir, "review.md"), duplicateEffortFile, "utf8");
+  const st13c = startupCli(["startup", "--runtime", "opencode", "--root", startupProject]);
+  const st13cOut = JSON.parse(st13c.stdout);
+  check(st13cOut.agents.review.status === "unreadable", "a duplicated reasoningEffort frontmatter field reports unreadable");
+  check(st13cOut.agents.review.note.includes("'reasoningEffort'"), "the duplicated-effort note names the 'reasoningEffort' field");
+  check(st13cOut.agents.explore.status === "match", "the non-duplicate profile still matches after restoring explore.md");
+  await writeFile(join(startupAgentsDir, "review.md"), agentProfileFile(dupReviewRoute.model, dupReviewRoute.reasoningEffort), "utf8");
+
+  // 16. An explicit --agents-dir compares agent profiles even for a
+  // non-opencode runtime, against that runtime's expected routes.
+  const st16 = startupCli(["startup", "--runtime", "codex", "--root", startupProject, "--agents-dir", startupAgentsDir]);
+  check(st16.status === 0, `startup with an explicit --agents-dir exits 0${st16.status === 0 ? "" : ` (stderr: ${st16.stderr.trim()})`}`);
+  const st16Out = JSON.parse(st16.stdout);
+  check("agents" in st16Out && JSON.stringify(Object.keys(st16Out.agents).sort()) === JSON.stringify([...ROLES].sort()), "an explicit --agents-dir compares all seven agent profiles for a non-opencode runtime");
+  check(st16Out.agents.review.status === "mismatch", "the non-opencode comparison reports a mismatch against the opencode-labeled profiles");
+  check(st16Out.agents.review.installed.model === "openai/gpt-6.1-sol" && st16Out.agents.review.expected.model === "gpt-6.1-sol", "the non-opencode comparison uses that runtime's expected model and the installed frontmatter values");
+
+  // 17. CLI argument handling and help text.
+  const st17a = startupCli(["startup"]);
+  check(st17a.status === 1 && st17a.stderr.includes("--runtime is required"), "startup without --runtime exits 1 with the required-runtime error");
+  const st17b = startupCli(["startup", "--runtime", "opencode", "--bogus"]);
+  check(st17b.status === 1 && st17b.stderr.includes("Unknown argument '--bogus'"), "startup rejects unknown arguments");
+  const st17c = startupCli(["startup", "--runtime", "bogus"]);
+  check(st17c.status === 1 && /must be one of/.test(st17c.stderr), "startup validates the runtime like resolve");
+  const st17d = startupCli(["--help"]);
+  check(st17d.status === 0 && st17d.stdout.includes("startup"), "--help documents the startup subcommand");
+  check(st17d.stdout.includes("--input") && st17d.stdout.includes("FILE PATH of structured preference") && st17d.stdout.includes("never inline JSON"), "--help makes clear that --input is a file path of structured preference JSON, never inline JSON");
+  check(st17d.stdout.includes("omitted when there are no preferences"), "--help states that --input is omitted when there are no preferences");
+
+  // 18. Root==home dedup: the shared file is reported once, not twice.
+  await putPersonalRouting();
+  const st18 = startupCli(["startup", "--runtime", "codex", "--root", startupHome]);
+  check(st18.status === 0, `startup with --root at the home directory exits 0${st18.status === 0 ? "" : ` (stderr: ${st18.stderr.trim()})`}`);
+  const st18Out = JSON.parse(st18.stdout);
+  check(st18Out.status === "interpretation-required", "a file at the shared home location requires interpretation");
+  check(st18Out.presentFiles.length === 1 && st18Out.presentFiles[0] === personalRoutingMd, "the shared file is reported once, not twice");
+  check(st18Out.preferenceFiles.personal === "present" && st18Out.preferenceFiles.project === "not-checked", "the deduplicated project location stays not-checked while the personal location carries the shared file");
+  await clearPersonal();
+  const st18b = startupCli(["startup", "--runtime", "codex", "--root", startupHome]);
+  const st18bOut = JSON.parse(st18b.stdout);
+  check(st18b.status === 0 && st18bOut.status === "resolved", "root==home with no file takes the short resolved path");
+  check(st18bOut.preferenceFiles.personal === "absent" && st18bOut.preferenceFiles.project === "not-checked", "root==home with no file reports the single location absent and the project key not-checked");
 } finally {
   await rm(scratch, { recursive: true, force: true });
 }

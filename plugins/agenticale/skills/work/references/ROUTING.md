@@ -192,20 +192,66 @@ seven roles, and exports a complete version-1 policy. It does not discover or
 parse user files. Without Node, apply these same rules in context and keep the
 source of each role and tier selection so the chosen route can be explained.
 
+The default startup command is `startup`:
+
 ```sh
-node scripts/routing.mjs resolve --runtime codex --input <structured-layer.json> [--profile NAME]
+node scripts/routing.mjs startup --runtime codex --root <root> [--profile NAME]
 ```
 
-`--input` is a tooling interface for the interpreted preferences, not a
-second automatically discovered user format. `--profile NAME` selects a named
-routing profile from the layers' `profiles` maps; `default` or omission
+It checks the documented preference locations — personal
+`~/.agenticale/routing.md`, and project `<root>/.agenticale/routing.md` only
+with `--root` (exact path, no parent scanning; deduplicated when the root is
+the home directory) — without reading their contents. With no file present it
+resolves the installed baseline directly, with no preference layers and no
+input file, and prints a `resolved` result: the strict version-1 `policy`,
+per-role `routeProvenance`, the selected `profile` (null for ordinary
+routing), and, for opencode or an explicit `--agents-dir`, an `agents` map
+comparing each of the seven resolved routes against the installed agent
+profiles — each role `match`, `mismatch` (a compact note plus the expected and
+installed values), `missing` (no file), or `unreadable` (file unreadable, no
+parseable frontmatter, or a duplicated field that makes the profile
+ambiguous). With a present file it prints an `interpretation-required` result
+naming the `presentFiles`; the workflow then reads and interprets the Markdown
+itself and resolves the interpreted layers through
+`resolve --input <file> --explain`, whose output is the routing snapshot. A
+present but unreadable file is an error, never treated as absent, on every
+path, and an unknown `--profile` with no preference files fails with the
+actionable unknown-profile message — final only when the activation carries
+no invocation-level preferences.
+`startup` accepts no invocation layers: the `resolved` result finalizes only
+when the activation carries no invocation-level preferences. When the
+activation carries invocation preferences — direct task-time overrides, an
+explicitly supplied invocation Markdown file, or a profile selected at
+invocation — the workflow interprets the discovered files (if any) plus the
+invocation preferences into the ordered structured layers, lowest to highest
+precedence per this contract, writes them to a temporary file, and resolves
+them through `resolve --input <file> [--profile NAME] --explain`; profile
+availability is validated only by this final resolution, whose
+unknown-profile error lists the available names, including those defined by
+the invocation Markdown itself (a profile defined there is valid). On this
+path `startup` serves only as the file-existence probe: an unknown-profile
+failure with no preference files is provisional and is not reported.
+
+```sh
+node scripts/routing.mjs resolve --runtime codex --input <structured-layers.json> [--profile NAME]
+```
+
+`--input` is a FILE PATH of structured preference JSON (one layer or an array
+of layers), typically the interpreted form of a routing.md preference file —
+never inline JSON — and a tooling interface for the interpreted preferences,
+not a second automatically discovered user format. It is omitted when there
+are no preferences. `--profile NAME` selects a named routing profile from the
+layers' `profiles` maps; `default` or omission
 selects ordinary routing. `--explain` returns the policy with per-role
 selection and tier provenance plus the selected profile (null for ordinary
 routing); a selected profile's entries resolve through sub-layers labeled
-`<layer source> (profile <name>)`. The plain output remains a strict version-1
-policy for build tools and OpenCode's installer; profile-selection metadata
-and provenance stay in the explanatory output and workflow state, never in the
-strict version-1 export. Build-time `--routing PATH` also accepts complete
+`<layer source> (profile <name>)`. The workflow's snapshot-producing
+resolution always runs the command with `--explain`, and the snapshot stores
+that output's `policy`, `routeProvenance`, and `profile`. The plain output
+remains a strict version-1 policy for build tools and OpenCode's installer —
+never the workflow's snapshot — and profile-selection metadata and provenance
+stay in the explanatory output and workflow state, never in the strict
+version-1 export. Build-time `--routing PATH` also accepts complete
 version-1 policies or version-2 baselines; `--models` remains the legacy
 examples importer.
 
