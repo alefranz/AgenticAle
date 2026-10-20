@@ -39,16 +39,31 @@ mechanical task. The number of tasks alone never justifies standard mode.
 Consume the invoking user's goal text directly as the invocation arguments.
 Interpret the complete arguments as:
 
-- If the arguments start with a positive integer, use it as the worker-round
-  budget and treat the remaining text as the goal.
-- Otherwise use the whole argument string as the goal with a default budget of
-  6 worker rounds.
-- Empty arguments, or a budget alone, mean RESUME the active handoff: continue
-  the exact one `NEXT` action recorded in it.
+- Leading options, in either order: an optional positive-integer worker-round
+  budget and an optional `--profile NAME` or `--profile=NAME` routing
+  profile. `--` is an explicit option delimiter; everything after the options
+  is the goal text, possibly empty. With no budget, the goal uses the default
+  budget of 6 worker rounds.
+- Whenever the parsed goal text is empty — no arguments at all, a budget
+  alone, a profile selector alone, or both — RESUME the active handoff:
+  continue the exact one `NEXT` action recorded in it.
+- A supplied goal with an already-active handoff is a conflict: preserve the
+  existing active handoff untouched and report the conflict to the user
+  instead of overwriting it.
 - Start in **strict** mode unless the user explicitly requested standard mode.
-- A different supplied goal with an already-active handoff is a conflict:
-  preserve the existing active handoff untouched and report the conflict to the
-  user instead of overwriting it.
+- A missing profile name (a trailing `--profile`, or one followed by another
+  option), or two different profile names, is reported before dispatch,
+  listing the profile names available for the active runtime.
+- An unambiguous natural-language instruction (for example, "use the
+  server-b routing profile") selects the profile; merely mentioning a profile
+  does not.
+- The goal's selected profile name is durable goal configuration: record it in
+  the active handoff (alongside the GOAL line), separately from the
+  diagnostic resolved-routing summary the bootstrap records as an
+  `ESTABLISHED` fact.
+- A new goal without a selector uses `default`. A resume without a selector
+  retains the goal's recorded selection. An explicit selector changes it;
+  `--profile default` clears a named selection back to ordinary routing.
 
 In round 0, follow the skill's setup rules: read the project's `AGENTS.md`
 when present, `docs/handoffs/active.md` when present, and the recent relevant
@@ -71,17 +86,23 @@ work skill uses — at start and on every fresh resume:
    workspace scope, absence versus unreadable, no scanning of other
    directories, deduplication).
 3. Apply the invocation preferences and resolve the routing snapshot for the
-   active runtime, with provenance on every route.
+   active runtime, with provenance on every route, running with the goal's
+   recorded profile — or the invocation's explicit selection when present,
+   which then becomes the goal's recorded selection.
 4. Check each selection against the binding's exposed dispatch capabilities and
    surface missing capabilities, unsupported choices, or unresolved
    preferences before the affected child runs. An ambiguous final selection
    blocks only the affected dispatch; preserve the unrelated clear
-   selections.
+   selections. A removed or unavailable selected profile blocks dispatch with
+   the actionable explanation — the names available for the active runtime —
+   instead of silently falling back to default.
 5. Record a compact routing summary — each tier's model and effort with its
    source, plus any role exceptions (for a tier reference, both the
    role-selection source and the tier-definition source) — as an `ESTABLISHED`
    fact in the active handoff in round 0, and carry it into the final report
-   and the session-close archive paragraph.
+   and the session-close archive paragraph. Record the goal's selected profile
+   name separately, as goal configuration alongside the GOAL line (see
+   Entry and arguments), not as part of this diagnostic summary.
 
 A missing key in a complete policy is an error, not an implicit inheritance. An
 unsupported request can use only an explicitly configured fallback; it must
@@ -92,12 +113,18 @@ unknown, and a child's self-reported model name never establishes what it ran
 on.
 
 Keep the snapshot fixed during the activation, including context compaction.
-On a fresh resume, re-run the bootstrap against the current files and compare
-the resolution against the recorded summary: report material changes. The
-prior handoff's routing record is diagnostic history, not a layer that
-overrides current preferences. A re-resolution affects subsequent dispatches
-only, never an already-running child. The bootstrap is read-only: it never
-creates or modifies a routing file.
+On a fresh resume, re-run the bootstrap against the current routing files:
+persisted model choices are diagnostic history and never override current
+configuration. Compare the resolution against the recorded summary: report
+material changes. The prior handoff's routing record is diagnostic history,
+not a layer that overrides current preferences. A re-resolution affects
+subsequent dispatches only, never an already-running child. The bootstrap is
+read-only: it never creates or modifies a routing file.
+
+An explicit mid-run profile change re-resolves the routing and applies only to
+future dispatches: it never changes an already-running child, never resets
+budgets or review counters, never bypasses the provider quota-recovery rules,
+and never authorizes automatic provider switching.
 
 Route each round to a fresh child subagent carrying the matching task contract;
 do not use a generic built-in child for a role that needs its own bounded
@@ -250,11 +277,11 @@ strengthen the persistence policy.
 
 ## Setup (round 0, done by the main loop)
 
-1. Parse the goal, the round budget, the mode, and the git persistence policy.
-   If no budget was given,
+1. Parse the goal, the round budget, the mode, the git persistence policy, and
+   the goal's recorded profile selection. If no budget was given,
    choose one that fits the scope (default 6 worker rounds; up to ~10 for
    large goals — strict-mode review rounds are cheap and are not counted
-   against the worker budget). State all four.
+   against the worker budget). State all five.
 2. Read only what is needed to define round 1: `docs/handoffs/active.md`
    (or, only while initializing it, the first active "Next slice" item in
    `BACKLOG.md`), `AGENTS.md` conventions when that file exists, and
