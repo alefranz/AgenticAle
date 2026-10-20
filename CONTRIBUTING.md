@@ -58,9 +58,12 @@ git diff --check
   `session-stats.mjs` helper), 6
   capability-neutral task contracts, 7 OpenCode adapter profiles, 2 OpenCode
   command templates, the absence of the retired layout, and sanitation.
-- `test-routing.mjs` covers the shared routing module: version
-  1/2 validation, preference merging, resolution, normalization, and the resolve
-  CLI.
+- `test-routing.mjs` covers the shared routing module: version 1/2
+  validation, preference merging, resolution, normalization, the `resolve`
+  CLI, and the `startup` CLI — the read-only location probe, the no-file
+  `resolved` short path (including a customized installed baseline), the
+  `interpretation-required` result, and the exit-1 errors for an unreadable
+  preference file and an unknown profile without files.
 - `test-session-stats.mjs` covers the work skill's session usage stats
   helper: the paginated session tree walk with the cycle guard, normalization
   of null and missing fields, totals (reasoning excluded from total), the

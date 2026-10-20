@@ -224,10 +224,14 @@ work is continued instead of starting a different backlog item.
 
 ## Model routing across sessions
 
-`autonomous` runs the same routing bootstrap as `work` (the routing contract in
-the installed `work` skill): it discovers the personal and repository
-preference files, resolves a snapshot for the active runtime, and shows a
-compact tier summary with sources before dispatching any child.
+`autonomous` runs the same routing bootstrap as `work` (the routing contract
+in the installed `work` skill): the shared short routing startup discovers
+the personal and repository preference files and resolves the snapshot for
+the active runtime — one mechanical helper call when no preference files
+exist and the activation carries no invocation-level preferences — and the
+compact routing summary is recorded in the handoff state
+rather than narrated before dispatching any child, surfacing only
+consequential routing information.
 
 - The run records a compact routing summary in the existing handoff/report
   structure: each tier's model and effort with its source, plus any role

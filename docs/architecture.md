@@ -97,10 +97,11 @@ must be absent.
 ## The routing contract
 
 Routing uses JSON for the packaged defaults and structured resolver inputs;
-users author preferences in Markdown. The packaged resolver
-reads the optional personal and project files and merges them with the
-installed baseline. The build never discovers user files, so generated
-packages remain reproducible.
+users author preferences in Markdown. The workflow reads the optional
+personal and project files and interprets them into structured layers; the
+packaged resolver merges those layers with the installed baseline and never
+reads or discovers user files. The build never discovers user files either,
+so generated packages remain reproducible.
 
 ### The version-2 defaults baseline
 
@@ -146,9 +147,35 @@ source present. It exposes:
 The `resolve` CLI reads the installed baseline and an optional structured
 layer (`--input PATH`) produced by interpreting the Markdown preferences. It
 prints a complete version-1 policy for the active runtime
-(`--runtime copilot|codex|opencode`); `--profile NAME` selects a named
-routing profile (below), and `--explain` includes per-route source
+(`--runtime copilot|codex|opencode|antigravity`); `--profile NAME` selects a
+named routing profile (below), and `--explain` includes per-route source
 provenance plus the selected profile (`null` for ordinary routing).
+
+The `startup` CLI is the workflow's default startup path. It checks the
+documented preference locations — the personal `~/.agenticale/routing.md`
+and, with `--root PATH`, the project `<root>/.agenticale/routing.md` (exact
+path, no parent scanning; deduplicated against the personal location when
+the root is the home directory) — without reading their contents, and
+accepts `--profile NAME` and, for the agent-profile comparison,
+`--agents-dir PATH` (default for opencode: the installed
+`agents/agenticale/` beside the skill). With no preference file present it
+takes the no-input short path: it resolves the installed baseline directly,
+with no preference layers and no input file, and prints a `resolved`
+result — the strict version-1 `policy`, per-role `routeProvenance`, the
+selected `profile` (`null` for ordinary routing), and, for opencode or an
+explicit `--agents-dir`, an `agents` map comparing each resolved route
+against the installed agent profiles — each role `match`, `mismatch` (a
+compact note plus the expected and installed values), `missing` (no file),
+or `unreadable` (unreadable file, no parseable frontmatter, or a duplicated
+field). With a present file it prints an `interpretation-required` result
+naming the `presentFiles`; the workflow then interprets the Markdown itself
+and resolves the layers through `resolve --input <file> --explain`. A
+present but unreadable file is an actionable error, never treated as
+absent, and an unknown `--profile` with no preference files fails with the
+actionable unknown-profile message. `startup` accepts no invocation layers:
+its `resolved` result finalizes only when the activation carries no
+invocation-level preferences, which the workflow then interprets — together
+with any discovered files — through `resolve --input <file> --explain`.
 
 ### One installed defaults file
 

@@ -38,7 +38,11 @@ preferences, apply invocation choices, and resolve this runtime's routes once
 for the activation. The preference section uses the `copilot` runtime name.
 Precedence is invocation, project, personal, then installed baseline. Do not
 scan unrelated files. Invocation choices are session-scoped and do not persist
-to a preference file or `routing.md`.
+to a preference file or `routing.md`. With Node available, the default path is
+the single `startup` call from the installed skill and the interpretation path
+is `resolve --input <file> --explain`; this surface has no generated agent
+set, so
+`startup` performs no agent comparison.
 
 ## Requested versus effective settings
 

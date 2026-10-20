@@ -74,35 +74,109 @@ resume, continue the exact one `NEXT` action.
 
 Before dispatching any round, run the shared routing bootstrap described in
 [the routing contract](../work/references/ROUTING.md) — the same bootstrap the
-work skill uses — at start and on every fresh resume:
+work skill uses — at start and on every fresh resume. Activation always uses
+the loaded installation's resources, relative to the loaded skill — never the
+AgenticAle repository checkout, which is not a routing source:
 
-1. Read the routing contract and the installed defaults baseline
-   (`../work/references/routing.json`), and select the actual runtime binding
-   from `../work/references/runtimes/` for the host actually being used, from
-   the tools the host exposes; never infer the runtime from a selected model
-   name.
-2. Discover and read the personal and project preference files using the
-   contract's Discovery rules (worktree root from any subdirectory, non-Git
-   workspace scope, absence versus unreadable, no scanning of other
-   directories, deduplication).
-3. Apply the invocation preferences and resolve the routing snapshot for the
-   active runtime, with provenance on every route, running with the goal's
-   recorded profile — or the invocation's explicit selection when present,
-   which then becomes the goal's recorded selection.
-4. Check each selection against the binding's exposed dispatch capabilities and
-   surface missing capabilities, unsupported choices, or unresolved
-   preferences before the affected child runs. An ambiguous final selection
-   blocks only the affected dispatch; preserve the unrelated clear
-   selections. A removed or unavailable selected profile blocks dispatch with
-   the actionable explanation — the names available for the active runtime —
-   instead of silently falling back to default.
-5. Record a compact routing summary — each tier's model and effort with its
+1. Select the actual runtime binding from `../work/references/runtimes/` for
+   the host actually being used, from the tools the host exposes; never infer
+   the runtime from a selected model name.
+2. Establish the Git worktree root, or the explicitly established workspace
+   root for a non-Git project. When no root is established, omit `--root`;
+   only the personal preference location is checked.
+3. Run the default path — one mechanical call from the installed skill:
+
+   ```sh
+   node ../work/scripts/routing.mjs startup --runtime <runtime> --root <root> [--profile NAME]
+   ```
+
+   with `--profile NAME` for the goal's recorded profile — or the
+   invocation's explicit selection when present, which then becomes the
+   goal's recorded selection. When the activation carries invocation-level
+   preferences, `startup` serves only as the file-existence probe: its
+   policy and its profile check are not final, and `--profile` need not be
+   passed to it — if it is, its unknown-profile result is provisional and
+   is not reported. Then act on the result:
+   - Invocation-level preferences — direct task-time overrides, an
+     explicitly supplied invocation Markdown file, or the invocation's
+     explicit profile selection: `startup` accepts no invocation layers, so
+     none of its results is final. Interpret the discovered files (if any)
+     and the invocation preferences into the ordered structured layers,
+     lowest to highest precedence per the routing contract, write them to a
+     temporary file — one of the two paths that create one — and resolve
+     them:
+
+     ```sh
+     node ../work/scripts/routing.mjs resolve --runtime <runtime> --input <layers-file> [--profile NAME] --explain
+     ```
+
+     with `--profile NAME` for the selected profile; profile availability is
+     validated only by this final resolution — the resolver's
+     unknown-profile error lists the available names, including those
+     defined by the invocation Markdown itself (a profile defined there is
+     valid), and is the one that gets reported. The `--explain` output is
+     the snapshot, as for the interpretation path below.
+   - `resolved` (no invocation-level preferences): the output IS the routing
+     snapshot for this activation — `policy`, `routeProvenance` (provenance
+     on every route), `profile`, and (on OpenCode) the `agents` entries.
+   - `interpretation-required`: a documented preference file is present.
+     Read the listed `presentFiles`, interpret them per the routing contract
+     (Markdown or clear equivalent prose; the helper never parses Markdown),
+     write the structured layers to a temporary file — the other path that
+     creates one — and resolve them:
+
+     ```sh
+     node ../work/scripts/routing.mjs resolve --runtime <runtime> --input <layers-file> [--profile NAME] --explain
+     ```
+
+     `--input` is a file path of structured preference JSON, never inline
+     JSON, and is omitted when there are no preferences. The `--explain`
+     output — `policy`, `routeProvenance`, and `profile` — is the snapshot;
+     the plain (non-`--explain`) output is the strict version-1 export the
+     OpenCode preparation flow writes for the installer, not the snapshot.
+   - Non-zero exit (unreadable preference file, unknown or invalid profile):
+     report the actionable error once. An unreadable preference file is a
+     genuine error on every path. An unknown or invalid profile error is
+     final on the paths where `startup`'s results are final (no
+     invocation-level preferences); on the invocation-preference path it is
+     the final `resolve --input <layers-file> --profile NAME --explain`
+     that validates and reports profile availability. A removed or
+     unavailable selected profile blocks dispatch with the actionable
+     explanation — the names available for the active runtime — instead of
+     silently falling back to default. Missing preference files are normal —
+     never create or modify files, and never investigate fallbacks or retry.
+4. Check the capability before the affected dispatch. On OpenCode the
+   comparison is the `agents` entries of the `resolved` startup output when
+   the activation was finalized directly from that output — no discovered
+   preference files and no invocation-level preferences; otherwise — the
+   snapshot came from `resolve --input ... --explain` on the
+   interpretation-required or invocation-preference path, or Node is
+   unavailable — perform the in-context comparison against the final
+   snapshot: read the `model:` and `reasoningEffort:` frontmatter of the
+   applicable installed profiles (the default `agents/agenticale/<role>.md`
+   set, or the named set for a selected profile) and apply the same match
+   rules (an `inherit` route matches a profile with no `model` line; an
+   explicit route must match model and, on effort-capable runtimes, effort).
+   Dispatch a role only when it matches; a missing, mismatched, or
+   unreadable profile blocks only that
+   role's dispatch, reported with the binding's preparation and refresh
+   procedure. Roles no round uses are irrelevant; an unused unavailable role
+   never blocks unrelated work. On other runtimes, compare each selection
+   with the binding's native dispatch fields as the binding says; an
+   ambiguous final selection blocks only the affected dispatch and preserves
+   the unrelated clear selections.
+5. Where Node is unavailable, apply the routing contract in context: check
+   the two documented preference locations, read and interpret the present
+   files, and resolve the seven routes with provenance on every route,
+   keeping each route's source. This is the documented fallback path.
+6. Record a compact routing summary — each tier's model and effort with its
    source, plus any role exceptions (for a tier reference, both the
-   role-selection source and the tier-definition source) — as an `ESTABLISHED`
-   fact in the active handoff in round 0, and carry it into the final report
-   and the session-close archive paragraph. Record the goal's selected profile
-   name separately, as goal configuration alongside the GOAL line (see
-   Entry and arguments), not as part of this diagnostic summary.
+   role-selection source and the tier-definition source) — as an
+   `ESTABLISHED` fact in the active handoff in round 0, and carry it into the
+   final report and the session-close archive paragraph. Record the goal's
+   selected profile name separately, as goal configuration alongside the
+   GOAL line (see Entry and arguments), not as part of this diagnostic
+   summary.
 
 A missing key in a complete policy is an error, not an implicit inheritance. An
 unsupported request can use only an explicitly configured fallback; it must

@@ -45,19 +45,48 @@ per routing key.
 
 ## Routing bootstrap and profile selection on this surface
 
-At activation, follow the shared bootstrap in `ROUTING.md`:
-discover personal and project `routing.md` files, interpret the active
-`opencode` runtime preferences, apply explicit invocation choices, and resolve
-this runtime's seven routes once for the activation. Precedence is invocation,
-project, personal, then installed baseline. Do not scan unrelated files.
-Invocation choices are session-scoped and do not persist to `routing.md` or a
-preference file.
+At activation, follow the shared bootstrap in `ROUTING.md`. With Node
+available, the default path is one mechanical call from the installed skill,
+which checks the personal and project `routing.md` locations without reading
+their contents and resolves this runtime's seven routes once for the
+activation:
 
-Before dispatch, compare each resolved selection with the actual profile's
-`model` and `reasoningEffort` fields. The profile is the installed state; no
-second resolved-policy file is needed. Dispatch only a matching profile. If
-none matches, report the limitation and follow the explicit preparation and
-refresh procedure below. When the activation selected a routing profile, the
+```sh
+node scripts/routing.mjs startup --runtime opencode --root <root> [--profile NAME]
+```
+
+With no preference file present and no invocation-level preferences, the
+activation finalizes from this `resolved` output, and its `agents` entries are
+the model and effort comparison against the installed profiles: dispatch a role
+only when its entry is `match`; `missing`, `mismatch`, or `unreadable` blocks
+only that role's dispatch and is reported with the explicit preparation and
+refresh procedure below. The profile is the installed state; no second
+resolved-policy file is needed. Roles no round uses are irrelevant — an unused
+unavailable role never blocks unrelated work. With a present file, interpret
+the listed file per the shared bootstrap and resolve the interpreted layers
+through `resolve --input <file> --explain`; that output is the routing
+snapshot. The same `resolve --input <file> --explain` resolution finalizes
+the snapshot whenever the activation carries invocation-level preferences,
+with or without a present file. Whenever the snapshot came from that
+resolution rather than from the `resolved` startup output — whose `agents`
+entries compare the installed baseline, not those final routes — compare each
+resolved route in context against the final snapshot instead: read the
+`model` and `reasoningEffort` frontmatter of the applicable installed set
+(the default `agents/agenticale/<role>.md` profiles, or the named set for a
+selected profile) and apply the same match rules (an `inherit` route matches a
+profile with no `model` line; an explicit route must match model and effort).
+The plain, non-`--explain` `resolve` output is the strict version-1 export the
+preparation and refresh flow below writes for the installer — never the
+snapshot. Precedence is invocation, project, personal, then installed
+baseline. Do not scan unrelated files. Invocation choices are session-scoped
+and do not persist to `routing.md` or a preference file.
+
+Where Node is unavailable, apply the in-context path: check the two documented
+preference locations, interpret the active `opencode` runtime preferences, and
+compare each resolved selection with the actual profile's `model` and
+`reasoningEffort` fields. Dispatch only a matching profile. If none matches,
+report the limitation and follow the explicit preparation and refresh
+procedure below. When the activation selected a routing profile, the
 comparison runs against that profile's named set — see the next section.
 
 ## Named routing sets on this surface
@@ -108,7 +137,11 @@ steps reported for a missing or stale named set:
    ```
 
    The output is the version-1 OpenCode policy: seven routes, each an
-   explicit selection or an intentional inheritance.
+   explicit selection or an intentional inheritance. The `--input` argument
+   is a file path of the interpreted structured layers — used only when
+   preferences exist; it is never inline JSON. This is deliberately the plain,
+   strict version-1 export that the named-set profiles are written from; the
+   `--explain` form is the workflow's routing snapshot and is not used here.
 
 2. For each route, create or refresh `agents/agenticale/routing/<name>/<role>.md`
    by mirroring the matching default profile `agents/agenticale/<role>.md` —
@@ -145,11 +178,27 @@ never rewrites active profiles or host-wide model configuration.
    ```
 
    The output is a complete version-1 OpenCode policy: seven explicit routes
-   or intentional inheritance.
-2. **Compare with the active profiles.** Read the `model` and
-   `reasoningEffort` frontmatter of each `agents/agenticale/<role>.md` profile
-   in the OpenCode target directory. If profiles are unavailable or unreadable,
-   report the comparison as a limitation and do not dispatch as if matched.
+   or intentional inheritance. This is deliberately the plain, strict
+   version-1 export — the policy file the installer consumes in step 5 — not
+   the workflow's routing snapshot; the `--explain` form (provenance and
+   profile) is never written here.
+2. **Compare with the active profiles.** When the activation was finalized
+   directly from the `resolved` startup output — no discovered preference
+   files and no invocation-level preferences — rerun
+   `node scripts/routing.mjs startup --runtime opencode --root <root>` and use
+   its `agents` entries, which is re-runnable after a refresh, instead of
+   hand-reading seven profiles. Whenever the snapshot came from
+   `resolve --input <file> --explain` — the interpretation path, where
+   `startup` reports no `agents`, or the invocation-preference path, where
+   any `agents` entries compare the installed baseline rather than the final
+   snapshot — or Node is unavailable (no helper output at all), the
+   comparison — including the re-check after a refresh — is in context: read
+   the `model` and `reasoningEffort` frontmatter of each applicable profile in
+   the OpenCode target directory (the default `agents/agenticale/<role>.md`
+   set, or the named set for a selected profile) and apply step 3's match
+   rules against the final snapshot. If profiles are unavailable or
+   unreadable, report the comparison as a limitation and do not dispatch as if
+   matched.
 3. **Use a matching profile.** A route matches when the profile's model and
    effort equal the requested selection; an `inherit` request matches a
    profile with no `model` line. Dispatch it by its profile ID from the
@@ -279,6 +328,11 @@ remaining delivery.
   profile whose named set is missing or out of date is reported with the exact
   preparation steps; it is never silently served by the default
   `agenticale/<role>` set.
+- An unavailable role in the default set blocks only that role's dispatch.
+  `startup` reports `missing`, `mismatch`, or `unreadable` per role; other
+  available roles proceed, and an unused unavailable role never blocks
+  unrelated work. Ordinary activation is install-relative — the helper and
+  skills beside the installed SKILL.md — and needs no AgenticAle checkout.
 
 The skill selects this binding from the actual runtime/tool surface, not from the
 chosen language model. A surface that is not OpenCode V2 does not use this
