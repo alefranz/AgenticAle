@@ -261,6 +261,40 @@ per-provider breakdown with cost. It reads the session data through the
 OpenCode API with read-only queries — it makes no model calls and changes
 nothing.
 
+This is the report from a multi-session run. The session identifier and
+task titles are shortened and illustrative, while the report structure and
+values are faithful to a real run:
+
+```text
+Add CSV export for the report table
+Coordinator: build on local-llama/qwen3.8-27b (medium)
+Session: ses_...
+Duration: 18m 44s
+Sessions: 5
+
+Agent                   Task                                 Model                                 In     Out    Cache R  Cache W  Reason      Total  Cost
+build                   Add CSV export for the report table  local-llama/qwen3.8-27b (medium)  58,532  23,512  1,350,400        0       0  1,432,444  0.00
+  agenticale/implement  Implement the CSV export slice       local-llama/qwen3.8-27b           61,811  20,146  1,242,498        0       0  1,324,455  0.00
+  agenticale/review     Review the CSV export changes        openai/gpt-6.1-sol                23,749     775     65,536        0     220     90,060  0.00
+  agenticale/fix        Fix the review findings              local-llama/qwen3.8-27b           11,969   3,578     88,429        0       0    103,976  0.00
+  agenticale/review     Re-review the fix                    openai/gpt-6.1-sol                 5,610     968     40,320        0      15     46,898  0.00
+
+Totals (Total excludes Reasoning, which may already be counted in Output):
+Sessions   : 5
+Input      : 161,671
+Output     : 48,979
+Cache read : 2,787,183
+Cache write: 0
+Reasoning  : 235
+Total      : 2,997,833
+Cost       : 0.00
+
+BY PROVIDER
+Provider     Sessions       In     Out    Cache R  Cache W  Reason      Total  Cost
+local-llama         3  132,312  47,236  2,681,327        0       0  2,860,875  0.00
+openai              2   29,359   1,743    105,856        0     235    136,958  0.00
+```
+
 ## Implementation source
 
 This guide explains the user-facing workflow. The authoritative instructions
