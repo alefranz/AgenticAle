@@ -106,16 +106,24 @@ tasks defer versioning to convergence, as described in AGENTS.md.
 
 CI checks the PR's final package against its target branch, including after
 review corrections at the same bumped version. Merge groups use their target
-branch too; only pushes to `main` compare against the previous push. Feature
-branch pushes still run the platform checks but skip the version gate.
+branch too; only pushes to `main` compare against the previous push. Pushes
+to feature branches no longer trigger a direct CI run; the checks for that
+work come from the associated pull request or merge group event. The `Node 24
+/ windows-latest` and `Node 24 / macos-latest` checks are on-demand: run the
+Cross-platform workflow (Actions tab or `gh workflow run cross-platform.yml`,
+with `--ref <branch>` to test a feature branch) when cross-platform coverage
+is needed, for example after installer or build changes.
 
 In GitHub Settings → Rules → Rulesets, configure the rule for `main` to require
 `Plugin version`
-and all three `Node 24 / <os>` checks, with branches up to date before merging
-(or use a merge queue). This repository includes merge-group checks. These
-repository settings are separate from workflow files: merely adding a job does
-not prevent merging a failing PR. Recheck the bump after updating the branch;
-two PRs must not publish different plugin contents with the same version.
+and the `Node 24 / ubuntu-latest` check, with branches up to date before merging
+(or use a merge queue). This repository includes merge-group checks. The
+windows and macOS `Node 24` checks exist only when the on-demand Cross-platform
+workflow is run, so requiring them in the ruleset would force a manual run
+before every merge. These repository settings are separate from workflow files:
+merely adding a job does not prevent merging a failing PR. Recheck the bump
+after updating the branch; two PRs must not publish different plugin contents
+with the same version.
 
 On a push to `main` in `alefranz/AgenticAle`, the release job waits for all CI
 checks. If the version increased, it creates `vX.Y.Z` and a GitHub release with
