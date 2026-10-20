@@ -12,6 +12,7 @@
  *   - version-1 (complete policy) and version-2 (defaults baseline) validation
  *   - structured preference-layer merging (lowest to highest precedence,
  *     atomic entry replacement, tier/role sections merged separately)
+ *   - named routing profile selection and merging (optional per-layer profiles expand into extra precedence-ordered sub-layers)
  *   - version-1 policy normalization to role exceptions over version-2 tiers
  *   - concrete route resolution with source/provenance labels and reset
  *     semantics (`role: default`, `tier: default`, `inherit`)
@@ -75,8 +76,23 @@ const EXPLICIT_ENTRY_KEYS_NO_EFFORT = ["fallbacks", "mode", "model"];
 const INHERIT_ENTRY_KEYS = ["mode"];
 const RESET_ENTRY_KEYS = ["mode"];
 const ROLE_TIER_ENTRY_KEYS = ["mode", "tier"];
-const LAYER_KEYS = ["runtimes", "source"];
+const LAYER_KEYS = ["profiles", "runtimes", "source"];
 const RUNTIME_LAYER_KEYS = ["roles", "tiers"];
+
+// Named routing profile identifiers: 1-40 characters, starting with a
+// lowercase letter, then lowercase letters, digits, or hyphens, with no
+// trailing hyphen. `default` and `inherit` are reserved instructions, so a
+// selected `default` means ordinary routing while any other invalid name is
+// an error. Profile names in preference files are data: they are never
+// rejected there, and reserved names are simply excluded from availability.
+export function isValidProfileName(name) {
+  return (
+    typeof name === "string"
+    && /^[a-z][a-z0-9-]{0,39}$/.test(name)
+    && !name.endsWith("-")
+    && !RESERVED_INSTRUCTION_NAMES.includes(name)
+  );
+}
 
 export class RoutingError extends Error {
   constructor(message) {
@@ -366,16 +382,19 @@ export function validateV2Routing(routing) {
 }
 
 // Validates one structured preference layer and returns its normalized form
-// { source, runtimes }. A runtime filter validates only the active runtime.
+// { source, runtimes, profiles }. A runtime filter validates only the active
+// runtime. Profile contents are NOT validated here: entries of an unselected
+// profile must never block an otherwise valid selection; non-object profile
+// values are dropped so they are unavailable but never errors.
 export function validatePreferenceLayer(layer, index, options = {}) {
   const activeRuntime = options.runtime;
-  const label = `Preference layer ${index + 1}`;
+  const label = options.label ?? `Preference layer ${index + 1}`;
   if (!isPlainObject(layer)) {
     throw new RoutingError(`${label} must be a JSON object.`);
   }
   for (const key of Object.keys(layer)) {
     if (!LAYER_KEYS.includes(key)) {
-      throw new RoutingError(`${label} has unknown key '${key}' (expected source, runtimes).`);
+      throw new RoutingError(`${label} has unknown key '${key}' (expected source, runtimes, profiles).`);
     }
   }
   if (layer.source !== undefined && (typeof layer.source !== "string" || layer.source.length === 0)) {
@@ -413,11 +432,25 @@ export function validatePreferenceLayer(layer, index, options = {}) {
       validateRoleEntry(`${label} ${runtimeName}/role '${role}'`, entry, { allowDefault: true, runtime: runtimeName });
     }
   }
+  // An empty profiles object is a no-op and allowed; unlike runtimes, it may
+  // be empty. Shape is checked, contents are not (see above).
+  const profiles = {};
+  if (layer.profiles !== undefined) {
+    if (!isPlainObject(layer.profiles)) {
+      throw new RoutingError(`${label} profiles, when present, must be a JSON object.`);
+    }
+    for (const [name, value] of Object.entries(layer.profiles)) {
+      if (isPlainObject(value)) {
+        profiles[name] = value;
+      }
+    }
+  }
   return {
     source: typeof layer.source === "string" && layer.source.length > 0 ? layer.source : `${label} (unnamed)`,
     runtimes: activeRuntime
       ? Object.hasOwn(runtimes ?? {}, activeRuntime) ? { [activeRuntime]: runtimes[activeRuntime] } : {}
       : runtimes ?? {},
+    profiles,
   };
 }
 
@@ -432,6 +465,89 @@ export function normalizePreferenceInput(input, { runtime } = {}) {
   return layers.map((layer, index) => validatePreferenceLayer(layer, index, { runtime }));
 }
 
+// Normalizes a profile selection: null, undefined, and the reserved name
+// `default` all mean ordinary routing; any other value must be a valid
+// profile name.
+function normalizeProfileSelection(profile) {
+  if (profile === null || profile === undefined || profile === "default") return null;
+  if (!isValidProfileName(profile)) {
+    throw new RoutingError(`Invalid routing profile '${profile}': profile names use lowercase letters, digits, and hyphens, start with a letter, have no trailing hyphen, and are at most 40 characters; 'default' and 'inherit' are reserved.`);
+  }
+  return profile;
+}
+
+// The names of the profiles available for a runtime (or for any runtime when
+// no runtime is given), unique and sorted. A profile is available when some
+// normalized layer carries a plain-object profile value containing that
+// runtime key. Reserved (and otherwise invalid) names are excluded: they can
+// never be selected. Accepts the same single-object/array/null input shape as
+// normalizePreferenceInput.
+export function availableProfiles(layers, runtime) {
+  return availableProfileNames(normalizePreferenceInput(layers, { runtime }), runtime);
+}
+
+function availableProfileNames(normalized, runtime) {
+  const names = new Set();
+  for (const layer of normalized) {
+    for (const [name, map] of Object.entries(layer.profiles ?? {})) {
+      if (!isValidProfileName(name)) continue;
+      if (runtime === undefined) {
+        // Any-runtime availability: a defined-but-empty value (no own
+        // runtime keys) cannot be selected, so it is not available.
+        if (Object.keys(map).length === 0) continue;
+        names.add(name);
+      } else if (Object.hasOwn(map, runtime)) {
+        names.add(name);
+      }
+    }
+  }
+  return [...names].sort();
+}
+
+function unknownProfileMessage(profile, runtime, available) {
+  const scope = runtime === undefined ? "for this activation" : `for runtime '${runtime}'`;
+  const availableText = available.length > 0
+    ? (runtime === undefined
+      ? `Available profiles: ${available.join(", ")}.`
+      : `Available profiles for this runtime: ${available.join(", ")}.`)
+    : (runtime === undefined
+      ? `No routing profiles are defined; add a '## Profile: ${profile}' section to a routing.md preference file or omit the profile selector.`
+      : `No routing profiles are defined for this runtime; add a '## Profile: ${profile}' section to a routing.md preference file or omit the profile selector.`);
+  return `Unknown routing profile '${profile}' ${scope}. ${availableText}`;
+}
+
+// Expands a selected profile into per-layer sub-layers, preserving the
+// supplied lowest-to-highest layer order: each layer contributes its default
+// runtimes followed, when the layer defines the profile, by a profile
+// sub-layer validated through the same machinery and labeled
+// '<layer source> (profile <name>)'. Entries of unselected profiles are never
+// visited, so they cannot block.
+function expandProfileLayers(normalized, runtime, selectedProfile) {
+  if (selectedProfile === null) return normalized;
+  const expanded = [];
+  normalized.forEach((layer, index) => {
+    expanded.push(layer);
+    // Own-property lookup: a valid profile name that shadows a
+    // prototype-chain member (such as 'constructor') must not resolve to a
+    // prototype value on a layer that does not define the profile.
+    const profiles = layer.profiles ?? {};
+    if (!Object.hasOwn(profiles, selectedProfile)) return;
+    const profileRuntimes = profiles[selectedProfile];
+    // A profile value with no runtime sections ({}), or with an empty
+    // section for the active runtime, is a no-op: it contributes nothing
+    // rather than an empty-runtimes sub-layer that would be a shape error.
+    if (runtime === undefined) {
+      if (Object.keys(profileRuntimes).length === 0) return;
+    } else {
+      const section = Object.hasOwn(profileRuntimes, runtime) ? profileRuntimes[runtime] : undefined;
+      if (section === undefined || (isPlainObject(section) && Object.keys(section).length === 0)) return;
+    }
+    const source = `${layer.source} (profile ${selectedProfile})`;
+    expanded.push(validatePreferenceLayer({ source, runtimes: profileRuntimes }, index, { runtime, label: source }));
+  });
+  return expanded;
+}
+
 // Merges preference layers over a version-2 baseline, lowest to highest
 // precedence. Tier definitions and role selections merge separately, replacing
 // entries atomically (a replacement carries its own model, effort, and
@@ -439,10 +555,21 @@ export function normalizePreferenceInput(input, { runtime } = {}) {
 // `tier: default` restores the tier's installed-baseline definition (custom
 // tiers without a baseline cannot be reset this way) and `role: default`
 // clears the role exception so the role falls back to the default tier
-// mapping. Role-to-tier references are NOT resolved here.
-export function mergePreferenceLayers(baseline, layers, runtime) {
+// mapping. Role-to-tier references are NOT resolved here. A profile selection
+// (null/undefined/'default' mean ordinary routing) is checked for grammar and
+// availability here and expanded into per-layer sub-layers, so every caller
+// inherits the same rules.
+export function mergePreferenceLayers(baseline, layers, runtime, profile = null) {
   validateV2Routing(baseline);
   const normalized = normalizePreferenceInput(layers, { runtime });
+  const selectedProfile = normalizeProfileSelection(profile);
+  if (selectedProfile !== null) {
+    const available = availableProfileNames(normalized, runtime);
+    if (!available.includes(selectedProfile)) {
+      throw new RoutingError(unknownProfileMessage(selectedProfile, runtime, available));
+    }
+  }
+  const expanded = expandProfileLayers(normalized, runtime, selectedProfile);
   const merged = {
     roleTiers: { ...baseline.roleTiers },
     tiers: {},
@@ -458,7 +585,7 @@ export function mergePreferenceLayers(baseline, layers, runtime) {
       merged.roles[runtime][role] = { entry: structuredClone(entry), source: BASELINE_SOURCE };
     }
   }
-  for (const layer of normalized) {
+  for (const layer of expanded) {
     for (const [runtime, map] of Object.entries(layer.runtimes)) {
       if (!merged.tiers[runtime]) {
         throw new RoutingError(`Preference layer '${layer.source}' targets runtime '${runtime}', which is not declared in the installed baseline.`);
@@ -552,11 +679,11 @@ function resolveMergedRuntime(merged, runtime) {
 // Resolves one runtime to concrete routes (or intentional inheritance), with
 // source/provenance labels on every route: where the role selection came from
 // and, for tier references, where the tier definition came from.
-export function resolveRuntime(baseline, layers, runtime) {
+export function resolveRuntime(baseline, layers, runtime, profile = null) {
   if (!RUNTIME_KEYS.includes(runtime)) {
     throw new RoutingError(`Runtime '${runtime}' is not supported (expected one of ${RUNTIME_KEYS.join(", ")}).`);
   }
-  const merged = mergePreferenceLayers(baseline, layers, runtime);
+  const merged = mergePreferenceLayers(baseline, layers, runtime, profile);
   if (!merged.tiers[runtime]) {
     throw new RoutingError(`Runtime '${runtime}' is not declared in the installed baseline.`);
   }
@@ -564,8 +691,8 @@ export function resolveRuntime(baseline, layers, runtime) {
 }
 
 // Resolves every runtime the baseline declares, in one pass.
-export function resolveAllRuntimes(baseline, layers) {
-  const merged = mergePreferenceLayers(baseline, layers);
+export function resolveAllRuntimes(baseline, layers, profile = null) {
+  const merged = mergePreferenceLayers(baseline, layers, undefined, profile);
   const runtimes = {};
   for (const runtime of Object.keys(merged.tiers)) {
     runtimes[runtime] = resolveMergedRuntime(merged, runtime);
@@ -775,7 +902,7 @@ export function discoverPreferencePaths({ projectRoot, homeDir = homedir() } = {
 
 function cliUsage() {
   return `Usage:
-  node routing.mjs resolve --runtime RUNTIME [--baseline PATH] [--input PATH]
+  node routing.mjs resolve --runtime RUNTIME [--baseline PATH] [--input PATH] [--profile NAME]
 
 Resolves the installed version-2 baseline and an optional structured input
 layer. Prints a version-1 policy for the complete active runtime on stdout.
@@ -785,7 +912,11 @@ layer. Prints a version-1 policy for the complete active runtime on stdout.
                       references/routing.json beside this module)
   --input PATH        Optional structured preference JSON (one layer or an
                       array of layers), typically interpreted from routing.md.
-  --explain           Wrap the policy with per-role selection/tier provenance.
+  --profile NAME      Optional named routing profile from a preference layer's
+                      profiles section; 'default' (or omission) selects
+                      ordinary routing.
+  --explain           Wrap the policy with per-role selection/tier provenance
+                      and the selected profile (null for ordinary routing).
 
 The helper does not discover user files. The workflow reads routing.md and
 passes bounded structured preferences here. Errors identify runtime, role,
@@ -838,10 +969,11 @@ async function runResolve(options) {
     }
   }
 
-  const resolution = resolveRuntime(baseline, input, options.runtime);
+  const profile = normalizeProfileSelection(options.profile);
+  const resolution = resolveRuntime(baseline, input, options.runtime, profile);
   const routeProvenance = Object.fromEntries(ROLES.map((role) => [role, resolution.routes[role].provenance]));
   const policy = exportV1(resolution.routes, resolution.runtime, `Resolved from the installed version-2 baseline (${options.baseline}).`);
-  const output = options.explain ? { policy, routeProvenance } : policy;
+  const output = options.explain ? { policy, routeProvenance, profile } : policy;
   process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
 }
 
@@ -859,6 +991,7 @@ async function main() {
   let runtime = null;
   let baseline = null;
   let input = null;
+  let profile = null;
   let explain = false;
   for (let index = 1; index < argv.length; index += 1) {
     const argument = argv[index];
@@ -871,6 +1004,11 @@ async function main() {
     } else if (argument === "--input") {
       input = resolve(requireCliValue(argv, index, argument));
       index += 1;
+    } else if (argument === "--profile") {
+      profile = requireCliValue(argv, index, argument);
+      index += 1;
+    } else if (argument.startsWith("--profile=")) {
+      profile = argument.slice("--profile=".length);
     } else if (argument === "--explain") {
       explain = true;
     } else {
@@ -881,7 +1019,7 @@ async function main() {
   if (!RUNTIME_KEYS.includes(runtime)) {
     throw new RoutingError(`--runtime must be one of ${RUNTIME_KEYS.join(", ")} (got '${runtime}').`);
   }
-  await runResolve({ runtime, baseline: baseline ?? packagedBaselinePath(), input, explain });
+  await runResolve({ runtime, baseline: baseline ?? packagedBaselinePath(), input, profile, explain });
 }
 
 if (process.argv[1] && await realpath(process.argv[1]) === await realpath(fileURLToPath(import.meta.url))) {

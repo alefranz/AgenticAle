@@ -130,6 +130,9 @@ source present. It exposes:
   — lowest to highest precedence, atomic entry replacement, tier and role
   sections merged separately, tier references resolved only after all layers
   merge;
+- named routing profile selection (`availableProfiles`, the optional
+  `profile` argument of the merge and resolve functions) — a selected
+  profile expands into per-layer precedence-ordered sub-layers;
 - concrete resolution (`resolveRuntime`, `resolveAllRuntimes`) with source and
   provenance labels and the reset semantics (`role: default`, `tier: default`,
   `inherit`);
@@ -142,8 +145,9 @@ source present. It exposes:
 The `resolve` CLI reads the installed baseline and an optional structured
 layer (`--input PATH`) produced by interpreting the Markdown preferences. It
 prints a complete version-1 policy for the active runtime
-(`--runtime copilot|codex|opencode`); `--explain` includes per-route source
-provenance.
+(`--runtime copilot|codex|opencode`); `--profile NAME` selects a named
+routing profile (below), and `--explain` includes per-route source
+provenance plus the selected profile (`null` for ordinary routing).
 
 ### One installed defaults file
 
@@ -191,6 +195,30 @@ remembered invocation preferences: installed inheritance and direct-role
 exceptions remain until a higher role selection or `default` clears them, and
 tier edits alone preserve them.
 
+### Named routing profiles
+
+Markdown preference files may contain optional `## Profile: <name>` sections,
+which the workflow interprets into the structured layer's `profiles` map —
+profile name to per-runtime tier/role sections in the same shape as the
+layer's `runtimes`. Exactly one profile is selected per activation; `default`
+(or no selector) means ordinary routing. For a selected profile, precedence is
+lowest to highest: installed baseline, personal default entries, personal
+entries for the selected profile, project default entries, project entries for
+the selected profile, default and selected-profile entries from an explicitly
+supplied invocation Markdown file, and direct invocation overrides. The full
+contract is in
+[ROUTING.md](https://github.com/alefranz/AgenticAle/blob/main/skills/work/references/ROUTING.md#named-routing-profiles).
+
+The resolver accepts an optional selected-profile argument and exposes
+`availableProfiles(layers, runtime)`. A selected profile's entries resolve
+through sub-layers labeled `<layer source> (profile <name>)`. The `--explain`
+output carries the per-route `routeProvenance` and the selected profile
+(`null` for ordinary routing), while the strict version-1 policy export stays
+unchanged — profile metadata never enters the policy. Within-profile
+semantics are unchanged: omitted entries retain the lower-precedence choice,
+replacement is atomic, and `role: default`, `tier: default`, and `inherit`
+keep their existing meanings.
+
 ## Generated OpenCode binding
 
 OpenCode V2 is the one runtime whose documented subagent interface selects a
@@ -221,9 +249,11 @@ other hosts.
 
 Customization follows the same model on OpenCode: the resolved
 selections determine what the seven profiles render, but additional tiers never
-create new profiles or task contracts — there remains exactly one profile per
-routing key, and per-call model overrides stay bounded by the preconfigured
-profiles. When a user's preference file selects routes no installed profile
+create new profiles or task contracts — there remains exactly one default
+generated profile per routing key, and per-call model overrides stay bounded
+by the preconfigured profiles. Named routing sets add further user-owned
+profiles under `agenticale/routing/<profile>/` without changing the default
+seven. When a user's preference file selects routes no installed profile
 matches, the workflow reports the mismatch with an actionable preparation
 command and never dispatches the route as if it were honored. The explicit
 refresh path — a resolved version-1 export plus the existing checkout-based

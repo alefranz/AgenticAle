@@ -166,6 +166,159 @@ Values use `provider/model[#variant]`; an optional `#variant`
 `openai/` and `opencode/` prefixes select OpenCode providers; imports remove
 them when creating Copilot and Codex routes, which use bare model IDs.
 
+## Named routing profiles
+
+A routing profile is a named collection of overrides — tier definitions and
+role overrides — inside an optional `## Profile: <name>` section of a
+`routing.md` preference file. Select exactly one profile per workflow
+activation. Profiles control child routing only: a profile is not a runtime,
+an account, an endpoint, or a machine, and it never authenticates, moves, or
+configures anything. Names are stable lowercase identifiers (1–40 characters,
+starting with a letter, then lowercase letters, digits, or hyphens, with no
+trailing hyphen); `default` and `inherit` are reserved. The full contract,
+including the seven-level precedence, is in the
+[routing contract](https://github.com/alefranz/AgenticAle/blob/main/skills/work/references/ROUTING.md#named-routing-profiles).
+
+### Ordinary defaults are unchanged
+
+No selector — or `--profile default` — means ordinary routing: installed
+baseline, then personal preferences, then project preferences, then invocation
+choices. `default` does **not** mean "ignore my routing.md and use the
+packaged settings": every one of your default sections still applies.
+
+### A default section plus profiles
+
+The packaged example
+([`references/routing.example.md`](https://github.com/alefranz/AgenticAle/blob/main/skills/work/references/routing.example.md))
+ships a default section and two profiles. Inside a `## Profile:` section the
+runtime heading sits one level deeper (`### opencode`), and tier tables use
+`#### Tiers`:
+
+```markdown
+# AgenticAle model routing
+
+## opencode
+
+### Tiers
+
+| Tier | Model | Reasoning effort |
+| --- | --- | --- |
+| fast | server-a/small-coder | medium |
+| routine | server-a/main-coder | high |
+| standard | provider-main/reviewer | high |
+| deep | provider-main/reviewer | xhigh |
+
+### Role overrides
+
+- review: use the deep tier.
+
+## Profile: server-b
+
+### opencode
+
+#### Tiers
+
+| Tier | Model | Reasoning effort |
+| --- | --- | --- |
+| fast | server-b/small-coder | medium |
+| routine | server-b/main-coder | high |
+```
+
+The model names are illustrative, not a claim of availability; actual
+identifiers and effort support come from your host. `--profile server-b`
+selects only that profile's entries: a partial profile like this one changes
+only the `fast` and `routine` tiers, while review and the deeper tiers retain
+the default section's configuration.
+
+### Precedence across files
+
+For a selected profile, precedence is lowest to highest: installed baseline,
+personal default entries, personal entries for the selected profile, project
+default entries, project entries for the selected profile, default and
+selected-profile entries from an explicitly supplied invocation Markdown file,
+and direct invocation overrides. A project default entry can therefore beat a
+personal profile entry: if your personal profile redefines `fast` and the
+project default also redefines `fast`, the project's `fast` wins for
+default-mapped roles such as `explore`. Same-name profiles merge across files
+by entry, so a project file may extend a personal profile by specifying only
+its differences.
+
+### Role resets inside profiles
+
+The reset semantics apply unchanged inside a profile:
+
+- `- review: default.` in the profile's role overrides clears a lower-level
+  direct role exception; `review` returns to the profile's `standard` tier.
+- `tier: default` restores a standard tier's packaged definition.
+- Changing all four tiers in a profile does **not** clear an existing direct
+  role exception. Clear it explicitly in the profile
+  (`- review: default.`) or at a higher layer.
+
+### Selecting at invocation
+
+```sh
+/work --profile server-b Fix the flaky test
+/work --profile=server-b Fix the flaky test
+/work --pr --profile server-b fix the flaky test
+/work --profile server-b --pr fix the flaky test
+/work --profile server-b -- fix the flaky test
+/autonomous 4 --profile server-b Migrate the report pipeline
+/autonomous --profile server-b 4 Migrate the report pipeline
+/autonomous --profile server-b
+```
+
+Work accepts `--profile NAME` (or `--profile=NAME`) alongside `--pr` and `--`,
+in any order, with everything after the options as the task text. Autonomous
+accepts the worker-round budget in either order relative to the profile
+selector. A profile-only invocation such as `/autonomous --profile server-b`
+has an empty parsed goal text, so it RESUMEs the active goal. An unambiguous
+natural-language instruction (for example, "use the server-b routing profile")
+also selects a profile; merely mentioning one does not. An unknown name, a
+missing name (a trailing `--profile`), or two different names is reported
+before dispatch, listing the profiles available for the active runtime.
+
+### How Autonomous treats the selection
+
+The selected profile name is durable goal configuration: Autonomous records
+it in the active handoff, separately from the diagnostic resolved-routing
+summary. A resume without a selector retains the goal's recorded selection; an
+explicit selector changes it; `--profile default` clears a named selection
+back to ordinary routing. Every fresh resume re-reads the current routing
+files: the persisted name is the only thing persisted, and resolved model
+choices are never carried over. A selected profile that no longer resolves —
+removed, renamed, or defined only for another runtime — blocks dispatch with
+an actionable explanation instead of silently falling back to default.
+
+### OpenCode named sets
+
+On OpenCode, a selected profile requires an explicitly prepared **named set**
+of generated profiles in `agenticale/routing/<profile>/<role>` (for example
+`agenticale/routing/server-b/implement`), each carrying the selected
+profile's resolved model and effort for that role. Named sets are user-owned
+agent files outside the installer's management: the installer refreshes only
+the default seven and never creates or regenerates named sets, so preparing
+one is a manual, user-approved action — resolve with `--profile`, mirror
+each default profile with the resolved model and effort, start a new session,
+and confirm host acceptance; the full procedure is in the
+[OpenCode runtime binding](https://github.com/alefranz/AgenticAle/blob/main/skills/work/references/runtimes/opencode.md).
+Selecting a profile never regenerates profiles or changes `opencode.jsonc`
+or global host configuration implicitly. A missing or stale
+named set (prepared values that differ from the currently resolved selection)
+is reported with the exact preparation steps and is never silently
+substituted by the default `agenticale/<role>` set. Host acceptance of the
+`agenticale/routing/...` identifier namespace is not verified yet: before
+dispatch, the workflow confirms the host accepts the identifier — it appears
+in the available-agents listing and resolves to the intended prepared
+profile — and records that confirmation in the session. See the
+[OpenCode profile refresh](#opencode-profile-refresh) section below.
+
+### Profiles are not build inputs
+
+Profiles are user-authored `routing.md` content, scoped to one activation
+(Work) or one goal (Autonomous). They are not install-time `--models` presets
+or build-time `--routing` files, which convert fixed choices into the
+installed baseline at install time.
+
 ## OpenCode profile refresh
 
 OpenCode turns the resolved routes into seven generated profiles. A preference
@@ -174,5 +327,11 @@ loaded. Before dispatch, the workflow compares requested routes with installed
 profiles. If no profile matches, it reports the mismatch and the preparation
 command; it does not rewrite profiles or global host configuration implicitly.
 Refresh requires the checkout-based installer and a new OpenCode session. The
-installer leaves `opencode.jsonc` unchanged. See the
+installer leaves `opencode.jsonc` unchanged, and the installer refresh updates
+only the default seven. A selected profile's named set is a user-owned set of
+agent files under `agenticale/routing/<profile>/<role>`, prepared by hand per
+the runtime binding's procedure — resolve with `--profile`, mirror each
+default profile with the resolved model and effort, start a new session, and
+confirm host acceptance; see [Named routing profiles](#named-routing-profiles).
+The installer never regenerates named sets. See the
 [OpenCode runtime procedure](https://github.com/alefranz/AgenticAle/blob/main/skills/work/references/runtimes/opencode.md).

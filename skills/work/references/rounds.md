@@ -258,7 +258,10 @@ These records belong to the invoking workflow's state: session state in
 reviewed task work, the handoff routing summary and the round ledger in
 Autonomous Mode. A child's self-reported model name never fills the effective
 field, and an unknown effective setting stays unknown rather than being
-estimated.
+estimated. The compact routing snapshot kept in that state records the
+selected routing profile name (or `default`) alongside the tier summary and
+role exceptions, so continuation prompts and autonomous resumes can preserve
+it.
 
 Routing records are diagnostic state, not a script to recite before every
 child. In ordinary progress narration, omit model identifiers, reasoning effort,

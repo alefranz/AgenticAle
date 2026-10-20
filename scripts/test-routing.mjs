@@ -18,8 +18,10 @@ import {
   STANDARD_TIERS,
   RoutingError,
   applyBuildOverrides,
+  availableProfiles,
   discoverPreferencePaths,
   exportV1,
+  isValidProfileName,
   legacyInventoryToV2,
   mergePreferenceLayers,
   mergeV2MissingRuntimes,
@@ -714,6 +716,314 @@ try {
     "discovery lists only the home file without a project root",
   );
 
+  // --- Named routing profiles: optional per-layer profile maps that expand
+  // into extra precedence-ordered sub-layers when selected. ---
+
+  // Layer shape: a valid profiles map normalizes; array/string are
+  // layer-shape RoutingErrors; non-object values are dropped; empty is a
+  // no-op; the unknown-key message names the new key.
+  const profileLayer = {
+    source: "personal routing.md",
+    runtimes: { codex: { tiers: { fast: explicit("pers/fast", "medium") } } },
+    profiles: { "server-b": { codex: { tiers: { fast: explicit("p-prof/fast", "max") } } } },
+  };
+  const normalizedProfileLayer = normalizePreferenceInput(profileLayer);
+  check(normalizedProfileLayer[0].profiles["server-b"].codex.tiers.fast.model === "p-prof/fast", "a layer with a profiles map normalizes to a shape-checked profiles entry");
+  checkError(() => validatePreferenceLayer({ source: "x", profiles: ["server-b"] }, 0), "profiles as an array is a layer-shape RoutingError", ["profiles", "JSON object"]);
+  checkError(() => validatePreferenceLayer({ source: "x", profiles: "server-b" }, 0), "profiles as a string is a layer-shape RoutingError", ["profiles", "JSON object"]);
+  checkError(() => validatePreferenceLayer({ source: "x", bogus: true }, 0), "the preference layer unknown-key message lists profiles", ["(expected source, runtimes, profiles)"]);
+  const weirdProfiles = {
+    source: "x",
+    runtimes: { codex: { tiers: { fast: explicit("f/fast", "low") } } },
+    profiles: { "server-b": "oops", fine: { codex: {} } },
+  };
+  const normalizedWeird = normalizePreferenceInput(weirdProfiles);
+  check(Object.keys(normalizedWeird[0].profiles).join(",") === "fine", "a non-object profile value is dropped from the normalized layer");
+  check(JSON.stringify(availableProfiles(weirdProfiles, "codex")) === JSON.stringify(["fine"]), "a non-object profile value is not available and causes no error");
+  check(resolveRuntime(synthetic(), [weirdProfiles], "codex", "fine").routes.explore.model === "f/fast", "a valid other profile still resolves beside an invalid unselected one");
+  const emptyProfiles = { source: "x", runtimes: { codex: { tiers: { fast: explicit("f/fast", "low") } } }, profiles: {} };
+  check(
+    JSON.stringify(resolveRuntime(synthetic(), [emptyProfiles], "codex").routes)
+      === JSON.stringify(resolveRuntime(synthetic(), [{ source: "x", runtimes: emptyProfiles.runtimes }], "codex").routes),
+    "an empty profiles object is a no-op",
+  );
+
+  // Profile identifier grammar.
+  check(isValidProfileName("server-b"), "isValidProfileName accepts 'server-b'");
+  check(isValidProfileName("alternate-provider"), "isValidProfileName accepts 'alternate-provider'");
+  check(isValidProfileName("a"), "isValidProfileName accepts a single letter");
+  check(isValidProfileName(`a${"b".repeat(39)}`), "isValidProfileName accepts a 40-character name");
+  check(!isValidProfileName("Server-B"), "isValidProfileName rejects uppercase letters");
+  check(!isValidProfileName("9lives"), "isValidProfileName rejects a leading digit");
+  check(!isValidProfileName("server-"), "isValidProfileName rejects a trailing hyphen");
+  check(!isValidProfileName(`a${"b".repeat(40)}`), "isValidProfileName rejects a 41-character name");
+  check(!isValidProfileName("default"), "isValidProfileName rejects reserved 'default'");
+  check(!isValidProfileName("inherit"), "isValidProfileName rejects reserved 'inherit'");
+  check(!isValidProfileName(""), "isValidProfileName rejects the empty string");
+  check(!isValidProfileName(42), "isValidProfileName rejects a non-string");
+  checkError(
+    () => resolveRuntime(synthetic(), [profileLayer], "codex", "Server-B"),
+    "an invalid selected profile name is a grammar RoutingError",
+    ["'Server-B'", "lowercase", "trailing hyphen", "40 characters", "reserved"],
+  );
+  checkError(
+    () => resolveRuntime(synthetic(), [profileLayer], "codex", "inherit"),
+    "selecting the reserved name 'inherit' is a grammar RoutingError",
+    ["'inherit'", "reserved"],
+  );
+
+  // Partial profile: only the fast/routine-mapped roles change; the rest are
+  // identical to the no-profile resolution.
+  const partialProfileLayers = [{
+    source: "personal routing.md",
+    runtimes: { codex: { tiers: { fast: explicit("pers/fast", "medium") } } },
+    profiles: {
+      "server-b": { codex: { tiers: { fast: explicit("p-prof/fast", "max"), routine: explicit("p-prof/routine", "low") } } },
+    },
+  }];
+  const partialWith = resolveRuntime(synthetic(), partialProfileLayers, "codex", "server-b");
+  const partialWithout = resolveRuntime(synthetic(), partialProfileLayers, "codex");
+  for (const role of ["explore", "implement", "fix"]) {
+    check(partialWith.routes[role].model === "p-prof/fast", `a partial profile changes only the ${role} role mapped to the redefined tier`);
+    check(
+      partialWith.routes[role].provenance.tier === "fast"
+        && partialWith.routes[role].provenance.tierSource === "personal routing.md (profile server-b)",
+      `the ${role} route carries the profile sub-layer source`,
+    );
+  }
+  for (const role of ["implement-hard", "review", "deep-review", "consult"]) {
+    check(JSON.stringify(partialWith.routes[role]) === JSON.stringify(partialWithout.routes[role]), `the partial profile leaves ${role} at its no-profile resolution`);
+  }
+
+  // Precedence across the layer order: personal default < personal profile <
+  // project default < project profile for the same key.
+  const ePersDefault = { source: "personal routing.md", runtimes: { codex: { tiers: { fast: explicit("pers/fast", "medium") } } } };
+  const ePersProfile = { source: "personal routing.md", profiles: { "server-b": { codex: { tiers: { fast: explicit("p-prof/fast", "low") } } } } };
+  const eProjDefault = { source: "project routing.md", runtimes: { codex: { tiers: { fast: explicit("proj/fast", "medium") } } } };
+  const eProjProfile = { source: "project routing.md", profiles: { "server-b": { codex: { tiers: { fast: explicit("proj-prof/fast", "low") } } } } };
+  const eAll = resolveRuntime(synthetic(), [ePersDefault, ePersProfile, eProjDefault, eProjProfile], "codex", "server-b").routes.explore;
+  check(eAll.model === "proj-prof/fast", "the project profile outranks the project default, the personal profile, and the personal default for the same key");
+  const eNoProjProfile = resolveRuntime(synthetic(), [ePersDefault, ePersProfile, eProjDefault], "codex", "server-b").routes.explore;
+  check(eNoProjProfile.model === "proj/fast", "without the project profile the project default outranks the personal profile");
+  // With no project entries at all, the personal profile outranks the
+  // personal default, completing the key-ordering proof.
+  const eNoProjDefault = resolveRuntime(synthetic(), [ePersDefault, ePersProfile], "codex", "server-b").routes.explore;
+  check(eNoProjDefault.model === "p-prof/fast", "without the project entries the personal profile outranks the personal default");
+  const ePersRole = { source: "personal routing.md", profiles: { "server-b": { codex: { roles: { review: explicit("p-prof/review", "medium") } } } } };
+  const eProjRole = { source: "project routing.md", profiles: { "server-b": { codex: { roles: { review: explicit("proj-prof/review", "low") } } } } };
+  const eRoles = resolveRuntime(synthetic(), [ePersRole, eProjRole], "codex", "server-b").routes.review;
+  check(
+    eRoles.model === "proj-prof/review" && eRoles.provenance.roleSource === "project routing.md (profile server-b)",
+    "a project profile direct selection outranks a matching personal profile direct selection",
+  );
+
+  // Complete seven-level precedence regression: baseline < personal default
+  // < personal profile < project default < project profile <
+  // invocation-Markdown default < invocation-Markdown profile < direct
+  // invocation override. Each of the seven levels defines a distinct fast
+  // tier (observed through the tier-mapped explore role) and a distinct
+  // direct review selection; removing levels from the top down must hand the
+  // win to the next-lower level, all the way down to the baseline.
+  const sevenLevelSources = [
+    ["personal routing.md", true],
+    ["personal routing.md", false],
+    ["project routing.md", true],
+    ["project routing.md", false],
+    ["invocation routing.md", true],
+    ["invocation routing.md", false],
+    ["direct invocation", true],
+  ];
+  const sevenLevels = sevenLevelSources.map(([source, isDefault], i) => {
+    const section = { codex: { tiers: { fast: explicit(`lv${i + 1}/fast`, "low") }, roles: { review: explicit(`lv${i + 1}/review`, "low") } } };
+    return isDefault
+      ? { source, runtimes: section }
+      : { source, profiles: { "server-b": section } };
+  });
+  const sevenFull = resolveRuntime(synthetic(), sevenLevels, "codex", "server-b");
+  check(sevenFull.routes.explore.model === "lv7/fast", "seven-level precedence: the full stack resolves the tier-mapped explore role to the direct-invocation fast tier");
+  check(sevenFull.routes.review.model === "lv7/review" && sevenFull.routes.review.provenance.roleSource === "direct invocation", "seven-level precedence: the full stack resolves review to the direct-invocation selection");
+  for (let kept = 6; kept >= 0; kept -= 1) {
+    const winner = kept > 0 ? `lv${kept}` : null;
+    // Once the removal passes the lowest profile layer (level 2), no remaining
+    // layer defines 'server-b', so the chain continues with ordinary routing;
+    // the default sections still prove the remaining order down to baseline.
+    const seven = resolveRuntime(synthetic(), sevenLevels.slice(0, kept), "codex", kept >= 2 ? "server-b" : null);
+    const expectedExplore = winner ? `${winner}/fast` : "cx/fast";
+    const expectedReview = winner ? `${winner}/review` : "cx/standard";
+    check(seven.routes.explore.model === expectedExplore, `seven-level precedence: removing levels above ${winner ?? "the baseline"} makes the tier-mapped explore role follow ${winner ? `level ${winner}'s` : "the baseline's"} fast tier`);
+    check(seven.routes.review.model === expectedReview, `seven-level precedence: removing levels above ${winner ?? "the baseline"} makes the direct review selection come from ${winner ? `level ${winner}` : "the baseline"}`);
+  }
+
+  // Cross-file profile extension: the same profile name in two layers merges
+  // per key, and a tier reference in one layer resolves against the other.
+  const fPers = { source: "personal routing.md", profiles: { "server-b": { codex: { tiers: { fast: explicit("p-prof/fast", "max") }, roles: { explore: { mode: "tier", tier: "routine" } } } } } };
+  const fProj = { source: "project routing.md", profiles: { "server-b": { codex: { tiers: { routine: explicit("proj-prof/routine", "low") } } } } };
+  const fResolved = resolveRuntime(synthetic(), [fPers, fProj], "codex", "server-b");
+  check(fResolved.routes.explore.model === "proj-prof/routine", "a tier reference in one profile layer resolves against a tier defined by the same profile in another layer");
+  check(
+    fResolved.routes.explore.provenance.tier === "routine"
+      && fResolved.routes.explore.provenance.tierSource === "project routing.md (profile server-b)"
+      && fResolved.routes.explore.provenance.roleSource === "personal routing.md (profile server-b)",
+    "cross-file profile extension records both profile sub-layer sources",
+  );
+  check(fResolved.routes.implement.model === "p-prof/fast" && fResolved.routes.fix.model === "p-prof/fast", "the personal profile key still applies where the project profile is silent");
+  const fMerged = mergePreferenceLayers(synthetic(), [fPers, fProj], "codex", "server-b");
+  check(
+    fMerged.tiers.codex.fast.source === "personal routing.md (profile server-b)"
+      && fMerged.tiers.codex.routine.source === "project routing.md (profile server-b)",
+    "cross-file profiles merge per key under each defining layer's profile label",
+  );
+
+  // Role exceptions interact with a selected profile: direct selections
+  // survive tier changes, tier-mapped roles follow redefinitions, and
+  // `role: default` clears a lower direct selection over profile-adjusted
+  // tiers.
+  const gDirect = resolveRuntime(synthetic(), [
+    { source: "personal routing.md", runtimes: { codex: { roles: { review: explicit("pers/review", "medium") } } } },
+    { source: "personal routing.md", profiles: { "server-b": { codex: { tiers: { standard: explicit("p-prof/std", "low") } } } } },
+  ], "codex", "server-b").routes.review;
+  check(gDirect.model === "pers/review" && gDirect.provenance.selection === "role-exception", "a default-layer direct selection survives the selected profile's tier changes");
+  const gMapped = resolveRuntime(synthetic(), [
+    { source: "project routing.md", profiles: { "server-b": { codex: { tiers: { standard: explicit("proj-prof/std", "low") } } } } },
+  ], "codex", "server-b").routes.review;
+  check(gMapped.model === "proj-prof/std", "a role mapped to a profile-redefined tier follows the redefinition");
+  const gClear = resolveRuntime(synthetic(), [
+    { source: "personal routing.md", runtimes: { codex: { roles: { review: explicit("pers/review", "medium") } } } },
+    { source: "project routing.md", profiles: { "server-b": { codex: { tiers: { standard: explicit("proj-prof/std", "low") }, roles: { review: { mode: "default" } } } } } },
+  ], "codex", "server-b").routes.review;
+  check(
+    gClear.model === "proj-prof/std"
+      && gClear.provenance.selection === "default-tier-mapping"
+      && gClear.provenance.tier === "standard"
+      && gClear.provenance.tierSource === "project routing.md (profile server-b)",
+    "a profile role:default clears the lower direct selection over the profile-adjusted tiers",
+  );
+
+  // `tier: default` inside a selected profile restores the installed-baseline
+  // definition, not a lower profile/default replacement.
+  const hReset = resolveRuntime(synthetic(), [
+    { source: "personal routing.md", runtimes: { codex: { tiers: { fast: explicit("pers/fast", "low") } } } },
+    { source: "personal routing.md", profiles: { "server-b": { codex: { tiers: { fast: explicit("p-prof/fast", "low") } } } } },
+    { source: "project routing.md", profiles: { "server-b": { codex: { tiers: { fast: { mode: "default" } } } } } },
+  ], "codex", "server-b").routes.explore;
+  check(hReset.model === "cx/fast" && hReset.provenance.tierSource === BASELINE_SOURCE, "tier:default in a selected profile restores the installed-baseline definition");
+
+  // Atomic replacement: a profile tier replacement drops the replaced tier's
+  // fallbacks, and a replacement without fallbacks yields an empty list.
+  const withProfileFallbacks = synthetic();
+  withProfileFallbacks.runtimes.codex.tiers.deep = explicit("cx/deep", "xhigh", [{ model: "cx/fb-1", reasoningEffort: "high" }]);
+  const iAtomic = resolveRuntime(withProfileFallbacks, [
+    { source: "personal routing.md", profiles: { "server-b": { codex: { tiers: { deep: explicit("p-prof/deep", "low") } } } } },
+  ], "codex", "server-b").routes["deep-review"];
+  check(iAtomic.model === "p-prof/deep" && iAtomic.fallbacks.length === 0, "a profile tier replacement drops the replaced tier's fallbacks");
+
+  // Unknown and other-runtime-only profile selection.
+  const jLayers = [
+    { source: "personal routing.md", profiles: { "server-b": { codex: { tiers: { fast: explicit("p1", "low") } } } } },
+    { source: "project routing.md", profiles: { "alternate-provider": { codex: { tiers: { fast: explicit("p2", "low") } } } } },
+  ];
+  let jMessage = "";
+  try {
+    resolveRuntime(synthetic(), jLayers, "codex", "nope");
+  } catch (error) {
+    jMessage = error.message;
+  }
+  check(
+    jMessage === "Unknown routing profile 'nope' for runtime 'codex'. Available profiles for this runtime: alternate-provider, server-b.",
+    "an unknown profile error is actionable and lists the sorted available names",
+  );
+  const kOther = { source: "personal routing.md", profiles: { "server-b": { opencode: { tiers: { fast: explicit("oc/fast", "low") } } } } };
+  checkError(
+    () => resolveRuntime(synthetic(), [kOther], "codex", "server-b"),
+    "a profile defined only for another runtime is not a silent default resolution",
+    ["'server-b'", "'codex'", "No routing profiles are defined for this runtime"],
+  );
+  const kOther2 = { source: "personal routing.md", profiles: { "server-b": { codex: { tiers: { fast: explicit("cx/fast", "low") } } } } };
+  checkError(
+    () => resolveRuntime(synthetic(), [kOther2], "opencode", "server-b"),
+    "a profile defined only for codex is unavailable for opencode",
+    ["'server-b'", "'opencode'", "No routing profiles are defined for this runtime"],
+  );
+
+  // Unselected invalid entries never block; the same broken entry in the
+  // selected profile is rejected with the profile source label.
+  const lBroken = {
+    source: "personal routing.md",
+    runtimes: { codex: { tiers: { deep: explicit("alt/deep", "low") } } },
+    profiles: {
+      "server-b": { codex: { roles: { review: { mode: "broken" } } } },
+      alternate: { codex: {} },
+    },
+  };
+  const lNoProfile = resolveRuntime(synthetic(), [lBroken], "codex");
+  const lOtherProfile = resolveRuntime(synthetic(), [lBroken], "codex", "alternate");
+  check(JSON.stringify(lNoProfile.routes) === JSON.stringify(resolveRuntime(synthetic(), [lBroken], "codex", null).routes), "a broken entry in an unselected profile does not block ordinary routing");
+  check(JSON.stringify(lOtherProfile.routes) === JSON.stringify(lNoProfile.routes), "a broken entry in an unselected profile does not block a different profile selection");
+  check(lNoProfile.routes["deep-review"].model === "alt/deep", "the default part of a layer with a broken unselected profile still applies");
+  checkError(
+    () => resolveRuntime(synthetic(), [lBroken], "codex", "server-b"),
+    "the same broken entry in the selected profile is rejected",
+    ["(profile server-b)", "codex/role 'review'", "invalid mode 'broken'"],
+  );
+
+  // `profile === "default"` is ordinary routing: identical resolution and
+  // export.
+  const mLayers = [{
+    source: "personal routing.md",
+    runtimes: { codex: { tiers: { fast: explicit("pers/fast", "medium") } } },
+    profiles: { "server-b": { codex: { tiers: { fast: explicit("p-prof/fast", "low") } } } },
+  }];
+  const mNo = exportV1(resolveRuntime(synthetic(), mLayers, "codex").routes, "codex", "prov");
+  const mDefault = exportV1(resolveRuntime(synthetic(), mLayers, "codex", "default").routes, "codex", "prov");
+  check(JSON.stringify(mNo) === JSON.stringify(mDefault), "profile 'default' resolves and exports identically to ordinary routing");
+
+  // resolveAllRuntimes passes the profile through for every runtime.
+  const arLayers = [{ source: "personal routing.md", profiles: { "server-b": { codex: { tiers: { fast: explicit("p-prof/fast", "low") } }, opencode: { tiers: { fast: explicit("p-prof-oc/fast", "low") } } } } }];
+  const arWith = resolveAllRuntimes(synthetic(), arLayers, "server-b");
+  check(arWith.runtimes.codex.routes.explore.model === "p-prof/fast" && arWith.runtimes.opencode.routes.explore.model === "p-prof-oc/fast", "resolveAllRuntimes applies the selected profile to every declared runtime");
+  checkError(
+    () => resolveAllRuntimes(synthetic(), [{ source: "x", profiles: { "server-b": { codex: {} } } }], "nope"),
+    "an unknown profile in resolveAllRuntimes is rejected with the available names",
+    ["'nope'", "for this activation", "server-b"],
+  );
+
+  // availableProfiles: sorted per runtime, missing-runtime values and
+  // reserved/invalid names excluded, null and single-object inputs accepted.
+  const oLayers = [
+    { source: "a", profiles: { "server-b": { codex: {}, opencode: {} }, default: { codex: {} }, inherit: { opencode: {} }, Upper: { codex: {} } } },
+    { source: "b", runtimes: { codex: {} }, profiles: { "alternate-provider": { opencode: {} }, "server-b": { codex: {} } } },
+  ];
+  check(JSON.stringify(availableProfiles(oLayers, "codex")) === JSON.stringify(["server-b"]), "availableProfiles returns sorted unique names for the runtime");
+  check(JSON.stringify(availableProfiles(oLayers, "opencode")) === JSON.stringify(["alternate-provider", "server-b"]), "availableProfiles unions across layers and excludes reserved and invalid names");
+  check(JSON.stringify(availableProfiles(oLayers, "antigravity")) === JSON.stringify([]), "availableProfiles excludes a profile whose value lacks the runtime key");
+  check(JSON.stringify(availableProfiles(oLayers)) === JSON.stringify(["alternate-provider", "server-b"]), "availableProfiles without a runtime uses any runtime key");
+  check(JSON.stringify(availableProfiles(null)) === JSON.stringify([]), "availableProfiles(null) is empty");
+  check(JSON.stringify(availableProfiles({ source: "c", profiles: { solo: { codex: {} } } }, "codex")) === JSON.stringify(["solo"]), "availableProfiles accepts a single layer object");
+  check(
+    JSON.stringify(availableProfiles([{ profiles: { empty: {}, "has-runtime": { codex: {} } } }]))
+      === JSON.stringify(["has-runtime"]),
+    "availableProfiles without a runtime excludes a value with no runtime keys and includes a value with a runtime key",
+  );
+
+  // A valid profile name that shadows a prototype-chain member
+  // ('constructor') resolves through the layer that defines it even when a
+  // higher-precedence layer has no profiles key at all.
+  const cLayerA = { source: "personal routing.md", profiles: { constructor: { codex: { tiers: { fast: explicit("c-prof/fast", "max") } } } } };
+  const cLayerB = { source: "project routing.md", runtimes: { codex: { tiers: { deep: explicit("cB/deep", "low") } } } };
+  const cResolved = resolveRuntime(synthetic(), [cLayerA, cLayerB], "codex", "constructor");
+  check(cResolved.routes.explore.model === "c-prof/fast", "a profile named 'constructor' resolves past a higher profiles-omitting layer without a prototype-chain hit");
+  check(cResolved.routes["deep-review"].model === "cB/deep", "the profiles-omitting layer still contributes its default runtimes");
+  check(JSON.stringify(availableProfiles([cLayerA, cLayerB], "codex")) === JSON.stringify(["constructor"]), "a prototype-shadowing profile name is reported available");
+
+  // A defined-but-empty profile section for the active runtime is a no-op:
+  // selecting it resolves to exactly the no-profile resolution.
+  const cEmptySection = [{ source: "personal routing.md", profiles: { "empty-oc": { opencode: {} } } }];
+  check(
+    JSON.stringify(resolveRuntime(synthetic(), cEmptySection, "opencode", "empty-oc").routes)
+      === JSON.stringify(resolveRuntime(synthetic(), cEmptySection, "opencode").routes),
+    "selecting a profile whose section is empty for the active runtime equals the no-profile resolution",
+  );
+
   // --- Installed-fixture `resolve` CLI: the module runs from an installed
   // location with the source checkout absent from its path, reads structured
   // JSON from stdin or --input, and emits a strict version-1 policy. ---
@@ -826,6 +1136,51 @@ try {
   check(cliUnknownRuntime.status === 1 && /must be one of/.test(cliUnknownRuntime.stderr), "CLI rejects an unknown runtime");
   const cliBadJson = cli(["resolve", "--runtime", "codex"], "not json");
   check(cliBadJson.status === 1 && /not valid JSON/.test(cliBadJson.stderr), "CLI rejects non-JSON preference input");
+
+  // Installed-fixture CLI with named profiles: --profile NAME and
+  // --profile=NAME apply the profile, --explain reports it, unknown or
+  // invalid names fail, and --profile default equals the no-profile run.
+  const cliProfilePref = JSON.stringify([{
+    source: "personal routing.md",
+    runtimes: { codex: { tiers: { fast: explicit("pers/fast", "medium") } } },
+    profiles: {
+      "server-b": { codex: { tiers: { fast: explicit("p-prof/fast", "max") } } },
+      "alternate-provider": { codex: { tiers: { deep: explicit("alt-prov/deep", "low") } } },
+    },
+  }]);
+  const cliProf = cli(["resolve", "--runtime", "codex", "--profile", "server-b"], cliProfilePref);
+  check(cliProf.status === 0, `resolve --profile applies the selected profile${cliProf.status === 0 ? "" : ` (stderr: ${cliProf.stderr.trim()})`}`);
+  const cliProfPolicy = JSON.parse(cliProf.stdout);
+  check(cliProfPolicy.runtimes.codex.explore.model === "p-prof/fast" && cliProfPolicy.runtimes.codex.explore.reasoningEffort === "max", "the CLI profile selection applies the profile tier");
+  check(cliProfPolicy.runtimes.codex["deep-review"].model === packaged.runtimes.codex.tiers.deep.model, "the CLI profile selection leaves other tiers at the baseline");
+  let cliProfStrictError = null;
+  try {
+    strictValidateRouting(cliProfPolicy);
+  } catch (error) {
+    cliProfStrictError = error;
+  }
+  check(cliProfStrictError === null, `CLI profile policy passes the strict version-1 contract (no new fields)${cliProfStrictError ? ` (${cliProfStrictError.message})` : ""}`);
+  const cliProfEq = cli(["resolve", "--runtime", "codex", "--profile=alternate-provider"], cliProfilePref);
+  check(cliProfEq.status === 0 && JSON.parse(cliProfEq.stdout).runtimes.codex["deep-review"].model === "alt-prov/deep", "the --profile=NAME form selects the profile");
+  const cliProfExplain = cli(["resolve", "--runtime", "codex", "--profile", "server-b", "--explain"], cliProfilePref);
+  check(cliProfExplain.status === 0, "--explain with a profile exits 0");
+  const cliProfExplanation = JSON.parse(cliProfExplain.stdout);
+  check(cliProfExplanation.profile === "server-b", "--explain reports the selected profile name");
+  check(JSON.stringify(Object.keys(cliProfExplanation.policy).sort()) === JSON.stringify(["provenance", "runtimes", "schemaVersion"]), "--explain keeps the strict version-1 policy shape beside routeProvenance");
+  check(JSON.stringify(Object.keys(cliProfExplanation.routeProvenance).sort()) === JSON.stringify([...ROLES].sort()), "--explain keeps per-role routeProvenance entries");
+  check(cliProfExplanation.routeProvenance.explore.tierSource === "personal routing.md (profile server-b)", "--explain provenance tierSource carries the profile tag");
+  check(JSON.stringify(cliProfExplanation.policy) === JSON.stringify(cliProfPolicy), "--explain policy matches the plain profile policy");
+  const cliProfDefault = cli(["resolve", "--runtime", "codex", "--profile", "default"], cliProfilePref);
+  const cliProfPlain = cli(["resolve", "--runtime", "codex"], cliProfilePref);
+  check(cliProfDefault.status === 0 && cliProfPlain.status === 0, `--profile default exits 0${cliProfDefault.status === 0 ? "" : ` (stderr: ${cliProfDefault.stderr.trim()})`}`);
+  check(JSON.stringify(cliProfDefault.stdout) === JSON.stringify(cliProfPlain.stdout), "--profile default equals the no-profile policy");
+  const cliProfExplainDefault = cli(["resolve", "--runtime", "codex", "--profile", "default", "--explain"], cliProfilePref);
+  check(cliProfExplainDefault.status === 0 && JSON.parse(cliProfExplainDefault.stdout).profile === null, "--profile default reports a null profile in --explain");
+  const cliProfUnknown = cli(["resolve", "--runtime", "codex", "--profile", "nope"], cliProfilePref);
+  check(cliProfUnknown.status === 1, "an unknown profile exits non-zero");
+  check(cliProfUnknown.stderr.includes("server-b") && cliProfUnknown.stderr.includes("alternate-provider"), "the unknown-profile stderr lists the available names");
+  const cliProfBadName = cli(["resolve", "--runtime", "codex", "--profile", "Bad-Name"], cliProfilePref);
+  check(cliProfBadName.status === 1 && /Invalid routing profile 'Bad-Name'/.test(cliProfBadName.stderr), "an invalid profile name exits non-zero with the grammar error");
 } finally {
   await rm(scratch, { recursive: true, force: true });
 }

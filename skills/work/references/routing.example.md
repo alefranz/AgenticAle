@@ -8,44 +8,74 @@ routing:
 
 File creation is an explicit user action; AgenticAle never creates, overwrites,
 migrates, or removes these files. See `ROUTING.md` for the full contract.
-Runtime sections use `codex`, `copilot`, `opencode`, and `antigravity` (the `copilot-local`
-binding uses the `copilot` section). Apply only the active runtime's
+Runtime sections are `## codex`, `## copilot`, `## opencode`, and
+`## antigravity` headings (the `copilot-local` binding uses the `copilot`
+section); inside a `## Profile:` section the same runtime heading sits one
+level deeper, as in `### opencode` below. Apply only the active runtime's
 preferences; omit a section to keep the installed defaults for that runtime.
-The model names below are illustrative; actual identifiers and effort support
-come from the host.
+Named profile sections work for any runtime and are selected with
+`--profile <name>` at invocation. The model names below are illustrative;
+actual identifiers and effort support come from the host.
 
 ---
 
 # AgenticAle model routing
 
-## codex
+## opencode
 
 ### Tiers
 
 | Tier | Model | Reasoning effort |
 | --- | --- | --- |
-| fast | gpt-6-luna | medium |
-| routine | gpt-6-luna | high |
-| standard | gpt-6.1-sol | high |
-| deep | gpt-6.1-sol | xhigh |
+| fast | server-a/small-coder | medium |
+| routine | server-a/main-coder | high |
+| standard | provider-main/reviewer | high |
+| deep | provider-main/reviewer | xhigh |
 
 ### Role overrides
 
 - review: use the deep tier.
-- consult: use gpt-6-astra with high reasoning effort.
 
-## antigravity
+## Profile: server-b
 
-### Tiers
+### opencode
 
-| Tier | Model |
-| --- | --- |
-| fast | flash |
-| routine | flash |
-| standard | pro |
-| deep | pro |
+#### Tiers
 
-### Role overrides
+| Tier | Model | Reasoning effort |
+| --- | --- | --- |
+| fast | server-b/small-coder | medium |
+| routine | server-b/main-coder | high |
 
-- review: use the deep tier.
-- consult: use inherit.
+## Profile: alternate-provider
+
+### opencode
+
+#### Tiers
+
+| Tier | Model | Reasoning effort |
+| --- | --- | --- |
+| fast | provider-backup/fast-model | medium |
+| routine | provider-backup/coding-model | high |
+| standard | provider-backup/review-model | high |
+| deep | provider-backup/review-model | xhigh |
+
+#### Role overrides
+
+- review: default.
+
+---
+
+## What each example does
+
+- No selector (or `--profile default`) uses the default `opencode` table and
+  its review override, so `review` runs on the `deep` tier.
+- `--profile server-b` changes the `fast` and `routine` tiers — exploration,
+  routine implementation, and ordinary fixes — while review and deeper
+  reasoning retain their default configuration.
+- `--profile alternate-provider` changes all four tiers and clears the
+  default review exception (`review: default.`), returning `review` to its
+  default `standard` tier.
+
+The provider/model aliases and effort values are illustrative, not a claim of
+availability; substitute identifiers the user's host supports.

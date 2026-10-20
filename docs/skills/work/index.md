@@ -26,8 +26,21 @@ Invoke the installed skill for a bounded task and describe the outcome you want:
 - `/work Add CSV export for the report table`
 - `/work Investigate why export is slow and recommend a fix`
 
-Add `--pr` when you want Work to prepare and open a pull request. The examples
-use conceptual slash syntax; select the installed skill or use the
+Add `--pr` when you want Work to prepare and open a pull request. Leading
+options — `--pr`, `--profile NAME` (or `--profile=NAME`), and the `--`
+delimiter — may appear in any order, with everything after the options as the
+task text:
+
+- `/work --pr --profile server-b fix the flaky test`
+
+A selected profile is session-scoped: a fresh activation without a selector
+uses ordinary routing. An unambiguous natural-language instruction (for
+example, "use the server-b routing profile") selects a profile; merely
+mentioning one does not. An unknown, conflicting, or missing profile selector
+is reported before dispatch. Named routing profiles are described in
+[named routing profiles](../../guides/model-routing.md#named-routing-profiles).
+
+The examples use conceptual slash syntax; select the installed skill or use the
 client-specific invocation described in [setup](../../setup.md). Work starts
 only when explicitly invoked. The invoking session coordinates the task; there
 is no separate coordinator agent to choose.
@@ -181,6 +194,9 @@ are outside the repository when they matter.
 For an investigation, say whether you want a recommendation or an implemented
 fix. For pull request delivery, include `--pr` or clearly ask Work to open a PR.
 Without that request, changes stay uncommitted in the current branch by default.
+For a named routing profile, include `--profile NAME` or give an unambiguous
+instruction — a selected profile is session-scoped, and a fresh activation
+without a selector uses ordinary routing.
 Work asks for your input when a meaningful behavior choice is unresolved,
 required information is missing, a pull request destination is ambiguous, or
 existing user edits overlap the requested change and cannot be safely attributed.
