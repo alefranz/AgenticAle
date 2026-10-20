@@ -25,6 +25,9 @@ select.
 These examples use conceptual slash syntax. Select the skill or use the
 invocation supported by your client, as described in the
 [installation guide](https://alefranz.github.io/AgenticAle/setup.html).
+On OpenCode, add `--stats` to a `/work` invocation to include a session
+usage summary — duration, per-session token counts, and a per-provider
+breakdown — in the final report.
 
 **[Open the documentation site](https://alefranz.github.io/AgenticAle/)** for
 [getting started](https://alefranz.github.io/AgenticAle/getting-started.html),

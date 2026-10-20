@@ -42,6 +42,7 @@ For integrated changes and release readiness, run the full sequence in this orde
 ```sh
 node scripts/validate.mjs
 node scripts/test-routing.mjs
+node scripts/test-session-stats.mjs
 node scripts/test-installer.mjs
 node scripts/test-build.mjs
 node scripts/test-plugin-version.mjs
@@ -51,14 +52,21 @@ node scripts/check-plugin-version.mjs --base public/main
 git diff --check
 ```
 
-- `validate.mjs` checks the authored source of truth: 26 source-of-truth files
+- `validate.mjs` checks the authored source of truth: 27 source-of-truth files
   (including the routing contract, the version-2 `routing.json` baseline, the
-  `routing.example.md` example, and the shared `routing.mjs` module), 6
+  `routing.example.md` example, the shared `routing.mjs` module, and the
+  `session-stats.mjs` helper), 6
   capability-neutral task contracts, 7 OpenCode adapter profiles, 2 OpenCode
   command templates, the absence of the retired layout, and sanitation.
 - `test-routing.mjs` covers the shared routing module: version
   1/2 validation, preference merging, resolution, normalization, and the resolve
   CLI.
+- `test-session-stats.mjs` covers the work skill's session usage stats
+  helper: the paginated session tree walk with the cycle guard, normalization
+  of null and missing fields, totals (reasoning excluded from total), the
+  per-provider grouping, duration and number formatting, and table rendering.
+  `--live` additionally exercises the CLI against the running OpenCode server
+  for the calling session, and skips cleanly when it is unavailable.
 - `test-installer.mjs` covers the OpenCode and standalone
   installers, including old copy and link state migration and user-owned
   routing-file preservation, in isolated temporary directories.

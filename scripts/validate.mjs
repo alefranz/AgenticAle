@@ -58,6 +58,7 @@ const requiredPaths = [
   "skills/work/references/runtimes/antigravity.md",
   ...taskContracts.map((name) => `skills/work/references/tasks/${name}.md`),
   "skills/work/scripts/routing.mjs",
+  "skills/work/scripts/session-stats.mjs",
   "skills/autonomous/SKILL.md",
   "skills/autonomous/agents/openai.yaml",
   "skills/pull-request-description/SKILL.md",
@@ -568,12 +569,13 @@ function validateBundleSurface() {
       fail(`${packageRoot}/com.github.copilot`, "committed package must not ship a per-role Copilot directory", "remove the retired Copilot catalog");
     }
 
-    // The packaged routing resources: the version-2 baseline, preference
-    // example, and shared module.
+    // The packaged resources: the version-2 baseline, preference example,
+    // shared routing module, and session stats helper.
     for (const extra of [
       "skills/work/references/routing.json",
       "skills/work/references/routing.example.md",
       "skills/work/scripts/routing.mjs",
+      "skills/work/scripts/session-stats.mjs",
     ]) {
       if (!existsSync(join(repositoryRoot, packageRoot, extra))) {
         fail(`${packageRoot}/${extra}`, "committed package is missing a packaged routing resource", "regenerate the plugin with node scripts/publish-default-plugin.mjs");

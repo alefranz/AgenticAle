@@ -219,6 +219,20 @@ copy-pasteable continuation prompt. If you request a PR, it prepares the change 
 and returns the PR link. If the task is investigation-only, it returns the
 findings and a concrete next step.
 
+## Session usage summary (OpenCode)
+
+Add `--stats` to a `/work` invocation to ask for a session usage summary in
+the final report. It is opt-in per invocation, and it is supported on the
+OpenCode surface only; on another client the report says the option is
+unsupported.
+
+The summary covers the coordinator session and every child session it
+spawned: overall duration, a per-session table with the agent, model, and
+token counts (input, output, cache read and write, reasoning), totals, and a
+per-provider breakdown with cost. It reads the session data through the
+OpenCode API with read-only queries — it makes no model calls and changes
+nothing.
+
 ## Implementation source
 
 This guide explains the user-facing workflow. The authoritative instructions
