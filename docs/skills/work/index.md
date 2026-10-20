@@ -26,12 +26,38 @@ Invoke the installed skill for a bounded task and describe the outcome you want:
 - `/work Add CSV export for the report table`
 - `/work Investigate why export is slow and recommend a fix`
 
-Add `--pr` when you want Work to prepare and open a pull request. Leading
-options — `--pr`, `--profile NAME` (or `--profile=NAME`), and the `--`
-delimiter — may appear in any order, with everything after the options as the
-task text:
+Add `--pr` when you want Work to deliver the finished task as a pull request:
+it completes the implementation and its checks, runs the independent review,
+makes coherent commits, pushes, and opens the pull request — or updates the
+task branch's existing open PR when one already exists. Leading options —
+`--pr` (or `--pr=<PR URL>`), `--profile NAME` (or `--profile=NAME`), `--stats`,
+and the `--` delimiter — may appear in any order, with everything after the
+options as the task text:
 
 - `/work --pr --profile server-b fix the flaky test`
+
+## Continue working on the same PR
+
+Refine the same pull request across invocations. The first request creates it,
+a later `--pr` request updates it, and an exact URL targets it from another
+chat or checkout:
+
+- `/work --pr Add CSV export for the report table` — creates the pull request
+- `/work --pr Tweak the CSV column widths` — updates that same pull request
+- `/work --pr=https://github.com/alefranz/AgenticAle/pull/123 Fix the last review comment` — commits and pushes to that exact pull request's head branch
+
+| Request form | Delivery behavior |
+| --- | --- |
+| `/work <task>` (no options) | Current branch; changes uncommitted by default. |
+| `/work --pr <task>` | Complete, check, review, commit, and push; updates the task branch's open pull request or creates one. |
+| `/work --pr=<PR URL> <task>` | Commits and pushes to that exact pull request's head branch. |
+
+Publishing intent is task-scoped: a fresh `/work` without `--pr` does not
+inherit a previous task's pull request endpoint, and merely mentioning a pull
+request or asking to address its feedback does not publish. A closed, merged,
+inaccessible, or ambiguous explicit target is not replaced by a different pull
+request — Work preserves the completed work and reports what is needed to
+continue.
 
 A selected profile is session-scoped: a fresh activation without a selector
 uses ordinary routing. An unambiguous natural-language instruction (for
@@ -192,8 +218,10 @@ and any applicable `AGENTS.md` instructions, so point out files or context that
 are outside the repository when they matter.
 
 For an investigation, say whether you want a recommendation or an implemented
-fix. For pull request delivery, include `--pr` or clearly ask Work to open a PR.
-Without that request, changes stay uncommitted in the current branch by default.
+fix. For pull request delivery, include `--pr` (or `--pr=<PR URL>` to target an
+exact existing pull request) or clearly ask Work to commit and push the task's
+updates to a pull request. Without that request, changes stay uncommitted in
+the current branch by default.
 For a named routing profile, include `--profile NAME` or give an unambiguous
 instruction — a selected profile is session-scoped, and a fresh activation
 without a selector uses ordinary routing.
