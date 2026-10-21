@@ -10,8 +10,8 @@ The package exposes three public workflows, all explicit-only skills:
 
 - `/work [task]` (optionally `/work --pr <task>`) for a reviewed everyday task;
 - `/review [base or criteria]` (optionally `/review --deep` and
-  `/review --profile NAME`) for an independent review of the committed changes
-  on the current branch;
+  `/review --profile NAME`) for an independent review of the current branch's
+  net changes up to the working-tree result;
 - `/autonomous [budget] [goal]` for a durable, multi-round project.
 
 The other two skills, `source-code-lookup` and `pull-request-description`, are

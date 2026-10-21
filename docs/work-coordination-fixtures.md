@@ -7,6 +7,135 @@ the [work skill](../skills/work/SKILL.md), the
 coordinator decisions; they are source-interpretation examples, not live host
 tests.
 
+## Coherent existing changes with an empty `/work --pr`
+
+The branch and working tree contain coherent, complete changes made outside
+the session — manually or by another agent — and the user invokes `/work --pr`
+without task text.
+
+Expected behavior:
+
+- Adopt the existing changes as the task: with no explicit task text and no
+  active task, the task-selection chain inspects the branch and working-tree
+  changes and adopts them because they form a coherent, sufficiently
+  understood task.
+- Briefly explain the selected scope and apparent outcome as progress
+  narration, not a confirmation gate.
+- Review the changes independently, fix concrete findings, and complete the
+  PR delivery endpoint: checks, coherent commits, push, and the created or
+  updated pull request.
+- Never require the user to restate the task, and do not assign an
+  implementation round to modify already-complete work.
+
+## The same changes with an empty `/work`
+
+The same coherent uncommitted edits, and the user invokes `/work` without
+task text and without `--pr`.
+
+Expected behavior:
+
+- Adopt the changes, review them, and fix concrete findings as necessary.
+- Leave the changes uncommitted by default: an empty invocation without
+  `--pr` authorizes no commit, push, or pull request.
+
+## A preceding same-session review with findings
+
+A `/review` earlier in the same session returned findings on the current
+branch's changes, and the user now invokes `/work --pr` without task text.
+
+Expected behavior:
+
+- Use the review's findings and scope directly: no copying of the report and
+  no restating of the task.
+- Recheck the current repository state and each finding's applicability
+  before acting; reuse the review's evidence that still covers the same
+  content and checks, and run no redundant initial review.
+- Fix the findings, apply the existing fix and re-review rules to the
+  changes, then complete the PR delivery.
+
+## A preceding clean review with `--pr`
+
+A `/review` earlier in the same session returned a clean verdict on the
+current changes, and the user invokes `/work --pr` without task text.
+
+Expected behavior:
+
+- Do not manufacture implementation work from the clean review, and do not
+  duplicate the valid review: reuse its evidence where it still covers the
+  same content and checks.
+- Complete the outstanding delivery steps — commits, push, pull request — and
+  report the result.
+- If the reviewed result is already delivered and nothing remains, say so
+  instead of publishing again.
+
+## No task and no changes
+
+The user invokes `/work` without task text, there is no active task or
+preceding review, and the branch and working tree have no changes beyond the
+base.
+
+Expected behavior:
+
+- Ask what to work on; create nothing — no branch, no commit, no pull
+  request, and no invented task.
+
+## Competing changes and ambiguous scope
+
+The working tree holds several unrelated changes — or the conversation
+references competing tasks — and the user invokes `/work` without task text.
+
+Expected behavior:
+
+- Ask one focused scope question naming the competing candidates; never
+  silently choose between them, and never treat a stale conversation
+  reference as an active task.
+- Preserve all changes while asking: nothing is staged, committed, or
+  discarded.
+
+## An explicit task alongside unrelated dirty work
+
+The user invokes `/work <task>` while the working tree contains unrelated
+staged and unstaged changes.
+
+Expected behavior:
+
+- The explicit task text controls scope; the unrelated changes are not the
+  task.
+- Inspect the staged, unstaged, and untracked changes deliberately and
+  preserve them, including unrelated staged content; attribute overlapping
+  edits before changing or committing them.
+
+## Missing consequential product intent
+
+The adopted existing changes carry no user-supplied requirements, tests, or
+documented contract that establishes the desired behavior.
+
+Expected behavior:
+
+- Distinguish user-supplied requirements and context from observed behavior
+  and repository contracts, and from inferred purpose; do not approve the
+  implementation for matching its own current behavior as if that were the
+  intent.
+- Establish checks from existing contracts, tests, reproductions,
+  documentation, and relevant implementation context; the absence of a worker
+  report or original implementation history is not itself a defect.
+- Ask the user about the missing consequential behavior through the
+  coordinator; a consult may answer a bounded technical question but cannot
+  invent a user preference.
+
+## Existing autonomous state is not resumed
+
+The repository carries autonomous-mode handoff or backlog state from a prior
+durable project, and the user invokes `/work` without task text.
+
+Expected behavior:
+
+- Never implicitly resume the autonomous handoff: the existing autonomous
+  state is not an active task unless the user explicitly supplies it as
+  context.
+- Follow the task-selection chain: an unambiguous current task, coherent
+  existing changes, or a focused question when no selection is safe.
+
 ## Clear but complex change with a shared-state signal
 
 The request is a clear refactor of a billing module that writes to a database
@@ -362,6 +491,25 @@ Expected behavior:
   appropriate.
 - When overlapping edits cannot be attributed to the task safely, ask before
   committing them.
+
+## Coherent local edits with unrelated outgoing commits
+
+The working tree holds a coherent set of local edits that the task reviewed,
+but the branch's outgoing commits also include unrelated work that was never
+reviewed.
+
+Expected behavior:
+
+- A review of the local edits alone does not authorize the unrelated existing
+  commits.
+- Before pushing, inspect the full branch diff and outgoing commits against
+  the intended base and resolve the publication scope: commit only the
+  reviewed task changes, or ask before publishing the unrelated commits.
+- Record enough content evidence to identify what was reviewed, including
+  untracked content where relevant; if content changed since the review,
+  reconcile it and establish the necessary verification and review coverage
+  rather than claiming the current result is reviewed from an earlier
+  version.
 
 ## No-change tasks and interrupted publication
 

@@ -1,9 +1,14 @@
 # Work
 
-Work coordinates an everyday coding task through a focused implementation,
-independent review, and fixes. It can also handle delivery when you explicitly
-request a pull request. Invoke it when you want a change completed and checked
-as one task, or when you want feedback on a change already in progress.
+Work coordinates an everyday coding task through review, focused
+implementation, and fixes, optionally delivered as a pull request when you
+request it. It can start from a requested outcome, from existing changes —
+committed or uncommitted — or from a preceding
+[Review](../review/index.md)'s findings in the same session, entering at the
+first necessary step: a clear new change is implemented and reviewed, while
+coherent existing work is reviewed and fixed directly. Invoke it when you want
+a change completed and checked as one task, finished from what is already on
+your branch, or feedback on a change already in progress.
 
 Work gives a coding task a clear path from implementation through independent
 review, focused fixes, and delivery. A capable lower-cost or local implementer
@@ -49,8 +54,17 @@ chat or checkout:
 | Request form | Delivery behavior |
 | --- | --- |
 | `/work <task>` (no options) | Current branch; changes uncommitted by default. |
+| `/work` (no task) | Selects the task from an unambiguous active task, a preceding same-session `/review`, or coherent existing branch and working-tree changes; asks what to work on when no selection is safe; uncommitted by default. |
 | `/work --pr <task>` | Complete, check, review, commit, and push; updates the task branch's open pull request or creates one. |
+| `/work --pr` (no task) | The same task selection as an empty `/work`, plus PR delivery for the selected existing work. |
 | `/work --pr=<PR URL> <task>` | Commits and pushes to that exact pull request's head branch. |
+
+An empty `/work` adopts coherent existing changes — committed or uncommitted,
+including a clean feature branch with existing commits — or asks what to work
+on. A `/work` that follows a same-session `/review` uses that review's findings
+and scope directly, without copying the report or restating the task. The full
+task-selection and intent rules are in the
+[skill source](https://github.com/alefranz/AgenticAle/blob/main/skills/work/SKILL.md).
 
 Publishing intent is task-scoped: a fresh `/work` without `--pr` does not
 inherit a previous task's pull request endpoint, and merely mentioning a pull
@@ -77,8 +91,11 @@ Use Work for a bounded feature, bug fix, investigation that should produce a
 concrete recommendation, or review feedback on a pull request. It is a good fit
 when the task can be divided into clear implementation and review steps.
 
-Other good fits include addressing review feedback on a branch and requesting a
-pull request with `/work --pr`.
+Work also finishes existing work: with no task text it adopts coherent changes
+already on your branch or in your working tree, and after a same-session
+`/review` it uses that review's findings and scope directly. In either case it
+enters at the first necessary step — review, focused fixes, and delivery —
+instead of re-implementing what already exists.
 
 ## The routing tiers
 

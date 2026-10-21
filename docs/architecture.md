@@ -37,6 +37,12 @@ own model and effort, and it
 dispatches fresh children using task-specific instructions and the caller
 selected or configured route.
 
+The standalone review skill covers the current branch's net changes from the
+merge base to the current working-tree result — the committed branch review on
+a clean tree — and returns findings without fixing. Work can start from a
+requested outcome, existing changes, or a same-session preceding review's
+findings, entering at the first necessary step.
+
 `skills/work/references/rounds.md` is the shared round contract: the child task
 packet, compact reports, reset criteria, and the review/fix gate. Both workflows
 load it, and every build and install includes it. For complex bounded goals, it

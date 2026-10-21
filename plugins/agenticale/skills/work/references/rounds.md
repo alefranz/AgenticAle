@@ -51,8 +51,10 @@ Give each fresh child everything needed for one bounded assignment:
 - Applicable skill IDs and loading instructions. Pass the source-code-lookup
   trigger above to each child so it can load the skill if the need emerges;
   fresh children must not assume the coordinator's loaded skills are inherited.
-- Starting state and the exact commit range or working-tree changes to inspect,
-  including pre-existing changes that must be preserved.
+- Starting state, with content evidence sufficient to identify it (a status
+  line or an unchanged filename list alone is insufficient), and the exact
+  commit range or working-tree changes to inspect, including pre-existing
+  changes that must be preserved.
 - Git policy and its authorization; state policy and any explicitly required
   handoff path. Session state means return a report without operational writes.
 - Verification commands, findings to fix if applicable, and report format.
@@ -63,10 +65,12 @@ label worker claims as unverified. The reviewer inspects the change and evidence
 independently, including untracked files, rather than approving the report.
 For a re-review after a fix, carry the prior findings with stable IDs and their
 evidence so the review can report each as fixed, partially fixed, still open,
-or regressed. For a standalone review of an existing committed branch range,
-the packet supplies the exact range and the user's criteria in place of worker
-claims and worker-round acceptance criteria; nothing about a worker report is
-invented, and the reviewer's findings report is the deliverable.
+or regressed. For a standalone review of a recorded comparison — a committed
+branch range or the current working-tree result, including relevant untracked
+files — the packet supplies the exact comparison and the user's criteria in
+place of worker claims and worker-round acceptance criteria; nothing about a
+worker report is invented, and the reviewer's findings report is the
+deliverable.
 
 ## Sequential decomposition
 
@@ -296,6 +300,14 @@ change product code. They write operational notes only when the state policy
 explicitly requires them. Run relevant checks independently where feasible;
 report unavailable checks and do not claim they passed. Missing evidence needed
 to establish acceptance is blocking.
+
+Distinguish user-supplied requirements and context from observed behavior and
+repository contracts, and from inferred purpose; do not treat the
+implementation's current behavior as the intended behavior and approve it for
+matching itself. Establish meaningful checks from existing contracts, tests,
+reproductions, documentation, and relevant implementation context; the
+absence of a worker report or original implementation history is not itself a
+defect.
 
 Blocking findings identify defects or unmet acceptance conditions that must be
 resolved before delivery. Style preferences and optional improvements are nits
