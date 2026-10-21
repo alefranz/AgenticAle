@@ -2,7 +2,8 @@
 
 If `/work`, `/review`, or `/autonomous` is not found, restart the client after
 installation. For OpenCode, restart OpenCode; for Copilot, restart the Copilot
-session; for Antigravity, restart the CLI or desktop app session. OpenCode uses
+session; for Antigravity, restart the CLI or desktop app session (and verify with
+`agy plugin list` that `agenticale` is enabled). OpenCode uses
 generated command entries; other clients discover the installed skills through
 their own skill or plugin interface. See [setup](../setup.md) for installation.
 
