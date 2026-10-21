@@ -2,10 +2,11 @@
 
 ## Invocation surface
 
-The installer ships two OpenCode command entries with the profiles and skills:
-`commands/work.md` and `commands/autonomous.md`. Each explicitly loads the
-matching skill by its exact ID and passes the command arguments through, so
-`/work` and `/autonomous` in the OpenCode TUI are the user-facing entry points.
+The installer ships three OpenCode command entries with the profiles and
+skills: `commands/work.md`, `commands/review.md`, and
+`commands/autonomous.md`. Each explicitly loads the matching skill by its exact
+ID and passes the command arguments through, so `/work`, `/review`, and
+`/autonomous` in the OpenCode TUI are the user-facing entry points.
 OpenCode does not interpret the skills' `slash` field; without the command
 entries the explicit-only skills have no invocation surface on this host. The
 session that receives a command entry is the coordinator.

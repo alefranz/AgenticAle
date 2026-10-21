@@ -46,9 +46,14 @@ const generatedRoots = ["agents", "commands", "skills"];
 const profileNames = new Set(["consult", "deep-review", "explore", "fix", "implement", "implement-hard", "review"]);
 // The six profiles the retired schema-5 build emitted (no implement-hard).
 const legacyProfileNames = new Set(["consult", "deep-review", "explore", "fix", "implement", "review"]);
-// The two command entries the current build emits (thin launchers for the
+// The three command entries the current build emits (thin launchers for the
 // explicit-only skills; OpenCode does not interpret the skills' `slash` field).
-const commandNames = new Set(["autonomous", "work"]);
+const commandNames = new Set(["autonomous", "review", "work"]);
+// The five public skills the current build installs, and the four public skills
+// the pre-review release installed. A pre-review schema-6 state legally carries
+// exactly the four, and migration adds the review skill's files.
+const skillNames = new Set(["work", "review", "autonomous", "pull-request-description", "source-code-lookup"]);
+const legacySkillNames = new Set(["work", "autonomous", "pull-request-description", "source-code-lookup"]);
 
 // Retired (old install) path inventories, kept so older states (schema 1-4) can
 // be validated and migrated. These are relative to the OpenCode target.
@@ -232,7 +237,7 @@ function resolveSourceRoot(value) {
 
 // Build the OpenCode bundle into a TEMP root and return the copy entries for
 // every generated file. This installs generated output, never authored source:
-// the build renders the seven profiles and copies the four public skills, and we
+// the build renders the seven profiles and copies the five public skills, and we
 // walk the produced tree so the inventory always matches what the build made.
 // File contents are read into memory before the temp root is removed.
 async function buildOpenCodeEntries(options) {
@@ -423,11 +428,13 @@ function safeStatePath(path) {
 
 // Schema 5 (the generated-output install) has a dynamic file set because the
 // skill files are walked from the build. It is still fully constrained: exactly
-// the rendered profiles plus only the four public skill directories, all as
-// regular files with a digest. Entries under commands/ must be one of the two
-// known command entries, but a pre-command schema-6 state (current release
-// installs) legally lacks them: migration adds the entries, so validation only
-// checks shape, not presence.
+// the rendered profiles plus only the five public skill directories, all as
+// regular files with a digest. The skill set must be exactly the current five
+// skills or exactly the four skills of the pre-review release: migration adds
+// the review skill's files, and a partial mix is rejected. Entries under
+// commands/ must be one of the three known command entries, but a pre-command
+// schema-6 state (older release installs) legally lacks them: migration adds
+// the entries, so validation only checks shape, not presence.
 function validateGeneratedEntries(entries, statePath, expectedProfiles) {
   if (!Array.isArray(entries) || entries.length === 0) {
     throw new Error(`Install state does not contain the generated entry set: ${statePath}. Move it aside and retry.`);
@@ -461,7 +468,7 @@ function validateGeneratedEntries(entries, statePath, expectedProfiles) {
       if (commands.has(parts[1])) throw new Error(`Install state duplicates a generated command entry: ${statePath}.`);
       commands.add(parts[1]);
     } else if (parts[0] === "skills") {
-      if (!["work", "autonomous", "pull-request-description", "source-code-lookup"].includes(parts[1])) {
+      if (!skillNames.has(parts[1])) {
         throw new Error(`Install state has an unexpected generated skill: ${statePath}. Move it aside and retry.`);
       }
       skills.add(parts[1]);
@@ -472,8 +479,9 @@ function validateGeneratedEntries(entries, statePath, expectedProfiles) {
   if (profiles.size !== expectedProfiles.size) {
     throw new Error(`Install state does not contain all expected generated profiles: ${statePath}. Move it aside and retry.`);
   }
-  if (skills.size !== 4) {
-    throw new Error(`Install state does not contain all four generated skills: ${statePath}. Move it aside and retry.`);
+  const sortedSkillSet = [...skills].sort().join(",");
+  if (sortedSkillSet !== [...skillNames].sort().join(",") && sortedSkillSet !== [...legacySkillNames].sort().join(",")) {
+    throw new Error(`Install state does not contain a complete generated skill set (exactly the current five or the pre-review four skills): ${statePath}. Move it aside and retry.`);
   }
 }
 
@@ -743,7 +751,7 @@ async function installBundle(options) {
   if (duplicate) {
     console.log(`  notice: another AgenticAle install appears present (${duplicate}).`);
     console.log("    This installer owns the generated OpenCode bundle; the plugin/standalone installers own their own copies.");
-    console.log("    Installing both can duplicate the four skills. Pick one source of truth and uninstall the other if that is not intended.");
+    console.log("    Installing both can duplicate the five skills. Pick one source of truth and uninstall the other if that is not intended.");
   }
   for (const { path } of migration.removes) console.log(`  migrate-remove: ${path}`);
   for (const { path, inNew } of migration.preserved) {
@@ -767,7 +775,7 @@ async function installBundle(options) {
     && equivalentState(existingState, "copy", entries);
   if (upToDate) {
     console.log("Already up to date.");
-    console.log("Next: restart OpenCode and use the /work and /autonomous commands; this installer leaves opencode.jsonc unchanged.");
+    console.log("Next: restart OpenCode and use the /work, /review, and /autonomous commands; this installer leaves opencode.jsonc unchanged.");
     console.log("See docs/setup.md for child-session permissions and docs/autonomous.md for unattended /autonomous runs.");
     return;
   }
@@ -904,7 +912,7 @@ async function installBundle(options) {
   }
 
   console.log("Installation complete.");
-  console.log("Next: restart OpenCode and use the /work and /autonomous commands; this installer leaves opencode.jsonc unchanged.");
+  console.log("Next: restart OpenCode and use the /work, /review, and /autonomous commands; this installer leaves opencode.jsonc unchanged.");
   console.log("See docs/setup.md for child-session permissions and docs/autonomous.md for unattended /autonomous runs.");
 }
 
@@ -918,6 +926,8 @@ async function removeEmptyPackageDirectories(target) {
     "skills/work/agents",
     "skills/work/scripts",
     "skills/work",
+    "skills/review/agents",
+    "skills/review",
     "skills/autonomous/agents",
     "skills/autonomous",
     "skills/pull-request-description",

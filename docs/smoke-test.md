@@ -1,8 +1,8 @@
 # OpenCode V2 smoke test
 
 Use this checklist before a release. It maps to the skills-first layout: the
-generated OpenCode binding is seven profiles plus the four skills, and the two
-public workflows are invoked as skills. Every write goes to a newly created
+generated OpenCode binding is seven profiles plus the five skills, and the three
+public workflows are invoked explicitly. Every write goes to a newly created
 temporary directory; do not substitute a real OpenCode profile path.
 
 Discovery and routing checks below make no model request. Live workflow behavior
@@ -101,11 +101,12 @@ rm -rf "$smoke_root"
   `consult`) as subagents with their step limits and permission denials. There
   is no `coordinator` profile. With `--no-model`, each profile omits a
   `model:` line and inherits the session model;
-- the installed `work/SKILL.md` and `autonomous/SKILL.md` set `slash: true` and
-  `metadata.opencode/autoinvoke: false`; the installed
-  `commands/work.md` and `commands/autonomous.md` load their skills by exact ID
-  and pass through `$ARGUMENTS`, and OpenCode's command list exposes `/work`
-  and `/autonomous`; both skills' shared-round links resolve to the installed
+- the installed `work/SKILL.md`, `review/SKILL.md`, and `autonomous/SKILL.md`
+  set `slash: true` and `metadata.opencode/autoinvoke: false`; the installed
+  `commands/work.md`, `commands/review.md`, and `commands/autonomous.md` load
+  their skills by exact ID and pass through `$ARGUMENTS`, and OpenCode's
+  command list exposes `/work`, `/review`, and `/autonomous`; the workflow
+  skills' shared-round links resolve to the installed
   `skills/work/references/rounds.md`;
 - the install state is `.autonomous-mode-install.json`; the installed
   `work/references/` carries one version-2 baseline (`routing.json`), the JSON
@@ -124,6 +125,9 @@ throwaway repository beneath `workspaceRoot`/`workspace_root` and try:
   or a meaningful question without implementation.
 - Feedback on an existing branch with an unrelated staged edit: confirm the
   requested fix is reviewed and the unrelated edit and index state are preserved.
+- `/review` on a small committed range: confirm the clean-tree requirement,
+  exactly one fresh reviewer dispatch, and a findings report returned to the
+  user without a fix round, re-review, or any commit, push, or branch change.
 - `/autonomous` with a small goal: confirm durable handoff creation and resume
   from its next action, including persistence of read-only findings.
 

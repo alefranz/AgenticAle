@@ -2,7 +2,7 @@
 
 The normal automated checks do not make model requests. Use this checklist to
 verify plugin discovery with an isolated Copilot home before a release. The
-package is the modern shared skills package: four skills and no custom
+package is the modern shared skills package: five skills and no custom
 coordinator, no per-role agents, and no `commands/` entry. Skill invocation and
 model routing are native to the Copilot host.
 
@@ -35,11 +35,11 @@ Expected observations:
   (schemaVersion 2);
 - installation succeeds without a model request;
 - `copilot plugin list --json` contains an enabled `agenticale` entry;
-- a new CLI session exposes the four skills (`work`, `autonomous`,
-  `source-code-lookup`, `pull-request-description`) in `/skills`, and the two
-  public workflows as invocable skills with `/agenticale:work` and
-  `/agenticale:autonomous`. There is no `AgenticAle` / `AgenticAle Autonomous`
-  coordinator picker and no `/agent` selection step;
+- a new CLI session exposes the five skills (`work`, `review`, `autonomous`,
+  `source-code-lookup`, `pull-request-description`) in `/skills`, and the three
+  public workflows as invocable skills with `/agenticale:work`,
+  `/agenticale:review`, and `/agenticale:autonomous`. There is no `AgenticAle` /
+  `AgenticAle Autonomous` coordinator picker and no `/agent` selection step;
 - the workflows do not appear in `/skills` as implicitly invokable entries; they
   are explicit-only.
 
@@ -93,8 +93,8 @@ inheritance, conflicting-defaults, and negative-activation variants. Record
 requested versus effective settings per capability; a single successful dispatch
 does not prove the effective model.
 
-For workflow acceptance, use the everyday and autonomous scenarios in the
-[OpenCode checklist](smoke-test.md) with the Copilot binding. In particular,
+For workflow acceptance, use the everyday, review, and autonomous scenarios in
+the [OpenCode checklist](smoke-test.md) with the Copilot binding. In particular,
 check that `/agenticale:work --pr` passes its option to the task and that
 ordinary PR-feedback requests leave changes uncommitted. Live PR creation needs
 a disposable authorized remote.

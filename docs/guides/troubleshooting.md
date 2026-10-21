@@ -1,6 +1,6 @@
 # Troubleshooting
 
-If `/work` or `/autonomous` is not found, restart the client after
+If `/work`, `/review`, or `/autonomous` is not found, restart the client after
 installation. For OpenCode, restart OpenCode; for Copilot, restart the Copilot
 session; for Antigravity, restart the CLI or desktop app session. OpenCode uses
 generated command entries; other clients discover the installed skills through
@@ -15,7 +15,7 @@ handoff; only Autonomous persists recovery state on disk.
 
 If a model cannot be found, check that its identifier is available in your
 account and inspect the Markdown routing file. Plugin users can edit Markdown
-and start a new `/work` or `/autonomous` activation. OpenCode users may need to
+and start a new `/work`, `/review`, or `/autonomous` activation. OpenCode users may need to
 refresh generated profiles; see the
 [model routing guide](model-routing.md#opencode-profile-refresh). For a quick
 routing trial, use `--no-model` and then create a `routing.md` preference file.
@@ -34,9 +34,10 @@ the ordinary error guidance. Autonomous has a separate durable recovery policy.
 ## OpenCode permissions
 
 The OpenCode installer leaves `opencode.jsonc` unchanged. The foreground agent
-needs permission to run the `/work` and `/autonomous` command entries, load the
-`work` and `autonomous` skills, and launch the generated `agenticale/*`
-profiles. Those profile IDs are shared by both workflows. Child sessions
+needs permission to run the `/work`, `/review`, and `/autonomous` command
+entries, load the `work`, `review`, and `autonomous` skills, and launch the
+generated `agenticale/*` profiles. Those profile IDs are shared by the
+workflows. Child sessions
 cannot ask the user questions or launch nested agents, so configure the actions
 the task needs to resolve without interactive child prompts and scope the rules
 to the task and your environment.

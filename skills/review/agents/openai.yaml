@@ -1,0 +1,5 @@
+interface:
+  display_name: Review
+  short_description: Independent review of committed branch changes against a local base
+policy:
+  allow_implicit_invocation: false

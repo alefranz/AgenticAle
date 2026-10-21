@@ -63,7 +63,10 @@ label worker claims as unverified. The reviewer inspects the change and evidence
 independently, including untracked files, rather than approving the report.
 For a re-review after a fix, carry the prior findings with stable IDs and their
 evidence so the review can report each as fixed, partially fixed, still open,
-or regressed.
+or regressed. For a standalone review of an existing committed branch range,
+the packet supplies the exact range and the user's criteria in place of worker
+claims and worker-round acceptance criteria; nothing about a worker report is
+invented, and the reviewer's findings report is the deliverable.
 
 ## Sequential decomposition
 
@@ -325,3 +328,9 @@ policy rather than treating each new preference as another defect.
 The coordinator checks the final diff/state and a relevant acceptance result
 before reporting completion. An accepted change requires the necessary checks
 and no unresolved blocking findings; disclose limits of the evidence.
+
+A standalone review invoked directly (outside the work and autonomous
+workflows) returns the findings report to the user and does not enter this
+gate's fix loop: no fix round is dispatched from its findings, and the cycle
+caps do not apply to it. This gate governs the work and autonomous dispatches,
+which keep their existing review and fix policies.

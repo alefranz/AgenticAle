@@ -11,6 +11,11 @@ integrity, test coverage, regressions, and the supplied state policy. Return
 the requested compact review report. Write an audit verdict to disk only if
 the supplied state policy explicitly requires durable state.
 
+The supplied range may be an existing committed branch range (for example a
+merge base to HEAD) reviewed standalone, with no accepted-slice summaries or
+prior audit history; audit the range itself against the supplied criteria and
+return the findings report.
+
 This role runs in a fresh context so the integration audit does not inherit the
 rounds it is auditing.
 

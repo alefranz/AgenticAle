@@ -19,6 +19,7 @@ select.
 /work Fix the date filtering bug
 /work Investigate why export is slow and recommend a fix
 /work --pr Add CSV export to the report table
+/review main check the migration commit for regressions
 /autonomous 4 Migrate the report pipeline and verify the new behavior
 ```
 
@@ -38,8 +39,8 @@ and [contributing](https://alefranz.github.io/AgenticAle/contributing.html).
 ## Start here
 
 Choose the client setup in the [installation guide](https://alefranz.github.io/AgenticAle/setup.html).
-The four skills are `work`, `autonomous`, `source-code-lookup`, and
-`pull-request-description`. The two workflow skills are explicit-only; the
+The five skills are `work`, `review`, `autonomous`, `source-code-lookup`, and
+`pull-request-description`. The three workflow skills are explicit-only; the
 supporting skills are loaded when their tasks call for them.
 
 ### GitHub Copilot (CLI and VS Code)

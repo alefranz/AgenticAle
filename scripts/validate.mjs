@@ -37,11 +37,11 @@ const taskContracts = [
 
 const runtimes = ["antigravity", "codex", "copilot", "opencode"];
 const profileNames = ["consult", "deep-review", "explore", "fix", "implement", "implement-hard", "review"];
-const skillNames = ["work", "autonomous", "pull-request-description", "source-code-lookup"];
+const skillNames = ["work", "review", "autonomous", "pull-request-description", "source-code-lookup"];
 const retiredSkillNames = ["work-mode", "autonomous-mode"];
-// The two adapter-owned OpenCode command templates (thin launchers for the
+// The three adapter-owned OpenCode command templates (thin launchers for the
 // explicit-only skills; OpenCode does not interpret the skills' `slash` field).
-const commandNames = ["autonomous", "work"];
+const commandNames = ["autonomous", "review", "work"];
 
 // The NEW authored source-of-truth layout validate.mjs must assert exists.
 const requiredPaths = [
@@ -59,6 +59,8 @@ const requiredPaths = [
   ...taskContracts.map((name) => `skills/work/references/tasks/${name}.md`),
   "skills/work/scripts/routing.mjs",
   "skills/work/scripts/session-stats.mjs",
+  "skills/review/SKILL.md",
+  "skills/review/agents/openai.yaml",
   "skills/autonomous/SKILL.md",
   "skills/autonomous/agents/openai.yaml",
   "skills/pull-request-description/SKILL.md",
@@ -66,6 +68,7 @@ const requiredPaths = [
   "adapters/opencode/adapter.json",
   "adapters/opencode/README.md",
   "adapters/opencode/commands/autonomous.md",
+  "adapters/opencode/commands/review.md",
   "adapters/opencode/commands/work.md",
 ].sort();
 
@@ -224,6 +227,26 @@ function validateSkillAutonomous() {
   requireMetadataFlags(path, metadata);
   if (!body.includes("](../work/references/rounds.md)")) {
     fail(path, "body must link the shared round contract ../work/references/rounds.md", "link the shared round contract");
+  }
+}
+
+function validateSkillReview() {
+  const path = "skills/review/SKILL.md";
+  const { fields, metadata, body } = parseFrontmatter(path, readText(path));
+  requireExactKeys(path, fields, ["name", "description", "version", "slash", "disable-model-invocation", "metadata"]);
+  if (fields.get("name") !== "review") fail(path, "name must be 'review'", "set name: review");
+  if (!fields.get("description")) fail(path, "description must not be empty", "add the skill routing description");
+  if (!/^[1-9]\d*$/.test(fields.get("version") ?? "")) fail(path, "version must be a positive integer", "use version: <integer>");
+  if (fields.get("slash") !== "true") fail(path, "slash must be true", "set slash: true");
+  if (fields.get("disable-model-invocation") !== "true") {
+    fail(path, "disable-model-invocation must be true (explicit-only)", "set disable-model-invocation: true");
+  }
+  requireMetadataFlags(path, metadata);
+  if (!body.includes("](../work/references/rounds.md)")) {
+    fail(path, "body must link the shared round contract ../work/references/rounds.md", "link the shared round contract");
+  }
+  if (!body.includes("../work/references/tasks/")) {
+    fail(path, "body must reference the shared task contracts ../work/references/tasks/", "keep the task-contract routing reference");
   }
 }
 
@@ -524,7 +547,7 @@ function validateBundleSurface() {
       fail(path, "required source-of-truth file is missing", "restore it from the skills-first layout");
     }
   }
-  for (const policy of ["skills/work/agents/openai.yaml", "skills/autonomous/agents/openai.yaml"]) {
+  for (const policy of ["skills/work/agents/openai.yaml", "skills/review/agents/openai.yaml", "skills/autonomous/agents/openai.yaml"]) {
     if (existsSync(join(repositoryRoot, policy))) validateOpenaiPolicy(policy);
   }
   for (const path of retiredPaths) {
@@ -539,7 +562,7 @@ function validateBundleSurface() {
   }
 
   // Positive check on the committed shared package: it should contain plugin.json
-  // and the four skills, and none of the retired paths.
+  // and the five skills, and none of the retired paths.
   const packageRoot = "plugins/agenticale";
   if (existsSync(join(repositoryRoot, packageRoot))) {
     if (!existsSync(join(repositoryRoot, packageRoot, "plugin.json"))) {
@@ -550,7 +573,7 @@ function validateBundleSurface() {
         fail(`${packageRoot}/skills/${name}/SKILL.md`, "committed package is missing a public skill", "restore the generated skill");
       }
     }
-    for (const name of ["work", "autonomous"]) {
+    for (const name of ["work", "review", "autonomous"]) {
       const generated = join(packageRoot, "skills", name, "SKILL.md");
       if (!existsSync(join(repositoryRoot, generated))) continue;
       const { fields } = parseFrontmatter(generated, readText(generated));
@@ -732,6 +755,7 @@ function validateSanitation() {
 validateEndpointDetectorContract();
 validateBundleSurface();
 validateSkillWork();
+validateSkillReview();
 validateSkillAutonomous();
 validateSkillSourceLookup();
 validateSkillPullRequest();

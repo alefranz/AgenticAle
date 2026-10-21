@@ -35,12 +35,13 @@ From this adapter plus the resolved routing, the build emits:
   `steps`, and `permissions` frontmatter plus the model/effort for that route
   (see §5), and the body is copied verbatim from the matching neutral task
   contract `skills/work/references/tasks/<role>.md`.
-- `dist/opencode/skills/` — the `work` and `autonomous` skills copied with their
-  OpenCode discovery metadata (see §6).
-- `dist/opencode/commands/work.md` and `dist/opencode/commands/autonomous.md` —
-  the two OpenCode command entries copied from `adapters/opencode/commands/`
-  (see §7). They are what make `/work` and `/autonomous` available in the
-  OpenCode TUI; OpenCode does not interpret the skills' `slash` field.
+- `dist/opencode/skills/` — the `work`, `review`, and `autonomous` skills copied
+  with their OpenCode discovery metadata (see §6).
+- `dist/opencode/commands/work.md`, `dist/opencode/commands/review.md`, and
+  `dist/opencode/commands/autonomous.md` — the three OpenCode command entries
+  copied from `adapters/opencode/commands/` (see §7). They are what make
+  `/work`, `/review`, and `/autonomous` available in the OpenCode TUI; OpenCode
+  does not interpret the skills' `slash` field.
 
 The build renders exactly the **seven** profiles named in `adapter.json` and
 **must not** invent any other: there is no `coordinator` OpenCode profile and no
@@ -112,18 +113,18 @@ This matches `skills/work/references/runtimes/opencode.md`.
 
 ## 6. Skill discovery
 
-`skillDiscovery` in `adapter.json` records where the two skills land and their
-OpenCode discovery metadata so the build can copy the skills and apply the
-metadata:
+`skillDiscovery` in `adapter.json` records where the three skills land and
+their OpenCode discovery metadata so the build can copy the skills and apply
+the metadata:
 
 - `outputSkillsRoot`: `skills` — i.e. the skills land under
   `dist/opencode/skills/`.
-- Two skills, `work` and `autonomous`, each copied from its `skills/<name>`
-  source with frontmatter:
+- Three skills, `work`, `review`, and `autonomous`, each copied from its
+  `skills/<name>` source with frontmatter:
   - `slash: true` — a portability field for the runtimes that expose skills as
     direct slash invocations (Copilot, Codex). OpenCode V2 accepts the field but
-    does **not** interpret it; on OpenCode the `/work` and `/autonomous` surface
-    comes from the command entries in §7.
+    does **not** interpret it; on OpenCode the `/work`, `/review`, and
+    `/autonomous` surface comes from the command entries in §7.
   - `opencode/autoinvoke: false` — no automatic/implicit invocation by the model.
   - `copilot/disable-model-invocation: true` — carried alongside for coexistence
     with the other runtimes.
@@ -133,20 +134,21 @@ for direct user invocation but never started by the model on its own.
 
 ## 7. Command entries
 
-`commands` in `adapter.json` declares the two OpenCode command templates the
+`commands` in `adapter.json` declares the three OpenCode command templates the
 build copies from `adapters/opencode/commands/` into `dist/opencode/commands/`:
 
 | Command | Source | Output |
 | --- | --- | --- |
 | `work` | `commands/work.md` | `commands/work.md` |
+| `review` | `commands/review.md` | `commands/review.md` |
 | `autonomous` | `commands/autonomous.md` | `commands/autonomous.md` |
 
 Each template is a thin launcher: frontmatter with a one-line description, and a
 body that explicitly loads the matching skill by its exact ID with the skill
 tool and passes through `$ARGUMENTS`. The workflow rules live in the skills,
-not here. These command files are the only way OpenCode V2 exposes `/work` and
-`/autonomous` in its TUI, because OpenCode does not interpret the skills'
-`slash` portability field. They are adapter-owned generated output, not the
+not here. These command files are the only way OpenCode V2 exposes `/work`,
+`/review`, and `/autonomous` in its TUI, because OpenCode does not interpret
+the skills' `slash` portability field. They are adapter-owned generated output, not the
 retired repo-root `commands/` layout.
 
 ## 8. Documentation-only pass

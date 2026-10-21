@@ -16,6 +16,8 @@ are configurable and can inherit your session model.
 ## Choose a workflow
 
 - [Work](./skills/work/index.md): a reviewed everyday coding task, invoked explicitly.
+- [Review](./skills/review/index.md): an independent review of the committed
+  changes on the current branch, invoked explicitly.
 - [Autonomous](./skills/autonomous/index.md): durable work across multiple
   rounds and fresh sessions.
 - Supporting skills: [source code lookup](./skills/source-code-lookup/index.md)

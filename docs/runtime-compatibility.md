@@ -59,7 +59,7 @@ every row is **not tested**.
 
 | Capability | What it checks | Status (this pass) |
 | --- | --- | --- |
-| Skill discovery | The four public skills (`work`, `autonomous`, `source-code-lookup`, `pull-request-description`) are found and invocable on the target | **not tested** |
+| Skill discovery | The five public skills (`work`, `review`, `autonomous`, `source-code-lookup`, `pull-request-description`) are found and invocable on the target | **not tested** |
 | Raw child-tool input schema | The child-dispatch tool's actual input fields for model, effort, and context on the target | **not tested** |
 | Requested model | The model the routing contract asked the child to use | **not tested** |
 | Effective model | The model the host actually ran, from metadata or trace, not a child self-report | **not tested** |
@@ -67,7 +67,7 @@ every row is **not tested**.
 | Effective effort | The reasoning effort the host actually applied | **not tested** |
 | Isolation behavior | Each round runs in a fresh child context; nested delegation is restricted | **not tested** |
 | Unsupported-route behavior | An unavailable model, unsupported effort, or conflicting default is reported, not silently inherited | **not tested** |
-| Explicit skill invocation | `/work`, `/autonomous`, `/work --pr` run only when the user invokes them | **not tested** |
+| Explicit skill invocation | `/work`, `/review`, `/autonomous`, `/work --pr` run only when the user invokes them | **not tested** |
 | Negative activation | The workflows do not start from an ordinary prompt with no invocation | **not tested** |
 | Resource loading without the checkout | Installed skill references (task contracts, `rounds.md`, routing) resolve from the install location, not this repository | **not tested** |
 
@@ -90,8 +90,8 @@ purpose so a single available model pair can complete the whole matrix:
    confirm the effective model matches the session model.
 6. **Conflicting defaults.** Give the user-level and profile-level settings
    different routes; confirm which one wins is reported, not chosen silently.
-7. **Negative activation.** Issue an ordinary coding prompt with no `/work` or
-   `/autonomous` token; confirm no orchestrated round starts.
+7. **Negative activation.** Issue an ordinary coding prompt with no `/work`,
+   `/review`, or `/autonomous` token; confirm no orchestrated round starts.
 8. **Resource loading without the checkout.** Uninstall this repository from
    the target's discovery path and confirm the installed references still
    resolve.

@@ -176,8 +176,8 @@ used only when explicitly requested and supported by the runtime.
 Preference files are user-owned. Install, update, build, publication, and
 uninstall do not create, overwrite, migrate, or remove them. Missing files mean
 no customization; a present but unreadable file is reported rather than
-claimed as applied. Start a new `/work` or `/autonomous` activation to load
-changed preferences. See the example preference file at
+claimed as applied. Start a new `/work`, `/review`, or `/autonomous` activation
+to load changed preferences. See the example preference file at
 [`references/routing.example.md`](https://github.com/alefranz/AgenticAle/blob/main/skills/work/references/routing.example.md)
 and the full [routing contract](https://github.com/alefranz/AgenticAle/blob/main/skills/work/references/ROUTING.md) for
 interpretation and fallback details.

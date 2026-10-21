@@ -101,6 +101,11 @@
       "name": "autonomous",
       "source": "commands/autonomous.md",
       "outputPath": "commands/autonomous.md"
+    },
+    {
+      "name": "review",
+      "source": "commands/review.md",
+      "outputPath": "commands/review.md"
     }
   ],
   "skillDiscovery": {
@@ -118,6 +123,15 @@
       {
         "name": "autonomous",
         "source": "skills/autonomous",
+        "frontmatter": {
+          "slash": true,
+          "opencode/autoinvoke": false,
+          "copilot/disable-model-invocation": true
+        }
+      },
+      {
+        "name": "review",
+        "source": "skills/review",
         "frontmatter": {
           "slash": true,
           "opencode/autoinvoke": false,
