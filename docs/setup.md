@@ -6,9 +6,12 @@ reader entry point. Live runtime behavior is tracked separately in
 [runtime compatibility](runtime-compatibility.md), and is **not tested** until
 live evidence is recorded.
 
-The package exposes two public workflows, both explicit-only skills:
+The package exposes three public workflows, all explicit-only skills:
 
 - `/work [task]` (optionally `/work --pr <task>`) for a reviewed everyday task;
+- `/review [base or criteria]` (optionally `/review --deep` and
+  `/review --profile NAME`) for an independent review of the committed changes
+  on the current branch;
 - `/autonomous [budget] [goal]` for a durable, multi-round project.
 
 The other two skills, `source-code-lookup` and `pull-request-description`, are
@@ -61,8 +64,9 @@ copilot plugin uninstall agenticale
 
 ### Codex plugin (CLI, VS Code extension, and ChatGPT desktop app)
 
-The published `plugins/agenticale` package contains all four skills, including
-`agents/openai.yaml` metadata for the `work` and `autonomous` workflows. The
+The published `plugins/agenticale` package contains all five skills, including
+`agents/openai.yaml` metadata for the `work`, `review`, and `autonomous`
+workflows. The
 repository also contains a Codex marketplace at
 `.agents/plugins/marketplace.json`. Install it with the Codex CLI:
 
@@ -76,8 +80,8 @@ For a local checkout during development, use `codex plugin marketplace add
 the same `codex plugin add` command. You can also open Plugins in the ChatGPT
 desktop app, select the AgenticAle marketplace, and install the plugin there.
 Start a new chat or session afterward. In CLI and VS Code, use `/skills` or
-mention `$work` or `$autonomous`; in the desktop app, open Skills or mention
-the skill in your prompt.
+mention `$work`, `$review`, or `$autonomous`; in the desktop app, open Skills
+or mention the skill in your prompt.
 
 Refresh a Git-backed marketplace with `codex plugin marketplace upgrade
 agenticale`. Inspect installs with `codex plugin list` and remove this plugin
@@ -86,7 +90,7 @@ commands](https://learn.chatgpt.com/docs/developer-commands#codex-plugin).
 
 ### Alternative: standalone Codex skills
 
-Installs the four skill folders directly under a `.agents/skills` directory.
+Installs the five skill folders directly under a `.agents/skills` directory.
 Codex CLI, the official VS Code extension, and Codex mode in the ChatGPT
 desktop app can discover these standalone skills. The installer requires no
 native agent or plugin.
@@ -117,8 +121,9 @@ appears present (<path>)` if the target already carries the other layout's
 marker.
 
 After installation, start a new chat or session in the chosen client. In Codex
-CLI and the VS Code extension, type `$work Fix the date filtering bug` or
-`$autonomous 10 Improve the export workflow`; `/skills` also lists available
+CLI and the VS Code extension, type `$work Fix the date filtering bug`,
+`$review main`, or `$autonomous 10 Improve the export workflow`; `/skills` also
+lists available
 skills. In the ChatGPT desktop app's Codex mode, open Skills in the sidebar or
 mention the skill in your prompt. Use one install scope for the same machine
 unless you intentionally want separate copies: Codex may show both skills if
@@ -129,10 +134,11 @@ invocation details.
 
 ### OpenCode V2 (generated profiles)
 
-Installs the *generated* OpenCode binding: the four skills, seven generated
-agent profiles under `agents/agenticale/`, and the two command entries
-`commands/work.md` and `commands/autonomous.md` that expose `/work` and
-`/autonomous` in the OpenCode TUI. It copies into the OpenCode configuration
+Installs the *generated* OpenCode binding: the five skills, seven generated
+agent profiles under `agents/agenticale/`, and the three command entries
+`commands/work.md`, `commands/review.md`, and `commands/autonomous.md` that
+expose `/work`, `/review`, and `/autonomous` in the OpenCode TUI. It copies
+into the OpenCode configuration
 directory and does not link to the repository source. The default target is
 `$XDG_CONFIG_HOME/opencode` when set, otherwise `~/.config/opencode`.
 
@@ -145,7 +151,7 @@ This installer is copy-only: it no longer offers a link mode. On install it
 migrates older copy installs (state schema 1-4), older link installs
 (schema 1-4), and older six-profile generated installs (schema 5) to the
 current generated copy layout (state `.autonomous-mode-install.json`,
-schema 6, a 30-file inventory).
+schema 6, a 35-file inventory).
 
 If the target already carries another AgenticAle marker (for example a
 standalone `.agenticale-standalone-install.json`), the installer surfaces a

@@ -14,7 +14,7 @@ and navigation location.
 | `index.md`, `getting-started.md` | Site discovery and first steps |
 | `setup.md` | Canonical installation by client |
 | `guides/model-routing.md`, `guides/troubleshooting.md` | Focused help; legacy setup anchors link here |
-| `skills/work/index.md`, `skills/autonomous/index.md` | User-facing workflow explanations |
+| `skills/work/index.md`, `skills/review/index.md`, `skills/autonomous/index.md` | User-facing workflow explanations |
 | `skills/source-code-lookup/index.md`, `skills/pull-request-description/index.md` | Supporting skill explanations |
 | `architecture.md`, `runtime-compatibility.md` | Canonical architecture and runtime status |
 | `contributing.md` | Entry point to root `CONTRIBUTING.md` |

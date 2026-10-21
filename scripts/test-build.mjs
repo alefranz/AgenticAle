@@ -105,9 +105,9 @@ try {
   const standaloneRel = await listRelative(fixture.standaloneRoot);
   const openCodeRel = await listRelative(fixture.openCodeRoot);
 
-  check(pluginRel.length === 24, "plugin bundle has 24 files");
-  check(standaloneRel.length === 23, "standalone bundle has 23 files");
-  check(openCodeRel.length === 32, "OpenCode bundle has 32 files (7 profiles + 2 commands + 23 skills)");
+  check(pluginRel.length === 26, "plugin bundle has 26 files");
+  check(standaloneRel.length === 25, "standalone bundle has 25 files");
+  check(openCodeRel.length === 35, "OpenCode bundle has 35 files (7 profiles + 3 commands + 25 skills)");
 
   // The packaged routing resources (version-2 baseline, Markdown example,
   // and shared resolver module) ship in all three output roots.
@@ -125,9 +125,9 @@ try {
     }
   }
 
-  // Plugin root: manifest + four skills.
+  // Plugin root: manifest + five skills.
   check(pluginRel.includes("plugin.json"), "plugin bundle has plugin.json");
-  for (const name of ["work", "autonomous", "pull-request-description", "source-code-lookup"]) {
+  for (const name of ["work", "review", "autonomous", "pull-request-description", "source-code-lookup"]) {
     check(pluginRel.includes(`skills/${name}/SKILL.md`), `plugin bundle ships ${name}/SKILL.md`);
   }
   check(pluginRel.includes("skills/work/scripts/session-stats.mjs"), "plugin bundle ships skills/work/scripts/session-stats.mjs");
@@ -136,9 +136,9 @@ try {
   check(typeof manifest.$schema === "string" && manifest.$schema.length > 0, "plugin manifest declares a schema");
   check(!pluginRel.some((path) => path.includes("/skills/work-mode/") || path.includes("/skills/autonomous-mode/")), "plugin bundle ships no retired skills");
 
-  // Standalone root: the four skill folders only, no agents/ or commands/.
+  // Standalone root: the five skill folders only, no agents/ or commands/.
   const standaloneTop = new Set(standaloneRel.map((path) => path.split("/")[0]));
-  check(JSON.stringify([...standaloneTop].sort()) === JSON.stringify(["autonomous", "pull-request-description", "source-code-lookup", "work"]), "standalone bundle has exactly the four skill folders");
+  check(JSON.stringify([...standaloneTop].sort()) === JSON.stringify(["autonomous", "pull-request-description", "review", "source-code-lookup", "work"]), "standalone bundle has exactly the five skill folders");
   check(!standaloneRel.some((path) => ["agents", "commands"].includes(path.split("/")[0])), "standalone bundle has no top-level agents/ or commands/");
   check(standaloneRel.includes("work/scripts/session-stats.mjs"), "standalone bundle ships work/scripts/session-stats.mjs");
 
@@ -149,10 +149,12 @@ try {
   check(!openCodeRel.some((path) => path.endsWith("coordinator.md")), "OpenCode bundle has no coordinator profile");
 
   // OpenCode command entries: thin launchers for the explicit-only skills.
-  check(openCodeRel.includes("commands/work.md") && openCodeRel.includes("commands/autonomous.md"), "OpenCode bundle has the two command entries");
+  check(openCodeRel.includes("commands/work.md") && openCodeRel.includes("commands/review.md") && openCodeRel.includes("commands/autonomous.md"), "OpenCode bundle has the three command entries");
   check(openCodeRel.includes("skills/work/scripts/session-stats.mjs"), "OpenCode bundle ships skills/work/scripts/session-stats.mjs");
   const workCommand = await readText(join(fixture.openCodeRoot, "commands", "work.md"));
   check(workCommand.includes("`work`") && workCommand.includes("$ARGUMENTS"), "work command loads the work skill by exact ID and passes $ARGUMENTS");
+  const reviewCommand = await readText(join(fixture.openCodeRoot, "commands", "review.md"));
+  check(reviewCommand.includes("`review`") && reviewCommand.includes("$ARGUMENTS"), "review command loads the review skill by exact ID and passes $ARGUMENTS");
   const autonomousCommand = await readText(join(fixture.openCodeRoot, "commands", "autonomous.md"));
   check(autonomousCommand.includes("`autonomous`") && autonomousCommand.includes("$ARGUMENTS"), "autonomous command loads the autonomous skill by exact ID and passes $ARGUMENTS");
 

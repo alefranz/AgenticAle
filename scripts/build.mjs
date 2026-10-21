@@ -51,13 +51,13 @@ const CURRENT_BUILD_STATE_VERSION = 2;
 // The schema-1 baseline build owned the retired copilot package output.
 const LEGACY_OUTPUT_ROOTS = ["opencode", "copilot/agenticale"];
 
-// The four public skills that ship in every output root.
-const SKILL_NAMES = ["work", "autonomous", "pull-request-description", "source-code-lookup"];
+// The five public skills that ship in every output root.
+const SKILL_NAMES = ["work", "review", "autonomous", "pull-request-description", "source-code-lookup"];
 
 export const pluginManifest = {
   $schema: "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   name: "agenticale",
-  version: "0.12.0",
+  version: "0.13.0",
   description: "Reviewed coding tasks with focused specialist agents, optional PR delivery, and durable autonomous project work.",
   author: { name: "Ale Franz" },
   homepage: "https://github.com/alefranz/AgenticAle",
@@ -344,7 +344,7 @@ function renderSourceRoot(text, sourceRoot) {
   return text.replace(marker, `Source root: ${JSON.stringify(sourceRoot)}`);
 }
 
-// Copy the four public skills into a skills root and write the one effective
+// Copy the five public skills into a skills root and write the one effective
 // version-2 routing baseline used by runtime resolution.
 async function populateSkillsRoot(skillsRoot, sourceRoot, baseline) {
   for (const name of SKILL_NAMES) {
@@ -360,8 +360,8 @@ async function populateSkillsRoot(skillsRoot, sourceRoot, baseline) {
 
 // Copies the adapter-owned command templates (thin launchers that load the
 // explicit-only skills by exact ID) into the OpenCode output. OpenCode V2 does
-// not interpret the skills' `slash` portability field, so the /work and
-// /autonomous entries must be installed command files.
+// not interpret the skills' `slash` portability field, so the /work, /review,
+// and /autonomous entries must be installed command files.
 async function populateCommandEntries(openCodeRoot, adapter) {
   const adapterDirectory = join(repositoryRoot, "adapters", "opencode");
   for (const command of adapter.commands ?? []) {

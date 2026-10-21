@@ -32,10 +32,13 @@ const backupDirectoryName = ".agents-standalone-backups";
 const packageName = "agenticale-standalone";
 const stateVersion = 1;
 
-// The four public skills the standalone installer owns. The exact file set is
+// The five public skills the standalone installer owns. The exact file set is
 // discovered by walking the generated standalone build output so the inventory
 // always matches what the build produced.
-const skillNames = new Set(["work", "autonomous", "pull-request-description", "source-code-lookup"]);
+const skillNames = new Set(["work", "review", "autonomous", "pull-request-description", "source-code-lookup"]);
+// The four public skills the pre-review release installed; pre-review schema-1
+// states legally carry exactly this set, and an update adds the review skill.
+const legacySkillNames = new Set(["work", "autonomous", "pull-request-description", "source-code-lookup"]);
 
 function usage() {
   return `Usage:
@@ -49,9 +52,9 @@ function usage() {
 
 Installs the GENERATED standalone skills (built to a temp root, then copied)
 into a project or user skills folder. It installs skill resources only and
-does not require any native agent or plugin. The four skill folders (work,
-autonomous, pull-request-description, source-code-lookup) are written directly
-under the destination.
+does not require any native agent or plugin. The five skill folders (work,
+review, autonomous, pull-request-description, source-code-lookup) are written
+directly under the destination.
 
 This installer serves Codex CLI, the VS Code extension, Codex in the ChatGPT
 desktop app, and other clients that read a .agents/skills directory.
@@ -62,7 +65,7 @@ Scopes (used to pick the default destination; --target overrides both):
            (on Windows, %USERPROFILE%\\.agents\\skills)
 
 Options:
-  --target PATH  Explicit destination; the .agents/skills folder the four
+  --target PATH  Explicit destination; the .agents/skills folder the five
                  skill folders are written directly under (wins over --scope)
   --scope project|user
                  Which default destination to use (default: project)
@@ -222,7 +225,7 @@ function resolveSourceRoot(value) {
 
 // Build the standalone bundle into a TEMP root and return the copy entries for
 // every generated skill file. This installs generated output, never authored
-// source: the build copies the four public skills and we walk the produced
+// source: the build copies the five public skills and we walk the produced
 // tree so the inventory always matches what the build made. File contents are
 // read into memory before the temp root is removed.
 async function buildStandaloneEntries(options) {
@@ -254,7 +257,7 @@ async function readStandaloneEntries(skillsRoot) {
       else if (item.isFile()) {
         const relativePosix = relative(skillsRoot, absolute).split(/[\\/]/).join("/");
         const root = relativePosix.split("/")[0];
-        if (!skillNames.has(root)) throw new Error(`Unexpected generated path outside the four public skills: ${relativePosix}.`);
+        if (!skillNames.has(root)) throw new Error(`Unexpected generated path outside the five public skills: ${relativePosix}.`);
         const content = await readFile(absolute);
         entries.push({
           path: relativePosix,
@@ -387,8 +390,10 @@ function safeStatePath(path) {
 }
 
 // Schema 1: a fully-constrained, dynamic file set because the skill files are
-// walked from the build. Only the four public skill directories are allowed,
-// all as regular files with a sha256 digest.
+// walked from the build. Only the five public skill directories are allowed,
+// all as regular files with a sha256 digest. The skill set must be exactly the
+// current five skills or exactly the four skills of the pre-review release:
+// an update adds the review skill's files, and a partial mix is rejected.
 function validateEntries(entries, statePath) {
   if (!Array.isArray(entries) || entries.length === 0) {
     throw new Error(`Install state does not contain the entry set: ${statePath}. Move it aside and retry.`);
@@ -411,8 +416,9 @@ function validateEntries(entries, statePath) {
     if (seenPaths.has(entry.path)) throw new Error(`Install state duplicates a path: ${statePath}.`);
     seenPaths.add(entry.path);
   }
-  if (seenSkills.size !== skillNames.size) {
-    throw new Error(`Install state does not contain all four generated skills: ${statePath}. Move it aside and retry.`);
+  const sortedSkillSet = [...seenSkills].sort().join(",");
+  if (sortedSkillSet !== [...skillNames].sort().join(",") && sortedSkillSet !== [...legacySkillNames].sort().join(",")) {
+    throw new Error(`Install state does not contain a complete generated skill set (exactly the current five or the pre-review four skills): ${statePath}. Move it aside and retry.`);
   }
 }
 
@@ -523,7 +529,7 @@ function isCoveredBy(removedPaths, candidate) {
 }
 
 // R11/F7: duplicate-source detection across the scopes Codex actually discovers
-// (user and project .agents/skills), not just this destination. The same four
+// (user and project .agents/skills), not just this destination. The same five
 // skills can be installed into two scopes and both will surface in a client
 // selector, so a fresh install into one scope must notice an AgenticAle marker
 // left by ANY installer in a sibling discoverable scope. Surface the documented
@@ -639,7 +645,7 @@ async function installBundle(options) {
   if (duplicate) {
     console.log(`  notice: another AgenticAle install appears present (${duplicate}).`);
     console.log("    This installer owns only the standalone skill set; the plugin/OpenCode installers own their own copies.");
-    console.log("    Installing both can duplicate the four skills. Pick one source of truth and uninstall the other if that is not intended.");
+    console.log("    Installing both can duplicate the five skills. Pick one source of truth and uninstall the other if that is not intended.");
   }
   for (const { path } of retirement.removes) console.log(`  retire: ${path}`);
   for (const { path, inNew } of retirement.preserved) {
@@ -799,13 +805,15 @@ async function installBundle(options) {
 
 async function removeEmptyPackageDirectories(target) {
   const directories = [
-    // Leaf-first, matching the four public skill layouts.
+    // Leaf-first, matching the five public skill layouts.
     "work/references/runtimes",
     "work/references/tasks",
     "work/references",
     "work/agents",
     "work/scripts",
     "work",
+    "review/agents",
+    "review",
     "autonomous/agents",
     "autonomous",
     "pull-request-description",

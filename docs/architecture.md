@@ -2,8 +2,9 @@
 
 AgenticAle is a set of portable coding skills with explicit model routing,
 distributed as one Agent Plugins 1.0 package. It carries everyday reviewed task
-work (`work`), durable autonomous project work (`autonomous`), and two
-supporting skills (`source-code-lookup`, `pull-request-description`). Runtime
+work (`work`), standalone branch review (`review`), durable autonomous project
+work (`autonomous`), and two supporting skills
+(`source-code-lookup`, `pull-request-description`). Runtime
 specifics are kept out of the skills: Copilot and Codex dispatch native children
 with per-call model and effort, and OpenCode gets a generated set of routing
 profiles as a compatibility adapter.
@@ -18,7 +19,7 @@ Four concerns are separated so each can change independently:
 
 | Concern | Where |
 | --- | --- |
-| Workflow skills | `skills/work/SKILL.md`, `skills/autonomous/SKILL.md` |
+| Workflow skills | `skills/work/SKILL.md`, `skills/review/SKILL.md`, `skills/autonomous/SKILL.md` |
 | Task contracts | `skills/work/references/tasks/<role>.md` (six: `explore`, `implement`, `fix`, `review`, `deep-review`, `consult`) |
 | Routing contract | `skills/work/references/ROUTING.md` |
 | Routing defaults baseline | `skills/work/references/routing.json` (schemaVersion 2) |
@@ -26,11 +27,11 @@ Four concerns are separated so each can change independently:
 | Shared routing module | `skills/work/scripts/routing.mjs` (dependency-free, packaged with the work skill) |
 | Runtime bindings | `skills/work/references/runtimes/<host>.md` (five: `copilot`, `copilot-local`, `codex`, `opencode`, `antigravity`) |
 
-The two workflow skills are explicit-only: each sets
+The three workflow skills are explicit-only: each sets
 `copilot/disable-model-invocation: true` and `opencode/autoinvoke: false`, and
 the OpenAI metadata (`agents/openai.yaml`) disables implicit invocation. The
 invoking session is the coordinator; there is no selectable coordinator profile
-and no `commands/` entry in the authored core (the OpenCode binding ships two
+and no `commands/` entry in the authored core (the OpenCode binding ships three
 thin command entries — see the generated binding below). The session owns its
 own model and effort, and it
 dispatches fresh children using task-specific instructions and the caller
@@ -84,12 +85,12 @@ wake when the host exposes no such capability. See the
 boundaries.
 
 The authored source-of-truth layout is what `scripts/validate.mjs` asserts
-exists: the two workflow skills plus their `agents/openai.yaml`, the shared
+exists: the three workflow skills plus their `agents/openai.yaml`, the shared
 `rounds.md`, the `ROUTING.md` reference, the `routing.json` defaults baseline,
 the `routing.example.md` customization example, the shared `scripts/routing.mjs`
 module, the shared `scripts/session-stats.mjs` helper, the five runtime
 bindings, the six task contracts, the `adapters/opencode/` metadata (adapter,
-command templates, and README), and the two supporting skills, for 27
+command templates, and README), and the two supporting skills, for 30
 source-of-truth files. The retired layout
 (`commands/`, `agents/autonomous/`, `skills/work-mode`, `skills/autonomous-mode`)
 must be absent.
@@ -261,13 +262,14 @@ explicit route writes a `model:` line and reasoning effort into the profile
 frontmatter; an inherit route omits the `model:` line so the profile inherits the
 session model.
 
-The binding also carries two command entries, `commands/work.md` and
-`commands/autonomous.md`, rendered from the adapter-owned templates in
-`adapters/opencode/commands/`. Each is a thin launcher that explicitly loads
-the matching skill by its exact ID and passes through `$ARGUMENTS`; they are
-the only way OpenCode V2 exposes `/work` and `/autonomous`, because OpenCode
-does not interpret the skills' `slash` portability field. The workflow rules
-stay in the skills; the commands carry none of them.
+The binding also carries three command entries, `commands/work.md`,
+`commands/review.md`, and `commands/autonomous.md`, rendered from the
+adapter-owned templates in `adapters/opencode/commands/`. Each is a thin
+launcher that explicitly loads the matching skill by its exact ID and passes
+through `$ARGUMENTS`; they are the only way OpenCode V2 exposes `/work`,
+`/review`, and `/autonomous`, because OpenCode does not interpret the skills'
+`slash` portability field. The workflow rules stay in the skills; the commands
+carry none of them.
 
 The adapter metadata lives at `adapters/opencode/` (`adapter.json`, the
 `commands/` templates, and `README.md`) and is the only machine-readable
@@ -290,11 +292,12 @@ installer, then a restart or new session — is documented in
 
 ## Distribution
 
-One modern Agent Plugins 1.0 package carries the four public skills, their
+One modern Agent Plugins 1.0 package carries the five public skills, their
 task/routing resources, and optional OpenAI presentation metadata
-(`agents/openai.yaml`). Package identity: name `agenticale`, version `0.7.0`,
-author "Ale Franz", MIT license, schema
-`https://agent-plugins.org/schemas/1.0.0/plugin.schema.json`.
+(`agents/openai.yaml`). Package identity: name `agenticale`, author
+"Ale Franz", MIT license, schema
+`https://agent-plugins.org/schemas/1.0.0/plugin.schema.json`; the current
+version is `pluginManifest.version` in `scripts/build.mjs`.
 
 ```text
 plugins/agenticale/                 committed generated default modern package
@@ -313,9 +316,9 @@ three output roots beneath `--output` (default `dist`):
 
 | Output root | Contents |
 | --- | --- |
-| `<output>/plugin/agenticale` | Agent Plugins 1.0 package (22 files: `plugin.json` + the four skills and their resources, including one routing baseline, the preference example, and shared module) |
-| `<output>/standalone/.agents/skills` | the four standalone skills (21 files), no plugin dependency |
-| `<output>/opencode` | the seven generated profiles plus the same skills (30 files) |
+| `<output>/plugin/agenticale` | Agent Plugins 1.0 package (26 files: `plugin.json` + the five skills and their resources, including one routing baseline, the preference example, and shared module) |
+| `<output>/standalone/.agents/skills` | the five standalone skills (25 files), no plugin dependency |
+| `<output>/opencode` | the seven generated profiles plus the same skills (35 files) |
 
 The build writes `.agenticale-build.json` (schemaVersion 2) describing the
 package, the routing source, the effort mode, and the resolved profiles. Build
@@ -332,8 +335,8 @@ reported; replacements are backed up.
 | --- | --- | --- |
 | `scripts/install-copilot.mjs` | the modern shared plugin, via `copilot plugin install` | managed by the Copilot plugin store |
 | `codex plugin marketplace add` + `codex plugin add` | the shared plugin from `.agents/plugins/marketplace.json` | managed by the Codex plugin store |
-| `scripts/install-standalone.mjs` | the four standalone skills to project scope (`<cwd>/.agents/skills`, default) or user scope (`~/.agents/skills`) | `.agenticale-standalone-install.json` (schema 1) |
-| `scripts/install.mjs` | the generated OpenCode output (skills + seven profiles) | `.autonomous-mode-install.json` (schema 6, 30-file inventory) |
+| `scripts/install-standalone.mjs` | the five standalone skills to project scope (`<cwd>/.agents/skills`, default) or user scope (`~/.agents/skills`) | `.agenticale-standalone-install.json` (schema 1) |
+| `scripts/install.mjs` | the generated OpenCode output (skills + seven profiles) | `.autonomous-mode-install.json` (schema 6, 35-file inventory) |
 
 The OpenCode installer is copy-only. It builds to a temporary root and copies the
 generated output into the OpenCode configuration directory; it does not link to

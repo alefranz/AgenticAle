@@ -49,6 +49,7 @@ export default withMermaid(defineConfig({
         text: 'Skills',
         items: [
           { text: 'Work', link: '/skills/work/' },
+          { text: 'Review', link: '/skills/review/' },
           { text: 'Autonomous', link: '/skills/autonomous/' },
           { text: 'Source code lookup', link: '/skills/source-code-lookup/' },
           { text: 'Pull request description', link: '/skills/pull-request-description/' },

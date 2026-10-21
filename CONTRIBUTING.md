@@ -8,9 +8,9 @@ focused changes with clear verification are easiest to review.
 - Follow [AGENTS.md](AGENTS.md) for focused core development and the explicit
   core-only scope. Read the relevant skill source and architecture sections;
   defer packaging and cross-client convergence when requested.
-- Keep the authored source of truth under the skills-first layout. The two
-  workflow skills are `skills/work` and `skills/autonomous`; the two supporting
-  skills are `skills/pull-request-description` and
+- Keep the authored source of truth under the skills-first layout. The three
+  workflow skills are `skills/work`, `skills/review`, and `skills/autonomous`;
+  the two supporting skills are `skills/pull-request-description` and
   `skills/source-code-lookup`. The OpenCode adapter lives under
   `adapters/opencode`, and the routing contract is
   `skills/work/references/ROUTING.md`, with the version-2 defaults baseline at
@@ -52,11 +52,11 @@ node scripts/check-plugin-version.mjs --base public/main
 git diff --check
 ```
 
-- `validate.mjs` checks the authored source of truth: 27 source-of-truth files
+- `validate.mjs` checks the authored source of truth: 30 source-of-truth files
   (including the routing contract, the version-2 `routing.json` baseline, the
   `routing.example.md` example, the shared `routing.mjs` module, and the
   `session-stats.mjs` helper), 6
-  capability-neutral task contracts, 7 OpenCode adapter profiles, 2 OpenCode
+  capability-neutral task contracts, 7 OpenCode adapter profiles, 3 OpenCode
   command templates, the absence of the retired layout, and sanitation.
 - `test-routing.mjs` covers the shared routing module: version 1/2
   validation, preference merging, resolution, normalization, the `resolve`
@@ -90,8 +90,10 @@ Installer tests use temporary directories and must not target a real OpenCode
 profile. For a manual release check, follow `docs/smoke-test.md` (OpenCode) and
 `docs/copilot-smoke-test.md` (Copilot). Workflow-interpretation evaluation
 fixtures for the routing customization boundary live in
-[`docs/routing-fixtures`](docs/routing-fixtures/README.md). Live model-routing
-and workflow checks are recorded in [docs/runtime-compatibility.md](docs/runtime-compatibility.md).
+[`docs/routing-fixtures`](docs/routing-fixtures/README.md); standalone review
+interpretation examples live in [docs/review-fixtures.md](docs/review-fixtures.md).
+Live model-routing and workflow checks are recorded in
+[docs/runtime-compatibility.md](docs/runtime-compatibility.md).
 
 Please describe the problem, the chosen behavior, and the verification in a
 pull request. Do not include credentials, private endpoints, generated build
