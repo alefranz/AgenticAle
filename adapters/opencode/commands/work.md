@@ -1,5 +1,5 @@
 ---
-description: Implement and independently review a task, optionally through opening a PR.
+description: Implement or finish a task with independent review and fixes, optionally through opening a PR.
 ---
 
 Explicitly load the skill with the exact ID `work` using the skill tool, then

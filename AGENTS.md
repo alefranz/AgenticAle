@@ -10,6 +10,7 @@ not invoke its workflow.
 | Concern | Authored source |
 | --- | --- |
 | Everyday task workflow | `skills/work/SKILL.md` |
+| Standalone branch review | `skills/review/SKILL.md` |
 | Durable autonomous workflow | `skills/autonomous/SKILL.md` |
 | Shared rounds, task packets, review and fix rules | `skills/work/references/rounds.md` |
 | Specialist behavior | `skills/work/references/tasks/*.md` |
@@ -39,6 +40,12 @@ source. Do not search duplicate copies to understand core behavior.
   contracts; keep host dispatch details in runtime bindings and adapters.
 - Expand scope when evidence requires it. Report a runtime dependency precisely
   instead of inventing a capability or turning a core task into a harness audit.
+
+## Extending the workflows
+
+Prefer extending existing workflows around user outcomes. Add commands, flags,
+roles, or persistent state only when they provide a distinct capability that
+existing concepts cannot express clearly.
 
 ## Public and repository-only documentation
 

@@ -1,5 +1,5 @@
 interface:
   display_name: Review
-  short_description: Independent review of committed branch changes against a local base
+  short_description: Independent review of the branch's net changes from the merge base to the current working-tree result
 policy:
   allow_implicit_invocation: false

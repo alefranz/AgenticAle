@@ -1,6 +1,6 @@
 ---
 name: review
-description: "Independently review the committed changes on the current branch against a local base with one fresh reviewer, returning findings to the user. Explicit-only: invoke with /review (optionally /review --deep and /review --profile NAME); the model does not start this workflow on its own."
+description: "Independently review the current branch's net changes from the local merge base to the current working-tree result — the committed branch review on a clean tree — with one fresh reviewer, returning findings to the user. Explicit-only: invoke with /review (optionally /review --deep and /review --profile NAME); the model does not start this workflow on its own."
 version: 1
 slash: true
 disable-model-invocation: true
@@ -10,10 +10,12 @@ metadata:
 
 # Standalone branch review
 
-Give the committed changes on the current branch an independent review against
-a local base. The session coordinates; one fresh reviewer inspects the recorded
-range and returns its findings. This skill reviews — it does not implement,
-fix, or publish. Read [the shared round contract](../work/references/rounds.md)
+Give the current branch's net changes an independent review against a local
+base: from the merge base to the current working-tree result, including
+relevant untracked files. On a clean tree this is the existing committed
+branch review. The session coordinates; one fresh reviewer inspects the
+recorded comparison and returns its findings. This skill reviews — it does
+not implement, fix, or publish. Read [the shared round contract](../work/references/rounds.md)
 before dispatching, including its task-packet and report rules. The review and
 deep-review task contracts are shared with the work and autonomous workflows;
 invoking this skill does not activate either of them.
@@ -28,8 +30,9 @@ arguments token as the request. Interpret the complete arguments as:
   `--profile=NAME` option selects a routing profile. `--` is an explicit
   option delimiter; option parsing stops at the first non-option token, and
   everything after the options is the review context: a focus, acceptance
-  criteria, or a named local base. There is no base flag; a base is always
-  named in the remaining text.
+  criteria, an explicit scope (for example "only my uncommitted changes"), or
+  a named local base. There is no base or scope flag; a base or scope is
+  always named in the remaining text.
 - With no arguments at all, use the local default base and no extra criteria.
 - A missing profile name (a trailing `--profile`, or one followed by another
   option), or two different profile names, is reported before dispatch, listing
@@ -44,13 +47,23 @@ arguments token as the request. Interpret the complete arguments as:
 - A profile controls the reviewer's routing only: it never changes the
   session's model, the runtime, or credentials or endpoints.
 
-## A clean working tree is required
+## Comparison scope
 
-The review covers committed changes only. Inspect the working tree before
-resolving the base: if any staged, unstaged, or untracked change is present,
-stop and report that a clean working tree is required, naming what is present.
-Never stash, commit, or discard the user's work, and never dispatch the
-reviewer over it; the user resolves the tree and re-invokes.
+The default comparison is the merge base of the current branch and the
+resolved base to the current working-tree result, including relevant untracked
+files. A dirty tree never narrows the review to uncommitted changes alone;
+that would omit the branch's own commits. An explicit natural-language scope
+in the review context (for example "only my uncommitted changes") selects the
+local changes relative to `HEAD` instead; there is no scope flag. Existing
+base selection, focus, `--deep`, and routing-profile behavior are preserved,
+and genuinely conflicting scope instructions are clarified with the user or
+rejected.
+
+The final working-tree result is the reviewed content: a file whose staged and
+working-tree contents differ is reviewed at its working-tree content, not the
+intermediate staged version, and untracked files are included where relevant.
+Never stash, commit, or discard the user's work. State the actual comparison
+and included changes before dispatching.
 
 ## Resolve the base
 
@@ -70,12 +83,21 @@ reviewer over it; the user resolves the tree and re-invokes.
 ## Record the comparison range
 
 Compute the merge base of the current branch and the resolved base, and record
-the exact range in session context: the base name, the HEAD commit, the merge
-base, and the range from merge base to HEAD. Establish whether there is
-anything to review from the actual comparison diff, not the commit range: when
-`git diff <merge-base>...HEAD` produces nothing — including an empty or
-mutually reverting commit range — report that there is nothing to review and
-stop; do not dispatch a reviewer.
+the exact comparison in session context: the base name, the HEAD commit, the
+merge base, the comparison baseline — the merge base for the default scope,
+`HEAD` for the explicit HEAD-relative scope — the comparison endpoint, which
+is the working-tree result in both scopes, and the untracked files included
+in the review. The recorded comparison carries content evidence sufficient to
+identify what is reviewed; a status line or an unchanged filename list alone
+is insufficient.
+
+Establish whether there is anything to review from the actual net comparison
+between the recorded baseline and the working-tree result, including the
+relevant untracked files — not from the commit-range diff and the local diff
+considered separately: each part can be non-empty while the net result is
+empty, when a local edit cancels a branch commit or an unstaged edit cancels
+a staged change. When the net comparison is empty, report that there is
+nothing to review and stop; do not dispatch a reviewer.
 
 ## Resolve routing before dispatch
 
@@ -168,42 +190,46 @@ packet supplies:
 
 - the repository path, the current branch, and applicable repository
   instructions (the project's `AGENTS.md` when present);
-- the exact comparison recorded above: base name, merge base, HEAD commit, and
-  the merge-base-to-HEAD range. The reviewer inspects that range and verifies
-  its evidence independently; it never expands into a repository-wide audit;
+- the recorded comparison: base name, merge base, HEAD commit, the comparison
+  endpoint, and the included untracked files. State the actual comparison and
+  included changes before dispatch; the reviewer inspects that comparison and
+  verifies its evidence independently, and never expands into a
+  repository-wide audit;
 - the user's focus, criteria, and context, clearly labelled as user-supplied;
 - verification commands the user named, or the repository's obvious targeted
   checks, stated as checks the reviewer may run;
 - `State policy: session; report only; no operational files`.
 
 No worker report, accepted-slice summary, or implementation history is
-supplied, and none is invented: this is a review of an existing committed
-range, not of a completed worker slice. Do not dispatch a second reviewer, a
-fix round, or any other child; the shared fix-and-review loop does not run from
+supplied, and none is invented: this is a review of the recorded comparison,
+not of a completed worker slice. Do not dispatch a second reviewer, a fix
+round, or any other child; the shared fix-and-review loop does not run from
 this invocation.
 
 ## Finish
 
 Before returning the report, recheck the checkout: the current branch, `HEAD`,
-and the working-tree status. When the checkout changed during the review,
-state that the verdict covers only the recorded commits — the branch and the
-commit range recorded at dispatch — and what changed; never assert the
-checkout remained clean without that evidence.
+and the working-tree result. When the checkout or the working-tree result
+changed during the review, state that the verdict covers only the recorded
+comparison and what changed; never assert the checkout stayed unchanged
+without that evidence, and never claim the changed result is covered.
 
 Return the reviewer's report as the outcome: a verdict (clean or blocking
 findings), each finding with its location, impact, and required action,
 optional nits, and the commands the reviewer ran with results.
 
-- Identify the reviewed branch, the base, and the commit range in the final
-  report.
+- Identify the reviewed branch, the base, and the recorded comparison in the
+  final report.
 - Disclose checks the reviewer could not run, unavailable criteria, or
   evidence it could not establish; never claim a clean verdict when the
   evidence is missing.
 - Findings are returned to the user, not dispatched: there is no fix round, no
   re-review, no hosted review, and no approval or merge. Addressing the
-  findings is a separate request (for example a `/work` invocation with them).
-- State stays in the session: the base, the recorded range, the routing record,
-  and the report are retained in session context. No handoff, backlog,
+  findings is a separate request; a `/work` invocation in the same session
+  uses the findings and scope directly.
+- State stays in the session: the base, the recorded comparison, the routing
+  record, and the report are retained in session context. No handoff, backlog,
   archive, round ledger, or other operational file is created.
 - Make no product-code changes and no Git changes of any kind: no commits, no
-  pushes, no branch or remote changes; the pre-report recheck is read-only.
+  pushes, no stashing, no remote fetch, no branch or remote changes; the
+  pre-report recheck is read-only.

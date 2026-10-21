@@ -1,6 +1,6 @@
 ---
 name: work
-description: "Coordinate an everyday coding task through focused implementation, independent review, and fixes, optionally through a new or existing pull request. Explicit-only: invoke with /work (optionally /work --pr and /work --profile NAME) to start a reviewed task; the model does not start this workflow on its own."
+description: "Coordinate an everyday coding task — a requested outcome, existing changes, or a preceding review's findings — through review, focused implementation, and fixes, optionally through a new or existing pull request. Explicit-only: invoke with /work (optionally /work --pr and /work --profile NAME) to start a reviewed task; the model does not start this workflow on its own."
 version: 1
 slash: true
 disable-model-invocation: true
@@ -37,11 +37,14 @@ branch; it is the explicit targeting form for another chat or checkout.
 permissions. An unambiguous natural-language request to commit and push the
 task's updates to a pull request selects the same endpoint. Otherwise use the
 current branch and leave changes uncommitted unless the user or applicable
-repository instructions specify otherwise. With empty input, use an unambiguous
-current task or ask what to work on; never implicitly resume an autonomous
-handoff. Investigation-only requests stay investigation-only, and a mention of
-an existing PR or a request to address its feedback alone does not authorize
-publishing.
+repository instructions specify otherwise. With empty input, select the task
+through the precedence chain in [Start from the requested
+outcome](#start-from-the-requested-outcome), and ask what to work on when no
+selection is safe; never implicitly resume an autonomous handoff. An empty
+invocation with `--pr` additionally authorizes the PR delivery endpoint for the
+selected existing work. Investigation-only requests stay investigation-only,
+and a mention of an existing PR or a request to address its feedback alone
+does not authorize publishing.
 
 A routing profile is a separate leading option:
 
@@ -66,14 +69,31 @@ A routing profile is a separate leading option:
 ## Start from the requested outcome
 
 Read applicable repository instructions and inspect the current branch, status,
-and diff. Record the starting state in session context, including pre-existing
-staged, unstaged, and untracked changes. Preserve unrelated work and distinguish
-it from the task's changes throughout review and delivery. If overlapping edits
-cannot be attributed safely, ask before changing or committing them.
+and diff deliberately, including staged, unstaged, and untracked changes. Record
+the starting state in session context. Their presence alone does not mean every
+change belongs to the task: preserve unrelated work, including unrelated staged
+content, and distinguish it from the task's changes throughout review and
+delivery. A clean feature branch containing existing commits is ordinary input;
+its commits are part of the branch's net changes. If overlapping edits cannot be
+attributed safely, ask before changing or committing them.
 
-Use the current request and relevant conversation to identify the task and its
-acceptance criteria. Empty command input uses an unambiguous current task;
-otherwise ask what to work on. Never resume an autonomous handoff implicitly.
+Select the task by this precedence:
+
+1. Explicit task text from the invocation.
+2. An unambiguous active task or a preceding review in the current
+   conversation.
+3. Existing branch and working-tree changes, adopted when they form a
+   coherent, sufficiently understood task.
+4. A focused question when a material ambiguity prevents safe scope
+   selection.
+
+Stale conversation references are not an active task. Never silently choose
+between competing tasks, and never implicitly resume an autonomous handoff.
+
+Before substantial work, briefly explain the selected scope and apparent
+outcome. For coherent changes this is progress narration, not a mandatory
+confirmation gate; ask only about material scope, behavior, ownership, or
+destination uncertainty.
 
 Before dispatching implementation, run a brief material-risk assessment of the
 request, even when its intent is clear: identify the multiple independently
@@ -97,6 +117,9 @@ a fast route — resolve its route through the routing contract.
 Choose the smallest useful path:
 
 - A clear change: implement, independently review, and finish.
+- Existing work that is already complete or nearly so: review it and fix its
+  concrete findings; do not assign an implementation round to modify
+  already-complete work.
 - An uncertain request: explore one concrete question first. Present options
   when the findings expose a meaningful user choice, then implement once the
   intended outcome is clear.
@@ -113,6 +136,34 @@ Ask the user about consequential scope, behaviour, or preference choices; do
 not invent their preference or require a consultation first. Continue routine
 implementation and review fixes without stage-by-stage permission requests.
 Child agents return blockers to the coordinator rather than asking the user.
+
+## Review findings as Work input
+
+When a relevant review preceded this Work invocation in the same session, use
+its findings and scope directly: no copying of the report and no restating of
+the task. Recheck the current repository state and each finding's applicability
+before acting, and reuse the review's evidence that still covers the same
+content and checks — a redundant initial review is not required merely because
+Work was invoked. The existing fix and re-review rules apply to any changes
+Work makes. A clean review must not manufacture implementation work: complete
+outstanding delivery steps when authorized, and report that nothing remains
+when the reviewed result is already delivered. An explicit `--pr=<PR-URL>`
+invocation keeps the existing exact-target identity and failure rules.
+
+## Establish intent without circular validation
+
+Distinguish user-supplied requirements and context from observed behavior and
+repository contracts, and from inferred purpose and remaining uncertainty. Do
+not infer that the intended behavior is whatever the implementation currently
+does, then approve it for matching itself. Establish checks from existing
+contracts, tests, reproductions, documentation, and relevant implementation
+context; the absence of a worker report or original implementation history is
+not itself a defect. Ask the user, through the coordinator, when a
+consequential desired behavior cannot be established. A consult may answer a
+bounded technical question; it cannot invent a user preference, and
+consultation remains optional. Fix concrete defects and unmet requirements
+within the established scope automatically; optional suggestions must not turn
+the work into open-ended refactoring or opportunistic cleanup.
 
 ## Route only the rounds needed
 
@@ -405,7 +456,16 @@ For the PR endpoint:
    changes, preserving unrelated staged content as well as unstaged work.
 3. Before pushing, inspect the full branch diff and outgoing commits against
    the intended base. Ensure they match the requested scope and final reviewed
-   content; additional edits must be verified and reviewed as appropriate.
+   content; additional edits must be verified and reviewed as appropriate. A
+   review of local edits alone does not authorize unrelated existing commits:
+   when the outgoing history contains work outside the reviewed scope, resolve
+   the publication scope before pushing. Record enough content evidence to
+   identify what was reviewed, including untracked content where relevant; a
+   status line or an unchanged filename list alone is insufficient to detect
+   changes during review. If content changes during review or before delivery,
+   reconcile the changes and establish the necessary verification and review
+   coverage rather than claiming the current result is reviewed from an earlier
+   version.
 4. Push the task branch with ordinary Git semantics. If a push is rejected
    because the branch advanced, re-establish the current state and verification
    requirements before retrying; do not force-push. Before drafting the PR

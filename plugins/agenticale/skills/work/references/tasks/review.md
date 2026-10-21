@@ -10,12 +10,14 @@ state, task scope, project conventions, and relevant tests. Return the
 requested compact review report. Write a verdict to disk only if the supplied
 state policy explicitly requires durable state.
 
-For a standalone review of an existing committed branch range, the supplied
-assignment names the range (for example a merge base to HEAD) and the user's
-criteria in place of a worker report, accepted-slice summary, or
-implementation history. Inspect the committed range itself and verify its
-evidence independently; the absence of prior round context is not a finding.
-The findings report is the deliverable.
+For a standalone review of a recorded comparison — a committed branch range
+(for example a merge base to HEAD) or the current working-tree result,
+including relevant untracked files — the supplied assignment names the
+comparison and the user's criteria in place of a worker report, accepted-slice
+summary, or implementation history. Inspect the comparison itself and verify
+its evidence independently; the absence of prior round context or of the
+original implementation history is not a finding. The findings report is the
+deliverable.
 
 For a decomposed task, check the current slice's acceptance and its interactions
 with prior accepted work against the overall invariants. Do not demand explicitly
