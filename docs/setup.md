@@ -161,11 +161,62 @@ two installs were meant to be a single one.
 
 ### Google Antigravity (App and CLI)
 
-Antigravity installs the plugin from a local clone. Clone the repository, then
-in the CLI run `/plugin`, choose **Discover** > **Install from local
-directory**, and select `plugins/agenticale`. Restart the CLI or app before
-invoking the skills. Updates are installed from the same local clone through
-`/plugin`.
+Antigravity uses the `agy` command-line tool and installs plugins from a local
+repository clone. Clone or pull this repository, then install it directly with
+`agy`:
+
+```sh
+agy plugin install .
+```
+
+From another directory, pass the path to the repository root:
+
+```sh
+agy plugin install /path/to/AgenticAle
+```
+
+The command discovers the plugin definition in the repository and installs the
+package into the user plugin root (`~/.gemini/config/plugins/agenticale`, or
+`%USERPROFILE%\.gemini\config\plugins\agenticale` on Windows), where both the
+Antigravity desktop IDE and the `agy` CLI discover it.
+
+Verify that the plugin is recognized and active:
+
+```sh
+agy plugin list
+```
+
+Expected output:
+
+```text
+Installed plugins:
+- agenticale (enabled, <version>)
+    Source:     antigravity
+    Components: 5 skills
+```
+
+To update after pulling new changes in your local clone, rerun the install
+command:
+
+```sh
+git pull
+agy plugin install .
+```
+
+To remove the plugin:
+
+```sh
+agy plugin uninstall agenticale
+```
+
+#### Alternative: install via the interactive session
+
+Inside an interactive Antigravity chat or CLI session, run the `/plugin`
+command, select **Discover** > **Install from local directory**, and choose the
+repository root or `plugins/agenticale`.
+
+Restart any running CLI or IDE session after installing or updating so the
+skills are loaded into active context.
 
 See the [Antigravity installation reference](https://antigravity.google/docs/cli/install/)
 and [model routing guide](guides/model-routing.md).
@@ -244,11 +295,15 @@ node scripts/install.mjs --dry-run --no-model
 node scripts/install-standalone.mjs --dry-run --no-model
 ```
 
-Update an existing OpenCode install after fetching a newer version (explicit
-session-model inheritance shown here):
+Update an existing install after fetching a newer version:
 
 ```sh
+# OpenCode (explicit session-model inheritance shown here)
 node scripts/install.mjs --replace --no-model
+
+# Antigravity (re-run install from the updated local checkout)
+git pull
+agy plugin install .
 ```
 
 Uninstall removes only the files owned by the package and deletes its state
@@ -258,6 +313,7 @@ file:
 node scripts/install.mjs uninstall
 node scripts/install-standalone.mjs uninstall
 copilot plugin uninstall agenticale
+agy plugin uninstall agenticale
 ```
 
 The installers record their ownership, refuse to overwrite differing files by
