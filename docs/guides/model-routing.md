@@ -305,8 +305,9 @@ The reset semantics apply unchanged inside a profile:
 /autonomous --profile server-b
 ```
 
-Work accepts `--profile NAME` (or `--profile=NAME`) alongside `--pr` and `--`,
-in any order, with everything after the options as the task text. Autonomous
+Work accepts `--profile NAME` (or `--profile=NAME`) alongside `--pr`,
+`--consult`, and `--`, in any order, with everything after the options as the
+task text. Autonomous
 accepts the worker-round budget in either order relative to the profile
 selector. A profile-only invocation such as `/autonomous --profile server-b`
 has an empty parsed goal text, so it RESUMEs the active goal. An unambiguous

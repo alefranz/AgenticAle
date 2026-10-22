@@ -1,6 +1,6 @@
 ---
 name: work
-description: "Coordinate an everyday coding task — a requested outcome, existing changes, or a preceding review's findings — through review, focused implementation, and fixes, optionally through a new or existing pull request. Explicit-only: invoke with /work (optionally /work --pr and /work --profile NAME) to start a reviewed task; the model does not start this workflow on its own."
+description: "Coordinate an everyday coding task — a requested outcome, existing changes, or a preceding review's findings — through review, focused implementation, and fixes, optionally through a new or existing pull request. Explicit-only: invoke with /work (optionally /work --pr, /work --consult, and /work --profile NAME) to start a reviewed task; the model does not start this workflow on its own."
 version: 1
 slash: true
 disable-model-invocation: true
@@ -27,9 +27,9 @@ arguments token as the task. A leading `--pr` option selects PR delivery:
 complete the implementation and its checks, complete the independent review,
 make coherent task commits, push, and create or update a pull request. A
 leading `--stats` option requests a session usage summary in the final report;
-the options — `--pr`, `--stats`, and `--profile` — are combinable in any
-order, and the remaining text is the task. `--pr` never takes a bare argument:
-task text is never consumed as a PR target, so `/work --pr fix the bug` is PR
+the options — `--pr`, `--stats`, `--consult`, and `--profile` — are combinable
+in any order, and the remaining text is the task. `--pr` never takes a bare
+argument: task text is never consumed as a PR target, so `/work --pr fix the bug` is PR
 delivery for the task "fix the bug". `--pr=<PR-URL>` selects an exact existing
 PR and authorizes committing and pushing the requested changes to its head
 branch; it is the explicit targeting form for another chat or checkout.
@@ -65,6 +65,36 @@ A routing profile is a separate leading option:
   the user can preserve it deliberately.
 - A profile controls child routing only: it never changes the coordinator's
   model, the runtime, or credentials or endpoints.
+
+A leading `--consult` option requests an independent task-framing consultation
+before implementation starts. It is a bare leading option like `--stats` — it
+never takes a value, so `/work --consult fix the bug` consults, then
+implements the task "fix the bug". It combines with `--pr`, `--stats`, and
+`--profile` in any order, and it does not change routing.
+
+When `--consult` is present, the initial consultation is mandatory and runs
+before any implementation round:
+
+- First run the same [Start from the requested
+  outcome](#start-from-the-requested-outcome) inspection, so the consultant has
+  real context — the inspected repository state, the interpreted request, and
+  the concrete uncertainties you could not safely resolve.
+- Dispatch the [consult](references/tasks/consult.md) round in its
+  task-framing mode: it challenges the framing and returns one recommendation
+  on what to build, with proposed scope and acceptance criteria, an approach,
+  and any consequential unresolved choices. It is read-only and does not
+  implement.
+- Incorporate the recommendation, then ask the user only about the choices that
+  genuinely need their input (scope, behaviour, or preference). There is no
+  separate approval checkpoint: once those choices are settled, continue the
+  normal implementation and review flow.
+
+`--consult` consumes the single consultation allowance per task; an activation
+run with it cannot also dispatch a later stuck-decision consult unless you grant
+a further allowance. The coordinator still owns the final task definition, and
+the user retains control over scope and preferences — the consultation
+recommends, it never invents a user preference or vetoes the user's choice.
+Without `--consult`, consultation stays optional as it is today.
 
 ## Start from the requested outcome
 
@@ -161,7 +191,9 @@ context; the absence of a worker report or original implementation history is
 not itself a defect. Ask the user, through the coordinator, when a
 consequential desired behavior cannot be established. A consult may answer a
 bounded technical question; it cannot invent a user preference, and
-consultation remains optional. Fix concrete defects and unmet requirements
+consultation remains optional unless `--consult` requests it, in which case an
+initial task-framing consultation runs before implementation. Fix concrete
+defects and unmet requirements
 within the established scope automatically; optional suggestions must not turn
 the work into open-ended refactoring or opportunistic cleanup.
 
@@ -176,7 +208,7 @@ the work into open-ended refactoring or opportunistic cleanup.
 | Review findings requiring concurrency, durability, state-machine, or ownership reasoning | [fix](references/tasks/fix.md) contract on the `implement-hard` route (hard-task routing context) |
 | Independent review of changes | [review](references/tasks/review.md) |
 | Integration review across substantial interacting slices | [deep-review](references/tasks/deep-review.md) |
-| Optional technical second opinion | [consult](references/tasks/consult.md) |
+| Independent task-framing recommendation (`--consult`) or a second opinion on one stuck decision | [consult](references/tasks/consult.md) |
 
 A hard fix keeps the fix task role and the fix counters: dispatch it on the
 configured `implement-hard` route, carrying the bounded fix contract explicitly
@@ -302,8 +334,10 @@ file, and the snapshot stays in session state (see "State stays in the
 session").
 
 Default to routine implementation. Exploration, consultation, and deep review
-are conditional, not mandatory stages. Keep the coordinator's context small by
-passing relevant facts and paths rather than full transcripts. Run rounds
+are conditional, not mandatory stages; `--consult` is the explicit opt-in that
+makes an initial task-framing consultation mandatory before implementation.
+Keep the coordinator's context small by passing relevant facts and paths
+rather than full transcripts. Run rounds
 sequentially; never have a worker approve its own change.
 
 ### Sequential decomposition
@@ -330,8 +364,10 @@ review target has the same fix/review caps as a slice.
 
 Start with a budget appropriate to the task, normally up to six worker rounds
 (explore, implement, hard implementation, or fix). Allow at most two fix cycles
-per slice, three review passes per slice, and one optional consultation per task.
-Review calls do not consume the worker budget but are bounded by these caps.
+per slice, three review passes per slice, and one consultation per task; a
+`--consult` invocation consumes that allowance for its initial task-framing
+consultation. Review calls do not consume the worker budget but are bounded by
+these caps.
 Budget across the whole sequence, leaving room for fixes and integration work;
 splitting or revising the plan does not replenish allowances. Reassess the
 remaining scope against the remaining budget at each slice boundary.

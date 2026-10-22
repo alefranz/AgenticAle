@@ -35,11 +35,12 @@ Add `--pr` when you want Work to deliver the finished task as a pull request:
 it completes the implementation and its checks, runs the independent review,
 makes coherent commits, pushes, and opens the pull request — or updates the
 task branch's existing open PR when one already exists. Leading options —
-`--pr` (or `--pr=<PR URL>`), `--profile NAME` (or `--profile=NAME`), `--stats`,
-and the `--` delimiter — may appear in any order, with everything after the
-options as the task text:
+`--pr` (or `--pr=<PR URL>`), `--consult`, `--profile NAME` (or
+`--profile=NAME`), `--stats`, and the `--` delimiter — may appear in any order,
+with everything after the options as the task text:
 
 - `/work --pr --profile server-b fix the flaky test`
+- `/work --consult --pr Redesign the onboarding flow`
 
 ## Continue working on the same PR
 
@@ -54,6 +55,7 @@ chat or checkout:
 | Request form | Delivery behavior |
 | --- | --- |
 | `/work <task>` (no options) | Current branch; changes uncommitted by default. |
+| `/work --consult <task>` | An independent task-framing consultation runs before implementation; Work then proceeds normally. |
 | `/work` (no task) | Selects the task from an unambiguous active task, a preceding same-session `/review`, or coherent existing branch and working-tree changes; asks what to work on when no selection is safe; uncommitted by default. |
 | `/work --pr <task>` | Complete, check, review, commit, and push; updates the task branch's open pull request or creates one. |
 | `/work --pr` (no task) | The same task selection as an empty `/work`, plus PR delivery for the selected existing work. |
@@ -311,6 +313,24 @@ Provider     Sessions       In     Out    Cache R  Cache W  Reason      Total  C
 local-llama         3  132,312  47,236  2,681,327        0       0  2,860,875  0.00
 openai              2   29,359   1,743    105,856        0     235    136,958  0.00
 ```
+
+## Task-framing consultation
+
+Add `--consult` when you want an independent recommendation on what to build and
+how to approach it before implementation starts. It runs after a brief
+inspection so the consultant has real context, then dispatches a read-only
+consult round in its task-framing mode: it challenges the framing and returns
+one recommendation with proposed scope, acceptance criteria, an approach, and
+any consequential unresolved choices.
+
+Work incorporates the recommendation, asks you only about the choices that
+genuinely need your input, and then continues the normal implementation and
+review flow — there is no separate approval checkpoint. `--consult` is opt-in:
+without it, consultation stays optional. It consumes the single consultation
+allowance per task, so it combines with `--pr` and `--profile` but cannot also
+trigger a later stuck-decision consult in the same run. You keep control over
+scope and preferences: the coordinator still owns the final task definition, and
+the consultation recommends rather than deciding for you.
 
 ## Implementation source
 
