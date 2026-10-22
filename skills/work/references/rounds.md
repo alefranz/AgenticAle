@@ -80,8 +80,10 @@ report. Use this when an early result will resolve a material uncertainty,
 establish a contract later work depends on, or keep implementation and review
 within a coherent scope. Keep a straightforward change as one slice. File
 count alone is not a reason to split; a slice may span several files or layers.
-Exploration and consultation remain optional and retain their existing scopes
-and limits; neither is a mandatory planning round.
+Exploration and consultation remain optional by default and retain their
+existing scopes and limits; neither is a mandatory planning round, though the
+invoking workflow may make an initial consultation mandatory through an
+explicit option.
 
 Keep the original goal and overall acceptance criteria stable. Outline only
 the useful next few outcomes and their dependencies; later slices are

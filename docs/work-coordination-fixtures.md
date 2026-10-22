@@ -537,6 +537,30 @@ Expected behavior:
 - Existing task-text parsing is unchanged: a bare `--pr` never consumes task
   text as a PR target, and `--` remains the explicit option delimiter.
 
+## `--consult` option parsing and mandatory initial consultation
+
+The invocation is `/work --consult Redesign the onboarding flow`, optionally
+combined with `--pr`, `--stats`, and `--profile NAME` in any order.
+
+Expected behavior:
+
+- The options are combinable in any order; option parsing stops at the first
+  non-option token, and the remaining text is the task. `--consult` is a bare
+  leading option — it never takes a value, so `/work --consult fix the bug`
+  consults, then implements "fix the bug".
+- The initial task-framing consultation is mandatory before any implementation
+  round: the coordinator first runs the requested-outcome inspection to give
+  the consultant real context, then dispatches the consult round in task-framing
+  mode (challenges the framing; returns a recommendation on what to build,
+  proposed scope and acceptance criteria, an approach, and consequential
+  unresolved choices).
+- The coordinator incorporates the recommendation, asks the user only about the
+  choices that need their input, and continues normally — no automatic approval
+  checkpoint.
+- `--consult` consumes the single consultation allowance per task, so the same
+  activation cannot also dispatch a later stuck-decision consult without a
+  grant.
+
 ## Hard fix with a configured-policy mismatch
 
 A blocking finding requires ownership-sensitive state-machine reasoning, so
