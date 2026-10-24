@@ -399,21 +399,26 @@ range, accepted outcomes, and integration checks. A review that already covers
 that range and those checks need not be duplicated at delivery. Any combined
 review target has the same fix/review caps as a slice.
 
-Start with a budget appropriate to the task, normally up to six worker rounds
-(explore, implement, hard implementation, or fix). Allow at most two fix cycles
-per slice, three review passes per slice, and one consultation per task; a
-`--consult` invocation consumes that allowance for its initial task-framing
-consultation. Review calls do not consume the worker budget but are bounded by
-these caps.
+The default worker allowance is eight worker rounds (explore, implement, hard
+implementation, or fix), covering the whole task across exploration,
+implementation, and fixes. The allowance is what is available, not what is
+required: Work finishes as soon as the requested outcome is complete. Do not
+dispatch rounds to use up a remaining allowance or manufacture work to spend
+it. Allow at most two fix cycles per slice, three review passes per slice, and
+one consultation per task; a `--consult` invocation consumes that allowance for
+its initial task-framing consultation. Review calls do not consume the worker
+budget but are bounded by these caps.
 Budget across the whole sequence, leaving room for fixes and integration work;
-splitting or revising the plan does not replenish allowances. Reassess the
-remaining scope against the remaining budget at each slice boundary.
+decomposition or replanning does not replenish the allowance. Reassess the
+remaining scope against the remaining allowance at each slice boundary.
 Caps prevent dispatching another round of that type beyond its allowance;
 verification and the permitted review of the last allowed worker still run.
 If more work is then required, stop under the stop and continuation rules
 below. Also stop when the same blocker recurs or two consecutive workers make
-no material progress. Do not quietly replenish the budget or return incomplete
-work as finished.
+no material progress. Do not quietly replenish the allowance or return
+incomplete work as finished. When a limit will constrain the next useful
+action, say so in the progress narration; a stop report names the specific
+exhausted allowance — worker-round, fix, review, or consultation.
 
 If a child is interrupted, inspect its actual changes and verification state.
 Start a fresh child with the last known facts and one next action; do not infer

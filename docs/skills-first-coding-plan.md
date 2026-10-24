@@ -66,7 +66,7 @@ Mandatory behavioral invariants:
 - Work without a task uses an unambiguous current task or asks for one; it does
   not implicitly resume autonomous state. Investigation-only requests remain
   investigation-only. PR feedback alone does not authorize publishing.
-- Work normally permits up to six worker rounds, two fix cycles/three review
+- Work normally permits up to eight worker rounds, two fix cycles/three review
   passes per slice, and one optional consultation. Reviews do not consume the
   worker budget. Repeated blockers or two workers without material progress
   stop the loop; limits must not be silently replenished.

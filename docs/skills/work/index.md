@@ -195,6 +195,13 @@ including the interruption boundary around its external side effects — not
 internal method tests alone. Targeted checks bound each slice; full-suite and
 publishing checks belong to the integration boundary.
 
+Work gives each task a default allowance of eight worker rounds for
+exploration, implementation, and fixes across the task. It is a ceiling, not a
+work target: Work finishes as soon as your requested outcome is complete, and
+leftover allowance is not spent on extra rounds. Splitting or replanning the
+plan never replenishes it, and when a limit will constrain the next useful
+step, Work says so briefly.
+
 Work allows at most two fix cycles and three review passes per slice or
 combined-review target. When a limit is reached with blockers remaining, Work
 stops without another round of that type and reports which allowance is
