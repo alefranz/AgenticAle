@@ -774,6 +774,11 @@ async function installBundle(options) {
     && plans.every(({ action }) => action === "keep")
     && equivalentState(existingState, "copy", entries);
   if (upToDate) {
+    // Sweep here too: an already-migrated upgrader re-runs the installer and
+    // takes this early return, but a pre-rename empty agents/autonomous left
+    // behind by an earlier release is not in the state and no plan touches
+    // it — only this pass can retire the now-empty directory.
+    await removeEmptyPackageDirectories(options.target);
     console.log("Already up to date.");
     console.log("Next: restart OpenCode and use the /work, /review, and /autonomous commands; this installer leaves opencode.jsonc unchanged.");
     console.log("See docs/setup.md for child-session permissions and docs/autonomous.md for unattended /autonomous runs.");
@@ -911,12 +916,38 @@ async function installBundle(options) {
     throw new Error(`Installation did not complete: ${error.message}.${rollback}${recovery}`);
   }
 
+  // Sweep empty retired package directories after a successful install, not
+  // only on uninstall: a 0.7.x -> 0.8.x rename leaves an empty
+  // agents/autonomous on disk that no plan schedules for removal, and users
+  // should not have to uninstall just to clean it up. Runs after the
+  // try/catch so a rolled-back install is never swept.
+  await removeEmptyPackageDirectories(options.target);
   console.log("Installation complete.");
   console.log("Next: restart OpenCode and use the /work, /review, and /autonomous commands; this installer leaves opencode.jsonc unchanged.");
   console.log("See docs/setup.md for child-session permissions and docs/autonomous.md for unattended /autonomous runs.");
 }
 
+async function hasLinkedAncestor(target, candidate) {
+  const difference = relative(target, dirname(candidate));
+  let current = target;
+  for (const component of (difference ? difference.split(/[\\/]/) : [])) {
+    current = join(current, component);
+    const status = await pathStatus(current);
+    if (!status) return false; // absent: rmdir will no-op with ENOENT
+    if (status.isSymbolicLink()) return true;
+  }
+  return false;
+}
+
 async function removeEmptyPackageDirectories(target) {
+  // Runs both on uninstall and after a successful install. Only empty
+  // directories under the physical target are removed. A candidate that is
+  // itself a symlink, or that sits beneath a symlinked/junctioned ancestor,
+  // is skipped, not deleted: an owned link is already handled by the removal
+  // plan, so any remaining link is user-owned and must survive (the R6
+  // invariant), and rmdir would otherwise follow the link into user state
+  // outside the target. On Windows rmdir on a junction REMOVES the junction,
+  // so the lstat check is required, not just an optimization.
   const directories = [
     // Generated (schema 5) layout, leaf-first.
     "agents/agenticale",
@@ -940,10 +971,37 @@ async function removeEmptyPackageDirectories(target) {
     "agents/autonomous",
   ];
   for (const path of directories) {
+    const candidate = join(target, path);
+    // Ancestor guard BEFORE the probe: it must run first so no path
+    // resolution traverses a user-owned link at all — otherwise probing the
+    // deeper candidate through a looping symlink throws ELOOP (and would
+    // reach external descendants through a non-looping link). The walk
+    // itself only lstat's each ancestor COMPONENT and never follows the
+    // final link, so a loop at an ancestor position cannot ELOOP it.
+    if (await hasLinkedAncestor(target, candidate)) continue;
     try {
-      await rmdir(join(target, path));
+      const status = await lstat(candidate);
+      if (status.isSymbolicLink()) continue;
     } catch (error) {
-      if (!["ENOENT", "ENOTEMPTY", "EEXIST"].includes(error.code)) throw error;
+      // ENOENT means the candidate is absent. ENOTDIR means an ancestor is a
+      // file or a symlink-to-file, so the deeper name path cannot exist as an
+      // entry here either — pathStatus documents the same treatment, so skip
+      // the candidate instead of failing the (already successful) install.
+      // ELOOP is belt-and-suspenders for the TOCTOU window between the
+      // ancestor check above and this lstat — a looping link could appear in
+      // between; the link is left alone, mirroring the ENOTDIR handling in
+      // the rmdir catch below.
+      if (!["ENOENT", "ENOTDIR", "ELOOP"].includes(error.code)) throw error;
+      continue;
+    }
+    try {
+      await rmdir(candidate);
+    } catch (error) {
+      // ENOTDIR: belt-and-suspenders against the TOCTOU window between the
+      // lstat above and this rmdir — if a directory was replaced by a
+      // symlink in between, rmdir on the link throws ENOTDIR (Linux) and
+      // the link is left alone.
+      if (!["ENOENT", "ENOTEMPTY", "EEXIST", "ENOTDIR"].includes(error.code)) throw error;
     }
   }
 }
