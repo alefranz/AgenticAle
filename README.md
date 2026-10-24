@@ -58,7 +58,12 @@ See the [standalone skills installation guide](https://alefranz.github.io/Agenti
 
 ### OpenCode V2
 
-See [OpenCode installation](https://alefranz.github.io/AgenticAle/setup.html#opencode-v2-generated-profiles).
+Quick start without a checkout:
+`curl -fsSL https://raw.githubusercontent.com/alefranz/AgenticAle/main/scripts/install.sh | sh`
+(Windows PowerShell: download `install.ps1`, then
+`powershell -ExecutionPolicy Bypass -File install.ps1`). See
+[OpenCode installation](https://alefranz.github.io/AgenticAle/setup.html#opencode-v2-generated-profiles)
+for options and the local-checkout flow.
 
 ### Google Antigravity (App and CLI)
 

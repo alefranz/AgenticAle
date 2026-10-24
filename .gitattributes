@@ -2,5 +2,10 @@
 # artifacts stay consistent across platforms.
 * text=auto eol=lf
 
+# PowerShell scripts are checked out with CRLF by repository policy, for a
+# consistent cross-platform checkout. Windows PowerShell 5.1 works with
+# either line ending; the policy is consistency, not a 5.1 requirement.
+*.ps1 text eol=crlf
+
 plugins/agenticale/** linguist-generated=true
 .github/plugin/marketplace.json linguist-generated=true

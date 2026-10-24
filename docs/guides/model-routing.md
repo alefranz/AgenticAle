@@ -149,7 +149,10 @@ the other roles proceed.
 The packaged `references/routing.json` supplies defaults. To customize them,
 copy `references/routing.example.md` from the installed `work` skill to either
 `<repo>/.agenticale/routing.md` for one repository or
-`~/.agenticale/routing.md` for all repositories. The project file overrides
+`~/.agenticale/routing.md` for all repositories, or use the OpenCode
+installer's consented setup step to create a minimal personal
+`~/.agenticale/routing.md` scaffold for you (ownership note below). The
+project file overrides
 the personal file, which overrides the packaged baseline; an explicitly
 supplied Markdown path is the highest-precedence invocation choice. Invocation
 choices apply only to that workflow activation and do not persist to a
@@ -173,11 +176,17 @@ definition cannot be reset this way. Replacing an entry replaces its model,
 effort, and fallbacks together. Fallbacks are optional ordered pairs and are
 used only when explicitly requested and supported by the runtime.
 
-Preference files are user-owned. Install, update, build, publication, and
-uninstall do not create, overwrite, migrate, or remove them. Missing files mean
-no customization; a present but unreadable file is reported rather than
-claimed as applied. Start a new `/work`, `/review`, or `/autonomous` activation
-to load changed preferences. See the example preference file at
+Preference files belong to the user. Install, update, build, publication, and
+uninstall do not create, overwrite, migrate, or remove them. The one exception
+is the OpenCode installer's consented setup step (`node scripts/install.mjs
+setup`, run with `--setup` or after you answer yes to the post-install
+prompt): it may create the personal `~/.agenticale/routing.md` when it is
+absent, as a minimal scaffold in which every role inherits the session model
+and effort. It never overwrites, migrates, or removes a preference file, and
+it never creates the project-scope file. Missing files mean no customization;
+a present but unreadable file is reported rather than claimed as applied.
+Start a new `/work`, `/review`, or `/autonomous` activation to load changed
+preferences. See the example preference file at
 [`references/routing.example.md`](https://github.com/alefranz/AgenticAle/blob/main/skills/work/references/routing.example.md)
 and the full [routing contract](https://github.com/alefranz/AgenticAle/blob/main/skills/work/references/ROUTING.md) for
 interpretation and fallback details.

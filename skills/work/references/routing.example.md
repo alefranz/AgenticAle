@@ -6,8 +6,12 @@ routing:
 - project scope: `<repo>/.agenticale/routing.md`
 - personal scope: `~/.agenticale/routing.md`
 
-File creation is an explicit user action; AgenticAle never creates, overwrites,
-migrates, or removes these files. See `ROUTING.md` for the full contract.
+File creation is an explicit user action. AgenticAle never overwrites,
+migrates, or removes these files; the only exception is the OpenCode
+installer's consented `setup` subcommand, which may create the personal
+`~/.agenticale/routing.md` — a minimal scaffold in which every role inherits
+the session model and effort — when it is absent. See `ROUTING.md` for the
+full contract.
 Runtime sections are `## codex`, `## copilot`, `## opencode`, and
 `## antigravity` headings (the `copilot-local` binding uses the `copilot`
 section); inside a `## Profile:` section the same runtime heading sits one

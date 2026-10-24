@@ -142,6 +142,77 @@ into the OpenCode configuration
 directory and does not link to the repository source. The default target is
 `$XDG_CONFIG_HOME/opencode` when set, otherwise `~/.config/opencode`.
 
+Quick start without a checkout, POSIX (Linux, macOS, WSL):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/alefranz/AgenticAle/main/scripts/install.sh | sh
+```
+
+Windows PowerShell:
+
+```powershell
+powershell -NoProfile -Command "Invoke-WebRequest -Uri https://raw.githubusercontent.com/alefranz/AgenticAle/main/scripts/install.ps1 -OutFile install.ps1"
+powershell -ExecutionPolicy Bypass -File install.ps1
+```
+
+The one-liner `powershell -NoProfile -Command "irm https://raw.githubusercontent.com/alefranz/AgenticAle/main/scripts/install.ps1 | iex"` is equivalent: it runs the same script without saving it.
+
+To install a specific release, pass the release tag to the wrapper with
+`--version TAG`: pinning the tag in the wrapper URL alone does **not** pin
+the installed release — both wrappers still resolve the latest release unless
+told otherwise. POSIX (the options go after `sh -s --`, which hands them to
+the wrapper's own parser):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/alefranz/AgenticAle/v0.17.0/scripts/install.sh | sh -s -- --version v0.17.0
+```
+
+Windows PowerShell:
+
+```powershell
+powershell -NoProfile -Command "Invoke-WebRequest -Uri https://raw.githubusercontent.com/alefranz/AgenticAle/v0.17.0/scripts/install.ps1 -OutFile install.ps1"
+powershell -ExecutionPolicy Bypass -File install.ps1 --version v0.17.0
+```
+
+Using the same release tag in the wrapper URL as in `--version` also pins the
+wrapper itself to that release. In either case the wrapper prints the release
+tag, downloads that release's source archive, and runs the installer from the
+extracted archive; it never launches an AI session and cleans up its temporary
+directory. Prerequisites: Node.js 20 or later plus `curl` and `tar` (Windows
+10 or later provides `curl.exe` and `tar`). With no routing selection it
+installs session-model inheritance (the wrapper appends `--no-model`).
+
+| Option | Effect |
+| --- | --- |
+| *(none)* | Every role inherits the session model and effort (`--no-model` is appended). |
+| `--version TAG` | Install that release tag instead of resolving the latest. |
+| `--models PATH\|PRESET` | Import a model mapping or bundled preset into the routing contract. |
+| `--effort LEVEL` | Route-wide reasoning-effort override (`low`/`medium`/`high`/`xhigh`/`max`). |
+| `--source-root PATH` | Embed a different default source-lookup root into the installed skill. |
+| `--replace` | Back up and replace differing destinations during install/update. |
+| `--dry-run` | Print the planned operation without changing the filesystem. |
+| `--setup` | Also run the consented routing setup step after a successful install. |
+
+For the full routing options, see
+[install-time routing options](guides/model-routing.md#install-time-routing-options).
+
+After a successful install the wrapper offers a consented setup step: with
+`--setup` it runs unconditionally; on a terminal without `--setup` it asks
+"Create a personal routing customization file (~/.agenticale/routing.md)?
+[y/N]" (default no); non-interactive runs skip it and print a one-line tip.
+The step creates the personal `~/.agenticale/routing.md` only when it is
+absent — a minimal scaffold in which every role inherits the session model
+and effort — and it never overwrites, migrates, or removes a preference file
+or creates the project-scope file. It then prints the file's path, editing
+guidance (the packaged example and project-scope precedence), and a
+ready-to-paste prompt for an OpenCode session to finish the customization;
+see [user preferences and precedence](guides/model-routing.md#user-preferences-and-precedence).
+
+#### Alternative: install from a local checkout
+
+From a clone or your current checkout (offline or local use), run the
+installer from the repository root:
+
 ```sh
 node scripts/install.mjs --no-model
 ```
