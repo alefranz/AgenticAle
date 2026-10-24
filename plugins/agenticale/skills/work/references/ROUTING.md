@@ -74,13 +74,18 @@ or an explicit request. The selected profile (or the absence of one) is part
 of the snapshot: Work keeps it in session state and Autonomous persists the
 goal's selected name (see the workflow skills).
 
-Preference files belong to the user. Install, update, build, publication, and
-uninstall do not create, overwrite, migrate, or remove them. Missing files mean
-no customization. Report a present but unreadable file rather than claiming it
-was applied. Do not scan parent workspaces, nested repositories, host config
-directories, or plugin caches. For Git projects, use the worktree root even
-when invoked below it; for non-Git projects, use the explicitly established
-workspace root.
+Preference files belong to the user. The install, update, build, publication,
+and uninstall flows do not create, overwrite, migrate, or remove them. The one
+exception is the OpenCode installer's `setup` subcommand
+(`node scripts/install.mjs setup`), invoked only after the user explicitly
+consents: it may CREATE the personal `~/.agenticale/routing.md` when it is
+absent, as a minimal scaffold in which every role inherits the session model
+and effort. It never overwrites, migrates, or removes a preference file, and
+it never creates the project-scope file. Missing files mean no customization.
+Report a present but unreadable file rather than claiming it was applied. Do
+not scan parent workspaces, nested repositories, host config directories, or
+plugin caches. For Git projects, use the worktree root even when invoked below
+it; for non-Git projects, use the explicitly established workspace root.
 
 ## Named routing profiles
 
