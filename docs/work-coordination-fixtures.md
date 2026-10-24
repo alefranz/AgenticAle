@@ -68,6 +68,34 @@ Expected behavior:
 - If the reviewed result is already delivered and nothing remains, say so
   instead of publishing again.
 
+## An explicit request to begin with a deep review of existing changes
+
+The branch and working tree contain existing changes, and the user invokes
+`/work First perform a deep review of the current branch changes. If there are
+blocking findings, fix them, verify the fixes, then commit, push, and create
+or update the PR. Otherwise, report the clean review and stop.`
+
+Expected behavior:
+
+- The explicit request selects the deep-review contract for the first review
+  round, before any implementation round: the same contract and route as a
+  standalone `/review --deep` under equivalent routing inputs, resolved
+  through the activation's routing profile and preferences, with the same
+  comparison and scope — the recorded merge-base-to-working-tree comparison of
+  the current branch, including relevant untracked files, stated before
+  dispatch.
+- A clean verdict stops with the report: no implementation work is
+  manufactured, and nothing is committed, pushed, or published because the
+  task's conditional delivery instruction names publication only after fixes.
+- Blocking findings enter the normal loop: a focused fix round, verification
+  of the fixes, and an independent re-review within the existing caps, after
+  which the commits, push, and created or updated pull request follow.
+- The selection is explicit-only: an ordinary `/work` invocation without such
+  a request is unchanged, a deep review is never started on the coordinator's
+  own initiative, and merely mentioning one does not select it. The request
+  adds no command, flag, role, or routing configuration, and it is not a
+  general rule for multi-step command chaining in the task text.
+
 ## No task and no changes
 
 The user invokes `/work` without task text, there is no active task or
