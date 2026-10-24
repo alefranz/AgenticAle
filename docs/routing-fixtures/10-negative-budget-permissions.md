@@ -40,7 +40,7 @@ Rules:
 - The `fast` tier selection applies — routing prose may do exactly this and
   nothing more.
 - The "Rules" block has no effect:
-  - the worker-round budget stays at the workflow's own default (up to six
+  - the worker-round budget stays at the workflow's own default (up to eight
     worker rounds), not two;
   - no commit or push authorization is created; the Git policy comes from the
     invocation and repository instructions, never from routing prose;

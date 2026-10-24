@@ -322,6 +322,33 @@ Expected behavior:
 - If more work is then required, stop with the exhausted allowance, the
   completed and blocked state, and the recent material progress.
 
+## Worker allowance is a ceiling, not a work target
+
+The requested outcome is complete after three of the default eight worker
+rounds, the accepted slices pass their reviews, and the remaining allowance is
+unused.
+
+Expected behavior:
+
+- Stop and deliver: the outcome, its evidence, and the delivery state.
+- Do not dispatch extra rounds to consume the remaining allowance or
+  manufacture further work; the unused allowance is not a defect and needs
+  no explanation in the narration.
+
+## Decomposition and replanning do not replenish the allowance
+
+Mid-sequence, five of the eight worker rounds are used, and a finding forces
+a replan that re-outlines the remaining work as three new slices.
+
+Expected behavior:
+
+- The replan reorganizes scope only: the remaining worker allowance stays at
+  three rounds, the fix/review counters for any still-unresolved target are
+  unchanged, and a new slice name grants no rounds.
+- If the re-outlined work cannot finish within the remaining allowance, stop
+  under the stop and continuation rules, identifying the specific exhausted
+  allowance when it is reached.
+
 ## Structured stop with an interaction tool available
 
 A slice has used both fix cycles with blocking findings still open, and the
