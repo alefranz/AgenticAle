@@ -180,6 +180,40 @@ outstanding delivery steps when authorized, and report that nothing remains
 when the reviewed result is already delivered. An explicit `--pr=<PR-URL>`
 invocation keeps the existing exact-target identity and failure rules.
 
+## Deep review of existing changes, on explicit request
+
+An unambiguous natural-language request to begin with a deep review of the
+existing branch changes — for example, "First perform a deep review of the
+current branch changes" — selects the
+[deep-review](references/tasks/deep-review.md) contract for the first review
+round, which runs before any implementation round. It is explicit-only, like
+the other entry rules here: a deep review is never started on the
+coordinator's own initiative, and merely mentioning one while discussing the
+task does not select it. There is no deep-review flag; the request is named
+in the task text.
+
+The round reuses the same comparison and scope semantics as a standalone
+`/review --deep`: the merge base of the current branch and the resolved base
+to the current working-tree result, including relevant untracked files,
+recorded before dispatch. The reviewer is resolved through this activation's
+routing snapshot like any other round — the same `deep-review` route that a
+`/review --deep` would use under equivalent routing inputs — so a selected
+routing profile applies unchanged.
+
+The review enters the normal Work loop: applicable blocking findings go
+through the existing fix and re-review rules, with verification of the fixes
+and independent re-review within the existing caps. A clean verdict must not
+manufacture implementation work. The user's delivery instructions in the task
+text are honored as written, including conditional ones: an instruction to
+commit, push, and create or update a pull request only when the review finds
+blocking findings publishes only after those fixes, while a clean review stops
+with its report and no publication. Without such instructions, the existing
+delivery defaults apply.
+
+This rule covers this one explicit entry only: no new command, flag, role, or
+routing configuration, and no general support for multi-step command chaining
+in the task text.
+
 ## Establish intent without circular validation
 
 Distinguish user-supplied requirements and context from observed behavior and
@@ -208,6 +242,7 @@ the work into open-ended refactoring or opportunistic cleanup.
 | Review findings requiring concurrency, durability, state-machine, or ownership reasoning | [fix](references/tasks/fix.md) contract on the `implement-hard` route (hard-task routing context) |
 | Independent review of changes | [review](references/tasks/review.md) |
 | Integration review across substantial interacting slices | [deep-review](references/tasks/deep-review.md) |
+| Explicit request to begin with a deep review of existing branch changes | [deep-review](references/tasks/deep-review.md) |
 | Independent task-framing recommendation (`--consult`) or a second opinion on one stuck decision | [consult](references/tasks/consult.md) |
 
 A hard fix keeps the fix task role and the fix counters: dispatch it on the
@@ -335,7 +370,9 @@ session").
 
 Default to routine implementation. Exploration, consultation, and deep review
 are conditional, not mandatory stages; `--consult` is the explicit opt-in that
-makes an initial task-framing consultation mandatory before implementation.
+makes an initial task-framing consultation mandatory before implementation,
+and an explicit request to begin with a deep review of existing branch
+changes makes the initial deep-review round mandatory instead.
 Keep the coordinator's context small by passing relevant facts and paths
 rather than full transcripts. Run rounds
 sequentially; never have a worker approve its own change.

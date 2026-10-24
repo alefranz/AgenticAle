@@ -42,6 +42,25 @@ with everything after the options as the task text:
 - `/work --pr --profile server-b fix the flaky test`
 - `/work --consult --pr Redesign the onboarding flow`
 
+You can also start from existing branch changes with an integration-level
+audit before any implementation:
+
+```text
+/work First perform a deep review of the current branch changes.
+If there are blocking findings, fix them, verify the fixes,
+then commit, push, and create or update the PR.
+Otherwise, report the clean review and stop.
+```
+
+The explicit request runs the deep-review contract on the branch's net
+changes — the same comparison, scope, and deep-review route as
+`/review --deep`, including any selected routing profile — before any
+implementation round. Blocking findings go through the normal fix and
+re-review loop, and your delivery instructions are honored as written: the
+example's clean path reports the review and stops without committing,
+pushing, or publishing. A deep review is never started on Work's own
+initiative, and the explicit entry adds no flag or general command chaining.
+
 ## Continue working on the same PR
 
 Refine the same pull request across invocations. The first request creates it,
@@ -60,6 +79,7 @@ chat or checkout:
 | `/work --pr <task>` | Complete, check, review, commit, and push; updates the task branch's open pull request or creates one. |
 | `/work --pr` (no task) | The same task selection as an empty `/work`, plus PR delivery for the selected existing work. |
 | `/work --pr=<PR URL> <task>` | Commits and pushes to that exact pull request's head branch. |
+| Explicit "first perform a deep review of the current branch changes" request | The deep-review contract reviews the branch's net changes before implementation; commits, push, and publication follow the task text's delivery instructions, including conditional ones — the clean path stops without publishing. |
 
 An empty `/work` adopts coherent existing changes — committed or uncommitted,
 including a clean feature branch with existing commits — or asks what to work
@@ -97,7 +117,9 @@ Work also finishes existing work: with no task text it adopts coherent changes
 already on your branch or in your working tree, and after a same-session
 `/review` it uses that review's findings and scope directly. In either case it
 enters at the first necessary step — review, focused fixes, and delivery —
-instead of re-implementing what already exists.
+instead of re-implementing what already exists. An explicit request can begin
+that entry with a deep review of the existing branch changes, before any
+implementation.
 
 ## The routing tiers
 
