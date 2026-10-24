@@ -606,6 +606,7 @@ try {
     check(state.entries.some((e) => e.path === "agents/agenticale/implement-hard.md"), "namespace rename: the new implement-hard profile is in state");
     check(await exists(join(t, "agents", "agenticale", "implement-hard.md")), "namespace rename: the new implement-hard profile is on disk");
     check(!(await exists(join(t, "agents", "autonomous", "review.md"))), "namespace rename: the old profile files are removed");
+    check(!(await exists(join(t, "agents", "autonomous"))), "namespace rename: the empty old-namespace directory is swept");
   }
   {
     // A pre-rename schema-5 generated copy (the six profiles under the old
@@ -624,6 +625,95 @@ try {
     check(state.entries.every((e) => !e.path.startsWith("agents/autonomous/")), "namespace rename schema 5: no old-namespace entries remain in state");
     check(await exists(join(t, "agents", "agenticale", "implement-hard.md")), "namespace rename schema 5: the new implement-hard profile is on disk");
     check(!(await exists(join(t, "agents", "autonomous", "review.md"))), "namespace rename schema 5: the old profile files are removed");
+    check(!(await exists(join(t, "agents", "autonomous"))), "namespace rename schema 5: the empty old-namespace directory is swept");
+  }
+  {
+    // Already-upgraded upgrader: a user who migrated in an earlier release
+    // re-runs the installer; everything is owned and up to date, so install
+    // takes the "Already up to date." early return. The pre-rename
+    // agents/autonomous residue — an empty directory the migration in that
+    // earlier release left behind, absent from the state file — is still on
+    // disk, so that early-return path must sweep empty retired package
+    // directories too.
+    const t = join(scratch, "b3a-residue");
+    const fresh = run("install.mjs", ["install", "--target", t, "--no-model"]);
+    check(fresh.exit === 0, "upgrader residue: the fresh install exits 0");
+    await mkdir(join(t, "agents", "autonomous"), { recursive: true });
+    const before = await readFile(join(t, STATE));
+    const r = run("install.mjs", ["install", "--target", t, "--no-model"]);
+    check(r.exit === 0, "upgrader residue: the re-run exits 0");
+    check(r.out.includes("Already up to date."), "upgrader residue: reports already up to date");
+    const after = await readFile(join(t, STATE));
+    check(before.equals(after), "upgrader residue: the state file is untouched");
+    check(!(await exists(join(t, "agents", "autonomous"))), "upgrader residue: the empty old-namespace directory is swept");
+    check(await exists(join(t, "agents", "agenticale", "consult.md")), "upgrader residue: the current-namespace profiles are intact");
+  }
+  {
+    // R6 sweep: a user-owned symlink to a regular FILE at a retired sweep path
+    // (skills/work-mode). The deeper sweep candidate skills/work-mode/
+    // references cannot be stat'd through a symlink-to-file (lstat throws
+    // ENOTDIR), so the sweep must treat it as absent and skip it — the same
+    // treatment pathStatus() documents — instead of failing an otherwise
+    // successful install. Pre-fix this re-run exited 1 with the unhandled
+    // ENOTDIR.
+    const t = join(scratch, "b3a-link-to-file");
+    const fresh = run("install.mjs", ["install", "--target", t, "--no-model"]);
+    check(fresh.exit === 0, "link-to-file sweep: the fresh install exits 0");
+    const fileDir = join(scratch, "b3a-link-to-file-src");
+    await mkdir(fileDir, { recursive: true });
+    const file = join(fileDir, "user-file.txt");
+    await writeFile(file, "user file\n");
+    const link = join(t, "skills", "work-mode");
+    await symlink(file, link, "file");
+    const r = run("install.mjs", ["install", "--target", t, "--no-model"]);
+    check(r.exit === 0, "link-to-file sweep: the re-run exits 0 (no unhandled ENOTDIR)");
+    check(r.out.includes("Already up to date."), "link-to-file sweep: reports already up to date");
+    check((await lstat(link)).isSymbolicLink(), "link-to-file sweep: the user symlink survives");
+    check((await readlink(link)) === file, "link-to-file sweep: the user symlink still points at the same file");
+    check(await exists(join(t, "agents", "agenticale", "consult.md")), "link-to-file sweep: the current install is intact");
+  }
+  {
+    // R6 sweep: a user-owned junction/symlink at a retired sweep path
+    // (skills/work-mode) pointing OUTSIDE the target, where the linked
+    // directory holds an empty references/ subdirectory. The sweep must skip
+    // the candidate instead of rmdir'ing THROUGH the link — pre-fix the
+    // external empty directory was deleted (user state outside the package's
+    // ownership).
+    const t = join(scratch, "b3a-linked-ancestor");
+    const fresh = run("install.mjs", ["install", "--target", t, "--no-model"]);
+    check(fresh.exit === 0, "linked-ancestor sweep: the fresh install exits 0");
+    const external = join(scratch, "b3a-linked-ancestor-external");
+    await mkdir(join(external, "references"), { recursive: true });
+    const link = join(t, "skills", "work-mode");
+    await symlink(external, link, "junction");
+    const before = await readlink(link);
+    const r = run("install.mjs", ["install", "--target", t, "--no-model"]);
+    check(r.exit === 0, "linked-ancestor sweep: the re-run exits 0");
+    check(r.out.includes("Already up to date."), "linked-ancestor sweep: reports already up to date");
+    check((await lstat(link)).isSymbolicLink(), "linked-ancestor sweep: the user junction/symlink survives");
+    check((await readlink(link)) === before, "linked-ancestor sweep: the link still points at the external directory");
+    check(await exists(join(external, "references")), "linked-ancestor sweep: the external empty directory was NOT deleted through the link");
+    check(await exists(join(t, "agents", "agenticale", "consult.md")), "linked-ancestor sweep: the current install is intact");
+  }
+  {
+    // R6 sweep: a user-owned self-referencing (looping) symlink at a retired
+    // sweep path (skills/work-mode -> itself). The deeper candidate
+    // skills/work-mode/references cannot be probed at all: lstat follows the
+    // intermediate components of the path, so the loop throws ELOOP. The
+    // ancestor guard must skip the candidate BEFORE the probe, so the sweep
+    // never traverses the user-owned link; pre-fix the probe rethrew the
+    // ELOOP and the re-run exited 1 on a target whose fresh install exited 0.
+    const t = join(scratch, "b3a-loop-link");
+    const fresh = run("install.mjs", ["install", "--target", t, "--no-model"]);
+    check(fresh.exit === 0, "loop-link sweep: the fresh install exits 0");
+    const link = join(t, "skills", "work-mode");
+    await symlink(link, link);
+    const r = run("install.mjs", ["install", "--target", t, "--no-model"]);
+    check(r.exit === 0, "loop-link sweep: the re-run exits 0 (no unhandled ELOOP)");
+    check(r.out.includes("Already up to date."), "loop-link sweep: reports already up to date");
+    check((await lstat(link)).isSymbolicLink(), "loop-link sweep: the user loop symlink survives");
+    check((await readlink(link)) === link, "loop-link sweep: the user loop symlink is still self-referencing");
+    check(await exists(join(t, "agents", "agenticale", "consult.md")), "loop-link sweep: the current install is intact");
   }
 
   // ---------------------------------------------------------------------
