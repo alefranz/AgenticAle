@@ -96,11 +96,22 @@ function usage() {
                            (--models PATH|PRESET | --no-model) [--effort LEVEL]
                            [--routing PATH] [--replace] [--dry-run]
   node scripts/install.mjs uninstall [--target PATH] [--dry-run]
+  node scripts/install.mjs setup [--target PATH] [--personal-path PATH] [--dry-run]
 
 Installs the GENERATED OpenCode bundle (built to a temp root, then copied) into
 the OpenCode configuration directory. It does not link or point at the authored
 repository source. Older copy installs (schema 1-4) and link installs are
 migrated to the generated copy layout on install.
+
+The setup subcommand creates the personal routing preference file (default
+~/.agenticale/routing.md) as a minimal scaffold — every role inherits the
+session model and effort — if and only if it is absent. It never overwrites,
+migrates, or removes a preference file, never creates the project-scope file,
+and never prompts: explicit consent is the caller's job. For setup,
+--target PATH (the same flag and default resolution as install) selects the
+target whose installed skills/work/references/routing.example.md the printed
+guidance points at; the target itself is never validated or modified. See
+skills/work/references/ROUTING.md (User customization).
 
 Options:
   --target PATH  OpenCode configuration directory (default: XDG_CONFIG_HOME/opencode
@@ -117,6 +128,9 @@ Options:
   --routing PATH  Build from a caller-supplied routing file instead of the
                   packaged skills/work/references/routing.json
   --replace      Back up and replace differing destinations during install/update
+  --personal-path PATH
+                  (setup) personal routing preference file to create if absent
+                  (default: ~/.agenticale/routing.md)
   --dry-run      Print the planned operation without changing the filesystem
   --help         Show this help`;
 }
@@ -132,6 +146,7 @@ function parseArguments(argv) {
   let effortOverride = false;
   let replace = false;
   let dryRun = false;
+  let personalPath;
   let commandSeen = false;
 
   const requireValue = (index, option) => {
@@ -143,10 +158,18 @@ function parseArguments(argv) {
 
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
-    if (argument === "install" || argument === "uninstall") {
+    if (argument === "install" || argument === "uninstall" || argument === "setup") {
       if (commandSeen) throw new Error(`Only one command may be supplied (found '${argument}').`);
       command = argument;
       commandSeen = true;
+    } else if (argument === "--personal-path") {
+      if (personalPath !== undefined) throw new Error("--personal-path may be supplied only once.");
+      personalPath = requireValue(index, "--personal-path");
+      index += 1;
+    } else if (argument.startsWith("--personal-path=")) {
+      if (personalPath !== undefined) throw new Error("--personal-path may be supplied only once.");
+      personalPath = argument.slice("--personal-path=".length);
+      if (!personalPath || personalPath.startsWith("-")) throw new Error("--personal-path requires a path, not another option.");
     } else if (argument === "--target") {
       target = requireValue(index, "--target");
       index += 1;
@@ -200,6 +223,12 @@ function parseArguments(argv) {
   if (command === "uninstall" && (replace || models !== undefined || routing !== undefined || noModel || effortOverride || sourceRoot !== undefined)) {
     throw new Error("--replace, --models, --routing, --effort, --no-model, and --source-root apply only to install/update, not uninstall.");
   }
+  if (command !== "setup" && personalPath !== undefined) {
+    throw new Error("--personal-path applies only to setup, not install or uninstall.");
+  }
+  if (command === "setup" && (sourceRoot !== undefined || replace || models !== undefined || routing !== undefined || noModel || effortOverride)) {
+    throw new Error("--source-root, --replace, --models, --routing, --effort, and --no-model apply only to install/uninstall, not setup.");
+  }
   if (models !== undefined && noModel) {
     throw new Error("--models and --no-model cannot be used together.");
   }
@@ -217,6 +246,7 @@ function parseArguments(argv) {
   return {
     command,
     target: resolve(target ?? join(defaultBase, "opencode")),
+    personalPath: personalPath === undefined ? null : resolveSourceRoot(personalPath),
     models,
     routing: routing === undefined ? null : resolve(routing),
     sourceRoot: sourceRoot === undefined ? null : resolveSourceRoot(sourceRoot),
@@ -1039,6 +1069,87 @@ async function uninstallBundle(options) {
   console.log(`Uninstall complete.${preserved ? ` Preserved ${preserved} modified destination(s).` : ""}`);
 }
 
+// Minimal personal routing scaffold: every role explicitly inherits the
+// session model and effort (the same shape `--no-model` installs), so it
+// cannot activate a route to a model the user has not chosen. It carries no
+// illustrative model identifiers: those belong to routing.example.md, where
+// they are documented as illustrative only.
+const routingScaffold = `# AgenticAle model routing (personal)
+
+Personal routing preferences, created by the AgenticAle installer as a minimal
+starting point. As shipped, every role inherits the session model and effort.
+Edit a role override below to point a role at a tier or a specific model; see
+the installed routing.example.md for the full format.
+
+## opencode
+
+### Role overrides
+
+- explore: inherit.
+- implement: inherit.
+- implement-hard: inherit.
+- fix: inherit.
+- review: inherit.
+- deep-review: inherit.
+- consult: inherit.
+`;
+
+// Consent-gated personal routing setup (the narrow exception documented in
+// skills/work/references/ROUTING.md, "User customization"). Creates the
+// personal preference file (default ~/.agenticale/routing.md, overridable for
+// tests and non-default layouts with --personal-path) if and only if it is
+// absent. Anything already present at the path — file, directory, or link —
+// is left untouched: preference files are never overwritten, migrated, or
+// removed, and the project-scope file is never created. It never prompts and
+// needs no TTY: explicit consent is the caller's job.
+async function setupPersonalRouting(options) {
+  const personalPath = options.personalPath ?? join(homedir(), ".agenticale", "routing.md");
+  // The packaged example ships inside the installed skill. options.target is
+  // the effective target: the caller's --target PATH, or the same default
+  // resolution install and uninstall use (XDG_CONFIG_HOME/opencode when set,
+  // otherwise ~/.config/opencode), so the guidance cannot drift from where an
+  // install with that --target would have placed the example.
+  const examplePath = join(options.target, "skills", "work", "references", "routing.example.md");
+  const prompt = `Help me customize my AgenticAle personal routing file at ${personalPath}. Read the file and the installed routing example, tell me which model and effort each of the seven roles currently resolves to for the opencode runtime, and then walk me through the changes I want to make without inventing model identifiers my host does not support.`;
+  const printGuidance = () => {
+    console.log(`Edit the file to customize model routing: the packaged example is at ${examplePath} (the installed skill), and a project file <repo>/.agenticale/routing.md takes precedence over this personal file.`);
+    console.log("");
+    console.log("Paste this prompt into an OpenCode session to continue customizing:");
+    console.log("");
+    console.log(prompt);
+  };
+
+  const present = (await pathStatus(personalPath)) !== null;
+  console.log(`${options.dryRun ? "Dry-run " : ""}Routing setup -> ${personalPath}`);
+  if (present) {
+    console.log(`  ${options.dryRun ? "would leave" : "left"} untouched: ${personalPath} already exists; preference files are never overwritten, migrated, or removed`);
+  } else {
+    console.log(`  ${options.dryRun ? "would create" : "create"}: minimal scaffold (every role inherits the session model and effort)`);
+  }
+  if (options.dryRun) {
+    printGuidance();
+    console.log("Dry run complete; no files were changed.");
+    return;
+  }
+  if (!present) {
+    await mkdir(dirname(personalPath), { recursive: true });
+    try {
+      // wx (create exclusively) is the second line of defense behind the
+      // lstat probe: if the file appears in between, refuse instead of
+      // overwriting, and report it as left untouched.
+      await writeFile(personalPath, routingScaffold, { encoding: "utf8", flag: "wx" });
+    } catch (error) {
+      if (error.code === "EEXIST") {
+        console.log(`  left untouched: ${personalPath} already exists; preference files are never overwritten, migrated, or removed`);
+        printGuidance();
+        return;
+      }
+      throw error;
+    }
+  }
+  printGuidance();
+}
+
 async function main() {
   let options;
   try {
@@ -1048,6 +1159,7 @@ async function main() {
       return;
     }
     if (options.command === "install") await installBundle(options);
+    else if (options.command === "setup") await setupPersonalRouting(options);
     else await uninstallBundle(options);
   } catch (error) {
     console.error(`Error: ${error.message}`);

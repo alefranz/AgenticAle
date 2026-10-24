@@ -1055,6 +1055,115 @@ try {
   }
 
   // ---------------------------------------------------------------------
+  // E2. setup subcommand: the consented install-time setup creates the
+  //     personal routing file as a minimal scaffold (every role inherits the
+  //     session model and effort) if and only if it is absent. It never
+  //     overwrites an existing file, dry-run writes nothing, and the
+  //     scaffold carries none of the example's illustrative identifiers.
+  // ---------------------------------------------------------------------
+  {
+    const exampleText = await readFile(join(repo, "skills", "work", "references", "routing.example.md"), "utf8");
+    const illustrativeIds = [...new Set([...exampleText.matchAll(/[a-z0-9][a-z0-9-]*\/[a-z0-9][a-z0-9-]*/g)].map((m) => m[0]))];
+    check(illustrativeIds.length > 0, "setup: the example file carries illustrative identifiers");
+    const assertNoIllustrativeIds = (label, content) => {
+      for (const id of illustrativeIds) {
+        check(!content.includes(id), `setup: ${label} carries no illustrative identifier '${id}'`);
+      }
+    };
+
+    // Scaffold created at a custom personal path.
+    const personal = join(scratch, "e2-created", "routing.md");
+    const r = run("install.mjs", ["setup", "--personal-path", personal]);
+    check(r.exit === 0, "setup: creates the scaffold and exits 0");
+    check(r.out.includes(personal), "setup: prints the file path");
+    const content = await readFile(personal, "utf8");
+    check(content.includes("## opencode"), "setup: scaffold targets the opencode runtime");
+    for (const role of ["explore", "implement", "implement-hard", "fix", "review", "deep-review", "consult"]) {
+      check(content.includes(`- ${role}: inherit.`), `setup: scaffold inherits for ${role}`);
+    }
+    assertNoIllustrativeIds("created scaffold", content);
+    check(r.out.includes("routing.example.md"), "setup: guidance names the packaged example");
+    check(r.out.includes(".agenticale/routing.md"), "setup: guidance names the project-scope file");
+    check(r.out.includes("Paste this prompt into an OpenCode session"), "setup: prints a ready-to-paste prompt");
+    check(r.out.includes(`routing file at ${personal}`), "setup: the paste prompt names the created file");
+
+    // Idempotent: a second run leaves the scaffold byte-identical.
+    const again = run("install.mjs", ["setup", "--personal-path", personal]);
+    check(again.exit === 0, "setup re-run: exits 0");
+    check((await readFile(personal, "utf8")) === content, "setup re-run: scaffold byte-identical");
+    check(again.out.includes("left untouched"), "setup re-run: reports left untouched");
+
+    // A pre-existing file (different content) is left byte-identical, exit 0.
+    const existing = join(scratch, "e2-existing", "routing.md");
+    await mkdir(dirname(existing), { recursive: true });
+    const owned = "# USER-OWNED routing\nReview with USER-CHOSEN-ROUTING.\n";
+    await writeFile(existing, owned, "utf8");
+    const r2 = run("install.mjs", ["setup", "--personal-path", existing]);
+    check(r2.exit === 0, "setup existing: exits 0");
+    check((await readFile(existing, "utf8")) === owned, "setup existing: file left byte-identical");
+    check(r2.out.includes("left untouched"), "setup existing: left-untouched line");
+    check(r2.out.includes(existing), "setup existing: prints the file path");
+    check(r2.out.includes("routing.example.md"), "setup existing: guidance still printed");
+    check(r2.out.includes("Paste this prompt into an OpenCode session"), "setup existing: prompt still printed");
+
+    // --dry-run writes nothing (absent and present cases).
+    const dryAbsent = join(scratch, "e2-dry-absent", "routing.md");
+    const r3 = run("install.mjs", ["setup", "--personal-path", dryAbsent, "--dry-run"]);
+    check(r3.exit === 0 && r3.out.includes("Dry run complete; no files were changed."), "setup dry-run: no files changed message");
+    check(r3.out.includes("would create"), "setup dry-run: plans the create");
+    check(!(await exists(dryAbsent)), "setup dry-run: absent file not created");
+    check(!(await exists(dirname(dryAbsent))), "setup dry-run: parent directory not created");
+    const dryPresent = join(scratch, "e2-dry-present", "routing.md");
+    await mkdir(dirname(dryPresent), { recursive: true });
+    const owned2 = "USER-DRY-CONTENT\n";
+    await writeFile(dryPresent, owned2, "utf8");
+    const r4 = run("install.mjs", ["setup", "--personal-path", dryPresent, "--dry-run"]);
+    check(r4.exit === 0 && (await readFile(dryPresent, "utf8")) === owned2, "setup dry-run: present file untouched");
+    check(r4.out.includes("would leave untouched"), "setup dry-run: present file reported untouched");
+
+    // Default personal path under an isolated home.
+    const fakeHome = await mkdtemp(join(scratch, "e2-home-"));
+    const r5 = run("install.mjs", ["setup"], { env: { HOME: fakeHome, USERPROFILE: fakeHome } });
+    const def = join(fakeHome, ".agenticale", "routing.md");
+    check(r5.exit === 0, "setup default: exits 0");
+    check(await exists(def), "setup default: creates ~/.agenticale/routing.md");
+    assertNoIllustrativeIds("default scaffold", await readFile(def, "utf8"));
+
+    // D2: setup takes --target so the guidance names the packaged example
+    // under the target the bundle was installed into (same default resolution
+    // as install); without --target it still points at the default directory;
+    // --dry-run + --target writes nothing. XDG_CONFIG_HOME is pinned so the
+    // default directory is deterministic and distinct from the custom target.
+    const fakeXDG = join(scratch, "e2-xdg");
+    const customTarget = join(scratch, "e2-custom-target");
+    const r7 = run("install.mjs", ["setup", "--target", customTarget, "--personal-path", join(scratch, "e2-t", "routing.md"), "--dry-run"], { env: { XDG_CONFIG_HOME: fakeXDG } });
+    check(r7.exit === 0, "setup --target: exits 0");
+    check(r7.out.includes(join(customTarget, "skills", "work", "references", "routing.example.md")), "setup --target: guidance names the packaged example under the custom target");
+    check(!r7.out.includes(fakeXDG), "setup --target: guidance does not reference the default configuration directory");
+    const r8 = run("install.mjs", ["setup", "--personal-path", join(scratch, "e2-t2", "routing.md"), "--dry-run"], { env: { XDG_CONFIG_HOME: fakeXDG } });
+    check(r8.exit === 0, "setup default target: exits 0");
+    check(r8.out.includes(join(fakeXDG, "opencode", "skills", "work", "references", "routing.example.md")), "setup default target: guidance names the packaged example under the default configuration directory");
+    const dryCustom = join(scratch, "e2-dry-custom", "routing.md");
+    const r9 = run("install.mjs", ["setup", "--target", customTarget, "--personal-path", dryCustom, "--dry-run"], { env: { XDG_CONFIG_HOME: fakeXDG } });
+    check(r9.exit === 0 && r9.out.includes("Dry run complete; no files were changed."), "setup --target --dry-run: no files changed message");
+    check(r9.out.includes(join(customTarget, "skills", "work", "references", "routing.example.md")), "setup --target --dry-run: guidance still points at the custom target");
+    check(!(await exists(dryCustom)), "setup --target --dry-run: absent personal file not created");
+    check(!(await exists(dirname(dryCustom))), "setup --target --dry-run: parent directory not created");
+
+    // Arg shape: --personal-path is setup-only; install-only options are
+    // rejected by setup; the --= form works.
+    const bad1 = run("install.mjs", ["setup", "--no-model"]);
+    check(bad1.exit === 1 && bad1.err.includes("apply only to install/uninstall, not setup."), "setup: install-only options rejected");
+    const bad2 = run("install.mjs", ["install", "--target", join(scratch, "e2-x"), "--no-model", "--personal-path", join(scratch, "e2-x", "routing.md")]);
+    check(bad2.exit === 1 && bad2.err.includes("--personal-path applies only to setup"), "install: --personal-path rejected");
+    const bad3 = run("install.mjs", ["setup", "--personal-path"]);
+    check(bad3.exit === 1 && bad3.err.includes("--personal-path requires a value"), "setup: --personal-path missing value");
+    const eqPath = join(scratch, "e2-eq", "routing.md");
+    const r6 = run("install.mjs", [`setup`, `--personal-path=${eqPath}`]);
+    check(r6.exit === 0 && await exists(eqPath), "setup: --personal-path= form creates the scaffold");
+  }
+
+  // ---------------------------------------------------------------------
   // F. OpenCode preparation refresh: rerun the existing installer with a
   //    different --routing policy (the explicit profile-update path). Requested
   //    versus installed policies are compared through the installer's own
