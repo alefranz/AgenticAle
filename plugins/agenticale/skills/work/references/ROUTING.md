@@ -98,7 +98,8 @@ exception is the OpenCode installer's `setup` subcommand
 (`node scripts/install.mjs setup`), invoked only after the user explicitly
 consents: it may CREATE the personal `~/.agenticale/preferences.md` when it is
 absent (the legacy name `routing.md` is still honored there), as a minimal
-scaffold in which every role inherits the session model and effort. It never
+scaffold with no role overrides, so the installed baseline routing (which
+matches the generated agent profiles) applies. It never
 overwrites, migrates, or removes a preference file, and it never creates the
 project-scope file. Missing files mean no customization.
 Report a present but unreadable file rather than claiming it was applied. Do
