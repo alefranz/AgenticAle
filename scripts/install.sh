@@ -36,9 +36,10 @@ Wrapper options:
                     (default: https://github.com/alefranz/AgenticAle; the
                     AGENTICALE_BASE_URL environment variable is also honored,
                     with --base-url taking precedence). Useful for mirrors.
-  --setup           Also create the personal routing customization file
-                    (~/.agenticale/routing.md) after a successful install.
-                    Skipped with --dry-run.
+  --setup           Also create the personal AgenticAle preferences file
+                    (~/.agenticale/preferences.md) after a successful install.
+                    If a legacy ~/.agenticale/routing.md exists, the step
+                    creates nothing and reports it. Skipped with --dry-run.
   --help, -h        Show this help.
 
 Forwarded installer options (see: node scripts/install.mjs --help):
@@ -50,14 +51,16 @@ wrapper appends --no-model so every role inherits the session model and
 effort.
 
 After a successful non-dry-run install the wrapper offers the consented setup
-step (create ~/.agenticale/routing.md as a minimal scaffold only if absent):
-with --setup it runs unconditionally; on a terminal without --setup it asks
-"Create a personal routing customization file (~/.agenticale/routing.md)?
-[y/N]" (default no); non-interactive runs skip it and print a tip. The
-AGENTICALE_INSTALL_CONSENT=yes|no environment variable replaces the
-interactive answer where the prompt would occur (a documented testing seam).
-The install is never undone by a setup failure; the wrapper exits with the
-setup subcommand's exit code in that case.
+step (create ~/.agenticale/preferences.md as a minimal scaffold only if
+absent; a legacy ~/.agenticale/routing.md at the same scope makes the step
+create nothing and report it): with --setup it runs unconditionally; on a
+terminal without --setup it asks "Create a personal AgenticAle preferences
+file (~/.agenticale/preferences.md)? [y/N]" (default no); non-interactive
+runs skip it and print a tip. The AGENTICALE_INSTALL_CONSENT=yes|no
+environment variable replaces the interactive answer where the prompt would
+occur (a documented testing seam). The install is never undone by a setup
+failure; the wrapper exits with the setup subcommand's exit code in that
+case.
 
 Exit codes: the installer's exit code is propagated. If the install succeeds
 and the setup step runs, the setup exit code is propagated when it is
@@ -389,7 +392,7 @@ if [ "$install_status" -eq 0 ]; then
           run_setup=0
           ;;
         *)
-          printf 'Create a personal routing customization file (~/.agenticale/routing.md)? [y/N] '
+          printf 'Create a personal AgenticAle preferences file (~/.agenticale/preferences.md)? [y/N] '
           answer=""
           read -r answer || answer=""
           case "$answer" in
@@ -406,7 +409,7 @@ fi
 
 status="$install_status"
 if [ "$status" -eq 0 ] && [ "$run_setup" -eq 1 ]; then
-  echo "Creating the personal routing customization file"
+  echo "Creating the personal AgenticAle preferences file"
   # Forward an explicit --target so the setup guidance points at the packaged
   # example under the target the install used; with no --target, pass nothing
   # and setup resolves the same default. Same discrete-word rebuilding as the
@@ -419,12 +422,12 @@ if [ "$status" -eq 0 ] && [ "$run_setup" -eq 1 ]; then
   setup_status=$?
   install_pid=""
   if [ "$setup_status" -ne 0 ]; then
-    printf 'Error: the install succeeded, but the routing setup step failed (exit %s). The install is intact; re-run the setup step manually if needed.\n' "$setup_status" >&2
+    printf 'Error: the install succeeded, but the preferences setup step failed (exit %s). The install is intact; re-run the setup step manually if needed.\n' "$setup_status" >&2
     status="$setup_status"
   fi
 fi
 if [ "$status" -eq 0 ] && [ "$hint_setup" -eq 1 ]; then
-  echo "Tip: run with --setup to also create the personal routing customization file (~/.agenticale/routing.md)."
+  echo "Tip: run with --setup to also create the personal AgenticAle preferences file (~/.agenticale/preferences.md)."
 fi
 
 exit "$status"

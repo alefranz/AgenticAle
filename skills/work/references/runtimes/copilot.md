@@ -33,12 +33,15 @@ the schema is documentation-only for this pass and is not tested here.
 ## Routing bootstrap on this surface
 
 At activation, follow the shared bootstrap in `ROUTING.md`:
-discover personal and project `routing.md` files, interpret the active runtime's
-preferences, apply invocation choices, and resolve this runtime's routes once
-for the activation. The preference section uses the `copilot` runtime name.
+discover the personal and project `preferences.md` preference files
+(`routing.md` remains accepted as a legacy name), interpret the active
+runtime's preferences, apply invocation choices, and resolve this runtime's
+routes once for the activation. The preference section uses the `copilot`
+runtime name.
 Precedence is invocation, project, personal, then installed baseline. Do not
-scan unrelated files. Invocation choices are session-scoped and do not persist
-to a preference file or `routing.md`. With Node available, the default path is
+scan unrelated files. Invocation choices are session-scoped and do not
+persist to a preference file or `preferences.md`. With Node available, the
+default path is
 the single `startup` call from the installed skill and the interpretation path
 is `resolve --input <file> --explain`; this surface has no generated agent
 set, so
@@ -64,7 +67,7 @@ an explicit, intentional choice; it is not a fallback and not a missing value.
 An explicit invocation choice wins over discovered preference files for the
 entries it names; every other entry still resolves from the discovered files
 and the installed baseline. Invocation choices
-stay within the session and never rewrite `routing.md` or any preference
+stay within the session and never rewrite `preferences.md` or any preference
 file.
 
 ## Limitations (stated honestly)

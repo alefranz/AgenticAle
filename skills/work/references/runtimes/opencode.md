@@ -48,9 +48,9 @@ per routing key.
 
 At activation, follow the shared bootstrap in `ROUTING.md`. With Node
 available, the default path is one mechanical call from the installed skill,
-which checks the personal and project `routing.md` locations without reading
-their contents and resolves this runtime's seven routes once for the
-activation:
+which checks the personal and project `preferences.md` preference locations
+(the legacy `routing.md` name is still accepted) without reading their
+contents and resolves this runtime's seven routes once for the activation:
 
 ```sh
 node scripts/routing.mjs startup --runtime opencode --root <root> [--profile NAME]
@@ -80,7 +80,7 @@ The plain, non-`--explain` `resolve` output is the strict version-1 export the
 preparation and refresh flow below writes for the installer — never the
 snapshot. Precedence is invocation, project, personal, then installed
 baseline. Do not scan unrelated files. Invocation choices are session-scoped
-and do not persist to `routing.md` or a preference file.
+and do not persist to `preferences.md` or a preference file.
 
 Where Node is unavailable, apply the in-context path: check the two documented
 preference locations, interpret the active `opencode` runtime preferences, and
@@ -267,7 +267,7 @@ task-time model overrides cannot be promised: use a matching installed route,
 or route the change through the explicit preparation/refresh path in
 `ROUTING.md`; do not change global model configuration mid-task. Overrides
 supplied at task time stay within the session and do not rewrite
-`routing.md` or any preference file.
+`preferences.md` or any preference file.
 
 ## Session usage summary (opt-in)
 

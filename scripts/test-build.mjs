@@ -66,7 +66,7 @@ async function buildFixture(name, args = [], { env, cwd } = {}) {
 // in this file are derived from it too.
 const legacyV1Baseline = {
   schemaVersion: 1,
-  provenance: "Packaged model and effort choices mirror examples/openai.json. Copilot and Codex use host-native bare model IDs; OpenCode keeps the openai/ provider prefix from the example. Availability and effort support are not verified against live accounts. Customize per runtime with routing.md (see references/ROUTING.md), or override at build time (--routing PATH / --models / --no-model / --effort).",
+  provenance: "Packaged model and effort choices mirror examples/openai.json. Copilot and Codex use host-native bare model IDs; OpenCode keeps the openai/ provider prefix from the example; Antigravity uses host-native tier choices (flash, pro) without reasoning-effort control. Availability and effort support are not verified against live accounts. Customize per runtime with .agenticale/preferences.md (legacy .agenticale/routing.md is still accepted) (see references/ROUTING.md), or override at build time (--routing PATH / --models / --no-model / --effort).",
   runtimes: {
     copilot: {
       explore: { mode: "explicit", model: "gpt-6-luna", reasoningEffort: "medium", fallbacks: [] },
@@ -118,7 +118,7 @@ try {
   ]) {
     for (const rel of [
       "work/references/routing.json",
-      "work/references/routing.example.md",
+      "work/references/preferences.example.md",
       "work/scripts/routing.mjs",
     ]) {
       check(existsSync(join(skillsRoot, rel)), `${label} bundle ships ${rel}`);

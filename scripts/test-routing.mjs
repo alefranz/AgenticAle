@@ -6,13 +6,14 @@
 // `resolve` and `startup` CLIs; they do not interpret prose and never touch
 // the real user's home, plugin store, or live profile.
 
-import { mkdtemp, mkdir, readFile, readdir, rm, cp, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, rm, cp, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import assert from "node:assert/strict";
 import {
   BASELINE_SOURCE,
+  DEFAULT_WORK_BUDGET,
   ROLES,
   RUNTIME_KEYS,
   STANDARD_TIERS,
@@ -92,7 +93,7 @@ function explicit(model, reasoningEffort, fallbacks = []) {
 // 21-selection equivalence is testable without repository history.
 const OLD_V1 = {
   schemaVersion: 1,
-  provenance: "Packaged model and effort choices mirror examples/openai.json. Copilot and Codex use host-native bare model IDs; OpenCode keeps the openai/ provider prefix from the example. Availability and effort support are not verified against live accounts. Customize per runtime with routing.md (see references/ROUTING.md), or override at build time (--routing PATH / --models / --no-model / --effort).",
+  provenance: "Packaged model and effort choices mirror examples/openai.json. Copilot and Codex use host-native bare model IDs; OpenCode keeps the openai/ provider prefix from the example; Antigravity uses host-native tier choices (flash, pro) without reasoning-effort control. Availability and effort support are not verified against live accounts. Customize per runtime with .agenticale/preferences.md (legacy .agenticale/routing.md is still accepted) (see references/ROUTING.md), or override at build time (--routing PATH / --models / --no-model / --effort).",
   runtimes: {
     copilot: {
       explore: explicit("gpt-6-luna", "medium"),
@@ -274,6 +275,9 @@ try {
   checkError(() => validateV2Routing(mutatedV2((q) => { q.runtimes.codex.roles.review = { mode: "tier", tier: "deep", extra: true }; })), "v2 rejects extra keys on a tier reference", ["must carry exactly: mode, tier"]);
   checkError(() => validateV2Routing(mutatedV2((q) => { q.runtimes.codex.tiers.fast = { mode: "explicit", model: "x", reasoningEffort: "low" }; })), "v2 rejects an explicit entry missing fallbacks", ["must carry exactly"]);
   checkError(() => validateV2Routing({ schemaVersion: 2, roleTiers: synthetic().roleTiers, runtimes: {} }), "v2 requires at least one runtime", ["at least one runtime"]);
+  checkError(() => validateV2Routing(mutatedV2((q) => { q.work = "eight"; })), "v2 rejects a non-object work budget", ["work, when present, must be a JSON object", '"eight"']);
+  checkError(() => validateV2Routing(mutatedV2((q) => { q.work = { workerRounds: 0 }; })), "v2 rejects a work workerRounds below 1", ["work.workerRounds must be an integer of at least 1", "got 0"]);
+  checkError(() => validateV2Routing(mutatedV2((q) => { q.work = { workerRounds: 4, bonus: 1 }; })), "v2 rejects an unknown work key", ["work has unknown key 'bonus'", "expected only workerRounds"]);
 
   // --- Preference layer validation (negatives). ---
   checkError(() => validatePreferenceLayer({ source: "x", bogus: true }, 0), "preference layer rejects unknown key", ["unknown key 'bogus'"]);
@@ -282,6 +286,28 @@ try {
   checkError(() => validatePreferenceLayer({ runtimes: { bogus: {} } }, 0), "preference layer rejects an unsupported runtime", ["unsupported runtime 'bogus'"]);
   checkError(() => validatePreferenceLayer({ runtimes: { codex: { tiers: { default: explicit("x", "low") } } } }, 0), "preference layer rejects reserved tier name", ["reserved tier name 'default'"]);
   checkError(() => validatePreferenceLayer({ runtimes: { codex: { roles: { bogus: explicit("x", "low") } } } }, 0), "preference layer rejects an unknown role", ["not one of the seven routing roles"]);
+  // The optional layer-level `work` budget (Work worker-round allowance) is
+  // validated for every layer: object shape, only workerRounds, positive
+  // integer, and the normalized layer carries it (null when absent).
+  check(
+    JSON.stringify(validatePreferenceLayer({ source: "x", work: { workerRounds: 12 } }, 0).work) === JSON.stringify({ workerRounds: 12 }),
+    "a layer with a valid work budget normalizes it",
+  );
+  check(validatePreferenceLayer({ source: "x" }, 0).work === null, "a layer without a work key normalizes work to null");
+  // The work diagnostics label the layer's own source (the file the user
+  // must fix) when it is a non-empty string, falling back to the generic
+  // "Preference layer N" label otherwise.
+  checkError(() => validatePreferenceLayer({ source: "project preferences.md", work: { workerRounds: 0 } }, 1), "a zero work allowance names the layer's source and the value", ["project preferences.md work.workerRounds must be an integer of at least 1", "got 0"]);
+  checkError(() => validatePreferenceLayer({ work: { workerRounds: 0 } }, 1), "a source-less layer's work error keeps the generic label", ["Preference layer 2 work.workerRounds must be an integer of at least 1", "got 0"]);
+  checkError(() => validatePreferenceLayer({ source: "x", work: "eight" }, 0), "a non-object layer work budget is a RoutingError naming the source", ["x work, when present, must be a JSON object", '"eight"']);
+  checkError(() => validatePreferenceLayer({ source: "x", work: { workerRounds: 4, bonus: 1 } }, 0), "an unknown key inside work is a RoutingError naming the key", ["x work has unknown key 'bonus'", "expected only workerRounds"]);
+  for (const value of [2.5, 0, -3, "eight", null]) {
+    checkError(
+      () => validatePreferenceLayer({ source: "x", work: { workerRounds: value } }, 0),
+      `a work workerRounds of ${JSON.stringify(value)} is a RoutingError naming the source and the value`,
+      ["x work.workerRounds must be an integer of at least 1", JSON.stringify(value)],
+    );
+  }
   check(
     JSON.stringify(normalizePreferenceInput(null)) === JSON.stringify([]),
     "normalizePreferenceInput(null) means no layers",
@@ -310,6 +336,92 @@ try {
   const merged = mergePreferenceLayers(synthetic(), []);
   check(merged.tiers.codex.fast.source === BASELINE_SOURCE, "unmerged tier definitions carry the baseline source");
   check(merged.roleTiers.review === "standard", "the role-to-tier map is copied verbatim");
+
+  // --- Work worker-round allowance: baseline default, layer precedence, and
+  // source labels. The allowance is what is available to the Work workflow,
+  // resolved with the same layer precedence as every other entry. ---
+  check(JSON.stringify(DEFAULT_WORK_BUDGET) === JSON.stringify({ workerRounds: 8 }), "the packaged default work budget is eight worker rounds");
+  check(
+    JSON.stringify(resolveRuntime(synthetic(), [], "codex").work) === JSON.stringify({ workerRounds: 8, source: "installed baseline" }),
+    "a baseline without a work key resolves the default allowance as the installed baseline",
+  );
+  check(
+    JSON.stringify(resolveRuntime(packaged, [], "codex").work) === JSON.stringify({ workerRounds: 8, source: "installed baseline" }),
+    "no work layers resolve the installed baseline's work allowance",
+  );
+  const workBaseline = mutatedV2((q) => { q.work = { workerRounds: 10 }; });
+  check(
+    JSON.stringify(resolveRuntime(workBaseline, [], "codex").work) === JSON.stringify({ workerRounds: 10, source: "installed baseline" }),
+    "a baseline work budget wins when no layer carries one",
+  );
+  check(
+    JSON.stringify(resolveRuntime(synthetic(), [{ source: "personal", work: { workerRounds: 12 } }], "codex").work)
+      === JSON.stringify({ workerRounds: 12, source: "personal" }),
+    "a personal work budget overrides the baseline allowance",
+  );
+  check(
+    JSON.stringify(resolveRuntime(synthetic(), [
+      { source: "personal", work: { workerRounds: 12 } },
+      { source: "project", work: { workerRounds: 5 } },
+    ], "codex").work) === JSON.stringify({ workerRounds: 5, source: "project" }),
+    "a higher-precedence project work budget replaces the personal one",
+  );
+  check(
+    JSON.stringify(resolveRuntime(synthetic(), [
+      { source: "personal", work: { workerRounds: 12 } },
+      { source: "project" },
+    ], "codex").work) === JSON.stringify({ workerRounds: 12, source: "personal" }),
+    "a work-less higher layer retains the lower layer's work budget",
+  );
+  check(
+    JSON.stringify(mergePreferenceLayers(workBaseline, [
+      { source: "personal", work: { workerRounds: 12 } },
+      { source: "project", runtimes: { codex: { tiers: { fast: explicit("proj/fast", "medium") } } }, work: { workerRounds: 5 } },
+    ], "codex").work) === JSON.stringify({ workerRounds: 5, source: "project" }),
+    "mergePreferenceLayers carries the merged work budget with its source",
+  );
+
+  // Profile interaction: selecting a profile never carries or changes the
+  // work budget; garbage inside an unselected profile cannot block; a
+  // layer-level invalid work budget is still validated with a profile
+  // selected.
+  const workProfileLayer = {
+    source: "personal routing.md",
+    runtimes: { codex: { tiers: { fast: explicit("pers/fast", "medium") } } },
+    profiles: { "server-b": { codex: { tiers: { fast: explicit("p-prof/fast", "max") } } } },
+    work: { workerRounds: 12 },
+  };
+  const workProfileResolution = resolveRuntime(synthetic(), [workProfileLayer], "codex", "server-b");
+  check(
+    JSON.stringify(workProfileResolution.work) === JSON.stringify({ workerRounds: 12, source: "personal routing.md" }),
+    "selecting a profile does not change the resolved work allowance",
+  );
+  check(!workProfileResolution.work.source.includes("(profile"), "the work source never carries a profile tag");
+  check(
+    JSON.stringify(resolveRuntime(synthetic(), [workProfileLayer], "codex").work)
+      === JSON.stringify(workProfileResolution.work),
+    "the work allowance is identical with and without a selected profile",
+  );
+  const workProfileGarbage = {
+    source: "personal routing.md",
+    work: { workerRounds: 12 },
+    profiles: {
+      "server-b": { codex: { tiers: { fast: "broken" } } },
+      fine: { codex: { tiers: { fast: explicit("fine/fast", "low") } } },
+    },
+  };
+  check(
+    JSON.stringify(resolveRuntime(synthetic(), [workProfileGarbage], "codex", "fine").work)
+      === JSON.stringify({ workerRounds: 12, source: "personal routing.md" }),
+    "garbage inside an unselected profile cannot block the work allowance",
+  );
+  checkError(
+    () => resolveRuntime(synthetic(), [
+      { source: "x", work: { workerRounds: 0 }, profiles: { "server-b": { codex: { tiers: { fast: explicit("p/fast", "low") } } } } },
+    ], "codex", "server-b"),
+    "a layer-level invalid work budget is still validated with a selected profile",
+    ["x work.workerRounds must be an integer of at least 1", "got 0"],
+  );
 
   // --- Section 4.3 precedence examples (personal < repository < invocation). ---
   // 1. review: deep + repository replaces deep -> the repository deep wins.
@@ -704,16 +816,20 @@ try {
   check(effortResult.runtimes.codex.tiers.fast.reasoningEffort === "low", "--effort overrides codex tier effort");
   check(effortResult.runtimes.antigravity.tiers.fast.reasoningEffort === undefined, "--effort leaves antigravity tier without reasoningEffort");
 
-  // --- Discovery helper: personal then project, dedup, exact roots. ---
+  // --- Discovery helper: personal before project, dedup, exact roots. ---
   check(
     JSON.stringify(discoverPreferencePaths({ projectRoot: "/tmp/proj", homeDir: "/home/u" }))
-      === JSON.stringify([join(resolve("/home/u"), ".agenticale", "routing.md"), join(resolve("/tmp/proj"), ".agenticale", "routing.md")]),
-    "discovery lists the personal file before the project file",
+      === JSON.stringify([
+        { location: "personal", candidates: [join(resolve("/home/u"), ".agenticale", "preferences.md"), join(resolve("/home/u"), ".agenticale", "routing.md")] },
+        { location: "project", candidates: [join(resolve("/tmp/proj"), ".agenticale", "preferences.md"), join(resolve("/tmp/proj"), ".agenticale", "routing.md")] },
+      ]),
+    "discovery lists the personal candidates (preferences.md, then legacy routing.md) before the project candidates",
   );
   check(discoverPreferencePaths({ projectRoot: "/home/u", homeDir: "/home/u" }).length === 1, "discovery dedups when the project root is the home directory");
   check(
-    JSON.stringify(discoverPreferencePaths({ homeDir: "/home/u" })) === JSON.stringify([join(resolve("/home/u"), ".agenticale", "routing.md")]),
-    "discovery lists only the home file without a project root",
+    JSON.stringify(discoverPreferencePaths({ homeDir: "/home/u" }))
+      === JSON.stringify([{ location: "personal", candidates: [join(resolve("/home/u"), ".agenticale", "preferences.md"), join(resolve("/home/u"), ".agenticale", "routing.md")] }]),
+    "discovery lists only the personal candidates without a project root",
   );
 
   // --- Named routing profiles: optional per-layer profile maps that expand
@@ -731,7 +847,7 @@ try {
   check(normalizedProfileLayer[0].profiles["server-b"].codex.tiers.fast.model === "p-prof/fast", "a layer with a profiles map normalizes to a shape-checked profiles entry");
   checkError(() => validatePreferenceLayer({ source: "x", profiles: ["server-b"] }, 0), "profiles as an array is a layer-shape RoutingError", ["profiles", "JSON object"]);
   checkError(() => validatePreferenceLayer({ source: "x", profiles: "server-b" }, 0), "profiles as a string is a layer-shape RoutingError", ["profiles", "JSON object"]);
-  checkError(() => validatePreferenceLayer({ source: "x", bogus: true }, 0), "the preference layer unknown-key message lists profiles", ["(expected source, runtimes, profiles)"]);
+  checkError(() => validatePreferenceLayer({ source: "x", bogus: true }, 0), "the preference layer unknown-key message lists profiles and work", ["(expected source, runtimes, profiles, work)"]);
   const weirdProfiles = {
     source: "x",
     runtimes: { codex: { tiers: { fast: explicit("f/fast", "low") } } },
@@ -1082,6 +1198,30 @@ try {
   const explanation = JSON.parse(explained.stdout);
   check(explanation.policy.schemaVersion === 1 && explanation.routeProvenance["deep-review"].tierSource === "personal routing.md", "--explain preserves per-route provenance beside the strict policy");
 
+  // The work allowance in the CLI: the plain policy never carries a work key
+  // (it stays a strict version-1 policy); --explain reports the effective
+  // work budget with its source; an invalid work budget exits 1 naming the
+  // field and the value.
+  const cliWorkPref = JSON.stringify([{ source: "personal routing.md", runtimes: { codex: { tiers: { deep: explicit("alt/deep", "low") } } }, work: { workerRounds: 12 } }]);
+  const cliWork = cli(["resolve", "--runtime", "codex"], cliWorkPref);
+  check(cliWork.status === 0, `installed-fixture resolve with a work budget exits 0${cliWork.status === 0 ? "" : ` (stderr: ${cliWork.stderr.trim()})`}`);
+  const cliWorkPolicy = JSON.parse(cliWork.stdout);
+  check(!("work" in cliWorkPolicy), "the plain CLI policy carries no work key");
+  let cliWorkStrictError = null;
+  try {
+    strictValidateRouting(cliWorkPolicy);
+  } catch (error) {
+    cliWorkStrictError = error;
+  }
+  check(cliWorkStrictError === null, `a work-budget run still passes the strict version-1 contract${cliWorkStrictError ? ` (${cliWorkStrictError.message})` : ""}`);
+  const cliWorkExplain = cli(["resolve", "--runtime", "codex", "--explain"], cliWorkPref);
+  check(cliWorkExplain.status === 0, `--explain with a work budget exits 0${cliWorkExplain.status === 0 ? "" : ` (stderr: ${cliWorkExplain.stderr.trim()})`}`);
+  const cliWorkExplanation = JSON.parse(cliWorkExplain.stdout);
+  check(JSON.stringify(cliWorkExplanation.work) === JSON.stringify({ workerRounds: 12, source: "personal routing.md" }), "--explain reports the effective work allowance with its source");
+  const cliWorkBad = cli(["resolve", "--runtime", "codex"], JSON.stringify([{ source: "personal routing.md", work: { workerRounds: 2.5 } }]));
+  check(cliWorkBad.status === 1, "an invalid work budget exits 1");
+  check(cliWorkBad.stderr.includes("personal routing.md work.workerRounds must be an integer of at least 1") && cliWorkBad.stderr.includes("got 2.5"), "the invalid-work error names the source, the field, and the value");
+
   // The OpenCode preparation export: a complete seven-role policy for the
   // active runtime with a tier replacement carrying an ordered fallback list
   // and an intentional inheritance role. The fallback list is preserved
@@ -1216,6 +1356,18 @@ try {
   };
   const clearPersonal = () => rm(personalRoutingMd, { recursive: true, force: true });
   const clearProject = () => rm(projectRoutingMd, { recursive: true, force: true });
+  const personalPreferencesMd = join(startupHome, ".agenticale", "preferences.md");
+  const projectPreferencesMd = join(startupProject, ".agenticale", "preferences.md");
+  const putPersonalPreferences = async () => {
+    await mkdir(join(startupHome, ".agenticale"), { recursive: true });
+    await writeFile(personalPreferencesMd, "# Personal preferences\nExplore on the fast tier.\n", "utf8");
+  };
+  const putProjectPreferences = async () => {
+    await mkdir(join(startupProject, ".agenticale"), { recursive: true });
+    await writeFile(projectPreferencesMd, "# Project preferences\nReview on the standard tier.\n", "utf8");
+  };
+  const clearPersonalPreferences = () => rm(personalPreferencesMd, { recursive: true, force: true });
+  const clearProjectPreferences = () => rm(projectPreferencesMd, { recursive: true, force: true });
   const opencodeRouteFor = (role) => resolveRuntime(packaged, [], "opencode").routes[role];
   const agentProfileFile = (model, reasoningEffort) => {
     const lines = ["---", "description: Generated test profile.", "mode: subagent", "steps: 12"];
@@ -1233,9 +1385,14 @@ try {
   check(st1.status === 0, `startup with no preference files exits 0${st1.status === 0 ? "" : ` (stderr: ${st1.stderr.trim()})`}`);
   const st1Out = JSON.parse(st1.stdout);
   check(st1Out.status === "resolved", "no preference files resolve the installed baseline directly");
-  check(JSON.stringify(Object.keys(st1Out)) === JSON.stringify(["status", "runtime", "profile", "preferenceFiles", "policy", "routeProvenance"]), "resolved output uses the documented key order and omits agents for non-opencode without --agents-dir");
+  check(JSON.stringify(Object.keys(st1Out)) === JSON.stringify(["status", "runtime", "profile", "preferenceFiles", "policy", "routeProvenance", "work"]), "resolved output uses the documented key order and omits agents for non-opencode without --agents-dir");
   check(st1Out.runtime === "codex" && st1Out.profile === null, "resolved output reports the runtime and a null profile");
-  check(st1Out.preferenceFiles.personal === "absent" && st1Out.preferenceFiles.project === "absent", "no preference files report both documented locations absent");
+  check(JSON.stringify(st1Out.work) === JSON.stringify({ workerRounds: 8, source: "installed baseline" }), "the resolved output reports the effective work allowance from the installed baseline");
+  check(
+    JSON.stringify(st1Out.preferenceFiles.personal) === JSON.stringify({ state: "absent", file: null, path: null, ignored: [] })
+      && JSON.stringify(st1Out.preferenceFiles.project) === JSON.stringify({ state: "absent", file: null, path: null, ignored: [] }),
+    "no preference files report both documented locations absent",
+  );
   let st1StrictError = null;
   try {
     strictValidateRouting(st1Out.policy);
@@ -1273,9 +1430,13 @@ try {
   check(st2Out.status === "interpretation-required", "a present preference file requires workflow interpretation");
   check(JSON.stringify(Object.keys(st2Out)) === JSON.stringify(["status", "runtime", "profile", "preferenceFiles", "presentFiles"]), "interpretation-required output uses the documented key order");
   check(JSON.stringify(st2Out.presentFiles) === JSON.stringify([personalRoutingMd]), "interpretation-required lists exactly the personal file");
-  check(st2Out.preferenceFiles.personal === "present" && st2Out.preferenceFiles.project === "absent", "preferenceFiles records the personal file as present");
+  check(
+    JSON.stringify(st2Out.preferenceFiles.personal) === JSON.stringify({ state: "present", file: "routing.md", path: personalRoutingMd, ignored: [] })
+      && st2Out.preferenceFiles.project.state === "absent",
+    "preferenceFiles records the personal legacy file as the effective file with nothing ignored",
+  );
   check(st2Out.profile === null, "interpretation-required reports a null profile by default");
-  check(!("policy" in st2Out) && !("routeProvenance" in st2Out) && !("agents" in st2Out), "interpretation-required resolves nothing and compares no agents");
+  check(!("policy" in st2Out) && !("routeProvenance" in st2Out) && !("agents" in st2Out) && !("work" in st2Out), "interpretation-required resolves nothing, reports no work allowance, and compares no agents");
   await clearPersonal();
 
   // 3. Project file present; both present.
@@ -1284,13 +1445,21 @@ try {
   const st3Out = JSON.parse(st3.stdout);
   check(st3.status === 0 && st3Out.status === "interpretation-required", "a project preference file requires interpretation");
   check(JSON.stringify(st3Out.presentFiles) === JSON.stringify([projectRoutingMd]), "interpretation-required lists exactly the project file");
-  check(st3Out.preferenceFiles.personal === "absent" && st3Out.preferenceFiles.project === "present", "preferenceFiles records the project file as present");
+  check(
+    st3Out.preferenceFiles.personal.state === "absent"
+      && JSON.stringify(st3Out.preferenceFiles.project) === JSON.stringify({ state: "present", file: "routing.md", path: projectRoutingMd, ignored: [] }),
+    "preferenceFiles records the project legacy file as the effective file",
+  );
   await putPersonalRouting();
   const st3b = startupCli(["startup", "--runtime", "codex", "--root", startupProject]);
   const st3bOut = JSON.parse(st3b.stdout);
   check(st3b.status === 0 && st3bOut.status === "interpretation-required", "both preference files present requires interpretation");
   check(JSON.stringify(st3bOut.presentFiles) === JSON.stringify([personalRoutingMd, projectRoutingMd]), "interpretation-required lists the personal file first, then the project file");
-  check(st3bOut.preferenceFiles.personal === "present" && st3bOut.preferenceFiles.project === "present", "preferenceFiles records both files as present");
+  check(
+    st3bOut.preferenceFiles.personal.state === "present" && st3bOut.preferenceFiles.personal.file === "routing.md"
+      && st3bOut.preferenceFiles.project.state === "present" && st3bOut.preferenceFiles.project.file === "routing.md",
+    "preferenceFiles records both scopes effective under the legacy filename",
+  );
   await clearPersonal();
   await clearProject();
 
@@ -1489,12 +1658,146 @@ try {
   const st18Out = JSON.parse(st18.stdout);
   check(st18Out.status === "interpretation-required", "a file at the shared home location requires interpretation");
   check(st18Out.presentFiles.length === 1 && st18Out.presentFiles[0] === personalRoutingMd, "the shared file is reported once, not twice");
-  check(st18Out.preferenceFiles.personal === "present" && st18Out.preferenceFiles.project === "not-checked", "the deduplicated project location stays not-checked while the personal location carries the shared file");
+  check(
+    st18Out.preferenceFiles.personal.state === "present" && st18Out.preferenceFiles.personal.file === "routing.md"
+      && JSON.stringify(st18Out.preferenceFiles.project) === JSON.stringify({ state: "not-checked", file: null, path: null, ignored: [] }),
+    "the deduplicated project location stays not-checked while the personal location carries the shared file",
+  );
   await clearPersonal();
   const st18b = startupCli(["startup", "--runtime", "codex", "--root", startupHome]);
   const st18bOut = JSON.parse(st18b.stdout);
   check(st18b.status === 0 && st18bOut.status === "resolved", "root==home with no file takes the short resolved path");
-  check(st18bOut.preferenceFiles.personal === "absent" && st18bOut.preferenceFiles.project === "not-checked", "root==home with no file reports the single location absent and the project key not-checked");
+  check(
+    JSON.stringify(st18bOut.preferenceFiles.personal) === JSON.stringify({ state: "absent", file: null, path: null, ignored: [] })
+      && JSON.stringify(st18bOut.preferenceFiles.project) === JSON.stringify({ state: "not-checked", file: null, path: null, ignored: [] }),
+    "root==home with no file reports the single location absent and the project key not-checked",
+  );
+
+  // 19. Documented filename: personal preferences.md (legacy absent) is the
+  // effective file, listed in presentFiles and preferenceFiles.
+  await putPersonalPreferences();
+  const st19 = startupCli(["startup", "--runtime", "codex", "--root", startupProject]);
+  check(st19.status === 0, `startup with a personal preferences.md exits 0${st19.status === 0 ? "" : ` (stderr: ${st19.stderr.trim()})`}`);
+  const st19Out = JSON.parse(st19.stdout);
+  check(st19Out.status === "interpretation-required", "a personal preferences.md requires workflow interpretation");
+  check(
+    JSON.stringify(st19Out.preferenceFiles.personal) === JSON.stringify({ state: "present", file: "preferences.md", path: personalPreferencesMd, ignored: [] }),
+    "preferenceFiles reports the effective preferences.md at the personal scope",
+  );
+  check(JSON.stringify(st19Out.presentFiles) === JSON.stringify([personalPreferencesMd]), "presentFiles contains only the effective preferences.md path");
+  await clearPersonalPreferences();
+
+  // 20. Both filenames present at the personal scope: preferences.md is
+  // effective, routing.md is identified as ignored, never merged.
+  await putPersonalRouting();
+  await putPersonalPreferences();
+  const st20 = startupCli(["startup", "--runtime", "codex", "--root", startupProject]);
+  check(st20.status === 0, `startup with both personal filenames present exits 0${st20.status === 0 ? "" : ` (stderr: ${st20.stderr.trim()})`}`);
+  const st20Out = JSON.parse(st20.stdout);
+  check(st20Out.status === "interpretation-required", "both filenames present at one scope still require interpretation");
+  check(
+    JSON.stringify(st20Out.preferenceFiles.personal) === JSON.stringify({ state: "present", file: "preferences.md", path: personalPreferencesMd, ignored: [personalRoutingMd] }),
+    "the personal scope reports preferences.md effective with routing.md ignored",
+  );
+  check(JSON.stringify(st20Out.presentFiles) === JSON.stringify([personalPreferencesMd]), "presentFiles contains only the effective file when both filenames are present");
+  await clearPersonal();
+  await clearPersonalPreferences();
+
+  // 21. An unreadable preferences.md is an error even with a readable
+  // routing.md at the same scope: no fallback to the legacy file.
+  await putPersonalRouting();
+  await mkdir(personalPreferencesMd, { recursive: true });
+  const st21 = startupCli(["startup", "--runtime", "codex", "--root", startupProject]);
+  check(st21.status === 1, "an unreadable preferences.md exits 1 even with a readable routing.md beside it");
+  check(st21.stderr.includes("personal") && st21.stderr.includes("preferences.md") && st21.stderr.includes(personalPreferencesMd) && st21.stderr.includes("cannot be read"), "the unreadable-preferences error names the location, the preferences.md file, and that it cannot be read");
+  check(st21.stderr.includes("never creates or modifies preference files"), "the unreadable-preferences error states that startup never writes preference files");
+  check(st21.stdout === "", "an unreadable preferences.md prints no JSON on stdout");
+  await clearPersonal();
+  await clearPersonalPreferences();
+
+  // 22. A readable preferences.md beside an unreadable routing.md: the
+  // ignored legacy file's unreadability is not an error.
+  await putPersonalPreferences();
+  await mkdir(personalRoutingMd, { recursive: true });
+  const st22 = startupCli(["startup", "--runtime", "codex", "--root", startupProject]);
+  check(st22.status === 0, `startup with a readable preferences.md and an unreadable routing.md exits 0${st22.status === 0 ? "" : ` (stderr: ${st22.stderr.trim()})`}`);
+  const st22Out = JSON.parse(st22.stdout);
+  check(st22Out.status === "interpretation-required", "the readable effective file still requires interpretation");
+  check(
+    JSON.stringify(st22Out.preferenceFiles.personal) === JSON.stringify({ state: "present", file: "preferences.md", path: personalPreferencesMd, ignored: [personalRoutingMd] }),
+    "the unreadable routing.md is identified as ignored, not an error",
+  );
+  check(JSON.stringify(st22Out.presentFiles) === JSON.stringify([personalPreferencesMd]), "presentFiles lists only the effective file when the legacy file is unreadable");
+  await clearPersonal();
+  await clearPersonalPreferences();
+
+  // 22b. A dangling preferences.md symlink beside a readable routing.md is
+  // unreadable — like an unreadable directory it errors on every path and
+  // never falls back to the legacy file (the reason names the dangling link).
+  await putPersonalRouting();
+  await mkdir(join(startupHome, ".agenticale"), { recursive: true });
+  await symlink(join(startupHome, "does-not-exist.md"), personalPreferencesMd);
+  const st22b = startupCli(["startup", "--runtime", "codex", "--root", startupProject]);
+  check(st22b.status === 1, "a dangling preferences.md symlink exits 1 even with a readable routing.md beside it");
+  check(st22b.stderr.includes("personal") && st22b.stderr.includes("preferences.md") && st22b.stderr.includes(personalPreferencesMd) && st22b.stderr.includes("cannot be read"), "the dangling-preferences error names the location, the preferences.md file, and that it cannot be read");
+  check(st22b.stderr.includes("dangling symlink") && st22b.stderr.includes("ENOENT"), "the dangling-preferences error names the dangling-symlink reason and its errno");
+  check(st22b.stderr.includes("never creates or modifies preference files"), "the dangling-preferences error states that startup never writes preference files");
+  check(st22b.stdout === "", "a dangling preferences.md symlink prints no JSON on stdout (no fallback to routing.md)");
+  await clearPersonal();
+  await clearPersonalPreferences();
+
+  // 22c. A dangling routing.md symlink beside a readable preferences.md is an
+  // ignored (uninterpretable) legacy file, not an error — the same treatment
+  // as the unreadable-directory legacy case.
+  await putPersonalPreferences();
+  await mkdir(join(startupHome, ".agenticale"), { recursive: true });
+  await symlink(join(startupHome, "does-not-exist.md"), personalRoutingMd);
+  const st22c = startupCli(["startup", "--runtime", "codex", "--root", startupProject]);
+  check(st22c.status === 0, `startup with a readable preferences.md and a dangling routing.md symlink exits 0${st22c.status === 0 ? "" : ` (stderr: ${st22c.stderr.trim()})`}`);
+  const st22cOut = JSON.parse(st22c.stdout);
+  check(st22cOut.status === "interpretation-required", "the readable effective file still requires interpretation beside a dangling legacy symlink");
+  check(
+    JSON.stringify(st22cOut.preferenceFiles.personal) === JSON.stringify({ state: "present", file: "preferences.md", path: personalPreferencesMd, ignored: [personalRoutingMd] }),
+    "the dangling routing.md symlink is identified as ignored, not an error",
+  );
+  check(JSON.stringify(st22cOut.presentFiles) === JSON.stringify([personalPreferencesMd]), "presentFiles lists only the effective file when the legacy file is a dangling symlink");
+  await clearPersonal();
+  await clearPersonalPreferences();
+
+  // 22d. A preferences.md symlink to a readable regular file is a present,
+  // effective file: the probe follows the link and reports the link's path.
+  const symlinkTarget = join(startupHome, "target.md");
+  await writeFile(symlinkTarget, "# Personal preferences\nExplore on the fast tier.\n", "utf8");
+  await mkdir(join(startupHome, ".agenticale"), { recursive: true });
+  await symlink(symlinkTarget, personalPreferencesMd);
+  const st22d = startupCli(["startup", "--runtime", "codex", "--root", startupProject]);
+  check(st22d.status === 0, `startup with a preferences.md symlink to a readable file exits 0${st22d.status === 0 ? "" : ` (stderr: ${st22d.stderr.trim()})`}`);
+  const st22dOut = JSON.parse(st22d.stdout);
+  check(st22dOut.status === "interpretation-required", "a preferences.md symlink to a readable file requires interpretation");
+  check(
+    JSON.stringify(st22dOut.preferenceFiles.personal) === JSON.stringify({ state: "present", file: "preferences.md", path: personalPreferencesMd, ignored: [] }),
+    "a preferences.md symlink to a readable file reports the link path as present",
+  );
+  check(JSON.stringify(st22dOut.presentFiles) === JSON.stringify([personalPreferencesMd]), "presentFiles contains the symlink path (the effective file path, not its target)");
+  await clearPersonalPreferences();
+  await rm(symlinkTarget, { force: true });
+
+  // 23. Project scope with both filenames present (personal absent): the
+  // project location reports the effective file and the ignored one.
+  await putProjectRouting();
+  await putProjectPreferences();
+  const st23 = startupCli(["startup", "--runtime", "codex", "--root", startupProject]);
+  check(st23.status === 0, `startup with both project filenames present exits 0${st23.status === 0 ? "" : ` (stderr: ${st23.stderr.trim()})`}`);
+  const st23Out = JSON.parse(st23.stdout);
+  check(st23Out.status === "interpretation-required", "both project filenames present require interpretation");
+  check(
+    JSON.stringify(st23Out.preferenceFiles.project) === JSON.stringify({ state: "present", file: "preferences.md", path: projectPreferencesMd, ignored: [projectRoutingMd] }),
+    "the project scope reports preferences.md effective with routing.md ignored",
+  );
+  check(JSON.stringify(st23Out.preferenceFiles.personal) === JSON.stringify({ state: "absent", file: null, path: null, ignored: [] }), "the absent personal scope reports the absent shape");
+  check(JSON.stringify(st23Out.presentFiles) === JSON.stringify([projectPreferencesMd]), "presentFiles contains only the effective project file");
+  await clearProject();
+  await clearProjectPreferences();
 } finally {
   await rm(scratch, { recursive: true, force: true });
 }

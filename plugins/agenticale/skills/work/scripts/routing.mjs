@@ -16,6 +16,9 @@
  *   - version-1 policy normalization to role exceptions over version-2 tiers
  *   - concrete route resolution with source/provenance labels and reset
  *     semantics (`role: default`, `tier: default`, `inherit`)
+ *   - the Work worker-round allowance: an optional `work` key on the
+ *     version-2 baseline and on preference layers (default eight), resolved
+ *     with the same layer precedence and reported with its source
  *   - strict version-1 export (compatible with the existing validator)
  *   - a `resolve` CLI that reads the installed baseline and an optional
  *     structured invocation patch, then exports the active runtime
@@ -25,15 +28,23 @@
  *     opencode routes (or an explicit --agents-dir) against the installed
  *     agent profiles
  *
- * Users express preferences in routing.md. The workflow interprets that file
- * into a structured invocation patch for this deterministic resolver.
+ * Users express preferences in a preferences.md preference file (routing.md
+ * remains accepted at each scope as a legacy name). When both files exist at
+ * the same scope, preferences.md is the effective file and routing.md is
+ * ignored. The workflow interprets the effective file into a structured
+ * invocation patch for this deterministic resolver. The file's optional
+ * top-level `## Work` section sets the Work workflow's worker-round
+ * allowance; the workflow interprets it as a layer-level `work` key. It is
+ * not runtime- or profile-scoped, and it changes only the available worker
+ * rounds of the Work workflow, never how many rounds must run or any other
+ * budget.
  */
 
 import { constants, readFileSync } from "node:fs";
-import { access, readFile, realpath, stat } from "node:fs/promises";
+import { access, lstat, readFile, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 
 // The seven exposed role names are compatibility commitments. New roles
 // require a packaged tier mapping (and a versioned contract change), not a
@@ -74,14 +85,20 @@ export const RESERVED_INSTRUCTION_NAMES = ["default", "inherit"];
 // customized) baseline.
 export const BASELINE_SOURCE = "installed baseline";
 
+// The Work workflow's worker-round allowance when neither the installed
+// baseline nor a preference layer declares a `work` budget: eight available
+// worker rounds. The allowance is what is available, never what is required,
+// and it applies to the Work workflow only.
+export const DEFAULT_WORK_BUDGET = { workerRounds: 8 };
+
 const TOP_LEVEL_V1_KEYS = ["provenance", "runtimes", "schemaVersion"];
-const TOP_LEVEL_V2_KEYS = ["provenance", "roleTiers", "runtimes", "schemaVersion"];
+const TOP_LEVEL_V2_KEYS = ["provenance", "roleTiers", "runtimes", "schemaVersion", "work"];
 const EXPLICIT_ENTRY_KEYS = ["fallbacks", "mode", "model", "reasoningEffort"];
 const EXPLICIT_ENTRY_KEYS_NO_EFFORT = ["fallbacks", "mode", "model"];
 const INHERIT_ENTRY_KEYS = ["mode"];
 const RESET_ENTRY_KEYS = ["mode"];
 const ROLE_TIER_ENTRY_KEYS = ["mode", "tier"];
-const LAYER_KEYS = ["profiles", "runtimes", "source"];
+const LAYER_KEYS = ["profiles", "runtimes", "source", "work"];
 const RUNTIME_LAYER_KEYS = ["roles", "tiers"];
 
 // Named routing profile identifiers: 1-40 characters, starting with a
@@ -108,6 +125,27 @@ export class RoutingError extends Error {
 
 function isPlainObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+// Validates the optional work budget ({ workerRounds }) shared by the
+// version-2 baseline and the structured preference layers: a plain object
+// whose only allowed key is workerRounds, a positive integer — the Work
+// workflow's worker-round allowance. Invalid values are actionable errors
+// naming the label and the offending value; they are never silently
+// defaulted or clamped.
+function checkWorkBudget(label, work) {
+  if (!isPlainObject(work)) {
+    throw new RoutingError(`${label} work, when present, must be a JSON object (got ${JSON.stringify(work)}).`);
+  }
+  for (const key of Object.keys(work)) {
+    if (key !== "workerRounds") {
+      throw new RoutingError(`${label} work has unknown key '${key}' (expected only workerRounds).`);
+    }
+  }
+  const rounds = work.workerRounds;
+  if (!Number.isInteger(rounds) || rounds < 1) {
+    throw new RoutingError(`${label} work.workerRounds must be an integer of at least 1 (the Work worker-round allowance; got ${JSON.stringify(rounds)}).`);
+  }
 }
 
 function checkFallbacks(label, fallbacks, runtime) {
@@ -325,6 +363,9 @@ export function validateV2Routing(routing) {
   if (routing.provenance !== undefined && (typeof routing.provenance !== "string" || routing.provenance.length === 0)) {
     throw new RoutingError("Routing provenance, when present, must be a non-empty string.");
   }
+  if (routing.work !== undefined) {
+    checkWorkBudget("Routing", routing.work);
+  }
   if (!isPlainObject(routing.roleTiers)) {
     throw new RoutingError("Routing must include a roleTiers map.");
   }
@@ -387,10 +428,13 @@ export function validateV2Routing(routing) {
 }
 
 // Validates one structured preference layer and returns its normalized form
-// { source, runtimes, profiles }. A runtime filter validates only the active
-// runtime. Profile contents are NOT validated here: entries of an unselected
-// profile must never block an otherwise valid selection; non-object profile
-// values are dropped so they are unavailable but never errors.
+// { source, runtimes, profiles, work }. A runtime filter validates only the
+// active runtime. Profile contents are NOT validated here: entries of an
+// unselected profile must never block an otherwise valid selection; non-object
+// profile values are dropped so they are unavailable but never errors. The
+// layer-level `work` budget (the Work worker-round allowance) is validated
+// for every layer regardless of the runtime filter and profile selection: it
+// is not runtime- or profile-scoped.
 export function validatePreferenceLayer(layer, index, options = {}) {
   const activeRuntime = options.runtime;
   const label = options.label ?? `Preference layer ${index + 1}`;
@@ -399,11 +443,19 @@ export function validatePreferenceLayer(layer, index, options = {}) {
   }
   for (const key of Object.keys(layer)) {
     if (!LAYER_KEYS.includes(key)) {
-      throw new RoutingError(`${label} has unknown key '${key}' (expected source, runtimes, profiles).`);
+      throw new RoutingError(`${label} has unknown key '${key}' (expected source, runtimes, profiles, work).`);
     }
   }
   if (layer.source !== undefined && (typeof layer.source !== "string" || layer.source.length === 0)) {
     throw new RoutingError(`${label} source, when present, must be a non-empty string.`);
+  }
+  // The work allowance is a user-facing budget, so its diagnostics name the
+  // layer's source (e.g. "project preferences.md") when one is set, falling
+  // back to the generic label otherwise. Other layer diagnostics keep the
+  // generic label.
+  const workLabel = typeof layer.source === "string" && layer.source.length > 0 ? layer.source : label;
+  if (layer.work !== undefined) {
+    checkWorkBudget(workLabel, layer.work);
   }
   const runtimes = layer.runtimes;
   if (runtimes !== undefined && (!isPlainObject(runtimes) || Object.keys(runtimes).length === 0)) {
@@ -456,6 +508,7 @@ export function validatePreferenceLayer(layer, index, options = {}) {
       ? Object.hasOwn(runtimes ?? {}, activeRuntime) ? { [activeRuntime]: runtimes[activeRuntime] } : {}
       : runtimes ?? {},
     profiles,
+    work: layer.work !== undefined ? { workerRounds: layer.work.workerRounds } : null,
   };
 }
 
@@ -516,8 +569,8 @@ function unknownProfileMessage(profile, runtime, available) {
       ? `Available profiles: ${available.join(", ")}.`
       : `Available profiles for this runtime: ${available.join(", ")}.`)
     : (runtime === undefined
-      ? `No routing profiles are defined; add a '## Profile: ${profile}' section to a routing.md preference file or omit the profile selector.`
-      : `No routing profiles are defined for this runtime; add a '## Profile: ${profile}' section to a routing.md preference file or omit the profile selector.`);
+      ? `No routing profiles are defined; add a '## Profile: ${profile}' section to a preferences.md preference file (the legacy routing.md name is still accepted) or omit the profile selector.`
+      : `No routing profiles are defined for this runtime; add a '## Profile: ${profile}' section to a preferences.md preference file (the legacy routing.md name is still accepted) or omit the profile selector.`);
   return `Unknown routing profile '${profile}' ${scope}. ${availableText}`;
 }
 
@@ -560,10 +613,14 @@ function expandProfileLayers(normalized, runtime, selectedProfile) {
 // `tier: default` restores the tier's installed-baseline definition (custom
 // tiers without a baseline cannot be reset this way) and `role: default`
 // clears the role exception so the role falls back to the default tier
-// mapping. Role-to-tier references are NOT resolved here. A profile selection
+// mapping. Role-to-tier references are NOT resolved here. The work budget
+// (Work worker-round allowance) starts from the baseline's `work` (falling
+// back to the packaged default) and is replaced atomically by each expanded
+// layer that carries one. A profile selection
 // (null/undefined/'default' mean ordinary routing) is checked for grammar and
 // availability here and expanded into per-layer sub-layers, so every caller
-// inherits the same rules.
+// inherits the same rules. Profile sub-layers carry only a source and runtime
+// sections, so profiles never carry a work budget.
 export function mergePreferenceLayers(baseline, layers, runtime, profile = null) {
   validateV2Routing(baseline);
   const normalized = normalizePreferenceInput(layers, { runtime });
@@ -579,6 +636,10 @@ export function mergePreferenceLayers(baseline, layers, runtime, profile = null)
     roleTiers: { ...baseline.roleTiers },
     tiers: {},
     roles: {},
+    work: {
+      workerRounds: (baseline.work !== undefined ? baseline.work : DEFAULT_WORK_BUDGET).workerRounds,
+      source: BASELINE_SOURCE,
+    },
   };
   for (const runtime of Object.keys(baseline.runtimes)) {
     merged.tiers[runtime] = {};
@@ -591,6 +652,9 @@ export function mergePreferenceLayers(baseline, layers, runtime, profile = null)
     }
   }
   for (const layer of expanded) {
+    if (layer.work !== null) {
+      merged.work = { workerRounds: layer.work.workerRounds, source: layer.source };
+    }
     for (const [runtime, map] of Object.entries(layer.runtimes)) {
       if (!merged.tiers[runtime]) {
         throw new RoutingError(`Preference layer '${layer.source}' targets runtime '${runtime}', which is not declared in the installed baseline.`);
@@ -678,7 +742,7 @@ function resolveMergedRuntime(merged, runtime) {
       });
     }
   }
-  return { runtime, tiers, routes };
+  return { runtime, tiers, routes, work: { ...merged.work } };
 }
 
 // Resolves one runtime to concrete routes (or intentional inheritance), with
@@ -893,16 +957,26 @@ export async function loadPackagedBaseline() {
   return routing;
 }
 
-// Computes the documented personal and project Markdown preference paths.
-// Interpretation belongs to the workflow; the resolver accepts its bounded
-// structured output through --input.
+// Computes the documented personal and project preference candidate lists,
+// personal before project. Each location lists the documented filename first
+// (preferences.md) and the legacy filename (routing.md); the selection of the
+// effective file (and the ignored file) happens in startup, not here. The
+// project entry is omitted when there is no project root or when the exact
+// project root resolves to the home directory (dedup rule). Interpretation
+// belongs to the workflow; the resolver accepts its bounded structured
+// output through --input.
 export function discoverPreferencePaths({ projectRoot, homeDir = homedir() } = {}) {
-  const paths = [];
-  paths.push(join(resolve(homeDir), ".agenticale", "routing.md"));
+  const home = resolve(homeDir);
+  const locations = [
+    { location: "personal", candidates: [join(home, ".agenticale", "preferences.md"), join(home, ".agenticale", "routing.md")] },
+  ];
   if (typeof projectRoot === "string" && projectRoot.length > 0) {
-    paths.push(join(resolve(projectRoot), ".agenticale", "routing.md"));
+    const root = resolve(projectRoot);
+    if (root !== home) {
+      locations.push({ location: "project", candidates: [join(root, ".agenticale", "preferences.md"), join(root, ".agenticale", "routing.md")] });
+    }
   }
-  return [...new Set(paths)];
+  return locations;
 }
 
 // The OpenCode install places generated agent profiles at
@@ -913,20 +987,34 @@ export function installedAgentsDir() {
 }
 
 // Probes one documented preference location without ever reading or
-// interpreting its contents: stat (plus an R_OK access probe for regular
-// files) classifies it as "absent", "present", or "unreadable". A directory
-// at the path is unreadable (EISDIR), as is a regular file that is not
-// readable. stat-level failures other than ENOENT/ENOTDIR are treated as
-// unreadable, because the location cannot then be proven empty.
+// interpreting its contents: lstat (plus stat to follow a symlink, and an R_OK
+// access probe for regular files) classifies it as "absent", "present", or
+// "unreadable". A directory at the path is unreadable (EISDIR), as is a
+// regular file that is not readable, and as is a symlink whose target does
+// not exist (dangling): the location exists but cannot be proven empty.
+// lstat-level failures other than ENOENT/ENOTDIR are treated as unreadable,
+// because the location cannot then be proven empty.
 async function inspectPreferenceFile(location, path) {
   let stats;
   try {
-    stats = await stat(path);
+    stats = await lstat(path);
   } catch (error) {
     if (error.code === "ENOENT" || error.code === "ENOTDIR") {
       return { location, path, state: "absent" };
     }
     return { location, path, state: "unreadable", reason: error.code ?? error.message };
+  }
+  if (stats.isSymbolicLink()) {
+    try {
+      stats = await stat(path);
+    } catch (error) {
+      return {
+        location,
+        path,
+        state: "unreadable",
+        reason: `the path is a dangling symlink (its target does not exist) (${error.code ?? "unknown"})`,
+      };
+    }
   }
   if (!stats.isFile()) {
     return {
@@ -948,7 +1036,7 @@ async function inspectPreferenceFile(location, path) {
 
 function unreadablePreferenceFileError(info) {
   return new RoutingError(
-    `The ${info.location} routing.md preference file ${info.path} exists but cannot be read: ${info.reason}. startup never creates or modifies preference files; make the file readable (or remove it) and retry.`,
+    `The ${info.location} ${basename(info.path)} preference file ${info.path} exists but cannot be read: ${info.reason}. startup never creates or modifies preference files; make the file readable (or remove it) and retry.`,
   );
 }
 
@@ -1089,41 +1177,76 @@ async function compareAgentProfiles(agentsDir, routes, runtime) {
   return { agentsNote: null, agents };
 }
 
-// The startup fast path: probe the documented preference locations without
-// reading their contents. When a file is present the workflow must interpret
-// the Markdown itself and then call `resolve --input <file>` with the
-// interpreted structured layers; when none is present the installed baseline
-// is resolved directly with no preference layers (no temporary file is
-// created), the selected profile is applied, and for opencode (or an explicit
-// --agents-dir) the resolved routes are compared against the installed agent
-// profiles.
+// The startup fast path: probe both documented filenames (preferences.md and
+// the legacy routing.md) at each preference location without reading their
+// contents. Selection per location: a present readable preferences.md is the
+// effective file, and a routing.md beside it (readable or not) is never read
+// or merged — it is only identified as ignored. A present but unreadable
+// preferences.md is an error on every path, never a fallback to the legacy
+// file. When preferences.md is absent, routing.md carries the existing
+// semantics, including its unreadable error. When an effective file is
+// present the workflow must interpret the Markdown itself and then call
+// `resolve --input <file>` with the interpreted structured layers; when none
+// is present the installed baseline is resolved directly with no preference
+// layers (no temporary file is created), the selected profile is applied,
+// and for opencode (or an explicit --agents-dir) the resolved routes are
+// compared against the installed agent profiles.
 async function runStartup(options) {
   const profile = normalizeProfileSelection(options.profile);
   const home = resolve(homedir());
-  const targets = [{ location: "personal", path: join(home, ".agenticale", "routing.md") }];
-  let projectPath = null;
+  const candidatesFor = (base) => [
+    join(base, ".agenticale", "preferences.md"),
+    join(base, ".agenticale", "routing.md"),
+  ];
+  const targets = [{ location: "personal", candidates: candidatesFor(home) }];
+  let projectChecked = false;
   if (options.root !== null) {
     const root = resolve(options.root);
     // Same dedup rule as discoverPreferencePaths: when the exact project root
     // resolves to the home directory the two documented locations are the
-    // same file; it is reported once under 'personal' and the project key
-    // stays 'not-checked'.
+    // same directory; it is probed once, under 'personal', and the project
+    // key stays 'not-checked'.
     if (root !== home) {
-      projectPath = join(root, ".agenticale", "routing.md");
-      targets.push({ location: "project", path: projectPath });
+      targets.push({ location: "project", candidates: candidatesFor(root) });
+      projectChecked = true;
     }
   }
   const stateByLocation = new Map();
   const presentFiles = [];
   for (const target of targets) {
-    const info = await inspectPreferenceFile(target.location, target.path);
-    if (info.state === "unreadable") throw unreadablePreferenceFileError(info);
-    stateByLocation.set(target.location, info.state);
-    if (info.state === "present") presentFiles.push(info.path);
+    const [preferred, legacy] = target.candidates;
+    const preferredInfo = await inspectPreferenceFile(target.location, preferred);
+    // An unreadable effective candidate is an error on every path; a present
+    // but unreadable preferences.md never falls back to the legacy file.
+    if (preferredInfo.state === "unreadable") throw unreadablePreferenceFileError(preferredInfo);
+    if (preferredInfo.state === "present") {
+      // The documented file is the effective file. The legacy file, when
+      // present at this scope (readable or not), is never read or merged; it
+      // is only identified so the workflow can report it.
+      const legacyInfo = await inspectPreferenceFile(target.location, legacy);
+      stateByLocation.set(target.location, {
+        state: "present",
+        file: basename(preferred),
+        path: preferred,
+        ignored: legacyInfo.state === "absent" ? [] : [legacyInfo.path],
+      });
+      presentFiles.push(preferred);
+      continue;
+    }
+    // No documented file: the legacy name carries the existing semantics,
+    // including its unreadable error.
+    const legacyInfo = await inspectPreferenceFile(target.location, legacy);
+    if (legacyInfo.state === "unreadable") throw unreadablePreferenceFileError(legacyInfo);
+    if (legacyInfo.state === "present") {
+      stateByLocation.set(target.location, { state: "present", file: basename(legacy), path: legacy, ignored: [] });
+      presentFiles.push(legacy);
+    } else {
+      stateByLocation.set(target.location, { state: "absent", file: null, path: null, ignored: [] });
+    }
   }
   const preferenceFiles = {
     personal: stateByLocation.get("personal"),
-    project: projectPath === null ? "not-checked" : stateByLocation.get("project"),
+    project: projectChecked ? stateByLocation.get("project") : { state: "not-checked", file: null, path: null, ignored: [] },
   };
   if (presentFiles.length > 0) {
     process.stdout.write(`${JSON.stringify({
@@ -1152,6 +1275,7 @@ async function runStartup(options) {
     preferenceFiles,
     policy,
     routeProvenance,
+    work: { ...resolution.work },
   };
   if (options.runtime === "opencode" || options.agentsDir !== null) {
     const agentsDir = options.agentsDir !== null ? options.agentsDir : installedAgentsDir();
@@ -1169,8 +1293,9 @@ function cliUsage() {
 
 resolve reads the installed version-2 baseline and an optional structured
 input layer, then prints a version-1 policy for the complete active runtime
-on stdout. startup checks the documented preference locations without
-reading their contents: when a file is present it prints an
+on stdout. startup checks both documented filenames (preferences.md and the
+legacy routing.md) at the documented preference locations without reading
+their contents: when an effective file is present it prints an
 "interpretation-required" result for the workflow (which then interprets the
 Markdown and calls \`resolve --input <file>\`); when none is present it
 resolves the installed baseline directly and, for opencode or with
@@ -1182,27 +1307,40 @@ profiles.
                       references/routing.json beside this module)
   --input PATH        (resolve) Optional FILE PATH of structured preference
                       JSON (one layer or an array of layers), typically the
-                      interpreted form of a routing.md preference file. It is
+                      interpreted form of a preferences.md preference file
+                      (the legacy routing.md name is still accepted). It is
                       a path to a JSON file, never inline JSON, and it is
-                      omitted when there are no preferences.
+                      omitted when there are no preferences. A layer may also
+                      carry an optional \`work\` key with the Work workflow's
+                      worker-round allowance ({ "workerRounds": <positive integer>,
+                      default 8): it changes only what is available to the Work
+                      workflow, never what is required, and never any other budget.
   --profile NAME      Optional named routing profile from a preference layer's
                       profiles section; 'default' (or omission) selects
                       ordinary routing.
   --explain           (resolve) Wrap the policy with per-role selection/tier
-                      provenance and the selected profile (null for ordinary
-                      routing).
+                      provenance, the selected profile (null for ordinary
+                      routing), and the effective work allowance
+                      ({ workerRounds, source }).
   --root PATH         (startup) Project root for the project preference
-                      location <root>/.agenticale/routing.md (exact path, no
+                      location <root>/.agenticale/preferences.md (the legacy
+                      routing.md name is still accepted; exact path, no
                       parent scanning); deduplicated against the personal
                       location when it is the home directory.
   --agents-dir PATH   (startup) Agents directory to compare against, holding
                       <role>.md files. Default for opencode:
                       <install>/agents/agenticale/ beside this skill.
 
-resolve does not discover or parse user files: the workflow reads routing.md
-and passes bounded structured preferences here as \`resolve --input <file>\`.
-startup only checks the documented locations' existence and readability; it
-never reads their contents. Errors identify runtime, role, tier, and source.`;
+resolve does not discover or parse user files: the workflow reads the
+effective preference file (preferences.md, or the legacy routing.md) and
+passes bounded structured preferences here as \`resolve --input <file>\`.
+startup checks both documented filenames at the documented locations'
+existence and readability; it never reads their contents. Its output reports
+preferenceFiles per location (state, effective file, path, and ignored
+files) and presentFiles (the effective files only); a present but unreadable
+effective file is an error, never treated as absent, and an unreadable
+ignored file is not an error. Errors identify runtime, role, tier, and
+source.`;
 }
 
 function requireCliValue(argv, index, option) {
@@ -1255,7 +1393,7 @@ async function runResolve(options) {
   const resolution = resolveRuntime(baseline, input, options.runtime, profile);
   const routeProvenance = Object.fromEntries(ROLES.map((role) => [role, resolution.routes[role].provenance]));
   const policy = exportV1(resolution.routes, resolution.runtime, `Resolved from the installed version-2 baseline (${options.baseline}).`);
-  const output = options.explain ? { policy, routeProvenance, profile } : policy;
+  const output = options.explain ? { policy, routeProvenance, profile, work: { ...resolution.work } } : policy;
   process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
 }
 

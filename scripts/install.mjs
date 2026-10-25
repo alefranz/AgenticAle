@@ -103,14 +103,18 @@ the OpenCode configuration directory. It does not link or point at the authored
 repository source. Older copy installs (schema 1-4) and link installs are
 migrated to the generated copy layout on install.
 
-The setup subcommand creates the personal routing preference file (default
-~/.agenticale/routing.md) as a minimal scaffold — every role inherits the
+The setup subcommand creates the personal preferences file (default
+~/.agenticale/preferences.md) as a minimal scaffold — every role inherits the
 session model and effort — if and only if it is absent. It never overwrites,
 migrates, or removes a preference file, never creates the project-scope file,
-and never prompts: explicit consent is the caller's job. For setup,
---target PATH (the same flag and default resolution as install) selects the
-target whose installed skills/work/references/routing.example.md the printed
-guidance points at; the target itself is never validated or modified. See
+and never prompts: explicit consent is the caller's job. With the default
+path, if the target is absent but the legacy ~/.agenticale/routing.md
+exists, setup creates nothing and reports the legacy path: a preferences.md
+would take precedence over it, and only the user renames the file. For
+setup, --target PATH (the same flag and default resolution as install)
+selects the target whose installed
+skills/work/references/preferences.example.md the printed guidance points at;
+the target itself is never validated or modified. See
 skills/work/references/ROUTING.md (User customization).
 
 Options:
@@ -129,8 +133,8 @@ Options:
                   packaged skills/work/references/routing.json
   --replace      Back up and replace differing destinations during install/update
   --personal-path PATH
-                  (setup) personal routing preference file to create if absent
-                  (default: ~/.agenticale/routing.md)
+                  (setup) personal preferences file to create if absent
+                  (default: ~/.agenticale/preferences.md)
   --dry-run      Print the planned operation without changing the filesystem
   --help         Show this help`;
 }
@@ -1069,17 +1073,17 @@ async function uninstallBundle(options) {
   console.log(`Uninstall complete.${preserved ? ` Preserved ${preserved} modified destination(s).` : ""}`);
 }
 
-// Minimal personal routing scaffold: every role explicitly inherits the
+// Minimal personal preferences scaffold: every role explicitly inherits the
 // session model and effort (the same shape `--no-model` installs), so it
 // cannot activate a route to a model the user has not chosen. It carries no
-// illustrative model identifiers: those belong to routing.example.md, where
-// they are documented as illustrative only.
-const routingScaffold = `# AgenticAle model routing (personal)
+// illustrative model identifiers: those belong to preferences.example.md,
+// where they are documented as illustrative only.
+const routingScaffold = `# AgenticAle preferences (personal)
 
-Personal routing preferences, created by the AgenticAle installer as a minimal
+Personal preferences, created by the AgenticAle installer as a minimal
 starting point. As shipped, every role inherits the session model and effort.
 Edit a role override below to point a role at a tier or a specific model; see
-the installed routing.example.md for the full format.
+the installed preferences.example.md for the full format.
 
 ## opencode
 
@@ -1094,41 +1098,71 @@ the installed routing.example.md for the full format.
 - consult: inherit.
 `;
 
-// Consent-gated personal routing setup (the narrow exception documented in
-// skills/work/references/ROUTING.md, "User customization"). Creates the
-// personal preference file (default ~/.agenticale/routing.md, overridable for
-// tests and non-default layouts with --personal-path) if and only if it is
-// absent. Anything already present at the path — file, directory, or link —
-// is left untouched: preference files are never overwritten, migrated, or
-// removed, and the project-scope file is never created. It never prompts and
-// needs no TTY: explicit consent is the caller's job.
+// Consent-gated personal preferences setup (the narrow exception documented
+// in skills/work/references/ROUTING.md, "User customization"). Creates the
+// personal preference file (default ~/.agenticale/preferences.md,
+// overridable for tests and non-default layouts with --personal-path) if and
+// only if it is absent. Anything already present at the path — file,
+// directory, or link — is left untouched: preference files are never
+// overwritten, migrated, or removed, and the project-scope file is never
+// created. With the default path, a present legacy ~/.agenticale/routing.md
+// whose preferences.md target is absent makes setup create nothing and
+// report the legacy path: a preferences.md would take precedence over it,
+// and only the user renames the file; in that legacy-only case the guidance
+// and paste prompt target the legacy file, the user's effective file. When
+// both exist, preferences.md is already effective and the guidance targets
+// it. It never prompts and needs no TTY: explicit consent is the
+// caller's job.
 async function setupPersonalRouting(options) {
-  const personalPath = options.personalPath ?? join(homedir(), ".agenticale", "routing.md");
+  const legacyPersonalPath = join(homedir(), ".agenticale", "routing.md");
+  const personalPath = options.personalPath ?? join(homedir(), ".agenticale", "preferences.md");
+  // The legacy guard applies to the default path only: with --personal-path
+  // the caller names the target explicitly, so no legacy sibling is inferred.
+  // (parseArguments resolves an omitted --personal-path to null.)
+  const legacyPresent = options.personalPath === null
+    ? (await pathStatus(legacyPersonalPath)) !== null
+    : false;
   // The packaged example ships inside the installed skill. options.target is
   // the effective target: the caller's --target PATH, or the same default
   // resolution install and uninstall use (XDG_CONFIG_HOME/opencode when set,
   // otherwise ~/.config/opencode), so the guidance cannot drift from where an
   // install with that --target would have placed the example.
-  const examplePath = join(options.target, "skills", "work", "references", "routing.example.md");
-  const prompt = `Help me customize my AgenticAle personal routing file at ${personalPath}. Read the file and the installed routing example, tell me which model and effort each of the seven roles currently resolves to for the opencode runtime, and then walk me through the changes I want to make without inventing model identifiers my host does not support.`;
-  const printGuidance = () => {
-    console.log(`Edit the file to customize model routing: the packaged example is at ${examplePath} (the installed skill), and a project file <repo>/.agenticale/routing.md takes precedence over this personal file.`);
+  const examplePath = join(options.target, "skills", "work", "references", "preferences.example.md");
+  // The guidance and paste prompt must name the file the user will actually
+  // read: preferences.md when it is created or already present, and the
+  // legacy routing.md when setup creates nothing because only the legacy
+  // file exists, so the prompt's "Read the file" step is true in both cases.
+  const promptFor = (effectivePath) => `Help me customize my AgenticAle personal preferences file at ${effectivePath}. Read the file and the installed preferences example, tell me which model and effort each of the seven roles currently resolves to for the opencode runtime, and then walk me through the changes I want to make without inventing model identifiers my host does not support.`;
+  const printGuidance = (effectivePath) => {
+    console.log(`Edit the file to customize model routing: the packaged example is at ${examplePath} (the installed skill), and a project file <repo>/.agenticale/preferences.md takes precedence over this personal file (the legacy name routing.md is still accepted at each scope; a preferences.md takes precedence over a routing.md at the same scope).`);
     console.log("");
     console.log("Paste this prompt into an OpenCode session to continue customizing:");
     console.log("");
-    console.log(prompt);
+    console.log(promptFor(effectivePath));
   };
 
   const present = (await pathStatus(personalPath)) !== null;
+  const effectivePersonalPath = legacyPresent && !present ? legacyPersonalPath : personalPath;
   console.log(`${options.dryRun ? "Dry-run " : ""}Routing setup -> ${personalPath}`);
   if (present) {
     console.log(`  ${options.dryRun ? "would leave" : "left"} untouched: ${personalPath} already exists; preference files are never overwritten, migrated, or removed`);
+  } else if (legacyPresent) {
+    console.log(`  ${options.dryRun ? "would create" : "create"} nothing: the legacy personal file ${legacyPersonalPath} exists, and a preferences.md would take precedence over it; the installer never renames, migrates, or removes preference files — rename ${legacyPersonalPath} to ${personalPath} yourself if you want the new name`);
   } else {
     console.log(`  ${options.dryRun ? "would create" : "create"}: minimal scaffold (every role inherits the session model and effort)`);
   }
   if (options.dryRun) {
-    printGuidance();
+    printGuidance(effectivePersonalPath);
     console.log("Dry run complete; no files were changed.");
+    return;
+  }
+  if (legacyPresent && !present) {
+    // Default path only, legacy-only case: the target preferences.md is
+    // absent and a legacy routing.md exists. Create nothing and leave both
+    // files exactly as found; the guidance targets the legacy file, the
+    // user's effective file. With preferences.md present it already takes
+    // precedence (effectivePersonalPath), so the guidance below targets it.
+    printGuidance(effectivePersonalPath);
     return;
   }
   if (!present) {
@@ -1141,13 +1175,13 @@ async function setupPersonalRouting(options) {
     } catch (error) {
       if (error.code === "EEXIST") {
         console.log(`  left untouched: ${personalPath} already exists; preference files are never overwritten, migrated, or removed`);
-        printGuidance();
+        printGuidance(personalPath);
         return;
       }
       throw error;
     }
   }
-  printGuidance();
+  printGuidance(personalPath);
 }
 
 async function main() {

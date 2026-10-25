@@ -198,7 +198,11 @@ publishing checks belong to the integration boundary.
 Work gives each task a default allowance of eight worker rounds for
 exploration, implementation, and fixes across the task. It is a ceiling, not a
 work target: Work finishes as soon as your requested outcome is complete, and
-leftover allowance is not spent on extra rounds. Splitting or replanning the
+leftover allowance is not spent on extra rounds. The allowance can be
+overridden by the `## Work` section of the preference file
+([Work worker-round allowance](../../guides/model-routing.md#work-worker-round-allowance));
+like the default, the override changes only what is available, never what is
+required. Splitting or replanning the
 plan never replenishes it, and when a limit will constrain the next useful
 step, Work says so briefly.
 

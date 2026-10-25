@@ -198,12 +198,17 @@ For the full routing options, see
 
 After a successful install the wrapper offers a consented setup step: with
 `--setup` it runs unconditionally; on a terminal without `--setup` it asks
-"Create a personal routing customization file (~/.agenticale/routing.md)?
+"Create a personal AgenticAle preferences file (~/.agenticale/preferences.md)?
 [y/N]" (default no); non-interactive runs skip it and print a one-line tip.
-The step creates the personal `~/.agenticale/routing.md` only when it is
+The step creates the personal `~/.agenticale/preferences.md` only when it is
 absent — a minimal scaffold in which every role inherits the session model
 and effort — and it never overwrites, migrates, or removes a preference file
-or creates the project-scope file. It then prints the file's path, editing
+or creates the project-scope file. The legacy name `routing.md` is still
+accepted at each scope and, when both files exist at one scope,
+`preferences.md` takes precedence and the legacy file is ignored — never
+merged; when only the legacy file is present, the step creates nothing rather
+than a file that would silently take precedence (rename it yourself to move to
+the new name). It then prints the file's path, editing
 guidance (the packaged example and project-scope precedence), and a
 ready-to-paste prompt for an OpenCode session to finish the customization;
 see [user preferences and precedence](guides/model-routing.md#user-preferences-and-precedence).

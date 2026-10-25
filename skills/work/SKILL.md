@@ -299,14 +299,18 @@ task is developing AgenticAle itself:
      there is valid), and is the one that gets reported. The `--explain`
      output is the snapshot, as for the interpretation path below.
    - `resolved` (no invocation-level preferences): the output IS the routing
-     snapshot. Store `policy`, `routeProvenance`, `profile`, and (on
-     OpenCode) the `agents` entries in session state; no further reference
-     reading is required to resolve or compare routes.
+     snapshot. Store `policy`, `routeProvenance`, `profile`, `work` (the
+     effective worker-round allowance and its source), and (on OpenCode)
+     the `agents` entries in session state; no further reference reading is
+     required to resolve or compare routes.
    - `interpretation-required`: a documented preference file is present.
-     Read the listed `presentFiles`, interpret them per the routing contract
-     (Markdown or clear equivalent prose; the helper never parses Markdown),
-     write the structured layers to a temporary file — the other path that
-     creates one — and resolve them:
+     `presentFiles` lists the effective file per scope; when a scope also
+     lists a file in `preferenceFiles.<location>.ignored` (both filenames
+     present), only the effective file is interpreted and the ignored file
+     is identified, not merged. Read the listed `presentFiles`, interpret
+     them per the routing contract (Markdown or clear equivalent prose; the
+     helper never parses Markdown), write the structured layers to a
+     temporary file — the other path that creates one — and resolve them:
 
      ```sh
      node scripts/routing.mjs resolve --runtime <runtime> --input <layers-file> [--profile NAME] --explain
@@ -314,9 +318,10 @@ task is developing AgenticAle itself:
 
      `--input` is a file path of structured preference JSON, never inline
      JSON, and is omitted when there are no preferences. The `--explain`
-     output — `policy`, `routeProvenance`, and `profile` — is the snapshot;
-     the plain (non-`--explain`) output is the strict version-1 export the
-     OpenCode preparation flow writes for the installer, not the snapshot.
+     output — `policy`, `routeProvenance`, `profile`, and `work` — is the
+     snapshot; the plain (non-`--explain`) output is the strict version-1
+     export the OpenCode preparation flow writes for the installer, not the
+     snapshot.
    - Non-zero exit (unreadable preference file, unknown or invalid profile):
      report the actionable error once. An unreadable preference file is a
      genuine error on every path. An unknown or invalid profile error is
@@ -345,9 +350,12 @@ task is developing AgenticAle itself:
    never blocks unrelated work. On other runtimes, compare each selection
    with the binding's native dispatch fields as the binding says.
 5. Where Node is unavailable, apply the routing contract in context: check
-   the two documented preference locations, read and interpret the present
-   files, and resolve the seven routes keeping each route's source. This is
-   the documented fallback path; the contract section describes it.
+   the documented preference filenames (`preferences.md`, with `routing.md`
+   as the legacy name) at each documented preference location, read and
+   interpret the effective files — including the optional `## Work`
+   section's worker-round allowance (default eight), keeping its source —
+   and resolve the seven routes keeping each route's source. This is the
+   documented fallback path; the contract section describes it.
 6. Start quietly: keep routine routing details in session state and do not
    narrate a routine bootstrap. Surface routing information only when it
    explains a selected profile, a material change, a limitation, or a
@@ -399,12 +407,18 @@ range, accepted outcomes, and integration checks. A review that already covers
 that range and those checks need not be duplicated at delivery. Any combined
 review target has the same fix/review caps as a slice.
 
-The default worker allowance is eight worker rounds (explore, implement, hard
-implementation, or fix), covering the whole task across exploration,
-implementation, and fixes. The allowance is what is available, not what is
-required: Work finishes as soon as the requested outcome is complete. Do not
-dispatch rounds to use up a remaining allowance or manufacture work to spend
-it. Allow at most two fix cycles per slice, three review passes per slice, and
+The worker allowance defaults to eight worker rounds (explore, implement,
+hard implementation, or fix), covering the whole task across exploration,
+implementation, and fixes. It can be overridden by the documented `## Work`
+section of the preference file ([the routing
+contract](references/ROUTING.md)); the activation's routing snapshot reports
+the effective allowance and its source. The override changes what is
+available, never what is required, and never the fix/review/consultation
+caps, the progress safeguards, scope, or permissions; it applies to Work
+only — Autonomous Mode keeps its own budget rules. The allowance is what is
+available, not what is required: Work finishes as soon as the requested
+outcome is complete. Do not dispatch rounds to use up a remaining allowance
+or manufacture work to spend it. Allow at most two fix cycles per slice, three review passes per slice, and
 one consultation per task; a `--consult` invocation consumes that allowance for
 its initial task-framing consultation. Review calls do not consume the worker
 budget but are bounded by these caps.
