@@ -82,6 +82,22 @@ snapshot. Precedence is invocation, project, personal, then installed
 baseline. Do not scan unrelated files. Invocation choices are session-scoped
 and do not persist to `preferences.md` or a preference file.
 
+A one-time post-install verification is also available: after a fresh install
+or an edit to a preference file, paste the verification prompt the installer
+prints into an OpenCode session. It runs the bootstrap with `--root` set to
+the pasting session's project root, so the project preference location is
+checked alongside the personal one; on the `resolved` result it confirms
+every role in the `agents` output reports `match`, and on the
+`interpretation-required` path it reads and interprets each listed preference
+file (a project file takes precedence over the personal file; any legacy file
+reported as ignored is never read), writes the interpreted structured layers
+(lowest to highest precedence) to a temporary JSON file, and resolves them
+with `resolve --runtime opencode --input <file> --explain` — and compares
+each resolved route with its installed profile (an `inherit` route matches a
+profile with no `model` line, an explicit route must match model and
+effort); a `mismatch`, `missing`, or `unreadable` result points to the
+preparation/refresh procedure below.
+
 Where Node is unavailable, apply the in-context path: check the two documented
 preference locations, interpret the active `opencode` runtime preferences, and
 compare each resolved selection with the actual profile's `model` and

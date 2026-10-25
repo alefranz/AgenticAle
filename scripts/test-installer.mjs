@@ -181,6 +181,7 @@ try {
     const r = run("install.mjs", ["install", "--target", t, "--no-model"]);
     check(r.exit === 0, "install fresh --no-model exits 0");
     check(r.out.includes("Installation complete."), "install fresh: Installation complete");
+    check(r.out.includes("pasting this prompt into an OpenCode session: Verify my AgenticAle routing for the opencode runtime"), "install fresh: the completion line carries the ready-to-paste verification prompt (same line, not a second print)");
     const state = await readState(t);
     check(state.schema === STATE_VERSION, "install fresh: state schema 6");
     check(state.mode === "copy", "install fresh: state mode copy");
@@ -204,6 +205,20 @@ try {
     check(await exists(join(t, "skills", "work", "references", "preferences.example.md")), "install fresh: materializes work/references/preferences.example.md");
     check(await exists(join(t, "skills", "work", "scripts", "routing.mjs")), "install fresh: materializes work/scripts/routing.mjs");
     check(await exists(join(t, "skills", "work", "scripts", "session-stats.mjs")), "install fresh: materializes work/scripts/session-stats.mjs");
+  }
+  {
+    // The verification prompt's dynamic paths stay copy-pasteable when the
+    // target contains spaces: every one of them is single-quoted.
+    const t = join(scratch, "a-verify spaced target");
+    const r = run("install.mjs", ["install", "--target", t, "--no-model"]);
+    check(r.exit === 0, "install spaced target: exits 0");
+    const helper = join(t, "skills", "work", "scripts", "routing.mjs");
+    const profiles = join(t, "agents", "agenticale");
+    const binding = join(t, "skills", "work", "references", "runtimes", "opencode.md");
+    check(r.out.includes(`node '${helper}' startup --runtime opencode --root '`), "install spaced target: startup names the single-quoted helper path with --root");
+    check(r.out.includes(`node '${helper}' resolve --runtime opencode --input '`), "install spaced target: resolve names the single-quoted helper path");
+    check(r.out.includes(`'${profiles}'`), "install spaced target: the agent profiles directory is single-quoted");
+    check(r.out.includes(`'${binding}'`), "install spaced target: the runtime binding path is single-quoted");
   }
   {
     // Idempotent re-install: no rewrites, same state.
@@ -1119,8 +1134,9 @@ try {
 
   // ---------------------------------------------------------------------
   // E2. setup subcommand: the consented install-time setup creates the
-  //     personal preferences file as a minimal scaffold (every role inherits
-  //     the session model and effort) if and only if it is absent. It never
+  //     personal preferences file as a minimal scaffold with no role
+  //     overrides, so the installed baseline routing applies, if and only if
+  //     it is absent. It never
   //     overwrites an existing file, dry-run writes nothing, and the
   //     scaffold carries none of the example's illustrative identifiers.
   // ---------------------------------------------------------------------
@@ -1140,9 +1156,9 @@ try {
     check(r.exit === 0, "setup: creates the scaffold and exits 0");
     check(r.out.includes(personal), "setup: prints the file path");
     const content = await readFile(personal, "utf8");
-    check(content.includes("## opencode"), "setup: scaffold targets the opencode runtime");
+    check(!content.match(/^## (codex|copilot|opencode|antigravity)\b/m), "setup: scaffold carries no runtime section (baseline routing applies)");
     for (const role of ["explore", "implement", "implement-hard", "fix", "review", "deep-review", "consult"]) {
-      check(content.includes(`- ${role}: inherit.`), `setup: scaffold inherits for ${role}`);
+      check(!content.includes(`- ${role}:`), `setup: scaffold carries no role override for ${role}`);
     }
     assertNoIllustrativeIds("created scaffold", content);
     check(r.out.includes("preferences.example.md"), "setup: guidance names the packaged example");
@@ -1286,6 +1302,29 @@ try {
     check(r9.out.includes(join(customTarget, "skills", "work", "references", "preferences.example.md")), "setup --target --dry-run: guidance still points at the custom target");
     check(!(await exists(dryCustom)), "setup --target --dry-run: absent personal file not created");
     check(!(await exists(dirname(dryCustom))), "setup --target --dry-run: parent directory not created");
+
+    // The one-time post-install verification prompt: printed with the setup
+    // guidance on the pasting-session line, and its text covers both helper
+    // branches with the complete flags — the resolved/match comparison and
+    // the interpretation-required resolve of the interpreted layers from a
+    // temporary JSON file (never the Markdown), with the project preference
+    // location checked via --root. Dry-run with a spaced target also pins
+    // the single-quoted dynamic paths.
+    const verifyXDG = join(scratch, "e2-verify-xdg");
+    const verifyTarget = join(scratch, "e2-verify spaced target");
+    const rv = run("install.mjs", ["setup", "--target", verifyTarget, "--personal-path", join(scratch, "e2-verify-personal", "routing.md"), "--dry-run"], { env: { XDG_CONFIG_HOME: verifyXDG } });
+    check(rv.exit === 0, "setup verify prompt: dry-run exits 0");
+    check(rv.out.includes("After editing, verify your routing by pasting this prompt into an OpenCode session: Verify my AgenticAle routing for the opencode runtime"), "setup verify prompt: the guidance line carries the prompt (same line, not a second print)");
+    const verifyHelper = join(verifyTarget, "skills", "work", "scripts", "routing.mjs");
+    check(rv.out.includes(`node '${verifyHelper}' startup --runtime opencode --root '`), "setup verify prompt: startup names the single-quoted helper path with --root (project location checked)");
+    check(rv.out.includes("--root '<the project root of the session you are pasting this into: that working directory, or the directory containing its .agenticale folder; the home directory when there is no project>'"), "setup verify prompt: the --root placeholder is the session's project root with the home-directory fallback");
+    check(rv.out.includes('if the result is the resolved policy, confirm every role in its agents output reports "match"'), "setup verify prompt: the resolved branch confirms every agents role reports match");
+    check(rv.out.includes('if it reports "interpretation-required" because a preference file is present'), "setup verify prompt: the interpretation-required branch is named");
+    check(rv.out.includes("read and interpret each listed preference file (a project file takes precedence over the personal file; any legacy file reported as ignored is never read)"), "setup verify prompt: project over personal, ignored legacy files never read");
+    check(rv.out.includes("write the interpreted structured layers to a temporary JSON file as an array ordered lowest to highest precedence (personal first, then project)"), "setup verify prompt: interpreted layers go to a temporary JSON file, lowest to highest");
+    check(rv.out.includes(`node '${verifyHelper}' resolve --runtime opencode --input '<that temporary JSON file>' --explain`), "setup verify prompt: resolve names the single-quoted helper path with --runtime opencode, the JSON --input, and --explain");
+    check(rv.out.includes(`'${join(verifyTarget, "agents", "agenticale")}'`), "setup verify prompt: the agent profiles directory is single-quoted");
+    check(rv.out.includes(`'${join(verifyTarget, "skills", "work", "references", "runtimes", "opencode.md")}'`), "setup verify prompt: the runtime binding path is single-quoted");
 
     // Arg shape: --personal-path is setup-only; install-only options are
     // rejected by setup; the --= form works.

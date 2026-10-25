@@ -13,8 +13,8 @@ file. When both `preferences.md` and `routing.md` exist at the same scope,
 File creation is an explicit user action. AgenticAle never overwrites,
 migrates, or removes these files; the only exception is the OpenCode
 installer's consented `setup` subcommand, which may create the personal
-`~/.agenticale/preferences.md` — a minimal scaffold in which every role
-inherits the session model and effort — when it is absent. See `ROUTING.md`
+`~/.agenticale/preferences.md` — a minimal scaffold with no role overrides,
+so the installed baseline routing applies — when it is absent. See `ROUTING.md`
 for the full contract.
 Runtime sections are `## codex`, `## copilot`, `## opencode`, and
 `## antigravity` headings (the `copilot-local` binding uses the `copilot`
