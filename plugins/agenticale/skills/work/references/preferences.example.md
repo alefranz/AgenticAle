@@ -1,25 +1,32 @@
-# AgenticAle model routing (example)
+# AgenticAle preferences (example)
 
-Copy the body of this file to a routing preference file to customize model
-routing:
+Copy the body of this file to a preferences file to customize model routing
+and, optionally, the Work workflow's worker-round allowance:
 
-- project scope: `<repo>/.agenticale/routing.md`
-- personal scope: `~/.agenticale/routing.md`
+- project scope: `<repo>/.agenticale/preferences.md`
+- personal scope: `~/.agenticale/preferences.md`
+
+At each scope the legacy filename `routing.md` is still accepted for the same
+file. When both `preferences.md` and `routing.md` exist at the same scope,
+`preferences.md` takes precedence and `routing.md` is ignored — never merged.
 
 File creation is an explicit user action. AgenticAle never overwrites,
 migrates, or removes these files; the only exception is the OpenCode
 installer's consented `setup` subcommand, which may create the personal
-`~/.agenticale/routing.md` — a minimal scaffold in which every role inherits
-the session model and effort — when it is absent. See `ROUTING.md` for the
-full contract.
+`~/.agenticale/preferences.md` — a minimal scaffold in which every role
+inherits the session model and effort — when it is absent. See `ROUTING.md`
+for the full contract.
 Runtime sections are `## codex`, `## copilot`, `## opencode`, and
 `## antigravity` headings (the `copilot-local` binding uses the `copilot`
 section); inside a `## Profile:` section the same runtime heading sits one
 level deeper, as in `### opencode` below. Apply only the active runtime's
 preferences; omit a section to keep the installed defaults for that runtime.
-Named profile sections work for any runtime and are selected with
-`--profile <name>` at invocation. The model names below are illustrative;
-actual identifiers and effort support come from the host.
+The top-level `## Work` section — a sibling of the runtime sections, never
+inside a `## Profile:` section — sets the Work workflow's worker-round
+allowance with a `- worker rounds: <positive integer>` entry. Named profile
+sections work for any runtime and are selected with `--profile <name>` at
+invocation. The model names below are illustrative; actual identifiers and
+effort support come from the host.
 
 ---
 
@@ -39,6 +46,10 @@ actual identifiers and effort support come from the host.
 ### Role overrides
 
 - review: use the deep tier.
+
+## Work
+
+- worker rounds: 12
 
 ## Profile: server-b
 
@@ -80,6 +91,12 @@ actual identifiers and effort support come from the host.
 - `--profile alternate-provider` changes all four tiers and clears the
   default review exception (`review: default.`), returning `review` to its
   default `standard` tier.
+- The `## Work` section overrides the Work workflow's default allowance of
+  eight worker rounds with twelve: twelve worker rounds are available to a
+  Work task. It changes only what is available — never what is required —
+  and applies to the Work workflow only (Autonomous Mode keeps its own
+  budget); an invalid value (not a positive integer) is reported, never
+  defaulted or clamped.
 
 The provider/model aliases and effort values are illustrative, not a claim of
 availability; substitute identifiers the user's host supports.

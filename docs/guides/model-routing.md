@@ -13,10 +13,15 @@ the client, account, and provider; the published runtime matrix remains
 
 For Copilot, Codex, or OpenCode installs, the simplest trial is to inherit the
 current session model for every route with `--no-model`. For custom preferences,
-copy `references/routing.example.md` from the installed `work` skill to
-`.agenticale/routing.md` in one repository or `~/.agenticale/routing.md` for
-your user account. Project choices override personal choices, which override
-the packaged baseline. Start a new workflow activation to load the preference.
+copy `references/preferences.example.md` from the installed `work` skill to
+`.agenticale/preferences.md` in one repository or
+`~/.agenticale/preferences.md` for your user account. At each scope the legacy
+name `routing.md` is still accepted for the same file; when both files exist at
+one scope, `preferences.md` takes precedence and the legacy file is ignored —
+never merged — and an unreadable `preferences.md` is reported as an error,
+never a reason to fall back to the legacy name. Project choices override
+personal choices, which override the packaged baseline. Start a new workflow
+activation to load the preference.
 
 OpenCode turns the resolved routes into seven generated profiles. After changing
 preferences, install a matching profile set and restart or open a new session;
@@ -108,8 +113,9 @@ time.
 
 ## The default startup path
 
-You do not need a preference file. With no `routing.md` anywhere and no
-invocation-level preferences — no direct task-time routing choice, no
+You do not need a preference file. With no `preferences.md` (or legacy
+`routing.md`) anywhere and no invocation-level preferences — no direct
+task-time routing choice, no
 explicitly supplied invocation Markdown file, and no profile selected at
 invocation — each activation resolves the installed choices with one
 mechanical helper call from the installed skill and finalizes directly from
@@ -147,11 +153,14 @@ the other roles proceed.
 ## User preferences and precedence
 
 The packaged `references/routing.json` supplies defaults. To customize them,
-copy `references/routing.example.md` from the installed `work` skill to either
-`<repo>/.agenticale/routing.md` for one repository or
-`~/.agenticale/routing.md` for all repositories, or use the OpenCode
+copy `references/preferences.example.md` from the installed `work` skill to
+either `<repo>/.agenticale/preferences.md` for one repository or
+`~/.agenticale/preferences.md` for all repositories, or use the OpenCode
 installer's consented setup step to create a minimal personal
-`~/.agenticale/routing.md` scaffold for you (ownership note below). The
+`~/.agenticale/preferences.md` scaffold for you (ownership note below). At each
+scope the legacy name `routing.md` is still accepted for the same file, and
+when both exist at one scope `preferences.md` takes precedence and the legacy
+file is ignored — never merged. The
 project file overrides
 the personal file, which overrides the packaged baseline; an explicitly
 supplied Markdown path is the highest-precedence invocation choice. Invocation
@@ -180,14 +189,17 @@ Preference files belong to the user. Install, update, build, publication, and
 uninstall do not create, overwrite, migrate, or remove them. The one exception
 is the OpenCode installer's consented setup step (`node scripts/install.mjs
 setup`, run with `--setup` or after you answer yes to the post-install
-prompt): it may create the personal `~/.agenticale/routing.md` when it is
+prompt): it may create the personal `~/.agenticale/preferences.md` when it is
 absent, as a minimal scaffold in which every role inherits the session model
-and effort. It never overwrites, migrates, or removes a preference file, and
-it never creates the project-scope file. Missing files mean no customization;
+and effort (the legacy name `routing.md` is still honored at that scope: when
+only the legacy file is present the step creates nothing, because a new
+`preferences.md` would silently take precedence over it). It never overwrites,
+migrates, or removes a preference file, and it never creates the project-scope
+file. Missing files mean no customization;
 a present but unreadable file is reported rather than claimed as applied.
 Start a new `/work`, `/review`, or `/autonomous` activation to load changed
 preferences. See the example preference file at
-[`references/routing.example.md`](https://github.com/alefranz/AgenticAle/blob/main/skills/work/references/routing.example.md)
+[`references/preferences.example.md`](https://github.com/alefranz/AgenticAle/blob/main/skills/work/references/preferences.example.md)
 and the full [routing contract](https://github.com/alefranz/AgenticAle/blob/main/skills/work/references/ROUTING.md) for
 interpretation and fallback details.
 
@@ -213,11 +225,39 @@ Values use `provider/model[#variant]`; an optional `#variant`
 `openai/` and `opencode/` prefixes select OpenCode providers; imports remove
 them when creating Copilot and Codex routes, which use bare model IDs.
 
+## Work worker-round allowance
+
+The preference file may carry a top-level `## Work` section — a sibling of the
+`## <runtime>` sections, never inside a `## Profile:` section. Its one
+documented entry sets the Work workflow's worker-round **allowance**:
+
+```markdown
+## Work
+
+- worker rounds: 12
+```
+
+The value is how many worker rounds are available to a Work task, not how many
+must run. The default is eight, declared in the packaged baseline. The
+override changes only what is available: it never changes how many rounds must
+run, the consultation allowance, the per-slice fix and review caps, the
+progress safeguards, the task's scope, or permissions. It is Work-specific:
+Autonomous Mode keeps its own budget behavior and ignores the setting. The
+section has no per-runtime or per-profile scoping: a selected routing profile
+does not change it, and it applies to every runtime.
+
+Precedence is lowest to highest: the packaged default, the personal file, the
+project file, and finally an explicit task-time instruction at invocation. An
+omitted entry retains the lower-precedence value. An invalid value (not a
+positive integer) is reported as an actionable error naming the file and the
+value — it is never silently defaulted and never clamped.
+
 ## Named routing profiles
 
 A routing profile is a named collection of overrides — tier definitions and
 role overrides — inside an optional `## Profile: <name>` section of a
-`routing.md` preference file. Select exactly one profile per workflow
+`preferences.md` preference file (the legacy `routing.md` name is still
+accepted). Select exactly one profile per workflow
 activation. Profiles control child routing only: a profile is not a runtime,
 an account, an endpoint, or a machine, and it never authenticates, moves, or
 configures anything. Names are stable lowercase identifiers (1–40 characters,
@@ -230,13 +270,13 @@ including the seven-level precedence, is in the
 
 No selector — or `--profile default` — means ordinary routing: installed
 baseline, then personal preferences, then project preferences, then invocation
-choices. `default` does **not** mean "ignore my routing.md and use the
+choices. `default` does **not** mean "ignore my `preferences.md` and use the
 packaged settings": every one of your default sections still applies.
 
 ### A default section plus profiles
 
 The packaged example
-([`references/routing.example.md`](https://github.com/alefranz/AgenticAle/blob/main/skills/work/references/routing.example.md))
+([`references/preferences.example.md`](https://github.com/alefranz/AgenticAle/blob/main/skills/work/references/preferences.example.md))
 ships a default section and two profiles. Inside a `## Profile:` section the
 runtime heading sits one level deeper (`### opencode`), and tier tables use
 `#### Tiers`:
@@ -362,7 +402,8 @@ profile — and records that confirmation in the session. See the
 
 ### Profiles are not build inputs
 
-Profiles are user-authored `routing.md` content, scoped to one activation
+Profiles are user-authored `preferences.md` content (the legacy `routing.md`
+name is still accepted), scoped to one activation
 (Work) or one goal (Autonomous). They are not install-time `--models` presets
 or build-time `--routing` files, which convert fixed choices into the
 installed baseline at install time.

@@ -23,9 +23,11 @@ wrappers.
   OpenCode `autoinvoke: false`, OpenAI `allow_implicit_invocation: false`).
 - **Routing defaults** at `skills/work/references/routing.json` (schemaVersion
   2): four shared tiers map the seven roles to per-runtime model/effort pairs.
-  Optional project and personal overrides use interpreted `routing.md` files;
-  generated bundles carry only the defaults baseline, with no expanded
-  resolved snapshot.
+  Optional project and personal overrides use interpreted `preferences.md`
+  files (the legacy `routing.md` name is still accepted at each scope); a
+  top-level `## Work` section in one of them overrides the Work worker-round
+  allowance. Generated bundles carry only the defaults baseline, with no
+  expanded resolved snapshot.
 - **Seven generated OpenCode profiles**: `consult`, `deep-review`, `explore`,
   `fix`, `implement`, `implement-hard`, `review`. `implement-hard` is a
   distinct profile (the `implement` contract at higher effort), not a reused

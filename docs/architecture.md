@@ -23,7 +23,7 @@ Four concerns are separated so each can change independently:
 | Task contracts | `skills/work/references/tasks/<role>.md` (six: `explore`, `implement`, `fix`, `review`, `deep-review`, `consult`) |
 | Routing contract | `skills/work/references/ROUTING.md` |
 | Routing defaults baseline | `skills/work/references/routing.json` (schemaVersion 2) |
-| Routing customization example | `skills/work/references/routing.example.md` |
+| Routing customization example | `skills/work/references/preferences.example.md` |
 | Shared routing module | `skills/work/scripts/routing.mjs` (dependency-free, packaged with the work skill) |
 | Runtime bindings | `skills/work/references/runtimes/<host>.md` (five: `copilot`, `copilot-local`, `codex`, `opencode`, `antigravity`) |
 
@@ -93,7 +93,7 @@ boundaries.
 The authored source-of-truth layout is what `scripts/validate.mjs` asserts
 exists: the three workflow skills plus their `agents/openai.yaml`, the shared
 `rounds.md`, the `ROUTING.md` reference, the `routing.json` defaults baseline,
-the `routing.example.md` customization example, the shared `scripts/routing.mjs`
+the `preferences.example.md` customization example, the shared `scripts/routing.mjs`
 module, the shared `scripts/session-stats.mjs` helper, the five runtime
 bindings, the six task contracts, the `adapters/opencode/` metadata (adapter,
 command templates, and README), and the two supporting skills, for 30
@@ -158,11 +158,16 @@ prints a complete version-1 policy for the active runtime
 named routing profile (below), and `--explain` includes per-route source
 provenance plus the selected profile (`null` for ordinary routing).
 
-The `startup` CLI is the workflow's default startup path. It checks the
-documented preference locations — the personal `~/.agenticale/routing.md`
-and, with `--root PATH`, the project `<root>/.agenticale/routing.md` (exact
+The `startup` CLI is the workflow's default startup path. It checks both
+documented filenames — `preferences.md` and the legacy `routing.md` — at the
+documented preference locations: the personal `~/.agenticale/` and, with
+`--root PATH`, the project `<root>/.agenticale/` (exact
 path, no parent scanning; deduplicated against the personal location when
-the root is the home directory) — without reading their contents, and
+the root is the home directory) — without reading their contents. At each
+scope a present `preferences.md` is the effective file, and a present
+`routing.md` beside it is ignored — never merged — and reported in that
+location's `ignored` list; a present but unreadable effective file is an
+error, never a reason to fall back to the other filename. It
 accepts `--profile NAME` and, for the agent-profile comparison,
 `--agents-dir PATH` (default for opencode: the installed
 `agents/agenticale/` beside the skill). With no preference file present it
@@ -196,10 +201,14 @@ Precedence is per named entry, from highest to lowest:
 
 ```text
 Invocation preferences
-  > `<project-root>/.agenticale/routing.md`
-  > `~/.agenticale/routing.md`
+  > `<project-root>/.agenticale/preferences.md`
+  > `~/.agenticale/preferences.md`
   > installed/package baseline
 ```
+
+At each scope the legacy name `routing.md` is still accepted for the same
+file, and when both exist at one scope `preferences.md` takes precedence and
+the legacy file is ignored — never merged.
 
 Tier definitions and role selections merge separately, replacing entries
 atomically (a replacement carries its own model, effort, and fallbacks as one
@@ -215,7 +224,8 @@ Build and install options resolve the policy:
 - `--routing PATH` builds from a caller-supplied version-1 or version-2 file
   (conflicts with `--models`). A complete version-1 policy normalizes to exact
   direct role exceptions over the packaged tiers and undeclared runtimes merge
-  from the packaged defaults. Runtime-discovered `routing.md` preferences are
+  from the packaged defaults. Runtime-discovered `preferences.md`
+  preferences (the legacy `routing.md` name is still accepted) are
   interpreted by the workflow and are not build inputs.
 - `--models PATH|PRESET` imports a legacy `provider/model[#variant]` inventory
   and converts it; omitted keys become explicit inheritance and are reported.

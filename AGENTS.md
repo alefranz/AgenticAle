@@ -16,7 +16,7 @@ not invoke its workflow.
 | Specialist behavior | `skills/work/references/tasks/*.md` |
 | Supporting capabilities | `skills/source-code-lookup/SKILL.md`, `skills/pull-request-description/SKILL.md` |
 | Routing semantics and implementation | `skills/work/references/ROUTING.md`, `skills/work/scripts/routing.mjs` |
-| Routing defaults and customization example | `skills/work/references/routing.json`, `skills/work/references/routing.example.md` |
+| Routing defaults and customization example | `skills/work/references/routing.json`, `skills/work/references/preferences.example.md` |
 
 Runtime bindings in `skills/work/references/runtimes/`, presentation metadata
 in `skills/*/agents/`, `adapters/opencode/`, and build/install scripts are also

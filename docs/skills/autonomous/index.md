@@ -80,7 +80,9 @@ grant. Repeated findings on the same invariant are classified as a real
 design issue — replanned with the original acceptance and counters intact —
 or as reviewer standard drift, settled once rather than chased. Provider
 quota exhaustion is separate: it follows the recovery policy below, not these
-allowance stops.
+allowance stops. The preference file's `## Work` section (the Work
+worker-round allowance) does not change these rules: Autonomous keeps its own
+budget behavior.
 
 When the host reports provider quota exhaustion, the coordinator records the
 evidence, affected role, retry time, inspected partial progress, remaining work,

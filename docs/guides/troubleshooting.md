@@ -19,7 +19,25 @@ account and inspect the Markdown routing file. Plugin users can edit Markdown
 and start a new `/work`, `/review`, or `/autonomous` activation. OpenCode users may need to
 refresh generated profiles; see the
 [model routing guide](model-routing.md#opencode-profile-refresh). For a quick
-routing trial, use `--no-model` and then create a `routing.md` preference file.
+routing trial, use `--no-model` and then create a `preferences.md` preference
+file (the legacy `routing.md` name is still accepted). An unreadable
+`preferences.md` is reported as an error — it is never a silent fallback to a
+legacy `routing.md` beside it.
+
+## Routing file precedence and invalid work allowance
+
+If both `preferences.md` and the legacy `routing.md` exist at the same scope
+(project or personal), `preferences.md` is the effective file and `routing.md`
+is ignored — never merged. Edits to `routing.md` have no effect while
+`preferences.md` is present, and the workflow identifies the ignored file
+rather than silently dropping it. If a preference file carries an invalid
+`## Work` worker-round value (zero, a fraction, or a word), the activation
+fails with an actionable error naming the file and the value; it is never
+silently defaulted and never clamped — set the entry to a positive integer.
+See [user preferences and
+precedence](model-routing.md#user-preferences-and-precedence) and [Work
+worker-round allowance](model-routing.md#work-worker-round-allowance) in the
+model routing guide.
 
 ## Provider quota exhaustion
 

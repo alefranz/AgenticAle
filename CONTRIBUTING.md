@@ -15,7 +15,7 @@ focused changes with clear verification are easiest to review.
   `adapters/opencode`, and the routing contract is
   `skills/work/references/ROUTING.md`, with the version-2 defaults baseline at
   `skills/work/references/routing.json`, the Markdown customization example at
-  `skills/work/references/routing.example.md`, and the shared module at
+  `skills/work/references/preferences.example.md`, and the shared module at
   `skills/work/scripts/routing.mjs`. Do not add retired-layout paths
   (`commands/`, `agents/autonomous/`, `skills/work-mode`,
   `skills/autonomous-mode`) at the repository root. The adapter-owned OpenCode
@@ -54,7 +54,7 @@ git diff --check
 
 - `validate.mjs` checks the authored source of truth: 30 source-of-truth files
   (including the routing contract, the version-2 `routing.json` baseline, the
-  `routing.example.md` example, the shared `routing.mjs` module, and the
+  `preferences.example.md` example, the shared `routing.mjs` module, and the
   `session-stats.mjs` helper), 6
   capability-neutral task contracts, 7 OpenCode adapter profiles, 3 OpenCode
   command templates, the absence of the retired layout, and sanitation.

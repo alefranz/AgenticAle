@@ -201,7 +201,7 @@ try {
     const srcLookup = await readFile(join(t, "skills", "source-code-lookup", "SKILL.md"), "utf8");
     check(srcLookup.includes('Source root: "~/dev"'), "install fresh: source root default marker");
     check(await exists(join(t, "skills", "work", "references", "routing.json")), "install fresh: materializes work/references/routing.json");
-    check(await exists(join(t, "skills", "work", "references", "routing.example.md")), "install fresh: materializes work/references/routing.example.md");
+    check(await exists(join(t, "skills", "work", "references", "preferences.example.md")), "install fresh: materializes work/references/preferences.example.md");
     check(await exists(join(t, "skills", "work", "scripts", "routing.mjs")), "install fresh: materializes work/scripts/routing.mjs");
     check(await exists(join(t, "skills", "work", "scripts", "session-stats.mjs")), "install fresh: materializes work/scripts/session-stats.mjs");
   }
@@ -755,7 +755,7 @@ try {
     check(!files.some((f) => f.startsWith("agents/")), "standalone fresh: no agents/");
     check(!files.some((f) => f.startsWith("commands/")), "standalone fresh: no commands/");
     check(await exists(join(t, "work", "references", "routing.json")), "standalone fresh: materializes work/references/routing.json");
-    check(await exists(join(t, "work", "references", "routing.example.md")), "standalone fresh: materializes work/references/routing.example.md");
+    check(await exists(join(t, "work", "references", "preferences.example.md")), "standalone fresh: materializes work/references/preferences.example.md");
     check(await exists(join(t, "work", "scripts", "routing.mjs")), "standalone fresh: materializes work/scripts/routing.mjs");
     // Idempotent.
     const before = await readFile(join(t, STANDALONE_STATE), "utf8");
@@ -1055,14 +1055,77 @@ try {
   }
 
   // ---------------------------------------------------------------------
+  // E (preferences.md mirror): the same user-owned file contract applies to
+  //    the default personal preferences name — install/update/uninstall for
+  //    both installers never create, overwrite, or remove it.
+  // ---------------------------------------------------------------------
+  {
+    const home = await mkdtemp(join(scratch, "e-prefs-home-"));
+    const env = { HOME: home, USERPROFILE: home };
+    const project = await mkdtemp(join(scratch, "e-prefs-project-"));
+    const projectPrefs = "# Project preferences\nExplore with USER-PROJECT-PREFERENCES-1 at high effort.\n";
+    const homePrefs = "# Personal preferences\nReview with USER-HOME-PREFERENCES-2 at high effort.\n";
+    await mkdir(join(project, ".agenticale"), { recursive: true });
+    await mkdir(join(home, ".agenticale"), { recursive: true });
+    await writeFile(join(project, ".agenticale", "preferences.md"), projectPrefs, "utf8");
+    await writeFile(join(home, ".agenticale", "preferences.md"), homePrefs, "utf8");
+    const assertPrefs = async (label) => {
+      check((await readFile(join(project, ".agenticale", "preferences.md"), "utf8")) === projectPrefs, `user preferences.md: project file untouched after ${label}`);
+      check((await readFile(join(home, ".agenticale", "preferences.md"), "utf8")) === homePrefs, `user preferences.md: home file untouched after ${label}`);
+    };
+    const target = join(project, ".agents", "skills");
+    check((await run("install-standalone.mjs", ["install", "--target", target, "--no-model"], { cwd: project, env })).exit === 0, "user preferences.md: standalone install exits 0");
+    await assertPrefs("standalone install");
+    check((await run("install-standalone.mjs", ["install", "--target", target, "--no-model"], { cwd: project, env })).exit === 0, "user preferences.md: standalone update exits 0");
+    await assertPrefs("standalone update");
+    check((await run("install-standalone.mjs", ["uninstall", "--target", target], { cwd: project, env })).exit === 0, "user preferences.md: standalone uninstall exits 0");
+    await assertPrefs("standalone uninstall");
+  }
+  {
+    // The installer never CREATES such files either: a root without
+    // .agenticale/preferences.md stays absent across install and uninstall.
+    const home = await mkdtemp(join(scratch, "e-prefs-bare-home-"));
+    const env = { HOME: home, USERPROFILE: home };
+    const project = await mkdtemp(join(scratch, "e-prefs-bare-project-"));
+    const target = join(project, ".agents", "skills");
+    check((await run("install-standalone.mjs", ["install", "--target", target, "--no-model"], { cwd: project, env })).exit === 0, "user preferences.md: bare standalone install exits 0");
+    check(!(await exists(join(project, ".agenticale", "preferences.md"))), "user preferences.md: never created in the project root");
+    check(!(await exists(join(home, ".agenticale", "preferences.md"))), "user preferences.md: never created in the home root");
+    check((await run("install-standalone.mjs", ["uninstall", "--target", target], { cwd: project, env })).exit === 0, "user preferences.md: bare standalone uninstall exits 0");
+    check(!(await exists(join(project, ".agenticale", "preferences.md"))), "user preferences.md: still absent from the project root after uninstall");
+  }
+  {
+    // Same contract for the OpenCode (profile) installer: the target root and
+    // the isolated home keep their user-owned preferences files intact.
+    const home = await mkdtemp(join(scratch, "e-prefs-oc-home-"));
+    const env = { HOME: home, USERPROFILE: home };
+    const target = join(scratch, "e-prefs-oc");
+    const prefs = "# OpenCode preferences\nFix with USER-OC-PREFERENCES-3 at high effort.\n";
+    await mkdir(join(target, ".agenticale"), { recursive: true });
+    await mkdir(join(home, ".agenticale"), { recursive: true });
+    await writeFile(join(target, ".agenticale", "preferences.md"), prefs, "utf8");
+    await writeFile(join(home, ".agenticale", "preferences.md"), prefs, "utf8");
+    const assertPrefs = async (label) => {
+      check((await readFile(join(target, ".agenticale", "preferences.md"), "utf8")) === prefs, `user preferences.md: opencode target file untouched after ${label}`);
+      check((await readFile(join(home, ".agenticale", "preferences.md"), "utf8")) === prefs, `user preferences.md: opencode home file untouched after ${label}`);
+    };
+    check((await run("install.mjs", ["install", "--target", target, "--no-model"], { cwd: target, env })).exit === 0, "user preferences.md: opencode install exits 0");
+    await assertPrefs("opencode install");
+    check((await run("install.mjs", ["install", "--target", target, "--no-model"], { cwd: target, env })).exit === 0, "user preferences.md: opencode update exits 0");
+    await assertPrefs("opencode update");
+    check((await run("install.mjs", ["uninstall", "--target", target], { cwd: target, env })).exit === 0, "user preferences.md: opencode uninstall exits 0");
+    await assertPrefs("opencode uninstall");
+  }
+
+  // ---------------------------------------------------------------------
   // E2. setup subcommand: the consented install-time setup creates the
-  //     personal routing file as a minimal scaffold (every role inherits the
-  //     session model and effort) if and only if it is absent. It never
+  //     personal preferences file as a minimal scaffold (every role inherits
+  //     the session model and effort) if and only if it is absent. It never
   //     overwrites an existing file, dry-run writes nothing, and the
   //     scaffold carries none of the example's illustrative identifiers.
   // ---------------------------------------------------------------------
   {
-    const exampleText = await readFile(join(repo, "skills", "work", "references", "routing.example.md"), "utf8");
+    const exampleText = await readFile(join(repo, "skills", "work", "references", "preferences.example.md"), "utf8");
     const illustrativeIds = [...new Set([...exampleText.matchAll(/[a-z0-9][a-z0-9-]*\/[a-z0-9][a-z0-9-]*/g)].map((m) => m[0]))];
     check(illustrativeIds.length > 0, "setup: the example file carries illustrative identifiers");
     const assertNoIllustrativeIds = (label, content) => {
@@ -1082,10 +1145,10 @@ try {
       check(content.includes(`- ${role}: inherit.`), `setup: scaffold inherits for ${role}`);
     }
     assertNoIllustrativeIds("created scaffold", content);
-    check(r.out.includes("routing.example.md"), "setup: guidance names the packaged example");
-    check(r.out.includes(".agenticale/routing.md"), "setup: guidance names the project-scope file");
+    check(r.out.includes("preferences.example.md"), "setup: guidance names the packaged example");
+    check(r.out.includes(".agenticale/preferences.md"), "setup: guidance names the project-scope file");
     check(r.out.includes("Paste this prompt into an OpenCode session"), "setup: prints a ready-to-paste prompt");
-    check(r.out.includes(`routing file at ${personal}`), "setup: the paste prompt names the created file");
+    check(r.out.includes(`preferences file at ${personal}`), "setup: the paste prompt names the created file");
 
     // Idempotent: a second run leaves the scaffold byte-identical.
     const again = run("install.mjs", ["setup", "--personal-path", personal]);
@@ -1103,7 +1166,7 @@ try {
     check((await readFile(existing, "utf8")) === owned, "setup existing: file left byte-identical");
     check(r2.out.includes("left untouched"), "setup existing: left-untouched line");
     check(r2.out.includes(existing), "setup existing: prints the file path");
-    check(r2.out.includes("routing.example.md"), "setup existing: guidance still printed");
+    check(r2.out.includes("preferences.example.md"), "setup existing: guidance still printed");
     check(r2.out.includes("Paste this prompt into an OpenCode session"), "setup existing: prompt still printed");
 
     // --dry-run writes nothing (absent and present cases).
@@ -1124,10 +1187,84 @@ try {
     // Default personal path under an isolated home.
     const fakeHome = await mkdtemp(join(scratch, "e2-home-"));
     const r5 = run("install.mjs", ["setup"], { env: { HOME: fakeHome, USERPROFILE: fakeHome } });
-    const def = join(fakeHome, ".agenticale", "routing.md");
+    const def = join(fakeHome, ".agenticale", "preferences.md");
     check(r5.exit === 0, "setup default: exits 0");
-    check(await exists(def), "setup default: creates ~/.agenticale/routing.md");
-    assertNoIllustrativeIds("default scaffold", await readFile(def, "utf8"));
+    check(await exists(def), "setup default: creates ~/.agenticale/preferences.md");
+    const defaultContent = await readFile(def, "utf8");
+    assertNoIllustrativeIds("default scaffold", defaultContent);
+    const r5b = run("install.mjs", ["setup"], { env: { HOME: fakeHome, USERPROFILE: fakeHome } });
+    check(r5b.exit === 0, "setup default re-run: exits 0");
+    check((await readFile(def, "utf8")) === defaultContent, "setup default re-run: existing scaffold left untouched");
+    check(r5b.out.includes("left untouched"), "setup default re-run: reports left untouched");
+
+    // Legacy sibling at the default home: a user's legacy
+    // ~/.agenticale/routing.md with no preferences.md makes setup create
+    // nothing and report the legacy path; the legacy file is never renamed,
+    // migrated, or removed, and the guidance (including the paste prompt) is
+    // still printed, targeting the legacy file — the user's effective file,
+    // since no preferences.md exists for the prompt to read.
+    const legacyHome = await mkdtemp(join(scratch, "e2-legacy-home-"));
+    const legacyPath = join(legacyHome, ".agenticale", "routing.md");
+    const legacyContent = "# USER-OWNED legacy routing\nReview with USER-CHOSEN-ROUTING.\n";
+    await mkdir(join(legacyHome, ".agenticale"), { recursive: true });
+    await writeFile(legacyPath, legacyContent, "utf8");
+    const legacyEnv = { HOME: legacyHome, USERPROFILE: legacyHome };
+    const absentPreferences = join(legacyHome, ".agenticale", "preferences.md");
+    const r10 = run("install.mjs", ["setup"], { env: legacyEnv });
+    check(r10.exit === 0, "setup legacy sibling: exits 0");
+    check(r10.out.includes("create nothing"), "setup legacy sibling: reports it creates nothing");
+    check(!r10.out.includes("would create nothing"), "setup legacy sibling: real run does not use the dry-run phrasing");
+    check(r10.out.includes(legacyPath), "setup legacy sibling: names the legacy path");
+    check(r10.out.includes("Paste this prompt into an OpenCode session"), "setup legacy sibling: guidance still printed");
+    check(r10.out.includes(`personal preferences file at ${legacyPath}. Read the file`), "setup legacy sibling: the paste prompt targets the effective legacy file");
+    check(!r10.out.includes(`personal preferences file at ${absentPreferences}`), "setup legacy sibling: the paste prompt does not name the absent preferences.md");
+    check(!(await exists(absentPreferences)), "setup legacy sibling: preferences.md not created");
+    check((await readFile(legacyPath, "utf8")) === legacyContent, "setup legacy sibling: legacy file byte-identical (not renamed, migrated, or removed)");
+    const r11 = run("install.mjs", ["setup", "--dry-run"], { env: legacyEnv });
+    check(r11.exit === 0, "setup legacy sibling --dry-run: exits 0");
+    check(r11.out.includes("would create nothing"), "setup legacy sibling --dry-run: reports it would create nothing");
+    check(r11.out.includes(legacyPath), "setup legacy sibling --dry-run: names the legacy path");
+    check(r11.out.includes(`personal preferences file at ${legacyPath}. Read the file`), "setup legacy sibling --dry-run: the paste prompt targets the effective legacy file");
+    check(!r11.out.includes(`personal preferences file at ${absentPreferences}`), "setup legacy sibling --dry-run: the paste prompt does not name the absent preferences.md");
+    check(r11.out.includes("Dry run complete; no files were changed."), "setup legacy sibling --dry-run: no files changed message");
+    check(!(await exists(absentPreferences)), "setup legacy sibling --dry-run: preferences.md still not created");
+    check((await readFile(legacyPath, "utf8")) === legacyContent, "setup legacy sibling --dry-run: legacy file still byte-identical");
+
+    // Both present at the default home: a user's preferences.md AND a
+    // legacy routing.md. preferences.md takes precedence at the same scope,
+    // so it is the effective file: setup creates nothing, touches neither
+    // file, and the guidance — including the paste prompt — must target
+    // preferences.md, never the ignored legacy file (the legacy-only
+    // creation-suppressed line must not appear either).
+    const bothHome = await mkdtemp(join(scratch, "e2-both-home-"));
+    const bothPrefs = join(bothHome, ".agenticale", "preferences.md");
+    const bothLegacy = join(bothHome, ".agenticale", "routing.md");
+    const bothPrefsContent = "# USER-OWNED preferences\nFix with USER-PREFERENCES-FILE.\n";
+    const bothLegacyContent = "# USER-OWNED legacy routing\nReview with USER-LEGACY-FILE.\n";
+    await mkdir(join(bothHome, ".agenticale"), { recursive: true });
+    await writeFile(bothPrefs, bothPrefsContent, "utf8");
+    await writeFile(bothLegacy, bothLegacyContent, "utf8");
+    const bothEnv = { HOME: bothHome, USERPROFILE: bothHome };
+    const assertBothHome = async (label) => {
+      check((await readFile(bothPrefs, "utf8")) === bothPrefsContent, `setup both present: preferences.md byte-identical after ${label}`);
+      check((await readFile(bothLegacy, "utf8")) === bothLegacyContent, `setup both present: legacy routing.md byte-identical after ${label}`);
+      check((await readdir(join(bothHome, ".agenticale"))).sort().join(",") === "preferences.md,routing.md", `setup both present: nothing new created in .agenticale after ${label}`);
+    };
+    const r20 = run("install.mjs", ["setup"], { env: bothEnv });
+    check(r20.exit === 0, "setup both present: exits 0");
+    check(r20.out.includes("left untouched"), "setup both present: reports preferences.md left untouched");
+    check(!r20.out.includes("create nothing"), "setup both present: no legacy-only creation-suppressed line");
+    check(r20.out.includes(`personal preferences file at ${bothPrefs}. Read the file`), "setup both present: the paste prompt targets the effective preferences.md");
+    check(!r20.out.includes(bothLegacy), "setup both present: the output never names the ignored legacy path");
+    await assertBothHome("real run");
+    const r21 = run("install.mjs", ["setup", "--dry-run"], { env: bothEnv });
+    check(r21.exit === 0, "setup both present --dry-run: exits 0");
+    check(r21.out.includes("would leave untouched"), "setup both present --dry-run: would leave preferences.md untouched");
+    check(!r21.out.includes("create nothing"), "setup both present --dry-run: no legacy-only creation-suppressed line");
+    check(r21.out.includes(`personal preferences file at ${bothPrefs}. Read the file`), "setup both present --dry-run: the paste prompt targets the effective preferences.md");
+    check(!r21.out.includes(bothLegacy), "setup both present --dry-run: the output never names the ignored legacy path");
+    check(r21.out.includes("Dry run complete; no files were changed."), "setup both present --dry-run: no files changed message");
+    await assertBothHome("dry-run");
 
     // D2: setup takes --target so the guidance names the packaged example
     // under the target the bundle was installed into (same default resolution
@@ -1138,15 +1275,15 @@ try {
     const customTarget = join(scratch, "e2-custom-target");
     const r7 = run("install.mjs", ["setup", "--target", customTarget, "--personal-path", join(scratch, "e2-t", "routing.md"), "--dry-run"], { env: { XDG_CONFIG_HOME: fakeXDG } });
     check(r7.exit === 0, "setup --target: exits 0");
-    check(r7.out.includes(join(customTarget, "skills", "work", "references", "routing.example.md")), "setup --target: guidance names the packaged example under the custom target");
+    check(r7.out.includes(join(customTarget, "skills", "work", "references", "preferences.example.md")), "setup --target: guidance names the packaged example under the custom target");
     check(!r7.out.includes(fakeXDG), "setup --target: guidance does not reference the default configuration directory");
     const r8 = run("install.mjs", ["setup", "--personal-path", join(scratch, "e2-t2", "routing.md"), "--dry-run"], { env: { XDG_CONFIG_HOME: fakeXDG } });
     check(r8.exit === 0, "setup default target: exits 0");
-    check(r8.out.includes(join(fakeXDG, "opencode", "skills", "work", "references", "routing.example.md")), "setup default target: guidance names the packaged example under the default configuration directory");
+    check(r8.out.includes(join(fakeXDG, "opencode", "skills", "work", "references", "preferences.example.md")), "setup default target: guidance names the packaged example under the default configuration directory");
     const dryCustom = join(scratch, "e2-dry-custom", "routing.md");
     const r9 = run("install.mjs", ["setup", "--target", customTarget, "--personal-path", dryCustom, "--dry-run"], { env: { XDG_CONFIG_HOME: fakeXDG } });
     check(r9.exit === 0 && r9.out.includes("Dry run complete; no files were changed."), "setup --target --dry-run: no files changed message");
-    check(r9.out.includes(join(customTarget, "skills", "work", "references", "routing.example.md")), "setup --target --dry-run: guidance still points at the custom target");
+    check(r9.out.includes(join(customTarget, "skills", "work", "references", "preferences.example.md")), "setup --target --dry-run: guidance still points at the custom target");
     check(!(await exists(dryCustom)), "setup --target --dry-run: absent personal file not created");
     check(!(await exists(dirname(dryCustom))), "setup --target --dry-run: parent directory not created");
 

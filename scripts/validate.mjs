@@ -49,7 +49,7 @@ const requiredPaths = [
   "skills/work/agents/openai.yaml",
   "skills/work/references/rounds.md",
   "skills/work/references/ROUTING.md",
-  "skills/work/references/routing.example.md",
+  "skills/work/references/preferences.example.md",
   "skills/work/references/routing.json",
   "skills/work/references/runtimes/copilot.md",
   "skills/work/references/runtimes/copilot-local.md",
@@ -355,15 +355,16 @@ function validateRoutingContract() {
   }
 }
 
-// Validate that the shipped human customization example presents the
+// Validate that the shipped human preferences example presents the
 // documented tier-first Markdown interface, including the opencode default
-// section and the two packaged named profile sections.
+// section, the Work worker-round allowance section, and the two packaged
+// named profile sections.
 function validateRoutingExample() {
-  const path = "skills/work/references/routing.example.md";
+  const path = "skills/work/references/preferences.example.md";
   if (!existsSync(join(repositoryRoot, path))) return; // requiredPaths flags absence
   const example = readText(path);
-  for (const required of ["## opencode", "### Tiers", "### Role overrides", "## Profile: server-b", "## Profile: alternate-provider", "#### Tiers", "| fast |", "| routine |", "| standard |", "| deep |"]) {
-    if (!example.includes(required)) fail(path, `routing example is missing '${required}'`, "keep the tier table, optional role overrides, and the packaged profile sections in the Markdown example");
+  for (const required of ["## opencode", "### Tiers", "### Role overrides", "## Work", "worker rounds", "## Profile: server-b", "## Profile: alternate-provider", "#### Tiers", "| fast |", "| routine |", "| standard |", "| deep |"]) {
+    if (!example.includes(required)) fail(path, `preferences example is missing '${required}'`, "keep the tier table, optional role overrides, the Work section, and the packaged profile sections in the Markdown example");
   }
 }
 
@@ -596,7 +597,7 @@ function validateBundleSurface() {
     // shared routing module, and session stats helper.
     for (const extra of [
       "skills/work/references/routing.json",
-      "skills/work/references/routing.example.md",
+      "skills/work/references/preferences.example.md",
       "skills/work/scripts/routing.mjs",
       "skills/work/scripts/session-stats.mjs",
     ]) {

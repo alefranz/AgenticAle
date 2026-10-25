@@ -57,7 +57,7 @@ const SKILL_NAMES = ["work", "review", "autonomous", "pull-request-description",
 export const pluginManifest = {
   $schema: "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   name: "agenticale",
-  version: "0.18.0",
+  version: "0.19.0",
   description: "Reviewed coding tasks with focused specialist agents, optional PR delivery, and durable autonomous project work.",
   author: { name: "Ale Franz" },
   homepage: "https://github.com/alefranz/AgenticAle",
@@ -209,7 +209,7 @@ async function loadPackagedRouting() {
 // gets a clear explanation before any parsing.
 function markdownRoutingGuidance(path) {
   return `--routing PATH expects a JSON policy (version 1 or 2), not a Markdown preference file: ${path}. `
-    + "Customize routing at runtime with <project>/.agenticale/routing.md or ~/.agenticale/routing.md (see the work skill's references/ROUTING.md), "
+    + "Customize routing at runtime with <project>/.agenticale/preferences.md or ~/.agenticale/preferences.md (the legacy name .agenticale/routing.md is still accepted at each scope), including a top-level ## Work section that overrides the Work workflow's worker-round allowance (see the work skill's references/ROUTING.md), "
     + "or export a resolved version-1 JSON policy (node skills/work/scripts/routing.mjs resolve) and pass that JSON file to --routing.";
 }
 
