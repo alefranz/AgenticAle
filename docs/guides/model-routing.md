@@ -148,7 +148,13 @@ there are no preferences.
 On OpenCode, each role's route is compared with its generated profile before
 dispatch. An unavailable role — a missing, stale, or unreadable profile —
 blocks only its own dispatch and is reported with the preparation steps;
-the other roles proceed.
+the other roles proceed. A one-time post-install verification is also
+available (after installing, or after editing a preference file): the
+installer prints a ready-to-paste prompt for an OpenCode session that runs
+the routing bootstrap against the personal preference location and the
+pasting session's project preference location — interpreting and resolving
+the file when one is present (`interpretation-required`) — and compares each
+resolved route with its installed profile.
 
 ## User preferences and precedence
 
@@ -190,12 +196,12 @@ uninstall do not create, overwrite, migrate, or remove them. The one exception
 is the OpenCode installer's consented setup step (`node scripts/install.mjs
 setup`, run with `--setup` or after you answer yes to the post-install
 prompt): it may create the personal `~/.agenticale/preferences.md` when it is
-absent, as a minimal scaffold in which every role inherits the session model
-and effort (the legacy name `routing.md` is still honored at that scope: when
-only the legacy file is present the step creates nothing, because a new
-`preferences.md` would silently take precedence over it). It never overwrites,
-migrates, or removes a preference file, and it never creates the project-scope
-file. Missing files mean no customization;
+absent, as a minimal scaffold with no role overrides, so the installed
+baseline routing applies (the legacy name `routing.md` is still honored at
+that scope: when only the legacy file is present the step creates nothing,
+because a new `preferences.md` would silently take precedence over it). It
+never overwrites, migrates, or removes a preference file, and it never
+creates the project-scope file. Missing files mean no customization;
 a present but unreadable file is reported rather than claimed as applied.
 Start a new `/work`, `/review`, or `/autonomous` activation to load changed
 preferences. See the example preference file at

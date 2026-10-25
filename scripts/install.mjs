@@ -104,8 +104,9 @@ repository source. Older copy installs (schema 1-4) and link installs are
 migrated to the generated copy layout on install.
 
 The setup subcommand creates the personal preferences file (default
-~/.agenticale/preferences.md) as a minimal scaffold — every role inherits the
-session model and effort — if and only if it is absent. It never overwrites,
+~/.agenticale/preferences.md) as a minimal scaffold with no role overrides, so
+the installed baseline routing applies, if and only if it is absent. It never
+overwrites,
 migrates, or removes a preference file, never creates the project-scope file,
 and never prompts: explicit consent is the caller's job. With the default
 path, if the target is absent but the legacy ~/.agenticale/routing.md
@@ -958,6 +959,7 @@ async function installBundle(options) {
   await removeEmptyPackageDirectories(options.target);
   console.log("Installation complete.");
   console.log("Next: restart OpenCode and use the /work, /review, and /autonomous commands; this installer leaves opencode.jsonc unchanged.");
+  console.log(`Verify your routing after install (and after editing your preferences) by pasting this prompt into an OpenCode session: ${verifyPromptFor(options.target)}`);
   console.log("See docs/setup.md for child-session permissions and docs/autonomous.md for unattended /autonomous runs.");
 }
 
@@ -1073,30 +1075,44 @@ async function uninstallBundle(options) {
   console.log(`Uninstall complete.${preserved ? ` Preserved ${preserved} modified destination(s).` : ""}`);
 }
 
-// Minimal personal preferences scaffold: every role explicitly inherits the
-// session model and effort (the same shape `--no-model` installs), so it
-// cannot activate a route to a model the user has not chosen. It carries no
-// illustrative model identifiers: those belong to preferences.example.md,
-// where they are documented as illustrative only.
+// Minimal personal preferences scaffold: it carries no role overrides, so
+// the installed baseline routing (which matches the generated agent
+// profiles) applies by default; the user adds a runtime section with
+// overrides to customize. It carries no illustrative model identifiers:
+// those belong to preferences.example.md, where they are documented as
+// illustrative only.
 const routingScaffold = `# AgenticAle preferences (personal)
 
-Personal preferences, created by the AgenticAle installer as a minimal
-starting point. As shipped, every role inherits the session model and effort.
-Edit a role override below to point a role at a tier or a specific model; see
+Personal preferences, created by the AgenticAle installer. By default every
+role uses the installed baseline routing, which matches the agent profiles
+generated at install time. To customize, add a runtime section with a
+\`### Role overrides\` list that points a role at a specific model or tier. See
 the installed preferences.example.md for the full format.
-
-## opencode
-
-### Role overrides
-
-- explore: inherit.
-- implement: inherit.
-- implement-hard: inherit.
-- fix: inherit.
-- review: inherit.
-- deep-review: inherit.
-- consult: inherit.
 `;
+
+// The one-time post-install verification, printed by the install and setup
+// output: a prompt to paste into an OpenCode session, not a raw helper
+// command. It tells the pasting session to run the `startup` bootstrap with
+// `--root` set to its own project root (its working directory, or the
+// directory containing the project's .agenticale; the home directory when
+// there is no project — the helper deduplicates a root equal to home into
+// the personal location), so the personal and the project preference
+// locations are both checked. On the "resolved" result the session confirms
+// every role in the `agents` output reports "match"; on the
+// "interpretation-required" result it reads and interprets each listed
+// preference file (a project file takes precedence over the personal one;
+// any legacy file reported as ignored is never read), writes the interpreted
+// structured layers (an array ordered lowest to highest precedence, personal
+// first) to a temporary JSON file, and resolves them with
+// `resolve --runtime opencode --input <file> --explain` — a path to that
+// structured JSON, never inline JSON and never the Markdown file —
+// comparing each route with the installed agent profiles. The dynamic paths
+// are single-quoted so a target with spaces stays copy-pasteable.
+const verifyPromptFor = (target) => {
+  const helper = join(target, "skills", "work", "scripts", "routing.mjs");
+  const rootPlaceholder = `<the project root of the session you are pasting this into: that working directory, or the directory containing its .agenticale folder; the home directory when there is no project>`;
+  return `Verify my AgenticAle routing for the opencode runtime: run \`node '${helper}' startup --runtime opencode --root '${rootPlaceholder}'\`, which checks the personal preference location and that project location; if the result is the resolved policy, confirm every role in its agents output reports "match"; if it reports "interpretation-required" because a preference file is present, read and interpret each listed preference file (a project file takes precedence over the personal file; any legacy file reported as ignored is never read), write the interpreted structured layers to a temporary JSON file as an array ordered lowest to highest precedence (personal first, then project), then run \`node '${helper}' resolve --runtime opencode --input '<that temporary JSON file>' --explain\`, and compare each resolved route with its installed agent profile in '${join(target, "agents", "agenticale")}' (an "inherit" route matches a profile with no "model:" line, and an explicit route must match the profile's model and reasoning effort); report any mismatch, missing, or unreadable role along with the preparation/refresh procedure in '${join(target, "skills", "work", "references", "runtimes", "opencode.md")}'.`;
+};
 
 // Consent-gated personal preferences setup (the narrow exception documented
 // in skills/work/references/ROUTING.md, "User customization"). Creates the
@@ -1139,6 +1155,8 @@ async function setupPersonalRouting(options) {
     console.log("Paste this prompt into an OpenCode session to continue customizing:");
     console.log("");
     console.log(promptFor(effectivePath));
+    console.log("");
+    console.log(`After editing, verify your routing by pasting this prompt into an OpenCode session: ${verifyPromptFor(options.target)}`);
   };
 
   const present = (await pathStatus(personalPath)) !== null;
@@ -1149,7 +1167,7 @@ async function setupPersonalRouting(options) {
   } else if (legacyPresent) {
     console.log(`  ${options.dryRun ? "would create" : "create"} nothing: the legacy personal file ${legacyPersonalPath} exists, and a preferences.md would take precedence over it; the installer never renames, migrates, or removes preference files — rename ${legacyPersonalPath} to ${personalPath} yourself if you want the new name`);
   } else {
-    console.log(`  ${options.dryRun ? "would create" : "create"}: minimal scaffold (every role inherits the session model and effort)`);
+    console.log(`  ${options.dryRun ? "would create" : "create"}: minimal scaffold (no role overrides; the installed baseline routing applies)`);
   }
   if (options.dryRun) {
     printGuidance(effectivePersonalPath);

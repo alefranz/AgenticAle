@@ -201,10 +201,10 @@ After a successful install the wrapper offers a consented setup step: with
 "Create a personal AgenticAle preferences file (~/.agenticale/preferences.md)?
 [y/N]" (default no); non-interactive runs skip it and print a one-line tip.
 The step creates the personal `~/.agenticale/preferences.md` only when it is
-absent — a minimal scaffold in which every role inherits the session model
-and effort — and it never overwrites, migrates, or removes a preference file
-or creates the project-scope file. The legacy name `routing.md` is still
-accepted at each scope and, when both files exist at one scope,
+absent — a minimal scaffold with no role overrides, so the installed
+baseline routing applies — and it never overwrites, migrates, or removes a
+preference file or creates the project-scope file. The legacy name `routing.md`
+is still accepted at each scope and, when both files exist at one scope,
 `preferences.md` takes precedence and the legacy file is ignored — never
 merged; when only the legacy file is present, the step creates nothing rather
 than a file that would silently take precedence (rename it yourself to move to
@@ -212,6 +212,26 @@ the new name). It then prints the file's path, editing
 guidance (the packaged example and project-scope precedence), and a
 ready-to-paste prompt for an OpenCode session to finish the customization;
 see [user preferences and precedence](guides/model-routing.md#user-preferences-and-precedence).
+
+After the install — or after editing the preferences file — you can verify
+your routing with the ready-to-paste prompt that the installer prints with
+the post-install output and the setup guidance. Paste it into an OpenCode
+session; it works in both cases, and it checks the personal preference
+location and the project preference location of the session it is pasted
+into (`--root` is set to that session's project root). With no preference
+file the session runs the routing bootstrap and confirms that every role in
+its `agents` output reports `match`; with a preference file present the
+bootstrap reports `interpretation-required`, so the session reads and
+interprets each listed preference file (a project file takes precedence over
+the personal file; any legacy file reported as ignored is never read), writes
+the interpreted structured layers (lowest to highest precedence) to a
+temporary JSON file, resolves them with
+`resolve --runtime opencode --input <file> --explain`, and compares each
+resolved route with its installed profile (an `inherit` route matches a
+profile with no `model:` line; an
+explicit route must match the profile's model and reasoning effort). On a
+`mismatch`, `missing`, or `unreadable` result follow the preparation/refresh
+procedure in the opencode runtime binding.
 
 #### Alternative: install from a local checkout
 
