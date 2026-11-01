@@ -1,6 +1,6 @@
 ---
 name: work
-description: "Coordinate an everyday coding task — a requested outcome, existing changes, or a preceding review's findings — through review, focused implementation, and fixes, optionally through a new or existing pull request. Explicit-only: invoke with /work (optionally /work --pr, /work --consult, and /work --profile NAME) to start a reviewed task; the model does not start this workflow on its own."
+description: "Coordinate an everyday coding task — a requested outcome, existing changes, or a preceding review's findings — through review, focused implementation, and fixes, optionally through a new or existing pull request. Explicit-only: invoke with /work (optionally /work --pr, /work --consult, /work --outcome, and /work --profile NAME) to start a reviewed task; the model does not start this workflow on its own."
 version: 1
 slash: true
 disable-model-invocation: true
@@ -27,8 +27,8 @@ arguments token as the task. A leading `--pr` option selects PR delivery:
 complete the implementation and its checks, complete the independent review,
 make coherent task commits, push, and create or update a pull request. A
 leading `--stats` option requests a session usage summary in the final report;
-the options — `--pr`, `--stats`, `--consult`, and `--profile` — are combinable
-in any order, and the remaining text is the task. `--pr` never takes a bare
+the options — `--pr`, `--stats`, `--consult`, `--outcome`, and `--profile` —
+are combinable in any order, and the remaining text is the task. `--pr` never takes a bare
 argument: task text is never consumed as a PR target, so `/work --pr fix the bug` is PR
 delivery for the task "fix the bug". `--pr=<PR-URL>` selects an exact existing
 PR and authorizes committing and pushing the requested changes to its head
@@ -95,6 +95,25 @@ a further allowance. The coordinator still owns the final task definition, and
 the user retains control over scope and preferences — the consultation
 recommends, it never invents a user preference or vetoes the user's choice.
 Without `--consult`, consultation stays optional as it is today.
+
+A leading `--outcome` option selects outcome-driven evaluation for a task that
+carries an explicitly requested measurable objective. It is a bare leading
+option like `--stats` — it never takes a value — so `/work --outcome speed up
+the export by at least 20%` runs the protocol for the task text that follows.
+It combines with `--pr`, `--stats`, `--consult`, and `--profile` in any order,
+and it does not change routing. It is explicit opt-in only: a task whose text
+mentions a number, a performance goal, or a "better" outcome but omits
+`--outcome` is an ordinary correctness task and is handled exactly as today.
+When `--outcome` is present, the coordinator follows the protocol in
+[the outcome-evaluation reference](references/outcome-evaluation.md): it
+pre-registers the objective, the measurement procedure, the acceptance
+criteria, the constraints, and the stop conditions before any candidate
+implementation begins — and once established they are not silently changed to
+make a candidate appear successful, because a material change is a new card
+version that requires explicit user approval. It then drives one candidate at a
+time through the existing worker rounds and the unchanged independent review
+gate, and it completes the task only when both the outcome criteria and the
+existing correctness gates are satisfied.
 
 ## Start from the requested outcome
 

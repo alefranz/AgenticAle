@@ -105,9 +105,9 @@ try {
   const standaloneRel = await listRelative(fixture.standaloneRoot);
   const openCodeRel = await listRelative(fixture.openCodeRoot);
 
-  check(pluginRel.length === 26, "plugin bundle has 26 files");
-  check(standaloneRel.length === 25, "standalone bundle has 25 files");
-  check(openCodeRel.length === 35, "OpenCode bundle has 35 files (7 profiles + 3 commands + 25 skills)");
+  check(pluginRel.length === 27, "plugin bundle has 27 files");
+  check(standaloneRel.length === 26, "standalone bundle has 26 files");
+  check(openCodeRel.length === 36, "OpenCode bundle has 36 files (7 profiles + 3 commands + 26 skills)");
 
   // The packaged routing resources (version-2 baseline, Markdown example,
   // and shared resolver module) ship in all three output roots.
