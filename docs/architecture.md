@@ -26,6 +26,7 @@ Four concerns are separated so each can change independently:
 | Routing customization example | `skills/work/references/preferences.example.md` |
 | Shared routing module | `skills/work/scripts/routing.mjs` (dependency-free, packaged with the work skill) |
 | Runtime bindings | `skills/work/references/runtimes/<host>.md` (five: `copilot`, `copilot-local`, `codex`, `opencode`, `antigravity`) |
+| Outcome-evaluation protocol (opt-in) | `skills/work/references/outcome-evaluation.md` (Work only; loaded only when a task is invoked with `--outcome`) |
 
 The three workflow skills are explicit-only: each sets
 `copilot/disable-model-invocation: true` and `opencode/autoinvoke: false`, and
@@ -64,6 +65,15 @@ share the same `implement` contract; `implement-hard` is a routing key, not a
 separate contract or profile. A hard review finding keeps the `fix` contract
 and the fix counters while it dispatches on the `implement-hard` route.
 
+`skills/work/references/outcome-evaluation.md` carries Work's opt-in
+outcome-evaluation protocol, loaded only when a task is invoked with the bare
+`--outcome` option. It pre-registers a lean outcome card before implementation,
+drives one candidate at a time against the pinned baseline through the existing
+worker rounds and the unchanged independent review gate, and reuses the
+existing worker-round allowance and stop/continuation machinery. It is
+instruction-level: no generic verdict script, no metric framework, no new
+orchestration, and no new routing role.
+
 `pull-request-description` is read before writing or revising a PR body;
 `source-code-lookup` is read when another codebase's behavior matters. Both are
 loaded in full when their task triggers apply. Lookup evidence uses the active
@@ -92,11 +102,12 @@ boundaries.
 
 The authored source-of-truth layout is what `scripts/validate.mjs` asserts
 exists: the three workflow skills plus their `agents/openai.yaml`, the shared
-`rounds.md`, the `ROUTING.md` reference, the `routing.json` defaults baseline,
-the `preferences.example.md` customization example, the shared `scripts/routing.mjs`
+`rounds.md`, the `ROUTING.md` reference, the `outcome-evaluation.md`
+outcome-protocol reference, the `routing.json` defaults baseline, the
+`preferences.example.md` customization example, the shared `scripts/routing.mjs`
 module, the shared `scripts/session-stats.mjs` helper, the five runtime
 bindings, the six task contracts, the `adapters/opencode/` metadata (adapter,
-command templates, and README), and the two supporting skills, for 30
+command templates, and README), and the two supporting skills, for 31
 source-of-truth files. The retired layout
 (`commands/`, `agents/autonomous/`, `skills/work-mode`, `skills/autonomous-mode`)
 must be absent.
@@ -332,9 +343,9 @@ three output roots beneath `--output` (default `dist`):
 
 | Output root | Contents |
 | --- | --- |
-| `<output>/plugin/agenticale` | Agent Plugins 1.0 package (26 files: `plugin.json` + the five skills and their resources, including one routing baseline, the preference example, and shared module) |
-| `<output>/standalone/.agents/skills` | the five standalone skills (25 files), no plugin dependency |
-| `<output>/opencode` | the seven generated profiles plus the same skills (35 files) |
+| `<output>/plugin/agenticale` | Agent Plugins 1.0 package (27 files: `plugin.json` + the five skills and their resources, including one routing baseline, the preference example, and shared module) |
+| `<output>/standalone/.agents/skills` | the five standalone skills (26 files), no plugin dependency |
+| `<output>/opencode` | the seven generated profiles plus the same skills (36 files) |
 
 The build writes `.agenticale-build.json` (schemaVersion 2) describing the
 package, the routing source, the effort mode, and the resolved profiles. Build
@@ -352,7 +363,7 @@ reported; replacements are backed up.
 | `scripts/install-copilot.mjs` | the modern shared plugin, via `copilot plugin install` | managed by the Copilot plugin store |
 | `codex plugin marketplace add` + `codex plugin add` | the shared plugin from `.agents/plugins/marketplace.json` | managed by the Codex plugin store |
 | `scripts/install-standalone.mjs` | the five standalone skills to project scope (`<cwd>/.agents/skills`, default) or user scope (`~/.agents/skills`) | `.agenticale-standalone-install.json` (schema 1) |
-| `scripts/install.mjs` | the generated OpenCode output (skills + seven profiles) | `.autonomous-mode-install.json` (schema 6, 35-file inventory) |
+| `scripts/install.mjs` | the generated OpenCode output (skills + seven profiles) | `.autonomous-mode-install.json` (schema 6, 36-file inventory) |
 
 The OpenCode installer is copy-only. It builds to a temporary root and copies the
 generated output into the OpenCode configuration directory; it does not link to

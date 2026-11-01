@@ -35,7 +35,7 @@ Add `--pr` when you want Work to deliver the finished task as a pull request:
 it completes the implementation and its checks, runs the independent review,
 makes coherent commits, pushes, and opens the pull request — or updates the
 task branch's existing open PR when one already exists. Leading options —
-`--pr` (or `--pr=<PR URL>`), `--consult`, `--profile NAME` (or
+`--pr` (or `--pr=<PR URL>`), `--consult`, `--outcome`, `--profile NAME` (or
 `--profile=NAME`), `--stats`, and the `--` delimiter — may appear in any order,
 with everything after the options as the task text:
 
@@ -75,6 +75,7 @@ chat or checkout:
 | --- | --- |
 | `/work <task>` (no options) | Current branch; changes uncommitted by default. |
 | `/work --consult <task>` | An independent task-framing consultation runs before implementation; Work then proceeds normally. |
+| `/work --outcome <task>` | The opt-in outcome-evaluation protocol: a pre-registered outcome card, a measured baseline, one candidate at a time, and a report that separates the outcome from correctness. |
 | `/work` (no task) | Selects the task from an unambiguous active task, a preceding same-session `/review`, or coherent existing branch and working-tree changes; asks what to work on when no selection is safe; uncommitted by default. |
 | `/work --pr <task>` | Complete, check, review, commit, and push; updates the task branch's open pull request or creates one. |
 | `/work --pr` (no task) | The same task selection as an empty `/work`, plus PR delivery for the selected existing work. |
@@ -277,6 +278,9 @@ the current branch by default.
 For a named routing profile, include `--profile NAME` or give an unambiguous
 instruction — a selected profile is session-scoped, and a fresh activation
 without a selector uses ordinary routing.
+For a measurable objective you want evaluated — not just mentioned — include
+`--outcome`; a number or performance goal in the task text alone stays ordinary
+context and never starts the protocol.
 Work asks for your input when a meaningful behavior choice is unresolved,
 required information is missing, a pull request destination is ambiguous, or
 existing user edits overlap the requested change and cannot be safely attributed.
@@ -364,6 +368,44 @@ allowance per task, so it combines with `--pr` and `--profile` but cannot also
 trigger a later stuck-decision consult in the same run. You keep control over
 scope and preferences: the coordinator still owns the final task definition, and
 the consultation recommends rather than deciding for you.
+
+## Outcome-driven evaluation (opt-in)
+
+Add `--outcome` when the task carries an explicitly requested measurable
+objective — for example, a speed-up target measured with a named benchmark.
+It is a bare leading option like `--stats`: it takes no value, combines with
+`--pr`, `--consult`, and `--profile NAME` in any order, and does not change
+routing. Without it, a number or performance goal in the task text is ordinary
+context and the task proceeds exactly as today.
+
+When it is present, Work pre-registers a lean outcome card before any
+implementation: the objective, the metric (direction and units), the
+instrument, the measured baseline on a pinned ref, the acceptance criteria,
+the constraints that must not regress, the noise policy, the iteration budget
+(bounded by the existing worker-round allowance, not a new one), and the stop
+conditions. If a required field is blank, Work asks instead of iterating. Once
+established, the objective, the measurement procedure, and the acceptance
+criteria are not changed silently to make a candidate look successful; a
+material change is a new card version that requires your explicit approval.
+
+Work then drives one candidate at a time through the existing rounds, runs the
+agreed instrument under the same conditions as the baseline, and compares every
+candidate against the original pinned baseline, never a moving best. The
+independent review gate is unchanged: a candidate that meets the metric but
+carries blocking review findings is not reported as done, and after any
+outcome-affecting fix it is re-measured before the outcome can count. A delta
+inside the noise policy is reported as inconclusive, never as a win, and no
+statistical confidence is invented. There is no generic verdict script: the
+measurement is a reproducible command or test, preferably an existing project
+instrument, and Work interprets the recorded evidence against the
+pre-registered criteria.
+
+The final report distinguishes three states and says which holds — **outcome
+achieved** (the measurement criteria were satisfied), **correctness verified**
+(the acceptance checks and the independent review passed), and **task
+completed** (both) — along with the baseline and final measurements, the
+method and noise, the attempts made including rejected and inconclusive
+candidates, and the remaining limitations.
 
 ## Implementation source
 
