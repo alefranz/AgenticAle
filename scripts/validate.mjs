@@ -49,6 +49,7 @@ const requiredPaths = [
   "skills/work/agents/openai.yaml",
   "skills/work/references/rounds.md",
   "skills/work/references/ROUTING.md",
+  "skills/work/references/outcome-evaluation.md",
   "skills/work/references/preferences.example.md",
   "skills/work/references/routing.json",
   "skills/work/references/runtimes/copilot.md",

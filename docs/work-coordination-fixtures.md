@@ -661,3 +661,146 @@ Expected behavior:
 - Label any new defect separately and distinguish it from a consequence of
   the still-open F2.
 - List the acceptance evidence still missing before the slice can close.
+
+## An ordinary task with a measurable-sounding goal, without `--outcome`
+
+The task text names a measurable target — for example, "make the export at least
+20% faster" — but the invocation is a plain `/work ...` with no `--outcome`
+option.
+
+Expected behavior:
+
+- Handle it as an ordinary correctness task: the outcome-evaluation protocol is
+  never entered on inference. No outcome card is pre-registered, no baseline is
+  measured for the loop, no candidate record is kept, and no outcome verdict is
+  reported.
+- The task proceeds exactly as today — implementation, independent review,
+  acceptance checks, and delivery under the existing rules.
+- The number or performance goal in the text is treated as ordinary task
+  context, not as a trigger for the protocol.
+
+## An opted-in measurable task with a clear baseline and a successful candidate
+
+The user invokes `/work --outcome <task>` where the task names a measurable
+objective, a reproducible instrument, an acceptance bar, and the constraints to
+preserve.
+
+Expected behavior:
+
+- Pre-register the outcome card before any candidate implementation: objective,
+  metric (direction and units), instrument, baseline on a pinned ref with N and
+  date, acceptance criteria, constraints, noise policy, iteration budget bounded
+  by the existing worker-round allowance, and stop conditions.
+- Prove the instrument runs, measure and record the baseline, and record the
+  noise policy from unchanged runs, before the first implement round.
+- Drive one candidate at a time through the existing implement round; run the
+  instrument on the candidate under the same ref discipline, inputs, seed, and
+  cache-busting; compare against the original pinned baseline and the
+  pre-registered acceptance criteria.
+- On a candidate that clears the acceptance criteria outside the noise policy,
+  run the unchanged independent review; when it is clean and the objective target
+  is met, stop and report the baseline and final measurements, method and noise,
+  the acceptance criteria and that they were met, the attempts made, the review
+  result, and remaining limitations.
+- Reuse the existing worker rounds, review gate, fix/review caps, and
+  stop/continuation machinery; introduce no new orchestration or parallelism.
+
+## A candidate that fails the acceptance criteria
+
+Under an active `--outcome` task, a candidate is measured and does not clear the
+pre-registered acceptance bar, or a constraint regresses.
+
+Expected behavior:
+
+- Record the attempt as rejected with its measurements and the rationale, and do
+  not promote it.
+- Revert or isolate the rejected candidate's own changes safely, preserving any
+  unrelated user changes and any known-good candidate, and verify the restored
+  state.
+- Feed the rejected hypothesis into the next candidate's context so it is not
+  retried without new evidence.
+- Continue only if the iteration budget and the stop conditions still allow
+  another attempt; otherwise stop with the current best (or the pre-loop state)
+  and the remaining gap to the target.
+
+## An inconclusive result due to measurement noise
+
+Under an active `--outcome` task, a candidate's measured delta against the
+baseline falls inside the pre-registered noise policy.
+
+Expected behavior:
+
+- Record the attempt as inconclusive, not a win: an inside-noise delta is
+  reported as such, with the spread and the run count that establish it.
+- Never declare the outcome achieved from an inside-noise result, and never
+  invent statistical confidence to force a verdict.
+- Preserve the known-good implementation, and continue only within the remaining
+  budget if a further, differently-motivated candidate is still justified;
+  otherwise stop and report the inconclusive result and its evidence.
+
+## A candidate that meets the metric but fails correctness review
+
+Under an active `--outcome` task, a candidate clears the pre-registered
+acceptance criteria, but the unchanged independent review returns blocking
+findings.
+
+Expected behavior:
+
+- Do not complete the task and do not report it as done: the metric being met is
+  "outcome achieved," but the task is complete only when correctness is also
+  verified.
+- Send the blocking findings through the existing fix and re-review rules within
+  the existing caps; the review gate is unchanged by the protocol. After any
+  outcome-affecting fix, re-measure the repaired candidate and re-compare it
+  against the original baseline before the outcome can count as achieved.
+- Report the state accurately — outcome achieved, correctness not yet verified —
+  and stop under the normal stop/continuation rules if the fix/review caps are
+  exhausted.
+
+## Exhaustion of the existing iteration budget
+
+Under an active `--outcome` task, the existing worker-round allowance (or a
+stall stop condition) is exhausted before the objective is met.
+
+Expected behavior:
+
+- Do not dispatch another implement round and do not quietly replenish the
+  allowance; the protocol reuses the existing budget, it does not add one.
+- Stop with the stop report: which allowance is exhausted, the current best
+  candidate and its measurements, the remaining gap to the target, and the
+  recent material progress, with the copy-pasteable continuation prompt.
+- Leave the working tree at the last accepted candidate (if one was accepted) or
+  the pre-loop state, preserving unrelated user changes.
+
+## A request to change the success criteria after observing results
+
+Under an active `--outcome` task, after a candidate's results are visible, a
+proposal is made to loosen the acceptance bar so a candidate would appear
+successful.
+
+Expected behavior:
+
+- Do not silently change the objective, the measurement procedure, or the
+  acceptance criteria to fit a result.
+- Treat a material change as a new version of the outcome card that requires
+  explicit user approval through the normal decision policy; the coordinator
+  asks and records the change and its reason rather than editing the card in
+  place.
+- Re-evaluate only against the approved card version, and keep the original
+  pre-registered criteria and baseline visible in the report.
+
+## Safe handling of rejected candidates with unrelated working-tree changes
+
+Under an active `--outcome` task, the working tree already contains unrelated
+user changes (staged or unstaged) alongside the candidate being evaluated, and a
+candidate is rejected.
+
+Expected behavior:
+
+- Distinguish the task's candidate changes from the unrelated user changes
+  before reverting; never discard or roll back the unrelated work.
+- Revert or isolate only the rejected candidate's own changes, and verify the
+  restored state still contains the unrelated user changes and any known-good
+  candidate.
+- Record the attempt and the preserved state in the activation's state so a
+  later candidate does not build on the rejected change.
