@@ -52,7 +52,7 @@ node scripts/check-plugin-version.mjs --base public/main
 git diff --check
 ```
 
-- `validate.mjs` checks the authored source of truth: 30 source-of-truth files
+- `validate.mjs` checks the authored source of truth: 31 source-of-truth files
   (including the routing contract, the version-2 `routing.json` baseline, the
   `preferences.example.md` example, the shared `routing.mjs` module, and the
   `session-stats.mjs` helper), 6
