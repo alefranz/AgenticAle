@@ -113,48 +113,21 @@ time.
 
 ## The default startup path
 
-You do not need a preference file. With no `preferences.md` (or legacy
-`routing.md`) anywhere and no invocation-level preferences — no direct
-task-time routing choice, no
-explicitly supplied invocation Markdown file, and no profile selected at
-invocation — each activation resolves the installed choices with one
-mechanical helper call from the installed skill and finalizes directly from
-its `resolved` output: no manual bootstrap, and no AgenticAle checkout, even
-when the task is developing AgenticAle itself. With invocation-level
-preferences, that startup output is not final: the workflow interprets the
-choices into the ordered preference layers, lowest to highest precedence as
-the precedence sections below describe, writes them to a temporary file, and
-resolves them with `resolve --input <file> --explain`; that `--explain`
-output is the routing snapshot. The choices apply to that activation only and
-never create a preference file, and an invocation-selected profile that no
-preference file defines fails with the actionable unknown-profile error that
-lists the available names. Missing preference files are
-normal: the workflow never creates configuration and never asks you to
-set up routing, and it stays quiet about routine routing — the details stay
-in the session, and routing information is surfaced only to explain a
-selected profile, a material change, a limitation, or a required user
-action.
+You do not need a preference file. With no preference file anywhere, each
+activation uses the installed choices — whatever your install was built with
+(a `--models` preset, a `--routing` policy, `--no-model`, or an `--effort`
+override included) — and nothing is re-derived from the packaged defaults.
+When preference files exist, the workflow reads and interprets them itself,
+and the interpreted choices apply from the next workflow activation.
+Invocation-level choices apply only to that activation and never create a
+preference file.
 
-The installed choices are whatever your install was built with. For a custom
-install (a `--models` preset, a `--routing` policy, `--no-model`, or an
-`--effort` override), the installed baseline IS your customization: nothing
-is re-derived from the packaged defaults at activation time.
-
-When preference files exist, the workflow reads and interprets them itself
-and resolves the interpreted layers with the helper; the resolver's
-`--input` is a file path of those interpreted layers and is omitted when
-there are no preferences.
-
-On OpenCode, each role's route is compared with its generated profile before
-dispatch. An unavailable role — a missing, stale, or unreadable profile —
-blocks only its own dispatch and is reported with the preparation steps;
-the other roles proceed. A one-time post-install verification is also
-available (after installing, or after editing a preference file): the
-installer prints a ready-to-paste prompt for an OpenCode session that runs
-the routing bootstrap against the personal preference location and the
-pasting session's project preference location — interpreting and resolving
-the file when one is present (`interpretation-required`) — and compares each
-resolved route with its installed profile.
+On OpenCode, each role's route is compared with its installed generated
+profiles before dispatch. A missing, stale, or unreadable profile blocks only
+its own dispatch and is reported with the preparation steps to run rather
+than silently substituted; the other roles proceed. A one-time post-install
+verification prompt is also available after installing or after editing a
+preference file.
 
 ## User preferences and precedence
 

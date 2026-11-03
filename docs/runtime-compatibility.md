@@ -1,31 +1,30 @@
 # Runtime compatibility
 
-This is the durable output of the skills-first compatibility spike (plan §7).
-It records what the runtime spike was *designed* to check, per target runtime
-and per capability. It is a support matrix, not a claim of results.
+This page is the per-runtime support and verification-status matrix for
+AgenticAle. It records, for each target runtime and each capability, what a
+live check verifies. It is a support matrix, not a claim of results.
 
-**No live workflow was executed in this pass.** This migration is
-documentation-only: version inspection and documentation research are not live
-workflow verification. Every capability below is therefore **not tested**.
-Nothing here is marked verified or limited; do not read the inspected client
-versions as proof that the workflow runs on them.
+**No live workflow has been run against any of these runtimes yet.** Version
+inspection and documentation research are not live workflow verification, so
+every capability below is currently **not tested**. Nothing here is marked
+verified or limited; do not read the inspected client versions as proof that
+the workflow runs on them.
 
-Model and effort enforcement depends on each host. A skill can *request* a
-model and effort for a child; it cannot by itself prevent host-side fallback
-when the host cannot honor the request. The matrix therefore records requested
-settings, effective settings, and enforcement separately, and the live pass
-must fill them from native tool metadata or local runtime traces, not from a
-child's self-reported model name.
-
-Credentials, private endpoints, and full private transcripts are excluded from
-evidence. Use local runtime traces or native tool metadata where available; do
-not send diagnostics to an external service merely to inspect model routing.
+Model and effort enforcement depends on each host: a skill can *request* a
+model and effort for a child, but it cannot by itself prevent host-side
+fallback when the host cannot honor the request, so requested settings,
+effective settings, and enforcement are recorded separately. Credentials,
+private endpoints, and full private transcripts are excluded from evidence;
+live checks use local runtime traces or native tool metadata, and diagnostics
+stay local rather than being sent to an external service merely to inspect
+model routing.
 
 ## Inspected versions
 
-Record the client version and the bundled harness version separately when a
-client embeds a harness. These are the versions inspected for the spike; they
-are inputs to the matrix, not verified working versions.
+The versions listed below were inspected while preparing this matrix. They
+are inputs, not verified working versions; when a live check runs, the client
+version and the bundled harness version are recorded separately when a client
+embeds a harness.
 
 | Surface | Inspected version |
 | --- | --- |
@@ -51,13 +50,13 @@ are inputs to the matrix, not verified working versions.
 
 ## Capabilities to record per runtime
 
-For each capability, the live pass records the client and bundled harness
-version, the relevant tool input schema, a representative test prompt, requested
-vs effective model and effort, the evidence location, and a status of
-**verified**, **limited**, or **not tested**. In this documentation-only pass
-every row is **not tested**.
+For each capability, a live check records the client and bundled harness
+version, the relevant tool input schema, a representative test prompt,
+requested versus effective model and effort, the evidence location, and a
+status of **verified**, **limited**, or **not tested**. No live check has run
+yet, so every row is currently **not tested**.
 
-| Capability | What it checks | Status (this pass) |
+| Capability | What it checks | Status |
 | --- | --- | --- |
 | Skill discovery | The five public skills (`work`, `review`, `autonomous`, `source-code-lookup`, `pull-request-description`) are found and invocable on the target | **not tested** |
 | Raw child-tool input schema | The child-dispatch tool's actual input fields for model, effort, and context on the target | **not tested** |
@@ -71,53 +70,25 @@ every row is **not tested**.
 | Negative activation | The workflows do not start from an ordinary prompt with no invocation | **not tested** |
 | Resource loading without the checkout | Installed skill references (task contracts, `rounds.md`, routing) resolve from the install location, not this repository | **not tested** |
 
-## How to fill this in
+## How status is recorded
 
-When a live pass runs, use the tiny fixture the plan prescribes. It is small on
-purpose so a single available model pair can complete the whole matrix:
+When a live check runs, each row records the client and harness versions, the
+tool input schema, the test prompt, requested versus effective settings, the
+evidence location, and a status of **verified**, **limited**, or
+**not tested**. A host that silently substitutes a model without reliable
+detection or control is recorded as not supporting strict routing for that
+mode or version, never as a silent success. One client's result is never
+inferred onto another client.
 
-1. **Base pair.** Implement one small, verifiable change with one available
-   model (for example the `implement` route), then review it with a *different*
-   available model (the `review` route). Confirm requested and effective model
-   for each child from metadata or trace.
-2. **Explicit caller override.** Repeat one round with an explicit override and
-   confirm the override reaches the actual child model.
-3. **Unavailable model.** Request a model the account cannot run; confirm the
-   host reports the failure rather than silently substituting or hiding it.
-4. **Unsupported effort.** Request an effort level the host does not support;
-   confirm the host rejects or applies an explicitly configured fallback.
-5. **Auto / inheritance mode.** Run with `--no-model` so every route inherits;
-   confirm the effective model matches the session model.
-6. **Conflicting defaults.** Give the user-level and profile-level settings
-   different routes; confirm which one wins is reported, not chosen silently.
-7. **Negative activation.** Issue an ordinary coding prompt with no `/work`,
-   `/review`, or `/autonomous` token; confirm no orchestrated round starts.
-8. **Resource loading without the checkout.** Uninstall this repository from
-   the target's discovery path and confirm the installed references still
-   resolve.
-
-For each row, capture the client and bundled harness version, the child tool's
-input schema, the exact test prompt, requested and effective settings, and the
-evidence location (trace file or metadata). Then set the row to **verified**,
-**limited**, or **not tested**. If a host silently changes the model with no
-reliable detection or control, mark strict routing unsupported for that mode or
-version; do not record a silent success. If a client is unavailable, leave it
-**not tested** and do not infer its result from another client.
-
-Do not treat SDK-level support as proof the model-facing tool exposes it. The
-release gate is per target: all required checks for a target must pass before
-it is marked complete, and an unavailable desktop app or optional cloud surface
-must not be labeled complete based on another client's result.
-
-## Routing customization status (this pass)
+## Routing customization status
 
 Model routing customization uses the Markdown preference files described in
 [setup.md](setup.md#customizing-model-routing). The automated routing, build,
-installer, validation, and publication checks pass. No live client was run, and
-the live OpenCode profile was not changed. Every row below is therefore
-**not tested** for live dispatch.
+installer, validation, and publication checks pass. No live client run has
+been recorded yet, and no live OpenCode profile has been changed. Every row
+below is therefore **not tested** for live dispatch.
 
-| Surface | Customization capability | Status (this pass) |
+| Surface | Customization capability | Status |
 | --- | --- | --- |
 | Copilot (CLI and VS Code) | Markdown preference interpretation and per-call dispatch of resolved routes | **not tested** — no live client runs in this environment |
 | Copilot (CLI and VS Code) | No-file default, personal-only, repository-over-personal, and explicit role-override behavior | **not tested** live; deterministic structured resolution is covered by `scripts/test-routing.mjs` |
@@ -130,8 +101,8 @@ the live OpenCode profile was not changed. Every row below is therefore
 | OpenCode V2 | Named routing set (`agenticale/routing/<profile>/<role>`) preparation, requested-versus-prepared comparison, and staleness reporting | **not tested**; host acceptance of the identifier namespace is unverified |
 
 The workflow interprets Markdown into structured preferences. No live client
-was run for this refactor. Live interpretation and dispatch checks follow the same
-per-capability recording rules as the matrix above: record client and
+run has been recorded yet. Live interpretation and dispatch checks follow the
+same per-capability recording rules as the matrix above: record client and
 bundled-runtime versions separately, requested versus effective settings from
 native metadata or trace, and a status of **verified**, **limited**, or
 **not tested**. Do not infer live behavior from deterministic local resolution.

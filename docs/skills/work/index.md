@@ -1,27 +1,21 @@
 # Work
 
-Work coordinates an everyday coding task through review, focused
-implementation, and fixes, optionally delivered as a pull request when you
-request it. It can start from a requested outcome, from existing changes —
-committed or uncommitted — or from a preceding
-[Review](../review/index.md)'s findings in the same session, entering at the
-first necessary step: a clear new change is implemented and reviewed, while
-coherent existing work is reviewed and fixed directly. Invoke it when you want
-a change completed and checked as one task, finished from what is already on
-your branch, or feedback on a change already in progress.
+Work coordinates an everyday coding task through focused implementation,
+independent review, and focused fixes, optionally delivered as a pull request
+when you request it. It can start from a requested outcome, from existing
+branch changes (committed or uncommitted), or from a preceding
+[Review](../review/index.md)'s findings in the same session.
 
-Work gives a coding task a clear path from implementation through independent
-review, focused fixes, and delivery. A capable lower-cost or local implementer
-may need extra focused implementation or fix passes, yet still cost less overall
-than using the strongest model throughout. A fresh, stronger reviewer can catch
-issues and give actionable feedback; checks and re-review can improve the
-result. Added rounds count toward total effort, and savings and quality depend
-on the task, models, provider, and account. A fresh reviewer provides
-independence; it does not have to use a different model.
+A fresh independent reviewer checks the result before it is called done, and
+routine rounds can run on a capable lower-cost or local model that may still
+cost less overall than using the strongest model throughout. Added rounds
+count toward total effort, and savings and quality depend on the task, models,
+provider, and account.
 
-Throughout the task, concise progress narration connects the agents' work:
-what was learned, what happens next, and why. You can follow the decisions in
-the main conversation even when your client collapses the subagent activity.
+Work starts only when explicitly invoked, and the invoking session
+coordinates the task. Throughout the task, concise progress narration keeps
+the decisions visible in the main conversation, even when your client
+collapses the subagent activity.
 
 ## Try Work
 

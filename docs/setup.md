@@ -214,24 +214,12 @@ ready-to-paste prompt for an OpenCode session to finish the customization;
 see [user preferences and precedence](guides/model-routing.md#user-preferences-and-precedence).
 
 After the install — or after editing the preferences file — you can verify
-your routing with the ready-to-paste prompt that the installer prints with
-the post-install output and the setup guidance. Paste it into an OpenCode
-session; it works in both cases, and it checks the personal preference
-location and the project preference location of the session it is pasted
-into (`--root` is set to that session's project root). With no preference
-file the session runs the routing bootstrap and confirms that every role in
-its `agents` output reports `match`; with a preference file present the
-bootstrap reports `interpretation-required`, so the session reads and
-interprets each listed preference file (a project file takes precedence over
-the personal file; any legacy file reported as ignored is never read), writes
-the interpreted structured layers (lowest to highest precedence) to a
-temporary JSON file, resolves them with
-`resolve --runtime opencode --input <file> --explain`, and compares each
-resolved route with its installed profile (an `inherit` route matches a
-profile with no `model:` line; an
-explicit route must match the profile's model and reasoning effort). On a
-`mismatch`, `missing`, or `unreadable` result follow the preparation/refresh
-procedure in the opencode runtime binding.
+your routing. The installer prints a ready-to-paste prompt for an OpenCode
+session; it checks your preference files and the installed profiles, and
+reports any mismatch with the preparation steps to run. See the
+[user preferences](guides/model-routing.md#user-preferences-and-precedence)
+and [OpenCode profile refresh](guides/model-routing.md#opencode-profile-refresh)
+sections of the model routing guide for details.
 
 #### Alternative: install from a local checkout
 
@@ -343,11 +331,6 @@ packaged tier intent.
 See the [OpenCode permissions guidance](guides/troubleshooting.md#opencode-permissions) and the
 [detailed Autonomous guide](https://github.com/alefranz/AgenticAle/blob/main/docs/autonomous.md#permissions-for-unattended-runs).
 
-### Useful build and publish commands
-
-See [build, preview, and contribution checks](contributing.md) and the
-[site maintenance guide](site-maintenance.md).
-
 ## Source lookup configuration
 
 Set `SOURCE_ROOT` to your local source directory to customize lookup without
@@ -373,14 +356,9 @@ installed skill and `SOURCE_ROOT` still takes precedence at lookup time.
 Reinstalling with a different path requires `--replace`, which backs up the
 previous copy.
 
-Lookup checks likely paths under the root and verifies repository identity.
-Missing repositories are cloned into `<source-root>/<owner>/<repo>` for future
-reuse, with the host added when needed to avoid a collision. Explicit layout
-instructions take precedence. Inspecting another revision preserves existing
-working files and branches: use Git object reads or a temporary detached
-worktree, removed through Git after inspection. Canonical clones remain
-available for later development; no separate persistent inspection clone cache
-is used.
+Missing repositories are cloned into the source root for future reuse, and
+inspecting another revision does not disturb existing working files or
+branches.
 
 ## Preview, update, and uninstall
 

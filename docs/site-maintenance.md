@@ -17,8 +17,7 @@ and navigation location.
 | `skills/work/index.md`, `skills/review/index.md`, `skills/autonomous/index.md` | User-facing workflow explanations |
 | `skills/source-code-lookup/index.md`, `skills/pull-request-description/index.md` | Supporting skill explanations |
 | `architecture.md`, `runtime-compatibility.md` | Canonical architecture and runtime status |
-| `contributing.md` | Entry point to root `CONTRIBUTING.md` |
-| `site-maintenance.md` | Site ownership, build, and publishing guidance |
+| `site-maintenance.md` | This repository-only maintenance note; no longer published on the site |
 
 Skill pages explain what users can expect; behavior remains authoritative in
 the linked skill sources. Read those sources before changing explanations. If
