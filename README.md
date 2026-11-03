@@ -43,9 +43,35 @@ The five skills are `work`, `review`, `autonomous`, `source-code-lookup`, and
 `pull-request-description`. The three workflow skills are explicit-only; the
 supporting skills are loaded when their tasks call for them.
 
-### GitHub Copilot (CLI and VS Code)
+### GitHub Copilot (App, CLI, and VS Code)
 
-See [Copilot installation](https://alefranz.github.io/AgenticAle/setup.html#github-copilot-cli-and-vs-code).
+With the Copilot CLI, install the published plugin from the AgenticAle
+marketplace:
+
+```bash
+copilot plugin marketplace add alefranz/AgenticAle
+copilot plugin install agenticale@agenticale
+```
+
+In the GitHub Copilot app, open these links. Each one asks you to confirm, then
+opens a pre-filled form:
+
+1. [Add the marketplace](ghapp://plugins/marketplace/add?source=alefranz%2FAgenticAle) (`alefranz/AgenticAle`)
+2. [Install the plugin](ghapp://plugins/install?source=agenticale%40agenticale) (`agenticale@agenticale`)
+
+Or do it by hand: **Customize → + Add → Marketplace** with `alefranz/AgenticAle`,
+then **+ Add → Plugin** with `agenticale@agenticale`.
+
+Start a new session and try one that only reads:
+
+```text
+/agenticale:review main
+```
+
+You get an independent review back: the blocking findings, the nits, and the
+checks it ran. Nothing gets changed, committed, or pushed.
+
+See [Copilot installation](https://alefranz.github.io/AgenticAle/setup.html#github-copilot-app-cli-and-vs-code).
 
 ### Codex (CLI, VS Code extension, and ChatGPT desktop app)
 

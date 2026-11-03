@@ -21,7 +21,7 @@ skill in is the coordinator.
 
 ## Install: choose your client
 
-### GitHub Copilot (CLI and VS Code)
+### GitHub Copilot (App, CLI, and VS Code)
 
 With Copilot CLI installed and authenticated, install the published plugin from
 the AgenticAle marketplace:
@@ -44,6 +44,28 @@ picker. For example, from the CLI:
 VS Code discovers the same plugin. Its autocomplete may display the work skill
 as `/agenticale work` even though the CLI uses `/agenticale:work`; select the
 suggested autocomplete entry in VS Code.
+
+#### In the GitHub Copilot app
+
+The app installs the same published plugin from the same marketplace. Open
+these links in the app; each one asks you to confirm, then opens a pre-filled
+form:
+
+1. [Add the marketplace](ghapp://plugins/marketplace/add?source=alefranz%2FAgenticAle) (`alefranz/AgenticAle`)
+2. [Install the plugin](ghapp://plugins/install?source=agenticale%40agenticale) (`agenticale@agenticale`)
+
+Or do it by hand: **Customize → + Add → Marketplace** with `alefranz/AgenticAle`,
+then **+ Add → Plugin** with `agenticale@agenticale`. Nothing is added or
+installed until you confirm each form in the app.
+
+Start a new session and try one that only reads:
+
+```text
+/agenticale:review main
+```
+
+You get an independent review back: the blocking findings, the nits, and the
+checks it ran. Nothing gets changed, committed, or pushed.
 
 #### Alternative: install from a local checkout
 

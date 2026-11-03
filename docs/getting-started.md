@@ -10,9 +10,9 @@ them.
 
 ## First steps
 
-1. **Install for your client.** AgenticAle works with GitHub Copilot (CLI and
-   VS Code), Codex (CLI, VS Code extension, and ChatGPT desktop app), OpenCode
-   V2, and Google Antigravity (App and CLI). The [setup guide](./setup.md)
+1. **Install for your client.** AgenticAle works with GitHub Copilot (App, CLI,
+   and VS Code), Codex (CLI, VS Code extension, and ChatGPT desktop app),
+   OpenCode V2, and Google Antigravity (App and CLI). The [setup guide](./setup.md)
    owns the installation steps and routing customization.
 2. **Invoke the workflow explicitly** with a concrete task, for example
    `/work Fix the date filtering bug`. The session where you invoke it
