@@ -41,8 +41,6 @@ export default withMermaid(defineConfig({
         items: [
           { text: 'Start here', link: '/getting-started' },
           { text: 'Install and configure', link: '/setup' },
-          { text: 'Architecture', link: '/architecture' },
-          { text: 'Runtime compatibility', link: '/runtime-compatibility' },
         ],
       },
       {
@@ -67,8 +65,6 @@ export default withMermaid(defineConfig({
         items: [
           { text: 'Architecture', link: '/architecture' },
           { text: 'Runtime compatibility', link: '/runtime-compatibility' },
-          { text: 'Contributing', link: '/contributing' },
-          { text: 'Site maintenance', link: '/site-maintenance' },
         ],
       },
     ],

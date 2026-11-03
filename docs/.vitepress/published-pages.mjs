@@ -4,8 +4,6 @@ export const publishedPages = new Set([
   'setup.md',
   'architecture.md',
   'runtime-compatibility.md',
-  'contributing.md',
-  'site-maintenance.md',
   'guides/model-routing.md',
   'guides/troubleshooting.md',
   'skills/work/index.md',

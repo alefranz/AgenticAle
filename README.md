@@ -34,7 +34,7 @@ breakdown — in the final report.
 [getting started](https://alefranz.github.io/AgenticAle/getting-started.html),
 [skill guides](https://alefranz.github.io/AgenticAle/skills/work/),
 [installation and routing](https://alefranz.github.io/AgenticAle/setup.html),
-and [contributing](https://alefranz.github.io/AgenticAle/contributing.html).
+and [contributing](https://github.com/alefranz/AgenticAle/blob/main/CONTRIBUTING.md).
 
 ## Start here
 
@@ -126,5 +126,5 @@ guides explain when each skill is loaded and what it returns.
 - [Installation, updates, and client options](https://alefranz.github.io/AgenticAle/setup.html)
 - [Model routing](https://alefranz.github.io/AgenticAle/guides/model-routing.html)
 - [Troubleshooting](https://alefranz.github.io/AgenticAle/guides/troubleshooting.html)
-- [Site maintenance](https://alefranz.github.io/AgenticAle/site-maintenance.html)
-- [Contributing checks](https://alefranz.github.io/AgenticAle/contributing.html)
+- [Site maintenance](https://github.com/alefranz/AgenticAle/blob/main/docs/site-maintenance.md)
+- [Contributing checks](https://github.com/alefranz/AgenticAle/blob/main/CONTRIBUTING.md)
