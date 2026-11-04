@@ -741,7 +741,8 @@ function validateSanitation() {
     const screenedText = text.toLowerCase()
       .replaceAll(`https://github.com/${publicRepository}`.toLowerCase(), "PUBLIC_REPOSITORY")
       .replaceAll("https://alefranz.github.io/agenticale", "PUBLIC_SITE")
-      .replaceAll(publicRepository.toLowerCase(), "PUBLIC_REPOSITORY");
+      .replaceAll(publicRepository.toLowerCase(), "PUBLIC_REPOSITORY")
+      .replaceAll(publicRepository.toLowerCase().replace("/", "%2f"), "PUBLIC_REPOSITORY");
     for (const term of forbidden) {
       if (screenedText.includes(term.toLowerCase())) {
         fail(path, `forbidden personal/environment reference '${term}'`, "replace it with portable public guidance");
