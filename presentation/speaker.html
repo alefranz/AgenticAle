@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Speaker View — Practical Agentic Engineering</title>
+  <style>
+    :root {
+      --bg-dark: #0a0f1d;
+      --bg-surface: #111827;
+      --bg-card: rgba(17, 24, 39, 0.85);
+      --bg-card-highlight: rgba(30, 41, 59, 0.9);
+      --border-color: rgba(148, 163, 184, 0.18);
+      --border-highlight: rgba(56, 189, 248, 0.45);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --accent-cyan: #38bdf8;
+      --accent-blue: #60a5fa;
+      --accent-indigo: #818cf8;
+      --accent-emerald: #34d399;
+      --accent-amber: #fbbf24;
+      --accent-rose: #f43f5e;
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      --font-mono: 'JetBrains Mono', 'Fira Code', Consolas, Monaco, monospace;
+      --notes-font-size: 19px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: var(--bg-dark);
+      background-image:
+        radial-gradient(at 0% 0%, rgba(56, 189, 248, 0.06) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(129, 140, 248, 0.06) 0px, transparent 50%);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    /* Top Control & Timing Bar */
+    .top-bar {
+      background: rgba(15, 23, 42, 0.95);
+      border-bottom: 1px solid var(--border-color);
+      backdrop-filter: blur(8px);
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    }
+
+    .status-group {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .connection-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: rgba(52, 211, 153, 0.12);
+      border: 1px solid rgba(52, 211, 153, 0.3);
+      color: var(--accent-emerald);
+      transition: all 0.2s ease;
+    }
+
+    .connection-badge.offline {
+      background: rgba(251, 191, 36, 0.12);
+      border-color: rgba(251, 191, 36, 0.3);
+      color: var(--accent-amber);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .slide-progress-tag {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      background: rgba(30, 41, 59, 0.6);
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+    }
+
+    .slide-progress-tag strong {
+      color: var(--accent-cyan);
+    }
+
+    /* Timer & Clock Controls */
+    .timer-section {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+    }
+
+    .clock-display {
+      font-family: var(--font-mono);
+      font-size: 15px;
+      color: var(--text-dim);
+      font-weight: 500;
+    }
+
+    .timer-display {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+
+    .timer-digits {
+      font-family: var(--font-mono);
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--text-main);
+      letter-spacing: -0.02em;
+    }
+
+    .timer-controls {
+      display: flex;
+      gap: 6px;
+    }
+
+    .btn {
+      background: rgba(30, 41, 59, 0.8);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-family: var(--font-sans);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+      user-select: none;
+    }
+
+    .btn:hover {
+      background: rgba(56, 189, 248, 0.15);
+      border-color: var(--accent-cyan);
+      color: var(--accent-cyan);
+    }
+
+    .btn-primary {
+      background: rgba(56, 189, 248, 0.18);
+      border-color: rgba(56, 189, 248, 0.4);
+      color: var(--accent-cyan);
+    }
+
+    .btn-nav {
+      font-size: 13px;
+      padding: 7px 14px;
+      font-weight: 600;
+    }
+
+    .font-size-controls {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+
+    .btn-icon {
+      padding: 5px 8px;
+      font-size: 11px;
+    }
+
+    /* Main Speaker Content Layout */
+    .main-container {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 20px;
+      padding: 20px 24px 32px 24px;
+      max-width: 1600px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    @media (max-width: 960px) {
+      .main-container {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Current Slide Notes Pane */
+    .current-slide-pane {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+      overflow: hidden;
+    }
+
+    .pane-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-color);
+      background: rgba(30, 41, 59, 0.4);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .section-pill {
+      align-self: flex-start;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.28);
+      color: var(--accent-cyan);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 10px;
+      border-radius: 999px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .current-slide-title {
+      font-size: 1.45em;
+      font-weight: 700;
+      color: var(--text-main);
+      line-height: 1.25;
+      letter-spacing: -0.01em;
+    }
+
+    .notes-scroll-area {
+      flex: 1;
+      padding: 24px 28px;
+      overflow-y: auto;
+      line-height: 1.6;
+      font-size: var(--notes-font-size);
+    }
+
+    .notes-scroll-area p {
+      margin-bottom: 14px;
+      color: #e2e8f0;
+    }
+
+    .notes-scroll-area p strong {
+      color: var(--accent-cyan);
+      font-size: 1.05em;
+      display: inline-block;
+      margin-bottom: 4px;
+    }
+
+    .notes-scroll-area ul {
+      margin-left: 24px;
+      margin-bottom: 16px;
+    }
+
+    .notes-scroll-area li {
+      margin-bottom: 10px;
+      color: #f1f5f9;
+    }
+
+    .notes-scroll-area code {
+      font-family: var(--font-mono);
+      background: rgba(56, 189, 248, 0.12);
+      color: var(--accent-cyan);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+      border: 1px solid rgba(56, 189, 248, 0.25);
+    }
+
+    /* Right Sidebar: Next Slide & Quick Outline */
+    .sidebar-pane {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 16px 18px;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+    }
+
+    .card-title {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-dim);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .next-slide-title {
+      font-size: 1.1em;
+      font-weight: 600;
+      color: var(--text-main);
+      margin-bottom: 8px;
+      line-height: 1.3;
+    }
+
+    .next-slide-notes-preview {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.5;
+      max-height: 180px;
+      overflow-y: auto;
+    }
+
+    .shortcuts-list {
+      list-style: none;
+      font-size: 12px;
+      color: var(--text-muted);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .shortcuts-list li {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    kbd {
+      background: rgba(30, 41, 59, 0.9);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--accent-cyan);
+    }
+
+    /* Sync banner */
+    #offline-banner {
+      display: none;
+      background: rgba(56, 189, 248, 0.1);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      color: #bae6fd;
+      padding: 10px 16px;
+      border-radius: 8px;
+      margin: 12px 20px 0 20px;
+      font-size: 13px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    #offline-banner.active {
+      display: flex;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Top Fixed Control & Timer Bar -->
+  <header class="top-bar">
+    <div class="status-group">
+      <div id="connection-status" class="connection-badge offline">
+        <span class="status-dot"></span>
+        <span id="connection-text">Standalone</span>
+      </div>
+      <div class="slide-progress-tag">
+        Slide <strong id="current-slide-num">1</strong> of <span id="total-slides-num">11</span>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button id="btn-prev" class="btn btn-nav" title="Previous Slide (← / Backspace)">◀ Prev</button>
+        <button id="btn-next" class="btn btn-nav btn-primary" title="Next Slide (→ / Space)">Next ▶</button>
+      </div>
+    </div>
+
+    <!-- Timer Center -->
+    <div class="timer-section">
+      <div class="timer-display">
+        <span class="timer-digits" id="timer-digits">00:00:00</span>
+      </div>
+      <div class="timer-controls">
+        <button id="btn-timer-toggle" class="btn btn-icon" title="Pause / Resume Timer">⏸ Pause</button>
+        <button id="btn-timer-reset" class="btn btn-icon" title="Reset Timer">↺ Reset</button>
+      </div>
+      <div class="clock-display" id="clock-display">00:00:00</div>
+    </div>
+
+    <!-- Settings & View Controls -->
+    <div class="status-group">
+      <div class="font-size-controls">
+        <span style="font-size: 11px; color: var(--text-dim); margin-right: 2px;">Text:</span>
+        <button id="btn-font-dec" class="btn btn-icon" title="Decrease font size">A-</button>
+        <button id="btn-font-inc" class="btn btn-icon" title="Increase font size">A+</button>
+      </div>
+      <button id="btn-focus-main" class="btn" title="Focus Presentation Window">📺 Presentation Window</button>
+    </div>
+  </header>
+
+  <!-- Main Grid Content -->
+  <main class="main-container">
+
+    <!-- Current Slide Section -->
+    <section class="current-slide-pane">
+      <div id="offline-banner" class="active">
+        <span>💡 <strong>Standalone mode active.</strong> Use ◀ / ▶ or Arrow keys to read talking points. To sync live
+          with the presentation, open <code>presentation/index.html</code> and click <strong>Speaker Window</strong> or
+          <strong>Speaker Tab</strong>.</span>
+        <button id="btn-reconnect" class="btn btn-icon" style="margin-left: 12px;">Sync Now</button>
+      </div>
+
+      <div class="pane-header">
+        <div id="current-section-pill" class="section-pill">Overview</div>
+        <h1 id="current-slide-title" class="current-slide-title">Slide Title</h1>
+      </div>
+
+      <div class="notes-scroll-area" id="notes-content">
+        <em>Loading talking points...</em>
+      </div>
+    </section>
+
+    <!-- Right Sidebar: Upcoming Slide Preview & Shortcuts -->
+    <aside class="sidebar-pane">
+      <!-- Next Slide Card -->
+      <div class="card" style="border-left: 3px solid var(--accent-indigo);">
+        <div class="card-title">
+          <span>⏭ Next Slide</span>
+        </div>
+        <div id="next-section-pill" class="section-pill" style="margin-bottom: 8px; font-size: 10px;">Next Section</div>
+        <h3 id="next-slide-title" class="next-slide-title">Upcoming Slide Title</h3>
+        <div id="next-slide-notes" class="next-slide-notes-preview">
+          <em>Next slide preview will appear here.</em>
+        </div>
+      </div>
+
+      <!-- Presentation Guide / Shortcuts -->
+      <div class="card">
+        <div class="card-title">
+          <span>⌨️ Keyboard Controls</span>
+        </div>
+        <ul class="shortcuts-list">
+          <li><span>Next slide</span>
+            <div><kbd>→</kbd> <kbd>Space</kbd></div>
+          </li>
+          <li><span>Previous slide</span>
+            <div><kbd>←</kbd> <kbd>Backspace</kbd></div>
+          </li>
+          <li><span>Pause timer</span> <kbd>P</kbd></li>
+          <li><span>Reset timer</span> <kbd>R</kbd></li>
+          <li><span>Toggle Drawer (in slides)</span> <kbd>N</kbd></li>
+        </ul>
+      </div>
+
+      <!-- Quick Session Info -->
+      <div class="card" style="font-size: 12px; color: var(--text-dim); line-height: 1.4;">
+        <strong style="color: var(--text-muted); display: block; margin-bottom: 4px;">Dual Display Tip:</strong>
+        Drag this window to your laptop / podium screen while keeping <code>index.html</code> fullscreen (<kbd>F</kbd>)
+        on the projector.
+      </div>
+    </aside>
+
+  </main>
+
+  <script>
+    // Embedded presentation slides & verbatim talking points
+    const FALLBACK_SLIDES = [
+      {
+        index: 0,
+        title: "Practical Agentic Engineering with AgenticAle",
+        section: "Overview",
+        notes: `<p><strong>Slide 1: Title &amp; Introduction</strong></p>
+          <ul>
+            <li>Welcome everyone. Most of us use GitHub Copilot or coding agents every day now, and for small edits or quick questions, a normal chat session is great.</li>
+            <li>But as soon as you hand an agent a real engineering task—something that touches multiple files, requires investigating dependencies, and needs to end in a solid PR—raw single-thread chat starts showing cracks.</li>
+            <li>Today I want to walk through <strong>AgenticAle</strong>, a portable set of agent skills, focusing mainly on <code>/work</code>: why it's structured around fresh subagents and model routing, where it fits alongside tools like Copilot Fusion, and how it can even serve as a "glass box" to build intuition for agentic coding.</li>
+          </ul>`
+      },
+      {
+        index: 1,
+        title: "Why Single-Context AI Coding Breaks Down",
+        section: "Section 1 • The Problem",
+        notes: `<p><strong>Slide 2: Why Single-Context AI Coding Breaks Down</strong></p>
+          <ul>
+            <li>Let's name the four failure modes we've all experienced:</li>
+            <li>First, <strong>context rot</strong>: twenty minutes into a session, 70% of your context window is dead stack traces and files that turned out to be irrelevant. The model gets anchored to its initial wrong assumption.</li>
+            <li>Second, <strong>self-review bias</strong>: when an agent writes code and you ask it in the same thread to review its work, it almost always rubber-stamps it because the reasoning that produced the bug is still sitting right there in context.</li>
+            <li>Third, <strong>wrong model for the job</strong>: you either burn expensive reasoning quota on simple file discovery, or you leave a fast model on and watch it struggle on a tricky architectural fix.</li>
+            <li>Fourth, <strong>cognitive overhead</strong>: you <em>can</em> manually open new chats, paste context packets, and switch models yourself—but you shouldn't have to.</li>
+          </ul>`
+      },
+      {
+        index: 2,
+        title: "Enter /work — Opinionated Subagent Orchestration",
+        section: "Section 2 • Core Engine",
+        notes: `<p><strong>Slide 3: Enter /work — Opinionated Subagent Orchestration</strong></p>
+          <ul>
+            <li>This is where the <code>/work</code> skill comes in. Its philosophy is simple: <strong>automate good agentic hygiene so you don't have to think about it.</strong></li>
+            <li>When you run <code>/work</code>, your main chat session stops writing code directly. Instead, it becomes the <strong>Coordinator</strong>.</li>
+            <li>The Coordinator inspects the repo state, builds a focused <strong>Task Packet</strong> (just the facts, scope, and acceptance criteria—never the noisy conversation history), and spawns a <strong>fresh subagent</strong> for each phase.</li>
+            <li>Yes, there is a deliberate trade-off: spawning subagents adds a bit of latency compared to a single-turn inline edit. That's why <code>/work</code> is explicit-only. You use normal chat for quick questions, and <code>/work</code> when you want a task taken cleanly from prompt to reviewed code or PR.</li>
+          </ul>`
+      },
+      {
+        index: 3,
+        title: "Fresh Context per Round & The Independent Review Gate",
+        section: "Section 2 • Context Hygiene",
+        notes: `<p><strong>Slide 4: Fresh Context per Round &amp; The Independent Review Gate</strong></p>
+          <ul>
+            <li>Let's look at why fresh context matters most at the <strong>Review Gate</strong>.</li>
+            <li>When the <code>implement</code> subagent finishes, it returns a short summary of what it changed and what tests it ran. All the 15 files it read along the way stay in its disposable context and disappear.</li>
+            <li>Next, the Coordinator spins up a brand-new <code>review</code> subagent. Crucially, <code>rounds.md</code> instructs the reviewer to treat the worker's claims as <strong>unverified</strong>. The reviewer doesn't care that the worker struggled for 10 minutes on a regex—it only sees the original user goal and the actual diff on disk.</li>
+            <li>If the reviewer finds a blocking issue, a <code>fix</code> subagent is dispatched, followed by a re-review that tracks every finding by ID until the gate is clean.</li>
+          </ul>`
+      },
+      {
+        index: 4,
+        title: "Right Model for the Job — Declarative Routing",
+        section: "Section 3 • Model Strategy",
+        notes: `<p><strong>Slide 5: Right Model for the Job — Declarative Routing</strong></p>
+          <ul>
+            <li>Alongside fresh context, <code>/work</code> solves model selection through <strong>declarative role routing</strong>.</li>
+            <li>Instead of running one model for everything, <code>/work</code> maps each role to one of four tiers: <code>fast</code>, <code>routine</code>, <code>standard</code>, and <code>deep</code>.</li>
+            <li>Exploration runs on <code>fast</code>. Standard implementation and simple fixes run on <code>routine</code>.</li>
+            <li>But when it's time for the <strong>independent review</strong>, or when an implementation/fix hits a complex edge case (<code>implement-hard</code>), it routes to the stronger <code>standard</code> tier. And if you need upfront framing (<code>--consult</code>) or a <code>deep-review</code>, it uses the <code>deep</code> tier with maximum reasoning effort.</li>
+            <li>You don't have to touch JSON to tweak this—you can write plain Markdown preferences or pass <code>--profile</code> at invocation time.</li>
+          </ul>`
+      },
+      {
+        index: 5,
+        title: "From Prompt to High-Confidence PR",
+        section: "Section 4 • PR Delivery",
+        notes: `<p><strong>Slide 6: From Prompt to High-Confidence PR (/work --pr &amp; Power Flags)</strong></p>
+          <ul>
+            <li>How does this feel in practice? With <code>/work --pr</code>, you can hand it a bug or feature, and by the time it opens or updates the pull request, the code has already survived local checks <em>and</em> at least one round of independent review.</li>
+            <li>There are also two really useful opt-in flags:</li>
+            <li><code>--consult</code> dispatches a deep-thinking consultant before a single line of code is written to challenge the requirements and surface trade-offs.</li>
+            <li><code>--outcome</code> is for measurable targets like latency or bundle size: it pins the baseline metric upfront in an Outcome Card so the agent can't cheat or move the goalposts when evaluating candidates.</li>
+          </ul>`
+      },
+      {
+        index: 6,
+        title: "Guardrail Skills: source-code-lookup & PR Descriptions",
+        section: "Section 5 • Supporting Skills",
+        notes: `<p><strong>Slide 7: Supporting Skills — Guardrails Against AI Bad Habits</strong></p>
+          <ul>
+            <li>Workflow orchestration is only half the story; we also need guardrails for common model bad habits.</li>
+            <li>My favorite example is <strong><code>source-code-lookup</code></strong>. We've all seen what happens when an agent hits a mysterious behavior in an external package or another service: it starts guessing, or worse, runs a decompiler on a compiled package in <code>node_modules</code> or <code>.nuget</code>.</li>
+            <li>With <code>source-code-lookup</code>, the agent checks lockfiles or service configs to find the exact repository and version, looks in your local dev folders, and uses <code>git show</code> at the <strong>exact commit matching the deployed version</strong>. Even better, <code>/work</code> delegates heavy external lookups to an <code>explore</code> subagent, so reading 2,000 lines of another service only returns a 5-line factual answer to your worker.</li>
+            <li>Similarly, <strong><code>pull-request-description</code></strong> stops agents from writing useless PR bodies like <em>\"Updated foo.ts and ran tests\"</em>, focusing instead on intent, rollout risks, and non-obvious validation.</li>
+          </ul>`
+      },
+      {
+        index: 7,
+        title: "\"Why Not Just Use GitHub Copilot Fusion?\"",
+        section: "Section 6 • Ecosystem",
+        notes: `<p><strong>Slide 8: \"Why Not Just Use GitHub Copilot Fusion?\"</strong></p>
+          <ul>
+            <li>Since we use GitHub Copilot, a natural question is: <em>\"Why not just use Copilot Fusion, which already routes between models automatically?\"</em></li>
+            <li>And the honest answer is: for everyday interactive back-and-forth, <strong>you should!</strong> Fusion is great when you're in the driver's seat iterating turn by turn.</li>
+            <li>Where <code>/work</code> shines is two things:</li>
+            <li>First, <strong>workflow control</strong>: Fusion switches models inside your conversation, whereas <code>/work</code> enforces fresh context isolation between the coder and the reviewer.</li>
+            <li>Second, <strong>visibility and learning</strong>: <code>/work</code> has a built-in narration contract. Before every subagent dispatch, the Coordinator writes a concise paragraph explaining <em>what the last agent found, what round is running next, and why</em>. Even when your IDE collapses subagent tool calls, you get a crystal-clear narrative of how an agentic system reasons, decomposes slices, and catches its own mistakes. It's one of the best ways to build intuition for agentic engineering.</li>
+          </ul>`
+      },
+      {
+        index: 8,
+        title: "Shared Skills vs. Every Engineer/Org Forking Their Own",
+        section: "Section 7 • Governance",
+        notes: `<p><strong>Slide 9: Shared Skills vs. Every Engineer/Org Forking Their Own</strong></p>
+          <ul>
+            <li>Stepping back from AgenticAle specifically: how should teams think about adopting shared skills versus every engineer or org rolling their own?</li>
+            <li>It's tempting to think a review loop is just a 10-line prompt. Then you hit reality: What if the working tree already had uncommitted changes before <code>/work</code> started? What if the fixer fixes Bug A but introduces Bug B? What if the worker tries to delegate to another worker infinitely?</li>
+            <li>Solve orchestration plumbing <em>once</em> in a shared, well-tested skill, and customize at the edges: put your repo rules in <code>AGENTS.md</code>, your model preferences in <code>.agenticale/preferences.md</code>, and write small domain-specific supporting skills for your org's unique tools.</li>
+          </ul>`
+      },
+      {
+        index: 9,
+        title: "/autonomous — A Self-Driving Backlog Loop",
+        section: "Section 8 • Frontier Experiment",
+        notes: `<p><strong>Slide 10: /autonomous — A Self-Driving Backlog Loop</strong></p>
+          <ul>
+            <li>Before we open up for questions, I want to spend 5 minutes on the most experimental part of the repo: <strong><code>/autonomous</code> mode</strong>.</li>
+            <li>Think of <code>/autonomous</code> as asking: <em>\"What happens if we take <code>/work</code>'s fresh subagent and strict review primitives, and attach them to a durable project backlog on disk?\"</em></li>
+            <li>Instead of keeping state only in the chat session, <code>/autonomous</code> maintains <code>BACKLOG.md</code> and <code>docs/handoffs/active.md</code>. It picks a task, runs worker and strict review rounds, refines the backlog as it learns more about the codebase, and writes a durable checkpoint after every single round.</li>
+            <li>Two features make it especially fun for hobby projects:</li>
+            <li>1. <strong>Subscription window awareness:</strong> If you hit a provider quota limit at 2 AM, it records the exact state and cooldown window in the handoff file so it can wait or resume later with zero lost work.</li>
+            <li>2. <strong>Hybrid local/cloud routing:</strong> You can route routine coding rounds to local models while keeping a strong cloud model for the reviewer.</li>
+            <li>I wouldn't point <code>/autonomous</code> at a mission-critical production monorepo unattended tomorrow—but as a sandbox for side projects and seeing where long-horizon engineering is headed, it's eye-opening.</li>
+          </ul>`
+      },
+      {
+        index: 10,
+        title: "Choosing the Right Mode &amp; Q&amp;A",
+        section: "Wrap-Up & Q&A",
+        notes: `<p><strong>Slide 11: Choosing the Right Mode &amp; Q&amp;A</strong></p>
+          <ul>
+            <li>To wrap up, here is the mental model for when to reach for what:</li>
+            <li>Stay in normal chat or Copilot Fusion when you're moving fast on small interactive changes.</li>
+            <li>Reach for <code>/review</code> when you want a fresh, unbiased pair of eyes on your current branch.</li>
+            <li>Use <code>/work</code> (and <code>/work --pr</code>) as your default for real engineering tasks where context management, right-sized models, and independent review save you from babysitting.</li>
+            <li>And try <code>/autonomous</code> on a hobby project to experience self-driving backlog execution.</li>
+            <li>Let's open it up for questions!</li>
+          </ul>`
+      }
+    ];
+
+    // --- State & Elements ---
+    let state = {
+      currentIndex: 0,
+      totalSlides: FALLBACK_SLIDES.length,
+      currentTitle: '',
+      currentSection: '',
+      currentNotes: '',
+      nextTitle: '',
+      nextSection: '',
+      nextNotes: '',
+      connected: false
+    };
+
+    const currentSlideNum = document.getElementById('current-slide-num');
+    const totalSlidesNum = document.getElementById('total-slides-num');
+    const currentSectionPill = document.getElementById('current-section-pill');
+    const currentSlideTitle = document.getElementById('current-slide-title');
+    const notesContent = document.getElementById('notes-content');
+
+    const nextSectionPill = document.getElementById('next-section-pill');
+    const nextSlideTitle = document.getElementById('next-slide-title');
+    const nextSlideNotes = document.getElementById('next-slide-notes');
+
+    const connStatus = document.getElementById('connection-status');
+    const connText = document.getElementById('connection-text');
+    const offlineBanner = document.getElementById('offline-banner');
+
+    const btnPrev = document.getElementById('btn-prev');
+    const btnNext = document.getElementById('btn-next');
+    const btnFocusMain = document.getElementById('btn-focus-main');
+    const btnReconnect = document.getElementById('btn-reconnect');
+
+    // Font size controls
+    let fontSize = 19;
+    const btnFontInc = document.getElementById('btn-font-inc');
+    const btnFontDec = document.getElementById('btn-font-dec');
+
+    btnFontInc.addEventListener('click', () => {
+      fontSize = Math.min(32, fontSize + 2);
+      document.documentElement.style.setProperty('--notes-font-size', fontSize + 'px');
+    });
+
+    btnFontDec.addEventListener('click', () => {
+      fontSize = Math.max(13, fontSize - 2);
+      document.documentElement.style.setProperty('--notes-font-size', fontSize + 'px');
+    });
+
+    // Render slide data into DOM
+    function renderCurrentSlide(slideIdx) {
+      const idx = Math.max(0, Math.min(FALLBACK_SLIDES.length - 1, slideIdx));
+      state.currentIndex = idx;
+      const cur = FALLBACK_SLIDES[idx];
+      const nxt = idx + 1 < FALLBACK_SLIDES.length ? FALLBACK_SLIDES[idx + 1] : null;
+
+      currentSlideNum.textContent = idx + 1;
+      totalSlidesNum.textContent = FALLBACK_SLIDES.length;
+      currentSectionPill.textContent = cur.section || 'Overview';
+      currentSlideTitle.textContent = cur.title;
+      notesContent.innerHTML = cur.notes;
+
+      if (nxt) {
+        nextSectionPill.textContent = nxt.section || 'Next';
+        nextSlideTitle.textContent = nxt.title;
+        nextSlideNotes.innerHTML = nxt.notes;
+      } else {
+        nextSectionPill.textContent = 'Conclusion';
+        nextSlideTitle.textContent = 'End of Presentation';
+        nextSlideNotes.innerHTML = '<em>You have reached the final slide.</em>';
+      }
+    }
+
+    // Initialize with Slide 1 immediately (never empty!)
+    renderCurrentSlide(0);
+
+    // --- Communication Setup ---
+    // 1. postMessage listener (primary reliable channel for file:// in Edge/Chrome)
+    window.addEventListener('message', (event) => {
+      try {
+        const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+        if (data && (data.namespace === 'agenticale-presentation' || data.type === 'slide_state')) {
+          handleIncomingMessage(data);
+        }
+      } catch (e) { }
+    });
+
+    // 2. BroadcastChannel (Works across tabs/windows on same origin or local server)
+    let channel = null;
+    try {
+      channel = new BroadcastChannel('agenticale_presentation_sync');
+      channel.onmessage = (event) => {
+        handleIncomingMessage(event.data);
+      };
+    } catch (e) { }
+
+    // 3. localStorage fallback listener
+    window.addEventListener('storage', (event) => {
+      if (event.key === 'agenticale_presentation_state' && event.newValue) {
+        try {
+          const data = JSON.parse(event.newValue);
+          handleIncomingMessage(data);
+        } catch (e) { }
+      }
+    });
+
+    function sendCommand(action, payload = {}) {
+      const now = Date.now();
+      const commandId = 'cmd-' + now + '-' + Math.random().toString(36).substring(2, 9);
+      const msg = {
+        namespace: 'agenticale-speaker',
+        type: 'command',
+        commandId,
+        action,
+        ...payload,
+        timestamp: now
+      };
+
+      // Via opener postMessage (works across windows even with file:// origin null in Edge/Chrome)
+      if (window.opener && !window.opener.closed) {
+        try {
+          window.opener.postMessage(JSON.stringify(msg), '*');
+        } catch (e) { }
+      }
+
+      // Via BroadcastChannel
+      if (channel) {
+        try { channel.postMessage(msg); } catch (e) { }
+      }
+
+      // Via localStorage trigger
+      try {
+        localStorage.setItem('agenticale_presentation_command', JSON.stringify(msg));
+      } catch (e) { }
+    }
+
+    function requestInitialState() {
+      sendCommand('request_state');
+    }
+
+    function setConnected(isConnected) {
+      state.connected = isConnected;
+      if (isConnected) {
+        connStatus.classList.remove('offline');
+        connText.textContent = 'Connected';
+        offlineBanner.classList.remove('active');
+      } else {
+        connStatus.classList.add('offline');
+        connText.textContent = 'Standalone';
+        offlineBanner.classList.add('active');
+      }
+    }
+
+    let lastProcessedStateTimestamp = 0;
+
+    function handleIncomingMessage(data) {
+      if (!data) return;
+      setConnected(true);
+
+      // Skip duplicate state updates received across multiple transports
+      if (data.timestamp && data.timestamp === lastProcessedStateTimestamp) {
+        return;
+      }
+      if (data.timestamp) {
+        lastProcessedStateTimestamp = data.timestamp;
+      }
+
+      const idx = data.currentIndex !== undefined ? data.currentIndex : state.currentIndex;
+      state.currentIndex = idx;
+      currentSlideNum.textContent = idx + 1;
+      totalSlidesNum.textContent = data.totalSlides || FALLBACK_SLIDES.length;
+
+      currentSectionPill.textContent = data.currentSection || (FALLBACK_SLIDES[idx] ? FALLBACK_SLIDES[idx].section : 'Overview');
+      currentSlideTitle.textContent = data.currentTitle || (FALLBACK_SLIDES[idx] ? FALLBACK_SLIDES[idx].title : 'Slide ' + (idx + 1));
+      notesContent.innerHTML = data.currentNotes || (FALLBACK_SLIDES[idx] ? FALLBACK_SLIDES[idx].notes : '<em>No speaker notes provided.</em>');
+
+      if (data.nextTitle) {
+        nextSectionPill.textContent = data.nextSection || 'Next';
+        nextSlideTitle.textContent = data.nextTitle;
+        nextSlideNotes.innerHTML = data.nextNotes || '<em>(No speaker notes)</em>';
+      } else if (idx + 1 < FALLBACK_SLIDES.length) {
+        const nextFallback = FALLBACK_SLIDES[idx + 1];
+        nextSectionPill.textContent = nextFallback.section;
+        nextSlideTitle.textContent = nextFallback.title;
+        nextSlideNotes.innerHTML = nextFallback.notes;
+      } else {
+        nextSectionPill.textContent = 'Conclusion';
+        nextSlideTitle.textContent = 'End of Presentation';
+        nextSlideNotes.innerHTML = '<em>You have reached the final slide.</em>';
+      }
+    }
+
+    // Direct registration hook
+    window.updateSlideData = handleIncomingMessage;
+
+    // --- Navigation Throttling & Buttons ---
+    let lastNavTime = 0;
+    const NAV_THROTTLE_MS = 150;
+
+    btnNext.addEventListener('click', () => {
+      const now = Date.now();
+      if (now - lastNavTime < NAV_THROTTLE_MS) return;
+      lastNavTime = now;
+
+      if (state.connected) {
+        sendCommand('next');
+      } else {
+        renderCurrentSlide(state.currentIndex + 1);
+      }
+    });
+
+    btnPrev.addEventListener('click', () => {
+      const now = Date.now();
+      if (now - lastNavTime < NAV_THROTTLE_MS) return;
+      lastNavTime = now;
+
+      if (state.connected) {
+        sendCommand('prev');
+      } else {
+        renderCurrentSlide(state.currentIndex - 1);
+      }
+    });
+
+    btnReconnect.addEventListener('click', () => {
+      requestInitialState();
+    });
+
+    btnFocusMain.addEventListener('click', () => {
+      if (window.opener && !window.opener.closed) {
+        window.opener.focus();
+      } else {
+        alert('Presentation window is in another tab or was opened separately. Click the presentation tab to view slides.');
+      }
+    });
+
+    // --- Keyboard Shortcuts ---
+    window.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.repeat) return;
+
+      const now = Date.now();
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+        e.preventDefault();
+        if (now - lastNavTime < NAV_THROTTLE_MS) return;
+        lastNavTime = now;
+
+        if (state.connected) {
+          sendCommand('next');
+        } else {
+          renderCurrentSlide(state.currentIndex + 1);
+        }
+      } else if (e.key === 'ArrowLeft' || e.key === 'Backspace' || e.key === 'PageUp') {
+        e.preventDefault();
+        if (now - lastNavTime < NAV_THROTTLE_MS) return;
+        lastNavTime = now;
+
+        if (state.connected) {
+          sendCommand('prev');
+        } else {
+          renderCurrentSlide(state.currentIndex - 1);
+        }
+      } else if (e.key === 'p' || e.key === 'P') {
+        toggleTimer();
+      } else if (e.key === 'r' || e.key === 'R') {
+        resetTimer();
+      }
+    });
+
+    // --- Presentation Timer & Clock ---
+    let timerRunning = true;
+    let timerElapsedSeconds = 0;
+    let timerInterval = null;
+
+    const timerDigits = document.getElementById('timer-digits');
+    const clockDisplay = document.getElementById('clock-display');
+    const btnTimerToggle = document.getElementById('btn-timer-toggle');
+    const btnTimerReset = document.getElementById('btn-timer-reset');
+
+    function formatTime(totalSeconds) {
+      const hrs = Math.floor(totalSeconds / 3600);
+      const mins = Math.floor((totalSeconds % 3600) / 60);
+      const secs = totalSeconds % 60;
+      const pad = (n) => String(n).padStart(2, '0');
+      if (hrs > 0) {
+        return `${pad(hrs)}:${pad(mins)}:${pad(secs)}`;
+      }
+      return `${pad(mins)}:${pad(secs)}`;
+    }
+
+    function updateTimerUI() {
+      timerDigits.textContent = formatTime(timerElapsedSeconds);
+    }
+
+    function startTimer() {
+      if (timerInterval) clearInterval(timerInterval);
+      timerInterval = setInterval(() => {
+        timerElapsedSeconds++;
+        updateTimerUI();
+      }, 1000);
+      timerRunning = true;
+      btnTimerToggle.textContent = '⏸ Pause';
+    }
+
+    function pauseTimer() {
+      clearInterval(timerInterval);
+      timerInterval = null;
+      timerRunning = false;
+      btnTimerToggle.textContent = '▶ Resume';
+    }
+
+    function toggleTimer() {
+      if (timerRunning) pauseTimer();
+      else startTimer();
+    }
+
+    function resetTimer() {
+      timerElapsedSeconds = 0;
+      updateTimerUI();
+    }
+
+    btnTimerToggle.addEventListener('click', toggleTimer);
+    btnTimerReset.addEventListener('click', resetTimer);
+
+    // Wall Clock
+    function updateClock() {
+      const now = new Date();
+      clockDisplay.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+    startTimer();
+
+    // Initial handshake attempts across windows
+    requestInitialState();
+    setTimeout(requestInitialState, 300);
+    setTimeout(requestInitialState, 800);
+    setTimeout(requestInitialState, 1500);
+  </script>
+</body>
+
+</html>
