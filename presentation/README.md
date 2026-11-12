@@ -7,6 +7,17 @@ This folder contains the complete 60-minute presentation:
 
 ---
 
+## Published on the Project Website
+
+The presentation is also published on the project's GitHub Pages site:
+
+- **Presentation:** <https://alefranz.github.io/AgenticAle/presentation/>
+- **Speaker view (alongside it):** <https://alefranz.github.io/AgenticAle/presentation/speaker.html>
+
+No extra step is needed: a successful push to `main` deploys it via the existing docs build/deployment workflow, which copies `index.html` and `speaker.html` into the site build output (see `docs/site-maintenance.md`). The speaker-window/tab sync works on the published site because both files are served from the same origin. A `Presentation` entry in the site navigation links to it.
+
+---
+
 ## How to Open the Slides
 
 ### Option 1: Direct File Open (Zero Setup)

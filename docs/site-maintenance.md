@@ -1,7 +1,8 @@
 # Documentation site maintenance
 
 The public site is built from the authored Markdown under `docs/` with
-VitePress. `docs/.vitepress/published-pages.mjs` is the explicit page allowlist;
+VitePress, plus the two static presentation pages described below.
+`docs/.vitepress/published-pages.mjs` is the explicit page allowlist;
 navigation and sidebar groups live in `docs/.vitepress/config.mts`. Other
 Markdown, including plans, reviews, handoffs, routing fixtures, and smoke-test
 records, stays repository-only. Do not add a page without assigning its owner
@@ -29,6 +30,26 @@ tree and VitePress resolve them. For a repository-only source, link to its
 canonical GitHub URL. Keep a direct published page path working; the build
 check validates output pages, internal links, fragments, assets, and the
 `/AgenticAle/` base.
+
+## Static presentation pages
+
+The repository-root `presentation/` directory is the canonical source for the
+interactive presentation. `docs:build` runs a post-build step
+(`scripts/copy-presentation.mjs`) that copies exactly
+`presentation/index.html` and `presentation/speaker.html` into
+`docs/.vitepress/dist/presentation/`, so the built dist — and therefore what
+GitHub Pages deploys — contains those static HTML files alongside the
+VitePress pages. A `Presentation` navigation entry links to
+`/AgenticAle/presentation/` with `target: '_self'` so the click performs a
+full-page navigation that is not intercepted by the VitePress SPA router (which
+would otherwise render its not-found page for the static presentation); there
+is no Markdown source and no sidebar item for it. The presentation README documents local (non-built) use, and its
+source of truth stays the `presentation/` directory, not dist.
+
+`docs:check` (via `scripts/check-docs.mjs`) requires both presentation files
+in dist, rejects any other unexpected HTML file, and scans them like every
+other dist HTML file for link, fragment, asset, and base correctness (their
+Reveal.js references are CDN absolute URLs and are skipped).
 
 ## Local build and preview
 
