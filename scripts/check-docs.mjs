@@ -41,6 +41,7 @@ function decodeEntities(value) {
 }
 
 const expectedPages = new Set([...publishedPages].map(expectedHtmlPath))
+const expectedPresentationFiles = new Set(['presentation/index.html', 'presentation/speaker.html'])
 const actualHtmlFiles = htmlFiles(outputRoot)
 const actualPages = new Set(actualHtmlFiles
   .map((file) => relative(outputRoot, file).split(sep).join('/'))
@@ -50,7 +51,8 @@ if (!existsSync(outputRoot) || !statSync(outputRoot).isDirectory()) {
   fail(`Build output not found: ${outputRoot}; run npm run docs:build first`)
 } else {
   for (const page of expectedPages) if (!actualPages.has(page)) fail(`Expected published page is missing: ${page}`)
-  for (const page of actualPages) if (!expectedPages.has(page)) fail(`Unexpected HTML page was generated: ${page}`)
+  for (const file of expectedPresentationFiles) if (!actualPages.has(file)) fail(`Expected presentation file is missing: ${file}`)
+  for (const page of actualPages) if (!expectedPages.has(page) && !expectedPresentationFiles.has(page)) fail(`Unexpected HTML page was generated: ${page}`)
 }
 
 const idsByPage = new Map()
@@ -141,5 +143,5 @@ if (errors.length) {
   for (const error of errors) console.error(`- ${error}`)
   process.exitCode = 1
 } else {
-  console.log(`Documentation check passed: ${expectedPages.size} published pages, local links/fragments/assets, and base ${base}.`)
+  console.log(`Documentation check passed: ${expectedPages.size} published pages, ${expectedPresentationFiles.size} presentation files, local links/fragments/assets, and base ${base}.`)
 }

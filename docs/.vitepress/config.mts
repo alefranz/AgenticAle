@@ -34,6 +34,7 @@ export default withMermaid(defineConfig({
       { text: 'Skills', link: '/skills/work/' },
       { text: 'Guides', link: '/guides/model-routing' },
       { text: 'Reference', link: '/architecture' },
+      { text: 'Presentation', link: '/presentation/', target: '_self' },
     ],
     sidebar: [
       {
