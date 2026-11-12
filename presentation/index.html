@@ -1,0 +1,1465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Practical Agentic Engineering with AgenticAle</title>
+  
+  <!-- Reveal.js styles from jsdelivr CDN -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/black.css" id="theme">
+  
+  <style>
+    :root {
+      --bg-dark: #0a0f1d;
+      --bg-card: rgba(17, 24, 39, 0.78);
+      --bg-card-highlight: rgba(30, 41, 59, 0.85);
+      --border-color: rgba(148, 163, 184, 0.16);
+      --border-highlight: rgba(56, 189, 248, 0.4);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --accent-cyan: #38bdf8;
+      --accent-blue: #60a5fa;
+      --accent-indigo: #818cf8;
+      --accent-emerald: #34d399;
+      --accent-amber: #fbbf24;
+      --accent-purple: #c084fc;
+      --accent-rose: #f43f5e;
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      --font-mono: 'JetBrains Mono', 'Fira Code', Consolas, Monaco, monospace;
+    }
+
+    body {
+      background: var(--bg-dark);
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(56, 189, 248, 0.08) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(129, 140, 248, 0.08) 0px, transparent 50%);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+    }
+
+    .reveal {
+      font-family: var(--font-sans);
+      color: var(--text-main);
+      font-size: 22px;
+    }
+
+    .reveal h1, .reveal h2, .reveal h3, .reveal h4 {
+      font-family: var(--font-sans);
+      color: var(--text-main);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      text-transform: none;
+      margin: 0;
+    }
+
+    .reveal h1 { font-size: 2.2em; line-height: 1.15; }
+    .reveal h2 { font-size: 1.6em; line-height: 1.2; margin-bottom: 0.25em; }
+    .reveal h3 { font-size: 1.2em; line-height: 1.25; }
+    .reveal h4 { font-size: 1.0em; line-height: 1.3; }
+
+    .reveal pre code {
+      font-family: var(--font-mono);
+      font-size: 0.85em;
+      border-radius: 6px;
+    }
+
+    code, .code-inline {
+      font-family: var(--font-mono);
+      background: rgba(56, 189, 248, 0.12);
+      color: var(--accent-cyan);
+      padding: 0.15em 0.4em;
+      border-radius: 4px;
+      font-size: 0.9em;
+      border: 1px solid rgba(56, 189, 248, 0.25);
+    }
+
+    /* Container for each slide content */
+    .slide-wrapper {
+      display: flex;
+      flex-direction: column;
+      height: 640px;
+      justify-content: flex-start;
+      text-align: left;
+      box-sizing: border-box;
+      padding: 10px 0;
+    }
+
+    /* Top Section Pill & Title Header */
+    .slide-header {
+      margin-bottom: 18px;
+      flex-shrink: 0;
+    }
+
+    .section-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.28);
+      color: var(--accent-cyan);
+      font-size: 0.65em;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      margin-bottom: 8px;
+    }
+
+    .section-pill.purple {
+      background: rgba(192, 132, 252, 0.12);
+      border-color: rgba(192, 132, 252, 0.3);
+      color: var(--accent-purple);
+    }
+
+    .section-pill.emerald {
+      background: rgba(52, 211, 153, 0.12);
+      border-color: rgba(52, 211, 153, 0.3);
+      color: var(--accent-emerald);
+    }
+
+    .section-pill.amber {
+      background: rgba(251, 191, 36, 0.12);
+      border-color: rgba(251, 191, 36, 0.3);
+      color: var(--accent-amber);
+    }
+
+    .slide-subtitle {
+      color: var(--text-muted);
+      font-size: 0.95em;
+      margin-top: 4px;
+      font-weight: 400;
+    }
+
+    /* Grid & Flex layouts */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      flex-grow: 1;
+    }
+
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      flex-grow: 1;
+    }
+
+    .grid-2x2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: auto auto;
+      gap: 14px;
+      flex-grow: 1;
+    }
+
+    /* Card styling */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 16px 20px;
+      box-sizing: border-box;
+      backdrop-filter: blur(12px);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .card.highlight {
+      border-color: var(--border-highlight);
+      background: var(--bg-card-highlight);
+      box-shadow: 0 4px 20px rgba(56, 189, 248, 0.08);
+    }
+
+    .card h3, .card h4 {
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card p {
+      color: var(--text-muted);
+      font-size: 0.88em;
+      line-height: 1.45;
+      margin: 0 0 8px 0;
+    }
+
+    .card ul {
+      margin: 0;
+      padding-left: 20px;
+      color: var(--text-muted);
+      font-size: 0.85em;
+      line-height: 1.45;
+    }
+
+    .card ul li {
+      margin-bottom: 6px;
+    }
+
+    .card ul li:last-child {
+      margin-bottom: 0;
+    }
+
+    .card strong {
+      color: var(--text-main);
+    }
+
+    /* Workflow flow diagram */
+    .flow-pipeline {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin: 14px 0 18px 0;
+      padding: 14px;
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+    }
+
+    .flow-step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      flex: 1;
+      background: rgba(30, 41, 59, 0.8);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 8px;
+      padding: 10px 6px;
+      position: relative;
+    }
+
+    .flow-step.coordinator {
+      border-color: var(--accent-indigo);
+      background: rgba(129, 140, 248, 0.12);
+    }
+
+    .flow-step.optional {
+      border-style: dashed;
+      opacity: 0.85;
+    }
+
+    .flow-step.reviewer {
+      border-color: var(--accent-emerald);
+      background: rgba(52, 211, 153, 0.12);
+    }
+
+    .flow-step.pr {
+      border-color: var(--accent-cyan);
+      background: rgba(56, 189, 248, 0.14);
+    }
+
+    .flow-step .step-title {
+      font-weight: 700;
+      font-size: 0.82em;
+      color: var(--text-main);
+      margin-bottom: 2px;
+    }
+
+    .flow-step .step-desc {
+      font-size: 0.68em;
+      color: var(--text-muted);
+    }
+
+    .flow-arrow {
+      color: var(--text-dim);
+      font-size: 1.1em;
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+
+    /* Comparison Table */
+    .custom-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82em;
+      margin-top: 4px;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .custom-table th {
+      background: rgba(30, 41, 59, 0.9);
+      color: var(--accent-cyan);
+      font-weight: 600;
+      text-align: left;
+      padding: 12px 14px;
+      border-bottom: 2px solid rgba(148, 163, 184, 0.2);
+    }
+
+    .custom-table td {
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+      color: var(--text-muted);
+      vertical-align: middle;
+      line-height: 1.4;
+    }
+
+    .custom-table tr:hover td {
+      background: rgba(56, 189, 248, 0.04);
+    }
+
+    .custom-table td strong {
+      color: var(--text-main);
+    }
+
+    /* Badges & Pills */
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.75em;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+
+    .badge-cyan { background: rgba(56, 189, 248, 0.15); color: var(--accent-cyan); border: 1px solid rgba(56, 189, 248, 0.3); }
+    .badge-emerald { background: rgba(52, 211, 153, 0.15); color: var(--accent-emerald); border: 1px solid rgba(52, 211, 153, 0.3); }
+    .badge-indigo { background: rgba(129, 140, 248, 0.15); color: var(--accent-indigo); border: 1px solid rgba(129, 140, 248, 0.3); }
+    .badge-purple { background: rgba(192, 132, 252, 0.15); color: var(--accent-purple); border: 1px solid rgba(192, 132, 252, 0.3); }
+    .badge-amber { background: rgba(251, 191, 36, 0.15); color: var(--accent-amber); border: 1px solid rgba(251, 191, 36, 0.3); }
+
+    /* Keyboard hint footer */
+    .keyboard-hint {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: auto;
+      padding: 8px 16px;
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      color: var(--text-muted);
+      font-size: 0.72em;
+      width: fit-content;
+    }
+
+    .keyboard-hint kbd {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 4px;
+      padding: 2px 6px;
+      color: var(--text-main);
+      font-family: var(--font-mono);
+      font-size: 0.9em;
+    }
+
+    /* Fixed UI bar at bottom */
+    .bottom-bar {
+      position: fixed;
+      bottom: 12px;
+      left: 20px;
+      right: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      pointer-events: none;
+      z-index: 50;
+      font-size: 13px;
+      color: var(--text-dim);
+    }
+
+    .bottom-bar * {
+      pointer-events: auto;
+    }
+
+    .notes-toggle-btn {
+      background: rgba(30, 41, 59, 0.8);
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      color: var(--text-muted);
+      padding: 5px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: var(--font-sans);
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+
+    .notes-toggle-btn:hover {
+      background: rgba(56, 189, 248, 0.15);
+      border-color: var(--accent-cyan);
+      color: var(--accent-cyan);
+    }
+
+    /* On-screen Notes Drawer (Fallback / Rehearsal view) */
+    #notes-drawer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      max-height: 250px;
+      background: rgba(11, 15, 25, 0.96);
+      border-top: 2px solid var(--accent-cyan);
+      box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(16px);
+      z-index: 100;
+      transform: translateY(100%);
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      flex-direction: column;
+      box-sizing: border-box;
+      padding: 16px 24px;
+    }
+
+    #notes-drawer.open {
+      transform: translateY(0);
+    }
+
+    #notes-drawer-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+    }
+
+    #notes-drawer-title {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--accent-cyan);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    #notes-drawer-close {
+      background: transparent;
+      border: none;
+      color: var(--text-dim);
+      font-size: 18px;
+      cursor: pointer;
+      padding: 0 4px;
+    }
+
+    #notes-drawer-close:hover {
+      color: var(--text-main);
+    }
+
+    #notes-drawer-content {
+      overflow-y: auto;
+      font-size: 14px;
+      line-height: 1.6;
+      color: #e2e8f0;
+      padding-right: 8px;
+    }
+
+    #notes-drawer-content ul {
+      margin: 4px 0;
+      padding-left: 20px;
+    }
+
+    #notes-drawer-content li {
+      margin-bottom: 6px;
+    }
+
+    /* Slide specific styles */
+    .title-meta-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin: 18px 0;
+    }
+
+    .agenda-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .agenda-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 8px;
+      font-size: 0.9em;
+      color: var(--text-muted);
+    }
+
+    .agenda-num {
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent-cyan);
+      font-weight: 700;
+      font-size: 0.8em;
+      padding: 2px 8px;
+      border-radius: 4px;
+      min-width: 18px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="reveal">
+    <div class="slides">
+
+      <!-- SLIDE 1: Title -->
+      <section data-state="title-slide">
+        <div class="slide-wrapper">
+          <div class="slide-header" style="margin-bottom: 12px;">
+            <div class="section-pill">Practical Agentic Engineering</div>
+            <h1 style="font-size: 2.1em; margin-bottom: 6px;">Practical Agentic Engineering with AgenticAle</h1>
+            <p class="slide-subtitle" style="font-size: 1.05em; color: var(--accent-blue);">
+              Fresh Context, Right-Sized Models, and Built-In Review Loops for Everyday Coding
+            </p>
+          </div>
+
+          <div class="title-meta-grid" style="margin-top: 10px; flex-grow: 1;">
+            <div class="card" style="padding: 16px 20px;">
+              <h3 style="font-size: 1.05em; color: var(--accent-cyan); margin-bottom: 12px;">📋 Presentation Agenda</h3>
+              <ul class="agenda-list">
+                <li><span class="agenda-num">1</span><span>Why single-thread AI coding sessions break down</span></li>
+                <li><span class="agenda-num">2</span><span>Deep dive: The <code>/work</code> skill &amp; subagent orchestration</span></li>
+                <li><span class="agenda-num">3</span><span>Guardrail skills: <code>source-code-lookup</code> &amp; PR descriptions</span></li>
+                <li><span class="agenda-num">4</span><span>AgenticAle vs. Copilot Fusion &amp; Shared vs. Custom Skills</span></li>
+                <li><span class="agenda-num">5</span><span>Frontier experiment: <code>/autonomous</code> mode &amp; local models</span></li>
+              </ul>
+            </div>
+
+            <div class="card" style="padding: 16px 20px; justify-content: space-between;">
+              <div>
+                <h3 style="font-size: 1.05em; color: var(--accent-indigo); margin-bottom: 12px;">🎯 Session Profile</h3>
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                  <div style="display: flex; gap: 8px; align-items: center;">
+                    <span class="badge badge-indigo">Audience</span>
+                    <span style="font-size: 0.88em; color: var(--text-muted);">Software Engineers (primarily GitHub Copilot users)</span>
+                  </div>
+                  <div style="display: flex; gap: 8px; align-items: center;">
+                    <span class="badge badge-emerald">Duration</span>
+                    <span style="font-size: 0.88em; color: var(--text-muted);">~40 min talk + 15–20 min Q&amp;A (60 min total)</span>
+                  </div>
+                  <div style="display: flex; gap: 8px; align-items: center;">
+                    <span class="badge badge-cyan">Philosophy</span>
+                    <span style="font-size: 0.88em; color: var(--text-muted);">Automate context hygiene &amp; model right-sizing</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="keyboard-hint" style="margin-top: 14px; width: 100%; box-sizing: border-box;">
+                <span>⌨️ <kbd>&larr;</kbd> <kbd>&rarr;</kbd> Navigate &bull; Press <kbd>S</kbd> for Speaker Notes &bull; <kbd>O</kbd> Overview</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <aside class="notes">
+          <p><strong>Slide 1: Title &amp; Introduction</strong></p>
+          <ul>
+            <li>Welcome everyone. Most of us use GitHub Copilot or coding agents every day now, and for small edits or quick questions, a normal chat session is great.</li>
+            <li>But as soon as you hand an agent a real engineering task—something that touches multiple files, requires investigating dependencies, and needs to end in a solid PR—raw single-thread chat starts showing cracks.</li>
+            <li>Today I want to walk through <strong>AgenticAle</strong>, a portable set of agent skills, focusing mainly on <code>/work</code>: why it's structured around fresh subagents and model routing, where it fits alongside tools like Copilot Fusion, and how it can even serve as a "glass box" to build intuition for agentic coding.</li>
+          </ul>
+        </aside>
+      </section>
+
+      <!-- SLIDE 2: Why Single-Context Breaks Down -->
+      <section>
+        <div class="slide-wrapper">
+          <div class="slide-header">
+            <div class="section-pill">Section 1 &bull; The Problem</div>
+            <h2>Why Single-Context AI Coding Breaks Down</h2>
+            <div class="slide-subtitle">Four structural failure modes in long-running single-thread chat sessions</div>
+          </div>
+
+          <div class="grid-2x2">
+            <div class="card">
+              <h4 style="color: var(--accent-rose);"><span class="badge badge-amber">1</span> Context Rot &amp; Anchoring</h4>
+              <p>Failed grep searches, half-read files, and dead-end edits accumulate in the prompt window.</p>
+              <ul>
+                <li>Later turns pay the attention &amp; token tax of earlier mistakes.</li>
+                <li>The agent anchors to outdated assumptions and hallucinated paths.</li>
+              </ul>
+            </div>
+
+            <div class="card">
+              <h4 style="color: var(--accent-amber);"><span class="badge badge-amber">2</span> Self-Review Bias</h4>
+              <p>Asking the same session <em>"Did you miss anything?"</em> rarely catches bugs.</p>
+              <ul>
+                <li>Shares the exact blind spots and reasoning chain that created the bug.</li>
+                <li>Rubber-stamps flawed code because its own rationale is right there in context.</li>
+              </ul>
+            </div>
+
+            <div class="card">
+              <h4 style="color: var(--accent-cyan);"><span class="badge badge-cyan">3</span> One-Size-Fits-All Model Selection</h4>
+              <p>Locked to a single model choice across completely different task phases.</p>
+              <ul>
+                <li>Using a heavy reasoning model for basic file search wastes quota &amp; time.</li>
+                <li>Leaving a fast model on for tricky edge cases causes subtle regressions.</li>
+              </ul>
+            </div>
+
+            <div class="card">
+              <h4 style="color: var(--accent-purple);"><span class="badge badge-purple">4</span> The Manual Babysitting Tax</h4>
+              <p>Engineers end up manually managing the agent's context hygiene.</p>
+              <ul>
+                <li>Manually resetting chat windows, copy-pasting handoff summaries.</li>
+                <li>Switching models mid-stream and re-explaining repo requirements.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <aside class="notes">
+          <p><strong>Slide 2: Why Single-Context AI Coding Breaks Down</strong></p>
+          <ul>
+            <li>Let's name the four failure modes we've all experienced:</li>
+            <li>First, <strong>context rot</strong>: twenty minutes into a session, 70% of your context window is dead stack traces and files that turned out to be irrelevant. The model gets anchored to its initial wrong assumption.</li>
+            <li>Second, <strong>self-review bias</strong>: when an agent writes code and you ask it in the same thread to review its work, it almost always rubber-stamps it because the reasoning that produced the bug is still sitting right there in context.</li>
+            <li>Third, <strong>wrong model for the job</strong>: you either burn expensive reasoning quota on simple file discovery, or you leave a fast model on and watch it struggle on a tricky architectural fix.</li>
+            <li>Fourth, <strong>cognitive overhead</strong>: you <em>can</em> manually open new chats, paste context packets, and switch models yourself—but you shouldn't have to.</li>
+          </ul>
+        </aside>
+      </section>
+
+      <!-- SLIDE 3: Enter /work -->
+      <section>
+        <div class="slide-wrapper">
+          <div class="slide-header">
+            <div class="section-pill emerald">Section 2 &bull; Core Deep Dive</div>
+            <h2>Enter <code>/work</code> — Opinionated Subagent Orchestration</h2>
+            <div class="slide-subtitle">Automating good agentic hygiene so you don't have to think about it</div>
+          </div>
+
+          <div style="display: flex; gap: 14px; margin-bottom: 12px;">
+            <div class="card highlight" style="flex: 1; padding: 12px 18px;">
+              <h4 style="color: var(--accent-cyan); margin-bottom: 4px;">🎯 Core Architecture</h4>
+              <p style="margin: 0; font-size: 0.88em;">
+                Keep the main session as a lightweight <strong>Coordinator</strong>. Dispatch every actual step to a <strong>fresh child subagent</strong> with disposable context.
+              </p>
+            </div>
+            <div class="card" style="flex: 1; padding: 12px 18px;">
+              <h4 style="color: var(--accent-emerald); margin-bottom: 4px;">⚡ Explicit-Only Invocation</h4>
+              <p style="margin: 0; font-size: 0.88em;">
+                Never hijacks normal chat—you invoke <code>/work</code> explicitly when a task deserves disciplined multi-step execution and verification.
+              </p>
+            </div>
+          </div>
+
+          <!-- Flow Pipeline -->
+          <div class="flow-pipeline">
+            <div class="flow-step coordinator">
+              <span class="step-title">Coordinator</span>
+              <span class="step-desc">Inspects repo &amp; plans</span>
+            </div>
+            <span class="flow-arrow">&rarr;</span>
+            <div class="flow-step optional">
+              <span class="step-title">Explore</span>
+              <span class="step-desc">Fast search (optional)</span>
+            </div>
+            <span class="flow-arrow">&rarr;</span>
+            <div class="flow-step">
+              <span class="step-title">Implement</span>
+              <span class="step-desc">Code &amp; local checks</span>
+            </div>
+            <span class="flow-arrow">&rarr;</span>
+            <div class="flow-step reviewer">
+              <span class="step-title">Independent Review</span>
+              <span class="step-desc">Zero-trust gate</span>
+            </div>
+            <span class="flow-arrow">&rarr;</span>
+            <div class="flow-step optional">
+              <span class="step-title">Fix Round</span>
+              <span class="step-desc">If findings exist</span>
+            </div>
+            <span class="flow-arrow">&rarr;</span>
+            <div class="flow-step pr">
+              <span class="step-title">Delivery / PR</span>
+              <span class="step-desc">Clean commits &amp; push</span>
+            </div>
+          </div>
+
+          <div class="card" style="margin-top: auto; padding: 12px 18px; border-left: 4px solid var(--accent-amber);">
+            <h4 style="font-size: 0.9em; color: var(--accent-amber); margin-bottom: 4px;">⚖️ A Conscious Compromise by Design</h4>
+            <p style="margin: 0; font-size: 0.84em;">
+              <strong>Orchestration overhead:</strong> Spawning subagents adds slight latency—not meant for a 1-line typo fix.<br>
+              <strong>The payoff:</strong> Automatically manages context isolation, model tier routing, and independent review gates for 90% of real engineering work.
+            </p>
+          </div>
+        </div>
+
+        <aside class="notes">
+          <p><strong>Slide 3: Enter /work — Opinionated Subagent Orchestration</strong></p>
+          <ul>
+            <li>This is where the <code>/work</code> skill comes in. Its philosophy is simple: <strong>automate good agentic hygiene so you don't have to think about it.</strong></li>
+            <li>When you run <code>/work</code>, your main chat session stops writing code directly. Instead, it becomes the <strong>Coordinator</strong>.</li>
+            <li>The Coordinator inspects the repo state, builds a focused <strong>Task Packet</strong> (just the facts, scope, and acceptance criteria—never the noisy conversation history), and spawns a <strong>fresh subagent</strong> for each phase.</li>
+            <li>Yes, there is a deliberate trade-off: spawning subagents adds a bit of latency compared to a single-turn inline edit. That's why <code>/work</code> is explicit-only. You use normal chat for quick questions, and <code>/work</code> when you want a task taken cleanly from prompt to reviewed code or PR.</li>
+          </ul>
+        </aside>
+      </section>
+
+      <!-- SLIDE 4: Fresh Context & Independent Review -->
+      <section>
+        <div class="slide-wrapper">
+          <div class="slide-header">
+            <div class="section-pill emerald">Section 2 &bull; Core Deep Dive</div>
+            <h2>Fresh Context per Round &amp; The Independent Review Gate</h2>
+            <div class="slide-subtitle">Eliminating context pollution and blind spots through strict round contracts</div>
+          </div>
+
+          <div class="grid-2">
+            <div class="card highlight">
+              <h3 style="color: var(--accent-cyan); font-size: 1.05em;">📦 Task Packets (<code>rounds.md</code>)</h3>
+              <p style="color: var(--accent-blue); font-weight: 500;">Fresh context injected per round; zero history bleed.</p>
+              <ul>
+                <li><strong>Strict Child Inputs:</strong> Target outcome, exact file scope, repository conventions, and verification commands.</li>
+                <li><strong>Ephemeral Context:</strong> The 15 files and 8 test runs inspected during coding disappear when the worker finishes.</li>
+                <li><strong>Structured Return:</strong> Worker returns only a concise summary card (keeping the Coordinator context tiny).</li>
+                <li><strong>Repeatable State:</strong> Coordinator remains lean across 5, 10, or 20 rounds without degrading.</li>
+              </ul>
+            </div>
+
+            <div class="card" style="border-color: rgba(52, 211, 153, 0.4);">
+              <h3 style="color: var(--accent-emerald); font-size: 1.05em;">🛡️ Zero-Trust Independent Review</h3>
+              <p style="color: var(--accent-emerald); font-weight: 500;">An unbiased second pair of eyes on disk reality.</p>
+              <ul>
+                <li><strong>Blank-Slate Reviewer:</strong> Spawns without knowing the worker's struggles, internal debates, or rationalizations.</li>
+                <li><strong>Claims are Unverified:</strong> Instructed to distrust worker claims; directly inspects the <code>git diff</code> and untracked files against acceptance criteria.</li>
+                <li><strong>Stable Finding IDs:</strong> Issues are flagged with stable IDs (<code>ISSUE-1</code>, <code>ISSUE-2</code>).</li>
+                <li><strong>Verification Loop:</strong> Fix rounds address findings; re-review verifies each ID as <code>fixed</code>, <code>still open</code>, or <code>regressed</code>.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <aside class="notes">
+          <p><strong>Slide 4: Fresh Context per Round &amp; The Independent Review Gate</strong></p>
+          <ul>
+            <li>Let's look at why fresh context matters most at the <strong>Review Gate</strong>.</li>
+            <li>When the <code>implement</code> subagent finishes, it returns a short summary of what it changed and what tests it ran. All the 15 files it read along the way stay in its disposable context and disappear.</li>
+            <li>Next, the Coordinator spins up a brand-new <code>review</code> subagent. Crucially, <code>rounds.md</code> instructs the reviewer to treat the worker's claims as <strong>unverified</strong>. The reviewer doesn't care that the worker struggled for 10 minutes on a regex—it only sees the original user goal and the actual diff on disk.</li>
+            <li>If the reviewer finds a blocking issue, a <code>fix</code> subagent is dispatched, followed by a re-review that tracks every finding by ID until the gate is clean.</li>
+          </ul>
+        </aside>
+      </section>
+
+      <!-- SLIDE 5: Declarative Routing -->
+      <section>
+        <div class="slide-wrapper">
+          <div class="slide-header">
+            <div class="section-pill emerald">Section 2 &bull; Core Deep Dive</div>
+            <h2>Right Model for the Job — Declarative Routing</h2>
+            <div class="slide-subtitle">Matching model strength, speed, and reasoning effort to the exact role requirements</div>
+          </div>
+
+          <!-- 4 Tiers Grid -->
+          <div class="grid-4" style="margin-bottom: 14px;">
+            <div class="card" style="border-top: 3px solid var(--accent-cyan);">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <span class="badge badge-cyan">fast</span>
+                <span style="font-size: 0.7em; color: var(--text-dim);">Low latency</span>
+              </div>
+              <h4 style="font-size: 0.95em; color: var(--accent-cyan);">explore</h4>
+              <p style="font-size: 0.78em; margin: 0;">Codebase discovery, grep search, lockfile inspection, external lookups.</p>
+            </div>
+
+            <div class="card" style="border-top: 3px solid var(--accent-emerald);">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <span class="badge badge-emerald">routine</span>
+                <span style="font-size: 0.7em; color: var(--text-dim);">Cost-effective</span>
+              </div>
+              <h4 style="font-size: 0.95em; color: var(--accent-emerald);">implement, fix</h4>
+              <p style="font-size: 0.78em; margin: 0;">Everyday implementation, straightforward fixes, test execution.</p>
+            </div>
+
+            <div class="card" style="border-top: 3px solid var(--accent-indigo);">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <span class="badge badge-indigo">standard</span>
+                <span style="font-size: 0.7em; color: var(--text-dim);">Strong reasoning</span>
+              </div>
+              <h4 style="font-size: 0.95em; color: var(--accent-indigo);">review, implement-hard</h4>
+              <p style="font-size: 0.78em; margin: 0;">Independent code review, complex multi-file logic, escalated fixes.</p>
+            </div>
+
+            <div class="card" style="border-top: 3px solid var(--accent-purple);">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <span class="badge badge-purple">deep</span>
+                <span style="font-size: 0.7em; color: var(--text-dim);">Max reasoning</span>
+              </div>
+              <h4 style="font-size: 0.95em; color: var(--accent-purple);">deep-review, consult</h4>
+              <p style="font-size: 0.78em; margin: 0;">High-risk architecture, requirements framing, subtle concurrency.</p>
+            </div>
+          </div>
+
+          <div class="grid-2" style="margin-top: auto;">
+            <div class="card highlight" style="padding: 12px 18px;">
+              <h4 style="color: var(--accent-amber); font-size: 0.95em; margin-bottom: 4px;">🚀 Automatic Escalation</h4>
+              <p style="font-size: 0.84em; margin: 0;">
+                If an implementation hits unexpected structural complexity or tricky review findings, <code>/work</code> automatically escalates the role from <code>routine</code> to <code>implement-hard</code> on the <code>standard</code> tier.
+              </p>
+            </div>
+            <div class="card" style="padding: 12px 18px;">
+              <h4 style="color: var(--accent-cyan); font-size: 0.95em; margin-bottom: 4px;">📝 Customizable via Plain Markdown</h4>
+              <p style="font-size: 0.84em; margin: 0;">
+                Override models per user or repository in <code>.agenticale/preferences.md</code>, or switch active tiers on the fly with <code>/work --profile &lt;name&gt;</code> without touching any JSON.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <aside class="notes">
+          <p><strong>Slide 5: Right Model for the Job — Declarative Routing</strong></p>
+          <ul>
+            <li>Alongside fresh context, <code>/work</code> solves model selection through <strong>declarative role routing</strong>.</li>
+            <li>Instead of running one model for everything, <code>/work</code> maps each role to one of four tiers: <code>fast</code>, <code>routine</code>, <code>standard</code>, and <code>deep</code>.</li>
+            <li>Exploration runs on <code>fast</code>. Standard implementation and simple fixes run on <code>routine</code>.</li>
+            <li>But when it's time for the <strong>independent review</strong>, or when an implementation/fix hits a complex edge case (<code>implement-hard</code>), it routes to the stronger <code>standard</code> tier. And if you need upfront framing (<code>--consult</code>) or a <code>deep-review</code>, it uses the <code>deep</code> tier with maximum reasoning effort.</li>
+            <li>You don't have to touch JSON to tweak this—you can write plain Markdown preferences or pass <code>--profile</code> at invocation time.</li>
+          </ul>
+        </aside>
+      </section>
+
+      <!-- SLIDE 6: Prompt to High-Confidence PR -->
+      <section>
+        <div class="slide-wrapper">
+          <div class="slide-header">
+            <div class="section-pill emerald">Section 2 &bull; Core Deep Dive</div>
+            <h2>From Prompt to High-Confidence PR</h2>
+            <div class="slide-subtitle">Automating the path from prompt to reviewed pull request with power flags</div>
+          </div>
+
+          <div class="grid-2x2">
+            <div class="card highlight">
+              <h4 style="color: var(--accent-cyan);"><span class="badge badge-cyan">Flag</span> <code>/work --pr &lt;task&gt;</code></h4>
+              <p>Full-lifecycle automated delivery to GitHub / remote:</p>
+              <ul>
+                <li>Implementation &rarr; local verification &rarr; independent review &rarr; fix loop.</li>
+                <li>Coherent git commit formatting &rarr; branch push &rarr; creates or updates PR.</li>
+                <li>Supports <code>--pr=&lt;PR-URL&gt;</code> to address review comments directly.</li>
+              </ul>
+            </div>
+
+            <div class="card">
+              <h4 style="color: var(--accent-purple);"><span class="badge badge-purple">Flag</span> <code>/work --consult &lt;task&gt;</code></h4>
+              <p>Think before you code with high-reasoning models:</p>
+              <ul>
+                <li>Dispatches a read-only <code>consult</code> subagent on the <code>deep</code> tier <em>before</em> coding.</li>
+                <li>Challenges requirements framing and surfaces hidden edge cases.</li>
+                <li>Asks only the questions that genuinely require human judgment.</li>
+              </ul>
+            </div>
+
+            <div class="card">
+              <h4 style="color: var(--accent-emerald);"><span class="badge badge-emerald">Flag</span> <code>/work --outcome &lt;metric&gt;</code></h4>
+              <p>Preventing agents from moving the goalposts:</p>
+              <ul>
+                <li>Pre-registers baseline metrics &amp; acceptance cards (e.g. <em>"speed up export by 20%"</em>).</li>
+                <li>Candidate implementations must prove measurable improvement against baseline.</li>
+                <li>Worker cannot declare victory without meeting the explicit benchmark.</li>
+              </ul>
+            </div>
+
+            <div class="card">
+              <h4 style="color: var(--accent-indigo);"><span class="badge badge-indigo">Pattern</span> Sequential Decomposition</h4>
+              <p>Handling large multi-step initiatives cleanly:</p>
+              <ul>
+                <li>Slices complex initiatives into small, verifiable milestone steps.</li>
+                <li>Completes, tests, and independently reviews one slice at a time.</li>
+                <li>Prevents runaway edits across dozens of interrelated files.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <aside class="notes">
+          <p><strong>Slide 6: From Prompt to High-Confidence PR (/work --pr &amp; Power Flags)</strong></p>
+          <ul>
+            <li>How does this feel in practice? With <code>/work --pr</code>, you can hand it a bug or feature, and by the time it opens or updates the pull request, the code has already survived local checks <em>and</em> at least one round of independent review.</li>
+            <li>There are also two really useful opt-in flags:</li>
+            <li><code>--consult</code> dispatches a deep-thinking consultant before a single line of code is written to challenge the requirements and surface trade-offs.</li>
+            <li><code>--outcome</code> is for measurable targets like latency or bundle size: it pins the baseline metric upfront in an Outcome Card so the agent can't cheat or move the goalposts when evaluating candidates.</li>
+          </ul>
+        </aside>
+      </section>
+
+      <!-- SLIDE 7: Supporting Skills -->
+      <section>
+        <div class="slide-wrapper">
+          <div class="slide-header">
+            <div class="section-pill amber">Section 3 &bull; Supporting Skills</div>
+            <h2>Guardrail Skills: <code>source-code-lookup</code> &amp; PR Descriptions</h2>
+            <div class="slide-subtitle">Guarding against common model bad habits when dealing with external code and PR text</div>
+          </div>
+
+          <!-- Problem Callout Banner -->
+          <div class="card" style="margin-bottom: 14px; padding: 10px 18px; border-left: 4px solid var(--accent-rose); background: rgba(244, 63, 94, 0.08);">
+            <p style="margin: 0; font-size: 0.85em; color: #fecdd3;">
+              <strong>The Common Trap:</strong> When a bug crosses into an internal NuGet/npm package, microservice, or message schema, unguided agents start guessing behavior, hallucinating API contracts, or running decompilers on compiled binaries in cache folders.
+            </p>
+          </div>
+
+          <div class="grid-2">
+            <div class="card highlight">
+              <h3 style="color: var(--accent-cyan); font-size: 1.0em;">🔍 <code>source-code-lookup</code></h3>
+              <p style="color: var(--accent-blue); font-weight: 500;">Navigating external repos cleanly &amp; accurately.</p>
+              <ul>
+                <li><strong>Follows Lockfiles &amp; Schemas:</strong> Traces exact package names, versions, and repository endpoints.</li>
+                <li><strong>Local Checkout or Clean Clone:</strong> Searches <code>~/dev</code> / <code>SOURCE_ROOT</code> or clones into canonical paths.</li>
+                <li><strong>Exact Version Pinning:</strong> Uses <code>git show &lt;tag/commit&gt;</code> without checking out or dirtying working branches.</li>
+                <li><strong>Isolated Subagent:</strong> Runs inside a disposable <code>explore</code> round—2,000 lines of external source never pollute the coder's context!</li>
+              </ul>
+            </div>
+
+            <div class="card">
+              <h3 style="color: var(--accent-indigo); font-size: 1.0em;">📝 <code>pull-request-description</code></h3>
+              <p style="color: var(--accent-indigo); font-weight: 500;">High-signal human PR bodies over robotic summaries.</p>
+              <ul>
+                <li><strong>No Diff Recaps:</strong> Eliminates robotic file lists (*"Modified foo.ts and updated unit tests"*).</li>
+                <li><strong>Intent &amp; Context:</strong> Clearly articulates <em>why</em> the change exists and what business problem it solves.</li>
+                <li><strong>Reviewer-Relevant Risks:</strong> Highlights operational risks, database migrations, and breaking changes.</li>
+                <li><strong>Non-Obvious Validation:</strong> Documents edge cases tested that automated CI cannot cover.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <aside class="notes">
+          <p><strong>Slide 7: Supporting Skills — Guardrails Against AI Bad Habits</strong></p>
+          <ul>
+            <li>Workflow orchestration is only half the story; we also need guardrails for common model bad habits.</li>
+            <li>My favorite example is <strong><code>source-code-lookup</code></strong>. We've all seen what happens when an agent hits a mysterious behavior in an external package or another service: it starts guessing, or worse, runs a decompiler on a compiled package in <code>node_modules</code> or <code>.nuget</code>.</li>
+            <li>With <code>source-code-lookup</code>, the agent checks lockfiles or service configs to find the exact repository and version, looks in your local <code>~/dev</code> folder (or clones it cleanly), and uses <code>git show</code> at the <strong>exact commit matching the deployed version</strong>. Even better, <code>/work</code> delegates heavy external lookups to an <code>explore</code> subagent, so reading 2,000 lines of another service only returns a 5-line factual answer to your worker.</li>
+            <li>Similarly, <strong><code>pull-request-description</code></strong> stops agents from writing useless PR bodies like <em>"Updated foo.ts and ran tests"</em>, focusing instead on intent, rollout risks, and non-obvious validation.</li>
+          </ul>
+        </aside>
+      </section>
+
+      <!-- SLIDE 8: AgenticAle vs Copilot Fusion -->
+      <section>
+        <div class="slide-wrapper">
+          <div class="slide-header">
+            <div class="section-pill purple">Section 4 &bull; Ecosystem &amp; Strategy</div>
+            <h2>"Why Not Just Use GitHub Copilot Fusion?"</h2>
+            <div class="slide-subtitle">Understanding the difference between turn routing and architectural workflow boundaries</div>
+          </div>
+
+          <div class="card" style="padding: 10px 18px; margin-bottom: 12px; background: rgba(56, 189, 248, 0.08); border-color: rgba(56, 189, 248, 0.25);">
+            <h4 style="color: var(--accent-cyan); font-size: 0.9em; margin-bottom: 2px;">⚡ When Copilot Fusion Wins (The Sweet Spot)</h4>
+            <p style="margin: 0; font-size: 0.85em;">
+              Zero-ceremony interactive coding, quick questions, inline iterations, pair-programming in the flow, and automatic turn-by-turn model switching.
+            </p>
+          </div>
+
+          <div class="card highlight" style="flex-grow: 1; padding: 14px 20px;">
+            <h4 style="color: var(--accent-emerald); font-size: 0.95em; margin-bottom: 10px;">🛡️ Why AgenticAle <code>/work</code> Still Matters</h4>
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px;">
+              <div style="background: rgba(15, 23, 42, 0.6); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color);">
+                <h5 style="color: var(--accent-blue); font-size: 0.85em; margin-bottom: 6px;">1. Structural Boundaries</h5>
+                <p style="font-size: 0.78em; margin: 0;">
+                  Fusion switches models within a single noisy thread. <code>/work</code> enforces hard context isolation between the coder and an independent reviewer.
+                </p>
+              </div>
+
+              <div style="background: rgba(15, 23, 42, 0.6); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color);">
+                <h5 style="color: var(--accent-indigo); font-size: 0.85em; margin-bottom: 6px;">2. Explicit Profile Control</h5>
+                <p style="font-size: 0.78em; margin: 0;">
+                  Pin exact model tiers and reasoning effort per role across your team (e.g. keeping review on strict high-reasoning models regardless of turn).
+                </p>
+              </div>
+
+              <div style="background: rgba(15, 23, 42, 0.6); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color);">
+                <h5 style="color: var(--accent-purple); font-size: 0.85em; margin-bottom: 6px;">3. "Glass Box" Narration</h5>
+                <p style="font-size: 0.78em; margin: 0;">
+                  Before every round, the Coordinator narrates: <em>what was learned, what comes next, and why</em>. A powerful learning tool for agentic engineering intuition.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <aside class="notes">
+          <p><strong>Slide 8: "Why Not Just Use GitHub Copilot Fusion?"</strong></p>
+          <ul>
+            <li>Since we use GitHub Copilot, a natural question is: <em>"Why not just use Copilot Fusion, which already routes between models automatically?"</em></li>
+            <li>And the honest answer is: for everyday interactive back-and-forth, <strong>you should!</strong> Fusion is great when you're in the driver's seat iterating turn by turn.</li>
+            <li>Where <code>/work</code> shines is two things:</li>
+            <li>First, <strong>workflow control</strong>: Fusion switches models inside your conversation, whereas <code>/work</code> enforces fresh context isolation between the coder and the reviewer.</li>
+            <li>Second, <strong>visibility and learning</strong>: <code>/work</code> has a built-in narration contract. Before every subagent dispatch, the Coordinator writes a concise paragraph explaining <em>what the last agent found, what round is running next, and why</em>. Even when your IDE collapses subagent tool calls, you get a crystal-clear narrative of how an agentic system reasons, decomposes slices, and catches its own mistakes. It's one of the best ways to build intuition for agentic engineering.</li>
+          </ul>
+        </aside>
+      </section>
+
+      <!-- SLIDE 9: Shared Skills vs Forking -->
+      <section>
+        <div class="slide-wrapper">
+          <div class="slide-header">
+            <div class="section-pill purple">Section 4 &bull; Ecosystem &amp; Strategy</div>
+            <h2>Shared Skills vs. Every Engineer/Org Forking Their Own</h2>
+            <div class="slide-subtitle">Avoid reinventing workflow plumbing; standardize the core and customize the edges</div>
+          </div>
+
+          <div class="grid-2">
+            <div class="card" style="border-left: 4px solid var(--accent-rose);">
+              <h3 style="color: var(--accent-rose); font-size: 1.0em;">⚠️ The Forking Plumbing Trap</h3>
+              <p style="color: #fecdd3; font-weight: 500;">
+                <em>"Let's just write our own custom review prompt!"</em>
+              </p>
+              <p style="font-size: 0.84em;">
+                Orchestration edge cases are surprisingly treacherous to maintain:
+              </p>
+              <ul>
+                <li>Preventing infinite worker &harr; reviewer ping-pong loops.</li>
+                <li>Preserving pre-existing dirty working tree changes safely.</li>
+                <li>Tracking regression findings across rounds by stable IDs.</li>
+                <li>Handling provider rate limits and subscription quota resets cleanly.</li>
+                <li><em><code>rounds.md</code> alone represents 350+ lines of battle-tested edge cases!</em></li>
+              </ul>
+            </div>
+
+            <div class="card highlight" style="border-left: 4px solid var(--accent-emerald);">
+              <h3 style="color: var(--accent-emerald); font-size: 1.0em;">🏗️ The Layered Architecture Pattern</h3>
+              <p style="color: var(--accent-cyan); font-weight: 500;">Standardize plumbing; customize domain logic.</p>
+              <ul>
+                <li>
+                  <strong>Commodity Core (Shared Skills):</strong><br>
+                  Context isolation, review/fix state machine, PR delivery (<code>work</code>, <code>review</code>).
+                </li>
+                <li>
+                  <strong>Repository Layer (<code>AGENTS.md</code>):</strong><br>
+                  Repo architecture, test commands, lint rules, local conventions.
+                </li>
+                <li>
+                  <strong>Preferences Layer (<code>preferences.md</code>):</strong><br>
+                  Model tier mappings, <code>SOURCE_ROOT</code>, routing profiles.
+                </li>
+                <li>
+                  <strong>Domain Leaf Skills:</strong><br>
+                  Org-specific internal tooling, deployment APIs, telemetry queries.
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <aside class="notes">
+          <p><strong>Slide 9: Shared Skills vs. Every Engineer/Org Forking Their Own</strong></p>
+          <ul>
+            <li>Stepping back from AgenticAle specifically: how should teams think about adopting shared skills versus every engineer or org rolling their own?</li>
+            <li>It's tempting to think a review loop is just a 10-line prompt. Then you hit reality: What if the working tree already had uncommitted changes before <code>/work</code> started? What if the fixer fixes Bug A but introduces Bug B? What if the worker tries to delegate to another worker infinitely?</li>
+            <li>Solve orchestration plumbing <em>once</em> in a shared, well-tested skill, and customize at the edges: put your repo rules in <code>AGENTS.md</code>, your model preferences in <code>.agenticale/preferences.md</code>, and write small domain-specific supporting skills for your org's unique tools.</li>
+          </ul>
+        </aside>
+      </section>
+
+      <!-- SLIDE 10: /autonomous Mode -->
+      <section>
+        <div class="slide-wrapper">
+          <div class="slide-header">
+            <div class="section-pill" style="background: rgba(244, 63, 94, 0.12); border-color: rgba(244, 63, 94, 0.3); color: var(--accent-rose);">
+              Section 5 &bull; The Frontier Experiment
+            </div>
+            <h2><code>/autonomous</code> — A Self-Driving Backlog Loop</h2>
+            <div class="slide-subtitle">Attaching <code>/work</code>'s strict review primitives to durable on-disk state</div>
+          </div>
+
+          <div class="grid-4" style="grid-template-columns: 1.1fr 1fr 1fr; gap: 14px; flex-grow: 1;">
+            <div class="card highlight">
+              <h4 style="color: var(--accent-cyan); font-size: 0.95em;">📋 Core Loop on Disk</h4>
+              <p style="font-size: 0.82em;">Reuses <code>/work</code> task contracts and strict independent review gates backed by persistent files:</p>
+              <ul>
+                <li>Reads next item from <code>BACKLOG.md</code>.</li>
+                <li>Executes implementation &amp; strict review.</li>
+                <li>Refines &amp; grooms remaining backlog items.</li>
+                <li>Writes 2-line ledger entry and exact <code>NEXT</code> state in <code>docs/handoffs/active.md</code>.</li>
+              </ul>
+            </div>
+
+            <div class="card">
+              <h4 style="color: var(--accent-amber); font-size: 0.95em;">⏳ Quota &amp; Cooldown Aware</h4>
+              <p style="font-size: 0.82em;">Built for subscription rate limits and overnight resilience:</p>
+              <ul>
+                <li>Detects provider rate-limit windows (e.g. 5-hour rolling limits).</li>
+                <li>Persists cooldown timestamp directly in <code>active.md</code>.</li>
+                <li>Pauses gracefully and resumes cleanly when the subscription window resets.</li>
+                <li>Zero lost progress or chat context exhaustion.</li>
+              </ul>
+            </div>
+
+            <div class="card">
+              <h4 style="color: var(--accent-emerald); font-size: 0.95em;">💻 Local Model Friendly</h4>
+              <p style="font-size: 0.82em;">Hybrid cloud &amp; on-device model routing:</p>
+              <ul>
+                <li>Pair fast local models (via Ollama / LM Studio) for routine coding.</li>
+                <li>Route strict review gates to strong cloud reasoning models.</li>
+                <li><strong>Ideal use case today:</strong> Side projects, greenfield prototypes, and overnight mechanical refactors.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <aside class="notes">
+          <p><strong>Slide 10: /autonomous — A Self-Driving Backlog Loop</strong></p>
+          <ul>
+            <li>Before we open up for questions, I want to spend 5 minutes on the most experimental part of the repo: <strong><code>/autonomous</code> mode</strong>.</li>
+            <li>Think of <code>/autonomous</code> as asking: <em>"What happens if we take <code>/work</code>'s fresh subagent and strict review primitives, and attach them to a durable project backlog on disk?"</em></li>
+            <li>Instead of keeping state only in the chat session, <code>/autonomous</code> maintains <code>BACKLOG.md</code> and <code>docs/handoffs/active.md</code>. It picks a task, runs worker and strict review rounds, refines the backlog as it learns more about the codebase, and writes a durable checkpoint after every single round.</li>
+            <li>Two features make it especially fun for hobby projects:</li>
+            <li>1. <strong>Subscription window awareness:</strong> If you hit a provider quota limit at 2 AM, it records the exact state and cooldown window in the handoff file so it can wait or resume later with zero lost work.</li>
+            <li>2. <strong>Hybrid local/cloud routing:</strong> You can route routine coding rounds to local models while keeping a strong cloud model for the reviewer.</li>
+            <li>I wouldn't point <code>/autonomous</code> at a mission-critical production monorepo unattended tomorrow—but as a sandbox for side projects and seeing where long-horizon engineering is headed, it's eye-opening.</li>
+          </ul>
+        </aside>
+      </section>
+
+      <!-- SLIDE 11: Wrap-Up & Decision Guide -->
+      <section>
+        <div class="slide-wrapper">
+          <div class="slide-header">
+            <div class="section-pill emerald">Section 6 &bull; Wrap-Up &amp; Discussion</div>
+            <h2>Choosing the Right Mode &amp; Q&amp;A</h2>
+            <div class="slide-subtitle">A clear mental model for when to reach for which tool in daily engineering</div>
+          </div>
+
+          <table class="custom-table">
+            <thead>
+              <tr>
+                <th style="width: 28%;">Mode</th>
+                <th style="width: 38%;">Best When...</th>
+                <th style="width: 34%;">Context &amp; Review Architecture</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Normal Chat / Copilot Fusion</strong></td>
+                <td>Quick edits, pair-programming in the loop, fast exploration</td>
+                <td>Single shared thread, auto-routed turns</td>
+              </tr>
+              <tr>
+                <td><strong><code>/review</code></strong></td>
+                <td>You wrote (or AI wrote) branch changes and want an unbiased audit</td>
+                <td>Fresh read-only reviewer subagent</td>
+              </tr>
+              <tr>
+                <td><strong><code>/work</code></strong> <span style="font-size: 0.85em; color: var(--accent-cyan);">(<code>--pr</code>, <code>--consult</code>, <code>--outcome</code>)</span></td>
+                <td>Multi-file features/bugs where you want high confidence &amp; transparent narration</td>
+                <td>Coordinator + fresh worker/reviewer subagents</td>
+              </tr>
+              <tr>
+                <td><strong><code>/autonomous</code></strong></td>
+                <td>Side projects, overnight backlogs, hybrid local/cloud experiments</td>
+                <td>Durable <code>BACKLOG.md</code> + <code>active.md</code> + quota recovery</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="card highlight" style="margin-top: 14px; padding: 12px 18px; border-color: var(--accent-cyan); display: flex; flex-direction: row; align-items: center; justify-content: space-between;">
+            <div>
+              <h4 style="color: var(--accent-cyan); font-size: 0.95em; margin-bottom: 2px;">💡 Recommended Takeaway</h4>
+              <p style="margin: 0; font-size: 0.84em; color: var(--text-main);">
+                Try <code>/work</code> on your next medium-sized task—observe the narration between rounds, see what the independent reviewer catches, and let it take you cleanly to PR.
+              </p>
+            </div>
+            <div style="text-align: right; min-width: 160px;">
+              <span class="badge badge-emerald" style="font-size: 0.85em; padding: 6px 12px;">Q&amp;A: ~15–20 Mins</span>
+            </div>
+          </div>
+        </div>
+
+        <aside class="notes">
+          <p><strong>Slide 11: Choosing the Right Mode &amp; Q&amp;A</strong></p>
+          <ul>
+            <li>To wrap up, here is the mental model for when to reach for what:</li>
+            <li>Stay in normal chat or Copilot Fusion when you're moving fast on small interactive changes.</li>
+            <li>Reach for <code>/review</code> when you want a fresh, unbiased pair of eyes on your current branch.</li>
+            <li>Use <code>/work</code> (and <code>/work --pr</code>) as your default for real engineering tasks where context management, right-sized models, and independent review save you from babysitting.</li>
+            <li>And try <code>/autonomous</code> on a hobby project to experience self-driving backlog execution.</li>
+            <li>Let's open it up for questions!</li>
+          </ul>
+        </aside>
+      </section>
+
+    </div>
+  </div>
+
+  <!-- Persistent Bottom UI Bar -->
+  <div class="bottom-bar">
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <button class="notes-toggle-btn" id="speaker-win-btn" title="Open Speaker View in a separate window (Hotkey: S)">
+        🪟 <span>Speaker Window</span> <kbd style="font-size: 10px; background: rgba(0,0,0,0.3); padding: 1px 4px; border-radius: 3px;">S</kbd>
+      </button>
+      <button class="notes-toggle-btn" id="speaker-tab-btn" title="Open Speaker View in a separate tab">
+        📑 <span>Speaker Tab</span>
+      </button>
+      <button class="notes-toggle-btn" id="notes-btn" title="Toggle On-Screen Notes Drawer (Hotkey: N)">
+        📝 <span>Drawer</span> <kbd style="font-size: 10px; background: rgba(0,0,0,0.3); padding: 1px 4px; border-radius: 3px;">N</kbd>
+      </button>
+    </div>
+    <div style="font-size: 11px; opacity: 0.7;">
+      AgenticAle Presentation &bull; <kbd>&larr;</kbd> <kbd>&rarr;</kbd> Navigate
+    </div>
+  </div>
+
+  <!-- On-Screen Notes Drawer (rehearsal / single-screen popup fallback) -->
+  <div id="notes-drawer">
+    <div id="notes-drawer-header">
+      <div id="notes-drawer-title">
+        <span>📝 Speaker Notes</span>
+        <span style="font-size: 11px; font-weight: normal; color: var(--text-dim);">(Current Slide)</span>
+      </div>
+      <button id="notes-drawer-close" title="Close Notes (N)">&times;</button>
+    </div>
+    <div id="notes-drawer-content"></div>
+  </div>
+
+  <!-- Reveal.js from CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+
+  <script>
+    // Initialize Reveal.js
+    Reveal.initialize({
+      width: 1200,
+      height: 680,
+      margin: 0.05,
+      minScale: 0.2,
+      maxScale: 2.0,
+      controls: true,
+      progress: true,
+      history: true,
+      center: true,
+      hash: true,
+      transition: 'fade' // clean, developer-friendly transition
+    });
+
+    // Helper functions for slide metadata
+    function getSlideTitle(slideEl) {
+      if (!slideEl) return '';
+      const h1 = slideEl.querySelector('h1');
+      if (h1) return h1.textContent.trim();
+      const h2 = slideEl.querySelector('h2');
+      if (h2) return h2.textContent.trim();
+      const h3 = slideEl.querySelector('h3');
+      if (h3) return h3.textContent.trim();
+      return 'Slide';
+    }
+
+    function getSlideSection(slideEl) {
+      if (!slideEl) return 'Overview';
+      const pill = slideEl.querySelector('.section-pill');
+      return pill ? pill.textContent.trim() : 'AgenticAle';
+    }
+
+    function getSlideNotes(slideEl) {
+      if (!slideEl) return '';
+      const notesEl = slideEl.querySelector('aside.notes');
+      return notesEl ? notesEl.innerHTML.trim() : '';
+    }
+
+    function getPresentationState() {
+      const currentSlide = Reveal.getCurrentSlide();
+      const slides = Reveal.getSlides();
+      const state = Reveal.getState();
+      const currentIndex = state.indexh || 0;
+      const nextSlide = slides[currentIndex + 1] || null;
+
+      return {
+        type: 'slide_state',
+        currentIndex: currentIndex,
+        totalSlides: slides.length,
+        currentTitle: getSlideTitle(currentSlide),
+        currentSection: getSlideSection(currentSlide),
+        currentNotes: getSlideNotes(currentSlide),
+        nextTitle: nextSlide ? getSlideTitle(nextSlide) : null,
+        nextSection: nextSlide ? getSlideSection(nextSlide) : null,
+        nextNotes: nextSlide ? getSlideNotes(nextSlide) : null,
+        timestamp: Date.now()
+      };
+    }
+    window.getPresentationState = getPresentationState;
+
+    // Cross-tab / cross-window sync
+    let speakerWindow = null;
+    let syncChannel = null;
+    const knownSpeakerSources = new Set();
+    const handledCommandIds = new Set();
+    let lastHandledAction = null;
+    let lastHandledActionTime = 0;
+
+    try {
+      syncChannel = new BroadcastChannel('agenticale_presentation_sync');
+      syncChannel.onmessage = (event) => {
+        handleSpeakerCommand(event.data);
+      };
+    } catch (e) {
+      console.warn('BroadcastChannel not supported', e);
+    }
+
+    // Storage fallback listener
+    window.addEventListener('storage', (event) => {
+      if (event.key === 'agenticale_presentation_command' && event.newValue) {
+        try {
+          const msg = JSON.parse(event.newValue);
+          handleSpeakerCommand(msg);
+        } catch (e) {}
+      }
+    });
+
+    // postMessage listener (primary reliable channel for file:// and cross-window in Edge/Chrome)
+    window.addEventListener('message', (event) => {
+      try {
+        const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+        if (data && data.namespace === 'agenticale-speaker') {
+          handleSpeakerCommand(data, event.source);
+        }
+      } catch (e) {}
+    });
+
+    function handleSpeakerCommand(cmd, source) {
+      if (source && !knownSpeakerSources.has(source)) {
+        knownSpeakerSources.add(source);
+      }
+      if (!cmd || cmd.type !== 'command') return;
+
+      const now = Date.now();
+      // Deduplicate commands across multiple simultaneous transport channels (postMessage, BroadcastChannel, localStorage)
+      const commandId = cmd.commandId || (cmd.timestamp ? (cmd.action + '-' + cmd.timestamp) : null);
+      if (commandId) {
+        if (handledCommandIds.has(commandId)) {
+          return;
+        }
+        handledCommandIds.add(commandId);
+        if (handledCommandIds.size > 100) {
+          const oldest = handledCommandIds.values().next().value;
+          handledCommandIds.delete(oldest);
+        }
+      } else {
+        // Fallback debounce for identical relative actions arriving within 150ms
+        if ((cmd.action === 'next' || cmd.action === 'prev') && cmd.action === lastHandledAction && (now - lastHandledActionTime) < 150) {
+          return;
+        }
+      }
+      lastHandledAction = cmd.action;
+      lastHandledActionTime = now;
+
+      if (cmd.action === 'next') {
+        Reveal.next();
+      } else if (cmd.action === 'prev') {
+        Reveal.prev();
+      } else if (cmd.action === 'goto' && typeof cmd.index === 'number') {
+        Reveal.slide(cmd.index);
+      } else if (cmd.action === 'request_state') {
+        broadcastState();
+      }
+    }
+
+    function broadcastState() {
+      const state = getPresentationState();
+      const payload = JSON.stringify({ namespace: 'agenticale-presentation', ...state });
+
+      // 1. Send via postMessage to all known/opened speaker targets (deduplicated)
+      const targets = new Set(knownSpeakerSources);
+      if (speakerWindow && !speakerWindow.closed) {
+        targets.add(speakerWindow);
+      }
+      targets.forEach((src) => {
+        try {
+          src.postMessage(payload, '*');
+        } catch (e) {
+          knownSpeakerSources.delete(src);
+        }
+      });
+
+      // 2. BroadcastChannel (works on web servers)
+      if (syncChannel) {
+        try { syncChannel.postMessage(state); } catch (e) {}
+      }
+
+      // 3. LocalStorage
+      try {
+        localStorage.setItem('agenticale_presentation_state', JSON.stringify(state));
+      } catch (e) {}
+    }
+
+    function openSpeakerWindow() {
+      if (speakerWindow && !speakerWindow.closed) {
+        speakerWindow.focus();
+        broadcastState();
+        return;
+      }
+      speakerWindow = window.open('speaker.html', 'AgenticAleSpeakerView', 'width=1200,height=760,menubar=no,toolbar=no,location=no');
+      if (speakerWindow) {
+        speakerWindow.focus();
+        knownSpeakerSources.add(speakerWindow);
+        setTimeout(broadcastState, 200);
+        setTimeout(broadcastState, 600);
+      }
+    }
+
+    function openSpeakerTab() {
+      const tab = window.open('speaker.html', '_blank');
+      if (tab) {
+        tab.focus();
+        knownSpeakerSources.add(tab);
+        setTimeout(broadcastState, 200);
+        setTimeout(broadcastState, 600);
+      }
+    }
+
+    // Button event listeners
+    const speakerWinBtn = document.getElementById('speaker-win-btn');
+    const speakerTabBtn = document.getElementById('speaker-tab-btn');
+    if (speakerWinBtn) speakerWinBtn.addEventListener('click', openSpeakerWindow);
+    if (speakerTabBtn) speakerTabBtn.addEventListener('click', openSpeakerTab);
+
+    // On-screen notes drawer functionality
+    const notesDrawer = document.getElementById('notes-drawer');
+    const notesContent = document.getElementById('notes-drawer-content');
+    const notesBtn = document.getElementById('notes-btn');
+    const notesClose = document.getElementById('notes-drawer-close');
+
+    function updateOnScreenNotes() {
+      const currentSlide = Reveal.getCurrentSlide();
+      if (!currentSlide) return;
+      const notesEl = currentSlide.querySelector('aside.notes');
+      if (notesEl) {
+        notesContent.innerHTML = notesEl.innerHTML;
+      } else {
+        notesContent.innerHTML = '<em>No speaker notes for this slide.</em>';
+      }
+    }
+
+    function toggleNotesDrawer() {
+      const isOpen = notesDrawer.classList.toggle('open');
+      if (isOpen) {
+        updateOnScreenNotes();
+      }
+    }
+
+    if (notesBtn) notesBtn.addEventListener('click', toggleNotesDrawer);
+    if (notesClose) notesClose.addEventListener('click', toggleNotesDrawer);
+
+    // Synchronize notes on slide change
+    Reveal.on('slidechanged', () => {
+      if (notesDrawer.classList.contains('open')) {
+        updateOnScreenNotes();
+      }
+      broadcastState();
+    });
+
+    Reveal.on('ready', () => {
+      broadcastState();
+    });
+
+    // Keyboard shortcuts
+    window.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.key === 's' || e.key === 'S') {
+        e.preventDefault();
+        openSpeakerWindow();
+      } else if (e.key === 'n' || e.key === 'N') {
+        toggleNotesDrawer();
+      }
+    });
+  </script>
+</body>
+</html>
