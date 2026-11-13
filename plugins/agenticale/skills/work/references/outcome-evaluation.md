@@ -8,7 +8,7 @@ iteration — as an instruction-level protocol. It is not a new orchestration: i
 reuses Work's existing worker rounds, independent review gate, fix/review caps,
 stop/continuation machinery, and worker-round allowance. It introduces no
 generic verdict script, no metric framework, no parallel candidate execution,
-and no new routing role.
+and no new dispatch role.
 
 ## When it applies
 

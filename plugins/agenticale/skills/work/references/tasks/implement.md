@@ -1,6 +1,6 @@
 # Implementation task contract
 
-Implement one bounded, verifiable slice in a fresh child context; the routine-versus-hard distinction is a routing choice, not a separate contract.
+Implement one bounded, verifiable slice in a fresh child context; the routine-versus-hard distinction is a dispatch choice, not a separate contract.
 
 ## Mission and scope
 
@@ -20,8 +20,8 @@ completion.
 This one contract serves both routine slices and genuinely reasoning-heavy
 ones — concurrency/async/cancellation/timing behaviour, cross-repository
 contract surfaces, subtle shared-state behaviour, or security-relevant code
-paths. A difficult slice is routed to this same contract with hard-task routing
-context; the instructions here do not change with the route.
+paths. A difficult slice is assigned to this same contract with a hard-task
+dispatch context; the instructions here do not change with the assignment.
 
 ## Permitted actions
 

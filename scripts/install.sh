@@ -38,29 +38,28 @@ Wrapper options:
                     with --base-url taking precedence). Useful for mirrors.
   --setup           Also create the personal AgenticAle preferences file
                     (~/.agenticale/preferences.md) after a successful install.
-                    If a legacy ~/.agenticale/routing.md exists, the step
-                    creates nothing and reports it. Skipped with --dry-run.
+                    It is created as a minimal scaffold only if absent; an
+                    existing file is never overwritten, migrated, or removed.
+                    Skipped with --dry-run.
   --help, -h        Show this help.
 
 Forwarded installer options (see: node scripts/install.mjs --help):
-  --models PATH|PRESET  --effort LEVEL  --source-root PATH  --routing PATH
-  --target PATH  --replace  --no-model  --dry-run
+  --models PATH|PRESET  --source-root PATH  --target PATH  --replace
+  --no-model  --dry-run
 
-If no routing selection (--models, --routing, or --no-model) is given, the
-wrapper appends --no-model so every role inherits the session model and
-effort.
+If no model selection (--models or --no-model) is given, the wrapper appends
+--no-model so every role inherits the session model.
 
 After a successful non-dry-run install the wrapper offers the consented setup
 step (create ~/.agenticale/preferences.md as a minimal scaffold only if
-absent; a legacy ~/.agenticale/routing.md at the same scope makes the step
-create nothing and report it): with --setup it runs unconditionally; on a
-terminal without --setup it asks "Create a personal AgenticAle preferences
-file (~/.agenticale/preferences.md)? [y/N]" (default no); non-interactive
-runs skip it and print a tip. The AGENTICALE_INSTALL_CONSENT=yes|no
-environment variable replaces the interactive answer where the prompt would
-occur (a documented testing seam). The install is never undone by a setup
-failure; the wrapper exits with the setup subcommand's exit code in that
-case.
+absent; an existing file is left untouched): with --setup it runs
+unconditionally; on a terminal without --setup it asks "Create a personal
+AgenticAle preferences file (~/.agenticale/preferences.md)? [y/N]" (default
+no); non-interactive runs skip it and print a tip.
+The AGENTICALE_INSTALL_CONSENT=yes|no environment variable replaces the
+interactive answer where the prompt would occur (a documented testing
+seam). The install is never undone by a setup failure; the wrapper exits
+with the setup subcommand's exit code in that case.
 
 Exit codes: the installer's exit code is propagated. If the install succeeds
 and the setup step runs, the setup exit code is propagated when it is
@@ -81,12 +80,8 @@ version=""
 version_given=0
 models=""
 models_given=0
-effort=""
-effort_given=0
 source_root=""
 source_root_given=0
-routing=""
-routing_given=0
 target=""
 target_given=0
 replace=0
@@ -134,17 +129,6 @@ while [ $# -gt 0 ]; do
       models_given=1
       shift
       ;;
-    --effort)
-      [ $# -ge 2 ] || fail "--effort requires a level."
-      effort="$2"
-      effort_given=1
-      shift 2
-      ;;
-    --effort=*)
-      effort="${arg#--effort=}"
-      effort_given=1
-      shift
-      ;;
     --source-root)
       [ $# -ge 2 ] || fail "--source-root requires a path."
       source_root="$2"
@@ -154,17 +138,6 @@ while [ $# -gt 0 ]; do
     --source-root=*)
       source_root="${arg#--source-root=}"
       source_root_given=1
-      shift
-      ;;
-    --routing)
-      [ $# -ge 2 ] || fail "--routing requires a path."
-      routing="$2"
-      routing_given=1
-      shift 2
-      ;;
-    --routing=*)
-      routing="${arg#--routing=}"
-      routing_given=1
       shift
       ;;
     --target)
@@ -342,16 +315,14 @@ installer="$top_dir/scripts/install.mjs"
 # single words.
 set -- "$node_cmd" "$installer"
 if [ "$models_given" -eq 1 ]; then set -- "$@" "--models" "$models"; fi
-if [ "$effort_given" -eq 1 ]; then set -- "$@" "--effort" "$effort"; fi
 if [ "$source_root_given" -eq 1 ]; then set -- "$@" "--source-root" "$source_root"; fi
-if [ "$routing_given" -eq 1 ]; then set -- "$@" "--routing" "$routing"; fi
 if [ "$target_given" -eq 1 ]; then set -- "$@" "--target" "$target"; fi
 if [ "$replace" -eq 1 ]; then set -- "$@" "--replace"; fi
 if [ "$no_model" -eq 1 ]; then set -- "$@" "--no-model"; fi
 if [ "$dry_run" -eq 1 ]; then set -- "$@" "--dry-run"; fi
-# Default routing selection: with no --models, --routing, or --no-model given,
-# append --no-model so every role inherits the session model and effort.
-if [ "$models_given" -eq 0 ] && [ "$routing_given" -eq 0 ] && [ "$no_model" -eq 0 ]; then
+# Default model selection: with no --models or --no-model given,
+# append --no-model so every role inherits the session model.
+if [ "$models_given" -eq 0 ] && [ "$no_model" -eq 0 ]; then
   set -- "$@" "--no-model"
 fi
 

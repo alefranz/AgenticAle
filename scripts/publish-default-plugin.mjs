@@ -18,7 +18,8 @@ function usage() {
 
 Publishes the shared AgenticAle skills-only plugin and both marketplace
 catalogs (Copilot .github/plugin/marketplace.json and OpenAI
-.agents/plugins/marketplace.json) from the packaged routing by default.
+.agents/plugins/marketplace.json) from the packaged model config by default
+(adapters/opencode/models.json).
 --check verifies the committed plugin and both catalogs are current. No
 model request is made.`;
 }

@@ -61,27 +61,26 @@ function Show-Usage {
     '                    with --base-url taking precedence). Useful for mirrors.',
     '  --setup           Also create the personal AgenticAle preferences file',
     '                    (~/.agenticale/preferences.md) after a successful install.',
-    '                    If a legacy ~/.agenticale/routing.md exists, the step',
-    '                    creates nothing and reports it. Skipped with --dry-run.',
+    '                    It is created as a minimal scaffold only if absent; an',
+    '                    existing file is never overwritten, migrated, or removed.',
+    '                    Skipped with --dry-run.',
     '  --help, -h        Show this help.',
     '',
     'Forwarded installer options (see: node scripts/install.mjs --help):',
-    '  --models PATH|PRESET  --effort LEVEL  --source-root PATH  --routing PATH',
-    '  --target PATH  --replace  --no-model  --dry-run',
+    '  --models PATH|PRESET  --source-root PATH  --target PATH  --replace',
+    '  --no-model  --dry-run',
     '',
-    'If no routing selection (--models, --routing, or --no-model) is given, the',
-    'wrapper appends --no-model so every role inherits the session model and',
-    'effort.',
+    'If no model selection (--models or --no-model) is given, the wrapper appends',
+    '--no-model so every role inherits the session model.',
     '',
     'After a successful non-dry-run install the wrapper offers the consented setup',
     'step (create ~/.agenticale/preferences.md as a minimal scaffold only if',
-    'absent; a legacy ~/.agenticale/routing.md at the same scope makes the step',
-    'create nothing and report it): with --setup it runs unconditionally; on a',
-    'terminal without --setup it asks "Create a personal AgenticAle preferences',
-    'file (~/.agenticale/preferences.md)? [y/N]" (default no); non-interactive',
-    'runs skip it and print a tip. The AGENTICALE_INSTALL_CONSENT=yes|no',
-    'environment variable replaces the interactive answer where the prompt would',
-    'occur (a documented testing seam).',
+    'absent; an existing file is left untouched): with --setup it runs',
+    'unconditionally; on a terminal without --setup it asks "Create a personal',
+    'AgenticAle preferences file (~/.agenticale/preferences.md)? [y/N]" (default',
+    'no); non-interactive runs skip it and print a tip. The',
+    'AGENTICALE_INSTALL_CONSENT=yes|no environment variable replaces the',
+    'interactive answer where the prompt would occur (a documented testing seam).',
     'The install is never undone by a setup failure; the wrapper exits with the',
     'setup subcommand''s exit code in that case.',
     '',
@@ -181,12 +180,8 @@ try {
   $versionGiven = $false
   $models = ''
   $modelsGiven = $false
-  $effort = ''
-  $effortGiven = $false
   $sourceRoot = ''
   $sourceRootGiven = $false
-  $routing = ''
-  $routingGiven = $false
   $target = ''
   $targetGiven = $false
   $replace = $false
@@ -242,21 +237,6 @@ try {
       $argIndex += 1
       continue
     }
-    if ($arg -eq '--effort') {
-      if (($argIndex + 1) -ge $argList.Count) { Fail '--effort requires a level.' }
-      $effort = [string]$argList[$argIndex + 1]
-      if ($effort -eq '') { Fail '--effort requires a level.' }
-      $effortGiven = $true
-      $argIndex += 2
-      continue
-    }
-    if ($arg.StartsWith('--effort=')) {
-      $effort = $arg.Substring('--effort='.Length)
-      if ($effort -eq '') { Fail '--effort requires a level.' }
-      $effortGiven = $true
-      $argIndex += 1
-      continue
-    }
     if ($arg -eq '--source-root') {
       if (($argIndex + 1) -ge $argList.Count) { Fail '--source-root requires a path.' }
       $sourceRoot = [string]$argList[$argIndex + 1]
@@ -269,21 +249,6 @@ try {
       $sourceRoot = $arg.Substring('--source-root='.Length)
       if ($sourceRoot -eq '') { Fail '--source-root requires a path.' }
       $sourceRootGiven = $true
-      $argIndex += 1
-      continue
-    }
-    if ($arg -eq '--routing') {
-      if (($argIndex + 1) -ge $argList.Count) { Fail '--routing requires a path.' }
-      $routing = [string]$argList[$argIndex + 1]
-      if ($routing -eq '') { Fail '--routing requires a path.' }
-      $routingGiven = $true
-      $argIndex += 2
-      continue
-    }
-    if ($arg.StartsWith('--routing=')) {
-      $routing = $arg.Substring('--routing='.Length)
-      if ($routing -eq '') { Fail '--routing requires a path.' }
-      $routingGiven = $true
       $argIndex += 1
       continue
     }
@@ -499,17 +464,14 @@ try {
   # anything when the array crosses into node.
   $installerArgs = @()
   if ($modelsGiven) { $installerArgs = $installerArgs + @('--models', $models) }
-  if ($effortGiven) { $installerArgs = $installerArgs + @('--effort', $effort) }
   if ($sourceRootGiven) { $installerArgs = $installerArgs + @('--source-root', $sourceRoot) }
-  if ($routingGiven) { $installerArgs = $installerArgs + @('--routing', $routing) }
   if ($targetGiven) { $installerArgs = $installerArgs + @('--target', $target) }
   if ($replace) { $installerArgs = $installerArgs + '--replace' }
   if ($noModel) { $installerArgs = $installerArgs + '--no-model' }
   if ($dryRun) { $installerArgs = $installerArgs + '--dry-run' }
-  # Default routing selection: with no --models, --routing, or --no-model
-  # given, append --no-model so every role inherits the session model and
-  # effort.
-  if (-not $modelsGiven -and -not $routingGiven -and -not $noModel) {
+  # Default model selection: with no --models or --no-model given,
+  # append --no-model so every role inherits the session model.
+  if (-not $modelsGiven -and -not $noModel) {
     $installerArgs = $installerArgs + '--no-model'
   }
 

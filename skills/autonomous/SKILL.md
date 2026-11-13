@@ -39,166 +39,57 @@ mechanical task. The number of tasks alone never justifies standard mode.
 Consume the invoking user's goal text directly as the invocation arguments.
 Interpret the complete arguments as:
 
-- Leading options, in either order: an optional positive-integer worker-round
-  budget and an optional `--profile NAME` or `--profile=NAME` routing
-  profile. `--` is an explicit option delimiter; everything after the options
-  is the goal text, possibly empty. With no budget, the goal uses the default
-  budget of 6 worker rounds.
-- Whenever the parsed goal text is empty — no arguments at all, a budget
-  alone, a profile selector alone, or both — RESUME the active handoff:
-  continue the exact one `NEXT` action recorded in it.
+- Leading option: an optional positive-integer worker-round budget. `--` is
+  an explicit option delimiter; everything after the option is the goal text,
+  possibly empty. With no budget, the goal uses the default budget of 6
+  worker rounds.
+- Whenever the parsed goal text is empty — no arguments at all or a budget
+  alone — RESUME the active handoff: continue the exact one `NEXT` action
+  recorded in it.
 - A supplied goal with an already-active handoff is a conflict: preserve the
   existing active handoff untouched and report the conflict to the user
   instead of overwriting it.
 - Start in **strict** mode unless the user explicitly requested standard mode.
-- A missing profile name (a trailing `--profile`, or one followed by another
-  option), or two different profile names, is reported before dispatch,
-  listing the profile names available for the active runtime.
-- An unambiguous natural-language instruction (for example, "use the
-  server-b routing profile") selects the profile; merely mentioning a profile
-  does not.
-- The goal's selected profile name is durable goal configuration: record it in
-  the active handoff (alongside the GOAL line), separately from the
-  diagnostic resolved-routing summary the bootstrap records as an
-  `ESTABLISHED` fact.
-- A new goal without a selector uses `default`. A resume without a selector
-  retains the goal's recorded selection. An explicit selector changes it;
-  `--profile default` clears a named selection back to ordinary routing.
 
 In round 0, follow the skill's setup rules: read the project's `AGENTS.md`
 when present, `docs/handoffs/active.md` when present, and the recent relevant
 git history. For a new goal, initialize the handoff before round 1. For a
 resume, continue the exact one `NEXT` action.
 
-## Task routing and capability
+## Task dispatch and capability
 
-Before dispatching any round, run the shared routing bootstrap described in
-[the routing contract](../work/references/ROUTING.md) — the same bootstrap the
-work skill uses — at start and on every fresh resume. Activation always uses
-the loaded installation's resources, relative to the loaded skill — never the
-AgenticAle repository checkout, which is not a routing source:
+Before dispatching any round, select the actual runtime binding from
+`../work/references/runtimes/` for the host actually being used, from the
+tools the host exposes; never infer the runtime from a selected model name.
+Do this at start and on every fresh resume.
 
-1. Select the actual runtime binding from `../work/references/runtimes/` for
-   the host actually being used, from the tools the host exposes; never infer
-   the runtime from a selected model name.
-2. Establish the Git worktree root, or the explicitly established workspace
-   root for a non-Git project. When no root is established, omit `--root`;
-   only the personal preference location is checked.
-3. Run the default path — one mechanical call from the installed skill:
+The workflow never selects a model: on OpenCode the model and effort are
+baked into the installed `agenticale/<role>` agent profiles at install
+time; on other surfaces the binding's native fields carry a role assignment
+only where the host supports it and the installation's preference file (its
+"Model configuration (this installation)" section, when present) provides
+one. A role whose installed profile is missing or unreadable blocks only
+that role's dispatch, reported with the binding's refresh procedure; roles
+no round uses are irrelevant, and an unavailable role never blocks unrelated
+work. The workflow creates or modifies no configuration file; a missing
+preference file is normal. Where the installation documents a preference
+file, the selected file (or profile file) is read at most once at
+activation and stays fixed for the activation; a fresh resume starts fresh,
+and the prior handoff's model choices are diagnostic history that never
+override the current installation — report a material change to a role's
+installed model selection. The preference file's `## Work` worker-round
+allowance is Work-specific and never sets an autonomous budget.
 
-   ```sh
-   node ../work/scripts/routing.mjs startup --runtime <runtime> --root <root> [--profile NAME]
-   ```
-
-   with `--profile NAME` for the goal's recorded profile — or the
-   invocation's explicit selection when present, which then becomes the
-   goal's recorded selection. When the activation carries invocation-level
-   preferences, `startup` serves only as the file-existence probe: its
-   policy and its profile check are not final, and `--profile` need not be
-   passed to it — if it is, its unknown-profile result is provisional and
-   is not reported. Then act on the result:
-   - Invocation-level preferences — direct task-time overrides, an
-     explicitly supplied invocation Markdown file, or the invocation's
-     explicit profile selection: `startup` accepts no invocation layers, so
-     none of its results is final. Interpret the discovered files (if any)
-     and the invocation preferences into the ordered structured layers,
-     lowest to highest precedence per the routing contract, write them to a
-     temporary file — one of the two paths that create one — and resolve
-     them:
-
-     ```sh
-     node ../work/scripts/routing.mjs resolve --runtime <runtime> --input <layers-file> [--profile NAME] --explain
-     ```
-
-     with `--profile NAME` for the selected profile; profile availability is
-     validated only by this final resolution — the resolver's
-     unknown-profile error lists the available names, including those
-     defined by the invocation Markdown itself (a profile defined there is
-     valid), and is the one that gets reported. The `--explain` output is
-     the snapshot, as for the interpretation path below.
-   - `resolved` (no invocation-level preferences): the output IS the routing
-     snapshot for this activation — `policy`, `routeProvenance` (provenance
-     on every route), `profile`, and (on OpenCode) the `agents` entries.
-   - `interpretation-required`: a documented preference file is present.
-     Read the listed `presentFiles`, interpret them per the routing contract
-     (Markdown or clear equivalent prose; the helper never parses Markdown),
-     write the structured layers to a temporary file — the other path that
-     creates one — and resolve them:
-
-     ```sh
-     node ../work/scripts/routing.mjs resolve --runtime <runtime> --input <layers-file> [--profile NAME] --explain
-     ```
-
-     `--input` is a file path of structured preference JSON, never inline
-     JSON, and is omitted when there are no preferences. The `--explain`
-     output — `policy`, `routeProvenance`, and `profile` — is the snapshot;
-     the plain (non-`--explain`) output is the strict version-1 export the
-     OpenCode preparation flow writes for the installer, not the snapshot.
-   - Non-zero exit (unreadable preference file, unknown or invalid profile):
-     report the actionable error once. An unreadable preference file is a
-     genuine error on every path. An unknown or invalid profile error is
-     final on the paths where `startup`'s results are final (no
-     invocation-level preferences); on the invocation-preference path it is
-     the final `resolve --input <layers-file> --profile NAME --explain`
-     that validates and reports profile availability. A removed or
-     unavailable selected profile blocks dispatch with the actionable
-     explanation — the names available for the active runtime — instead of
-     silently falling back to default. Missing preference files are normal —
-     never create or modify files, and never investigate fallbacks or retry.
-4. Check the capability before the affected dispatch. On OpenCode the
-   comparison is the `agents` entries of the `resolved` startup output when
-   the activation was finalized directly from that output — no discovered
-   preference files and no invocation-level preferences; otherwise — the
-   snapshot came from `resolve --input ... --explain` on the
-   interpretation-required or invocation-preference path, or Node is
-   unavailable — perform the in-context comparison against the final
-   snapshot: read the `model:` and `reasoningEffort:` frontmatter of the
-   applicable installed profiles (the default `agents/agenticale/<role>.md`
-   set, or the named set for a selected profile) and apply the same match
-   rules (an `inherit` route matches a profile with no `model` line; an
-   explicit route must match model and, on effort-capable runtimes, effort).
-   Dispatch a role only when it matches; a missing, mismatched, or
-   unreadable profile blocks only that
-   role's dispatch, reported with the binding's preparation and refresh
-   procedure. Roles no round uses are irrelevant; an unused unavailable role
-   never blocks unrelated work. On other runtimes, compare each selection
-   with the binding's native dispatch fields as the binding says; an
-   ambiguous final selection blocks only the affected dispatch and preserves
-   the unrelated clear selections.
-5. Where Node is unavailable, apply the routing contract in context: check
-   the two documented preference locations, read and interpret the present
-   files, and resolve the seven routes with provenance on every route,
-   keeping each route's source. This is the documented fallback path.
-6. Record a compact routing summary — each tier's model and effort with its
-   source, plus any role exceptions (for a tier reference, both the
-   role-selection source and the tier-definition source) — as an
-   `ESTABLISHED` fact in the active handoff in round 0, and carry it into the
-   final report and the session-close archive paragraph. Record the goal's
-   selected profile name separately, as goal configuration alongside the
-   GOAL line (see Entry and arguments), not as part of this diagnostic
-   summary.
-
-A missing key in a complete policy is an error, not an implicit inheritance. An
-unsupported request can use only an explicitly configured fallback; it must
-not silently inherit the session model in place of a route the policy names or
-invent a weaker model. Record requested versus effective settings when native
-metadata makes the latter available; an unknown effective setting stays
-unknown, and a child's self-reported model name never establishes what it ran
-on.
-
-Keep the snapshot fixed during the activation, including context compaction.
-On a fresh resume, re-run the bootstrap against the current routing files:
-persisted model choices are diagnostic history and never override current
-configuration. Compare the resolution against the recorded summary: report
-material changes. The prior handoff's routing record is diagnostic history,
-not a layer that overrides current preferences. A re-resolution affects
-subsequent dispatches only, never an already-running child. The bootstrap is
-read-only: it never creates or modifies a routing file.
-
-An explicit mid-run profile change re-resolves the routing and applies only to
-future dispatches: it never changes an already-running child, never resets
-budgets or review counters, never bypasses the provider quota-recovery rules,
-and never authorizes automatic provider switching.
+A role with no installed profile (or no binding support) must not silently
+inherit the session model in place of a role the installation names. An
+explicit model request the host cannot honour is reported as a limitation,
+never silently substituted; when native metadata makes the effective
+settings available, record requested versus effective, and a child's
+self-reported model name never establishes what it ran on. A change to the
+installation's configuration takes effect only at the next fresh resume: it
+never changes an already-running child, never resets budgets or review
+counters, never bypasses the provider quota-recovery rules, and never
+authorizes automatic provider switching.
 
 Route each round to a fresh child subagent carrying the matching task contract;
 do not use a generic built-in child for a role that needs its own bounded
@@ -210,28 +101,26 @@ fresh context and a bounded task:
 | --- | --- | --- |
 | One-question source discovery | [explore](../work/references/tasks/explore.md) | Focused evidence gathering; source acquisition is allowed, project code changes are not. |
 | Normal implementation slice | [implement](../work/references/tasks/implement.md) | Small, verifiable coding task. |
-| Hard implementation slice | [implement](../work/references/tasks/implement.md) with hard-task routing context | Reasoning-heavy work that benefits from an explicitly bounded specialist context. |
+| Hard implementation slice | [implement](../work/references/tasks/implement.md) on the `implement-hard` role | Reasoning-heavy work that benefits from an explicitly bounded specialist context. |
 | Review-findings fix pass | [fix](../work/references/tasks/fix.md) | Narrow, evidence-led changes. |
-| Hard review-findings fix pass | [fix](../work/references/tasks/fix.md) contract on the `implement-hard` route (hard-task routing context) | Findings needing concurrency, durability, state-machine, or ownership reasoning. |
+| Hard review-findings fix pass | [fix](../work/references/tasks/fix.md) contract on the `implement-hard` role | Findings needing concurrency, durability, state-machine, or ownership reasoning. |
 | Per-slice independent review | [review](../work/references/tasks/review.md) | Adversarial verification in a context independent from the worker. |
 | Periodic integration audit / escalated slice review | [deep-review](../work/references/tasks/deep-review.md) | Cross-slice review in a fresh context. |
 | Stuck decision second opinion | [consult](../work/references/tasks/consult.md) | One read-only recommendation on a decision the loop cannot settle. |
 
-Implementation slices default to the implement contract. Route a slice to the
-implement contract with hard-task routing context only when it is genuinely
-reasoning-heavy: concurrency/async/cancellation/timing behaviour, the
+Implementation slices default to the implement contract. Dispatch a slice on
+the `implement-hard` role only when it is genuinely reasoning-heavy: concurrency/async/cancellation/timing behaviour, the
 cross-repository contract surface, subtle shared-state behaviour, or
 security-relevant code paths. Mechanical renames, dependency swaps, packaging,
 and docs never qualify.
 A hard fix keeps the fix task role and the fix counters: dispatch it on the
-configured `implement-hard` route, carrying the bounded fix contract
-explicitly in the packet, or an equivalently scoped implement contract where
-the binding's profile body differs. The task role and the routing key are
-separate choices; record both, with the reason for the hard route, in the
-round's routing record. Respect the configured policy and the profiles the
-binding exposes — never silently substitute a stronger or weaker route, and
-surface a requested route the binding cannot honour.
-Independent review is required even when every role inherits the same model.
+`implement-hard` role, carrying the bounded fix contract explicitly in the
+packet, or an equivalently scoped implement contract where the installed
+profile body differs. The task role and the dispatched role are separate
+choices; record both in the round's dispatch record, with the reason for the
+hard dispatch. Never silently substitute a stronger or weaker role, and
+surface a requested role the binding cannot honour.
+Independent review is required even when every role runs the same model.
 Hard slices are prime candidates for the deep-review escalation below.
 
 ## Non-interactive child sessions
@@ -300,9 +189,9 @@ Keep current operational state separate from completed audit detail:
   at most ~2 KB and contains `GOAL`, `ESTABLISHED`, `CURRENT STATE`,
   `ACCEPTANCE`, and exactly one `NEXT` action. A reset also adds a compact
   `TRIED` section. Create it before the first round of a session if absent.
-  The compact routing summary from the routing bootstrap (Task routing and
-  capability) is an `ESTABLISHED` fact of the activation, not a new state
-  file.
+  A role's model selection, where the active binding exposes it (Task
+  dispatch and capability), is an `ESTABLISHED` fact of the activation, not
+  a new state file.
 - `docs/handoffs/archive/YYYY-MM.md` holds completed handoffs, review
   verdicts, and session-close ledgers. Preserve the original detail and
   append records in chronological order; do not rewrite it into a lossy
@@ -351,11 +240,10 @@ strengthen the persistence policy.
 
 ## Setup (round 0, done by the main loop)
 
-1. Parse the goal, the round budget, the mode, the git persistence policy, and
-   the goal's recorded profile selection. If no budget was given,
-   choose one that fits the scope (default 6 worker rounds; up to ~10 for
-   large goals — strict-mode review rounds are cheap and are not counted
-   against the worker budget). State all five.
+1. Parse the goal, the round budget, the mode, and the git persistence
+   policy. If no budget was given, choose one that fits the scope (default 6
+   worker rounds; up to ~10 for large goals — strict-mode review rounds are
+   cheap and are not counted against the worker budget). State all four.
 2. Read only what is needed to define round 1: `docs/handoffs/active.md`
    (or, only while initializing it, the first active "Next slice" item in
    `BACKLOG.md`), `AGENTS.md` conventions when that file exists, and
@@ -377,10 +265,11 @@ strengthen the persistence policy.
    evidence is needed to define a round, dispatch the focused explore round
    with its one question and stop condition instead of reading source
    itself.
-3. Run the shared routing bootstrap above. For a resume, compare the fresh
-   resolution against the recorded routing summary first and report material
-   changes. Persist the compact routing summary in the active handoff's
-   `ESTABLISHED` facts; the bootstrap is read-only and creates no routing file.
+3. Follow Task dispatch and capability above. For a resume, compare the
+   current installation against the recorded dispatch records first and
+   report a material change to a role's model selection. Record the model
+   selections the binding exposes in the active handoff's `ESTABLISHED`
+   facts; the workflow creates or modifies no configuration file.
 4. State the plan in 3–6 lines: goal, budget, mode, persistence policy, how the
    work splits into slices, and stop conditions. Then start round 1 without
    waiting for approval; pause only on a stop condition below.
@@ -405,17 +294,17 @@ Apply [the shared contract's checkpoint](../work/references/rounds.md#checkpoint
 after every substantive worker or reviewer result. Use its progress narration
 guidance before each substantive dispatch, including the first: what was learned,
 what comes next, and why. Keep the compact state in the active handoff's
-`CURRENT STATE` next to the ledger. Routine routing records and counters belong
-in that state, not in every visible update.
+`CURRENT STATE` next to the ledger. Routine dispatch records and counters
+belong in that state, not in every visible update.
 
 For each current slice or discovery assignment:
 
 1. **Worker round.** Compose a self-contained prompt from the worker
    template. Invoke one foreground child subagent carrying the matching task
    contract: the explore contract for a focused discovery question, the
-   implement contract for an implementation slice, the implement contract
-   with hard-task routing context for a hard implementation slice (see the
-   routing rules above), and the fix contract for a review-directed fix.
+   implement contract for an implementation slice, the implement contract on
+   the `implement-hard` role for a hard implementation slice (see the
+   dispatch rules above), and the fix contract for a review-directed fix.
    Check the report against a quick verification (`git -C <repo> status` and,
    when applicable, `git -C <repo> log -1`). If the
    host result proves provider quota exhaustion, handle it under
@@ -527,7 +416,7 @@ If the host ends a child before it produces a valid report (e.g. a turn/step
 ceiling or an interruption), do not treat the task as complete or count a
 forced summary as a completed task. Record the interruption in the ledger
 (for example `R4: work progress — interrupted; fresh handoff required`),
-start a fresh child of the same routed role from the active handoff plus the
+start a fresh child of the same role from the active handoff plus the
 interrupted child's final summary, and require it to first
 validate or repair the compact handoff before doing one concrete `NEXT`
 action. This is a normal reset, not a malformed-report correction and not an
@@ -574,12 +463,12 @@ verdict, stop and ask the user. Promote every non-blocking nit to a
 
 ## Opportunistic deep-review escalation
 
-The per-slice reviewer is independent in context even when it inherits the
-same model as the worker. After a slice passes its normal review gate, and
+The per-slice reviewer is independent in context even when it runs the same
+model as the worker. After a slice passes its normal review gate, and
 before archiving it, run one foreground round with the deep-review contract
 over that slice's commit or diff range when any of these is true:
 
-- the slice touched a high-risk surface per the routing rules above —
+- the slice touched a high-risk surface per the dispatch rules above —
   concurrency/async/cancellation/timing behaviour, the cross-repository
   contract surface, subtle shared-state behaviour, or security-relevant code
   paths (this includes every hard implementation slice);
@@ -647,7 +536,7 @@ End a worker round and start a fresh subagent when the first of these occurs:
 - **Three consecutive exploratory actions** (search, read, probe, comparison)
   produced neither a material decision nor a persisted implementation.
 - The work changes from implementing the assigned behaviour to understanding
-  a new subsystem, upstream-parity question, package/provenance question, or
+  a new subsystem, upstream-parity question, package-origin question, or
   cross-repository dependency.
 - The next action is no longer concrete from the task's original acceptance
   condition.
@@ -804,7 +693,7 @@ Independently verify:
    outer-repo submodule pins match committed dependency changes.
 3. Scope: inspect the stated commit or diff range; changes match
    the task, nothing beyond it, no drive-by refactors. Do not turn this into
-   a repository-wide architecture, upstream-parity, or provenance audit
+   a repository-wide architecture, upstream-parity, or origin audit
    unless that was the assigned task.
 4. Conventions: {relevant AGENTS.md rules when present; handoff updated so the next round
    starts cleanly}.
@@ -915,8 +804,8 @@ Stop the loop and report to the user when any of these hit:
 - The round ledger, one line per round.
 - What was achieved, with evidence (changed files or commit hashes, test
   results, review verdicts).
-- Where the work now stands (handoff state, including the current routing
-  summary or the material changes reported on resume) and the exact next step.
+- Where the work now stands (handoff state, including any material change to
+  a role's model selection reported on resume) and the exact next step.
 - Open blockers or decisions needed.
 - For an incomplete stop, the continuation prompt: outcome and blockers with
   evidence, what actually exists (files, branches, commits) and what to
@@ -929,9 +818,9 @@ final report, the main loop writes the report's pertinent info to the repo
 handoff archive (a dated **session-close handoff paragraph** in the current
 monthly archive, following the active git persistence policy): the round ledger
 (one line per round with change references and verdicts), the final verified
-state (build/test evidence, per-repo persistence state and pin match), the
-current routing summary (or the material-change note against the previously
-recorded one), the open nits already tracked as checkboxes, the allowance
+state (build/test evidence, per-repo persistence state and pin match), any
+material change to a role's model selection reported on resume, the open
+nits already tracked as checkboxes, the allowance
 usage and any granted extensions, the continuation prompt for an incomplete
 stop, and the exact next step. A fresh resume validates the handoff against
 the actual checkout and re-establishes missing context rather than trusting
@@ -959,8 +848,8 @@ the main loop may make itself even though it normally does not edit files.
   slice it was given.
 - Letting a worker use repeated probes, build reruns, or source archaeology
   to avoid a reset — a fresh, compact handoff is the intended recovery path.
-- Routing a routine slice to hard-task routing "to be safe" — it is for
-  reasoning-heavy work only; wall-clock is the cost.
+- Dispatching a routine slice on the `implement-hard` role "to be safe" —
+  the role is for reasoning-heavy work only; wall-clock is the cost.
 - Running the deep reviewer on routine slices "to be safe" — escalation is
   trigger-based and capped per session.
 - Re-running the full review after a mechanical fix — a deterministic edit

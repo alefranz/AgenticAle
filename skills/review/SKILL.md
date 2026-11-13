@@ -1,6 +1,6 @@
 ---
 name: review
-description: "Independently review the current branch's net changes from the local merge base to the current working-tree result — the committed branch review on a clean tree — with one fresh reviewer, returning findings to the user. Explicit-only: invoke with /review (optionally /review --deep and /review --profile NAME); the model does not start this workflow on its own."
+description: "Independently review the current branch's net changes from the local merge base to the current working-tree result — the committed branch review on a clean tree — with one fresh reviewer, returning findings to the user. Explicit-only: invoke with /review (optionally /review --deep); the model does not start this workflow on its own."
 version: 1
 slash: true
 disable-model-invocation: true
@@ -25,27 +25,14 @@ invoking this skill does not activate either of them.
 Consume the invoking user's text directly; do not treat a placeholder
 arguments token as the request. Interpret the complete arguments as:
 
-- Leading options, in any order: an optional `--deep` option selects the
-  deep-review contract for the review round; an optional `--profile NAME` or
-  `--profile=NAME` option selects a routing profile. `--` is an explicit
-  option delimiter; option parsing stops at the first non-option token, and
-  everything after the options is the review context: a focus, acceptance
-  criteria, an explicit scope (for example "only my uncommitted changes"), or
-  a named local base. There is no base or scope flag; a base or scope is
-  always named in the remaining text.
+- Leading options: an optional `--deep` option selects the deep-review
+  contract for the review round. `--` is an explicit option delimiter; option
+  parsing stops at the first non-option token, and everything after the
+  options is the review context: a focus, acceptance criteria, an explicit
+  scope (for example "only my uncommitted changes"), or a named local base.
+  There is no base or scope flag; a base or scope is always named in the
+  remaining text.
 - With no arguments at all, use the local default base and no extra criteria.
-- A missing profile name (a trailing `--profile`, or one followed by another
-  option), or two different profile names, is reported before dispatch, listing
-  the profile names available for the active runtime.
-- An unambiguous natural-language instruction (for example, "use the
-  server-b routing profile") selects the profile; merely mentioning a profile
-  does not.
-- No selector, or `--profile default`, uses the ordinary default routing
-  (installed baseline, personal preferences, project preferences). The
-  selection stays in session state for the activation: a fresh `/review`
-  invocation without a selector returns to default.
-- A profile controls the reviewer's routing only: it never changes the
-  session's model, the runtime, or credentials or endpoints.
 
 ## Comparison scope
 
@@ -55,7 +42,7 @@ files. A dirty tree never narrows the review to uncommitted changes alone;
 that would omit the branch's own commits. An explicit natural-language scope
 in the review context (for example "only my uncommitted changes") selects the
 local changes relative to `HEAD` instead; there is no scope flag. Existing
-base selection, focus, `--deep`, and routing-profile behavior are preserved,
+base selection, focus, and `--deep` behavior are preserved,
 and genuinely conflicting scope instructions are clarified with the user or
 rejected.
 
@@ -99,86 +86,19 @@ empty, when a local edit cancels a branch commit or an unstaged edit cancels
 a staged change. When the net comparison is empty, report that there is
 nothing to review and stop; do not dispatch a reviewer.
 
-## Resolve routing before dispatch
+## Dispatch
 
-Run the shared routing bootstrap described in
-[the routing contract](../work/references/ROUTING.md) — the same bootstrap the
-work skill uses — once per activation, at start, from the loaded
-installation's resources relative to this SKILL.md (never the AgenticAle
-repository checkout):
-
-1. Select the actual runtime from the host's tool surface — never from a
-   selected model name — and its binding under `../work/references/runtimes/`.
-2. Establish the Git worktree root, or the explicitly established workspace
-   root for a non-Git project. When no root is established, omit `--root`;
-   only the personal preference location is checked.
-3. Run the default path — one mechanical call from the installed skill:
-
-   ```sh
-   node ../work/scripts/routing.mjs startup --runtime <runtime> --root <root> [--profile NAME]
-   ```
-
-   with `--profile NAME` when a routing profile is selected and the
-   activation carries no invocation-level preferences. For this skill, a
-   profile selected at invocation is an invocation-level preference: on that
-   path `startup` serves only as the file-existence probe — its policy and
-   its profile check are not final — and if `--profile` is passed, its
-   unknown-profile result is provisional and is not reported. Act on the
-   result through the routing contract's documented paths:
-   - Profile selected at invocation (invocation-preference path): `startup`
-     accepts no invocation layers, so none of its results is final.
-     Interpret the discovered files (if any) and the selected profile into
-     the ordered structured layers, lowest to highest precedence per the
-     routing contract, write them to a temporary file, and resolve them:
-
-     ```sh
-     node ../work/scripts/routing.mjs resolve --runtime <runtime> --input <layers-file> --profile NAME --explain
-     ```
-
-     Profile availability is validated only by this final resolution: its
-     unknown-profile error lists the names available for the active runtime
-     and is the one that gets reported, before dispatch. Its `--explain`
-     output — `policy`, `routeProvenance`, and `profile` — is the snapshot.
-   - `resolved` (no invocation-level preferences): the output IS the routing
-     snapshot. Store `policy`, `routeProvenance`, `profile`, and (on
-     OpenCode) the `agents` entries in session state; no further reference
-     reading is required to resolve or compare routes.
-   - `interpretation-required`: a documented preference file is present.
-     Read the listed `presentFiles`, interpret them per the routing contract
-     (the helper never parses Markdown), write the structured layers to a
-     temporary file, and resolve them:
-
-     ```sh
-     node ../work/scripts/routing.mjs resolve --runtime <runtime> --input <layers-file> --explain
-     ```
-
-     The `--explain` output — `policy`, `routeProvenance`, and `profile` — is
-     the snapshot.
-   - Non-zero exit (unreadable preference file, unknown or invalid profile):
-     report the actionable error once. An unreadable preference file is a
-     genuine error on every path. An unknown or invalid profile error is
-     final only on the paths where `startup`'s results are final — on the
-     invocation-preference path the final
-     `resolve --input <layers-file> --profile NAME --explain` is the one that
-     validates and reports profile availability. A removed or unavailable
-     selected profile blocks the dispatch instead of falling back silently.
-4. Check the capability before dispatch: on OpenCode compare the reviewer's
-   route with the installed profile the binding names — the `agents` entries of
-   the `resolved` output, or the in-context comparison the contract documents
-   otherwise — and dispatch the role only when it matches; a missing,
-   mismatched, or unreadable profile blocks only that dispatch, reported with
-   the binding's preparation and refresh procedure. On other runtimes, compare
-   the selection with the binding's native dispatch fields as the binding says.
-5. Where Node is unavailable, apply the routing contract in context as its
-   documented fallback: check the two documented preference locations, read
-   and interpret the present files, and resolve the routes keeping each route's
-   source. Where the host cannot dispatch a child subagent at all, do not
-   invent a route or a dispatch: report the limitation honestly and state what
-   the review can and cannot provide.
-6. Keep the snapshot fixed for the activation; the bootstrap is read-only and
-   creates no routing file. Start quietly: surface routing information only
-   when it explains a selected profile, a limitation, or a required user
-   action.
+Select the runtime binding from the host's tool surface — never from a
+selected model name — under `../work/references/runtimes/`; on OpenCode
+dispatch the installed `agenticale/review` profile, or
+`agenticale/deep-review` when `--deep` was selected. The workflow never
+selects a model. Where the installation appends a "Model configuration
+(this installation)" section, the preference file it documents is the only
+configuration file the workflow reads — at most once, at activation;
+otherwise the workflow reads, creates, or modifies no configuration file. A
+missing or unreadable profile blocks the dispatch and is reported with the
+binding's refresh procedure. Where the installation documents a preference
+file, the selected file stays fixed for the activation.
 
 ## Dispatch exactly one reviewer
 
@@ -227,7 +147,7 @@ optional nits, and the commands the reviewer ran with results.
   re-review, no hosted review, and no approval or merge. Addressing the
   findings is a separate request; a `/work` invocation in the same session
   uses the findings and scope directly.
-- State stays in the session: the base, the recorded comparison, the routing
+- State stays in the session: the base, the recorded comparison, the dispatch
   record, and the report are retained in session context. No handoff, backlog,
   archive, round ledger, or other operational file is created.
 - Make no product-code changes and no Git changes of any kind: no commits, no
