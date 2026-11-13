@@ -22,8 +22,8 @@ mentioning its name is not loading it.
   Keep lookup evidence in the invoking workflow's state: a child report for
   session state, or the required task notes/handoff for durable state.
   Keep quick lookups inline; route substantial external-source investigation
-  through the `explore` routing key to keep source-reading detail in a fresh
-  context. The runtime binding translates that key to the host's dispatch.
+  through the explore role to keep source-reading detail in a fresh context.
+  The runtime binding maps the role to the host's dispatch.
   Supply the question and stop condition, known repository URL/path or discovery
   evidence, target version/tag/commit or lockfile/configuration path, relevant
   symbols and observed behavior, and constraints. Unknown repository or revision
@@ -192,14 +192,14 @@ Lead with the task and its consequence: "The checks passed, but verification
 found that the rename breaks migration from older installs. I'm assigning a
 focused fix to preserve those paths." Name the next agent's purpose in ordinary
 language (for example, "an independent review of the fix"). Avoid stock labels
-such as "Checkpoint" or "Dispatching", role/tier codes, and repeated workflow
+such as "Checkpoint" or "Dispatching", and repeated workflow
 explanations. Include concrete evidence when it helps assess progress, without
 reciting every check or copying the child's report. Distinguish reported results
 from what the coordinator or reviewer actually verified.
 
-Keep routine round counters and routing details in workflow state; the
-[routing-record guidance](#routing-records) below defines when they belong in
-the visible update. Surface a budget when it constrains the next action, in
+Keep routine round counters and dispatch details in workflow state; the
+[dispatch-record guidance](#dispatch-records) below defines when they belong
+in the visible update. Surface a budget when it constrains the next action, in
 plain language: "This is the last permitted fix attempt; if it leaves blockers,
 I'll stop with the remaining work and options." Give the exact allowance in a
 stop report or when the user asks. A material change of plan needs its reason;
@@ -214,7 +214,7 @@ does or promise control over its presentation.
 
 Also retain the compact state in the invoking workflow's existing state:
 session context in reviewed task work, the active handoff in Autonomous Mode.
-Preserve the required evidence, counters, and routing records there without
+Preserve the required evidence, counters, and dispatch records there without
 copying the narration into a second log.
 
 Every incomplete stop — an exhausted allowance, a repeated blocker, quota
@@ -255,44 +255,27 @@ or the next action is no longer concrete. Return evidence and a next action for
 a fresh agent, saving them on disk only when the supplied state policy requires
 it. Productive implementation and verification need not reset on a tool count.
 
-## Routing records
+## Dispatch records
 
-The coordinator records each dispatched round with its compact routing fields:
-
-- Role: the routing key (one of the seven).
-- Selection: the selected tier, or the direct choice.
-- Requested: the requested model and reasoning effort (or `inherit`).
-- Provenance: the selection's source(s) — the role-selection source and, for a
-  tier reference, the tier-definition source.
-- Fallback: any explicitly configured fallback actually attempted (or none).
-- Effective: the effective settings when native metadata makes them available,
-  or the reason they are unknown.
+The coordinator records each dispatched round with its role (one of the
+seven: explore, implement, implement-hard, fix, review, deep-review,
+consult), the task contract it ran, and — only where the active binding
+exposes it — the role's model selection.
 
 These records belong to the invoking workflow's state: session state in
-reviewed task work, the handoff routing summary and the round ledger in
-Autonomous Mode. A child's self-reported model name never fills the effective
-field, and an unknown effective setting stays unknown rather than being
-estimated. The compact routing snapshot kept in that state records the
-selected routing profile name (or `default`) alongside the tier summary and
-role exceptions, so continuation prompts and autonomous resumes can preserve
-it.
+reviewed task work, the handoff and the round ledger in Autonomous Mode.
+A child's self-reported model name never establishes what it ran on, and an
+unknown model selection stays unknown rather than being estimated.
 
-Routing records are diagnostic state, not a script to recite before every
-child. In ordinary progress narration, omit model identifiers, reasoning effort,
-default-versus-configured comparisons, and "no fallback". If the user asks to
-see model choices, include a short, clearly labelled selection alongside the
-assignment; provide full provenance when requested.
-
-Surface routing details when they explain a consequential route change, an
-attempted configured fallback, a requested-versus-available mismatch, or a
-capability limit. State the practical effect and next action; include exact
-model/effort identifiers when needed to distinguish choices or diagnose the
-issue. Explain an unchanged limitation once, then repeat it only when it affects
-a new decision. A valid user customization differing from the packaged default
-is not itself a mismatch. An installed profile describes configured settings,
-not proof of the effective model. Say "configured for" or "requested" unless
-native evidence confirms what ran. These presentation rules never relax routing
-validation, permit silent substitution, or remove required records.
+Dispatch records are diagnostic state, not a script to recite before every
+child. In ordinary progress narration, omit model identifiers and selection
+details; surface them only when explaining a consequential limitation or a
+requested-versus-installed mismatch. If the user asks to see model choices,
+include a short, clearly labelled selection alongside the assignment. State
+the practical effect and next action; include exact model identifiers when
+needed to diagnose the issue. Explain an unchanged limitation once, then
+repeat it only when it affects a new decision. These presentation rules
+never permit silent substitution or remove required records.
 
 ## Review and fix gate
 

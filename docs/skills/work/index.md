@@ -29,11 +29,11 @@ Add `--pr` when you want Work to deliver the finished task as a pull request:
 it completes the implementation and its checks, runs the independent review,
 makes coherent commits, pushes, and opens the pull request — or updates the
 task branch's existing open PR when one already exists. Leading options —
-`--pr` (or `--pr=<PR URL>`), `--consult`, `--outcome`, `--profile NAME` (or
-`--profile=NAME`), `--stats`, and the `--` delimiter — may appear in any order,
-with everything after the options as the task text:
+`--pr` (or `--pr=<PR URL>`), `--consult`, `--outcome`, `--stats`, and the
+`--` delimiter — may appear in any order, with everything after the options as
+the task text:
 
-- `/work --pr --profile server-b fix the flaky test`
+- `/work --pr fix the flaky test`
 - `/work --consult --pr Redesign the onboarding flow`
 
 You can also start from existing branch changes with an integration-level
@@ -47,9 +47,8 @@ Otherwise, report the clean review and stop.
 ```
 
 The explicit request runs the deep-review contract on the branch's net
-changes — the same comparison, scope, and deep-review route as
-`/review --deep`, including any selected routing profile — before any
-implementation round. Blocking findings go through the normal fix and
+changes — the same comparison, scope, and deep-review role as
+`/review --deep` — before any implementation round. Blocking findings go through the normal fix and
 re-review loop, and your delivery instructions are honored as written: the
 example's clean path reports the review and stops without committing,
 pushing, or publishing. A deep review is never started on Work's own
@@ -90,12 +89,10 @@ inaccessible, or ambiguous explicit target is not replaced by a different pull
 request — Work preserves the completed work and reports what is needed to
 continue.
 
-A selected profile is session-scoped: a fresh activation without a selector
-uses ordinary routing. An unambiguous natural-language instruction (for
-example, "use the server-b routing profile") selects a profile; merely
-mentioning one does not. An unknown, conflicting, or missing profile selector
-is reported before dispatch. Named routing profiles are described in
-[named routing profiles](../../guides/model-routing.md#named-routing-profiles).
+Work never selects a model at activation: each role's model comes from the
+installation — the generated agent profiles on OpenCode, or the preference
+file on per-spawn hosts (where `--profile NAME` selects the named preference
+file). See [model configuration](../../guides/model-routing.md).
 
 The examples use conceptual slash syntax; select the installed skill or use the
 client-specific invocation described in [setup](../../setup.md). Work starts
@@ -116,18 +113,21 @@ instead of re-implementing what already exists. An explicit request can begin
 that entry with a deep review of the existing branch changes, before any
 implementation.
 
-## The routing tiers
+## Model configuration
 
-The packaged defaults assign a tier by role. These are named configurations,
-not a universal ranking of models; see [Choosing models by role](../../guides/model-routing.md#choosing-models-by-role)
-for concrete examples and customization guidance.
+Work never selects a model at activation. Each role gets its model from the
+installation: on OpenCode the generated `agenticale/<role>` agent profiles
+carry the model and effort from install time, and on other hosts (plugin or
+standalone installs) the skill's "Model configuration (this installation)"
+section documents the one optional preference file —
+`<project-root>/.agenticale/preferences.md`, else
+`~/.agenticale/preferences.md`; `--profile NAME` selects
+`preferences.NAME.md` instead. A missing preference file is normal. See
+[model configuration](../../guides/model-routing.md).
 
-| Tier | Typical use in Work |
-| --- | --- |
-| Fast | Exploration |
-| Routine | Implementation and focused fixes |
-| Standard | Hard implementation and independent review |
-| Deep | Conditional review of substantial interactions or risk |
+The preference file's top-level `## Work` section can set Work's
+worker-round allowance (default eight); see
+[Work worker-round allowance](../../guides/model-routing.md#work-worker-round-allowance).
 
 ## How a change request moves through Work
 
@@ -138,9 +138,8 @@ and compatibility surfaces. It inspects only as much as a concrete
 uncertainty requires — a small question is answered with a direct read, and a
 focused exploration round runs only when the question needs its own context,
 with one question and a stop condition. No discovery round is mandatory, and a
-question about subtle semantics is not automatically a fast route: each
-exploration round's route is resolved through the routing contract. It then
-sends a compact task packet to an implementation agent. After implementation,
+question about subtle semantics is not automatically a fit for the `explore`
+role. It then sends a compact task packet to an implementation agent. After implementation,
 a different agent reviews the result against the request, project conventions,
 and relevant checks. The coordinator assigns a focused fix when the review
 finds a defect, then verifies the result and delivers it according to your
@@ -149,34 +148,32 @@ request.
 ```mermaid
 flowchart TD
     Task[Task] --> ExploreNeeded{Explore first?}
-    ExploreNeeded -->|Yes| Explore[Focused exploration · fast tier]
-    ExploreNeeded -->|No| Implement[Routine implementation · routine tier]
+    ExploreNeeded -->|Yes| Explore[Focused exploration · explore role]
+    ExploreNeeded -->|No| Implement[Routine implementation · implement role]
     Explore --> Implement
-    Implement --> Review[Independent review · standard tier]
+    Implement --> Review[Independent review · review role]
     Review --> SliceAccepted[Slice accepted]
     SliceAccepted --> MoreSlices{More slices useful?}
     MoreSlices -->|Yes| Implement
     MoreSlices -->|No| DeepReviewNeeded{Substantial interactions or high risk?}
-    DeepReviewNeeded -->|Yes| DeepReview[Deep review of combined work · deep tier]
+    DeepReviewNeeded -->|Yes| DeepReview[Deep review of combined work · deep-review role]
     DeepReviewNeeded -->|No| Checks[Acceptance checks and report]
     DeepReview --> Checks
 ```
 
-Focused fixes use the routine tier; hard implementation uses the standard
-tier. A blocking finding that needs concurrency, durability, state-machine, or
-ownership reasoning keeps the fix role and its fix counters, but is
-dispatched on the configured hard route — the standard tier in the packaged
-defaults. The task role and the routing key are separate choices, the
-configured policy decides the route, and a route the binding cannot honour is
-reported rather than silently substituted. These are packaged defaults, and
-routes remain configurable.
+Focused fixes use the `fix` role; hard implementation and hard fixes use the
+`implement-hard` role. A blocking finding that needs concurrency,
+durability, state-machine, or ownership reasoning keeps the fix role and its
+fix counters, but is dispatched on the `implement-hard` role. The task role
+and the dispatched role are separate choices, and a requested role the
+binding cannot honour is reported rather than silently substituted.
 
 Every review uses the same findings gate:
 
 ```mermaid
 flowchart TD
     Review[Review] --> Findings{Blocking findings?}
-    Findings -->|Yes| Fix[Focused fix · configured routine or hard route]
+    Findings -->|Yes| Fix[Focused fix · fix role]
     Fix --> Review
     Findings -->|No| Accepted[Accept this review]
 ```
@@ -240,9 +237,10 @@ Then, once that fix has been checked:
 
 These updates explain the purpose of each assignment, significant trade-offs,
 and what remains uncertain. Model names and routine round counters stay out of
-the normal updates. A routing change, fallback, or limitation is explained when
-it affects the work; an approaching budget limit is called out when it constrains
-the next step. You can ask for model choices or routing details when useful.
+the normal updates. A model-configuration limitation is explained when it
+affects the work; an approaching budget limit is called out when it constrains
+the next step. You can ask for model choices or configuration details when
+useful.
 
 This makes the main conversation a readable account of the work, with detailed
 subagent activity available according to the client's interface. Where that
@@ -269,9 +267,10 @@ fix. For pull request delivery, include `--pr` (or `--pr=<PR URL>` to target an
 exact existing pull request) or clearly ask Work to commit and push the task's
 updates to a pull request. Without that request, changes stay uncommitted in
 the current branch by default.
-For a named routing profile, include `--profile NAME` or give an unambiguous
-instruction — a selected profile is session-scoped, and a fresh activation
-without a selector uses ordinary routing.
+For a named preference file, include `--profile NAME` or give an unambiguous
+instruction — the selected file stays fixed for that activation, and a fresh
+activation without a selector uses the ordinary preference file. See
+[model configuration](../../guides/model-routing.md#other-hosts-the-preference-file).
 For a measurable objective you want evaluated — not just mentioned — include
 `--outcome`; a number or performance goal in the task text alone stays ordinary
 context and never starts the protocol.
@@ -358,8 +357,8 @@ Work incorporates the recommendation, asks you only about the choices that
 genuinely need your input, and then continues the normal implementation and
 review flow — there is no separate approval checkpoint. `--consult` is opt-in:
 without it, consultation stays optional. It consumes the single consultation
-allowance per task, so it combines with `--pr` and `--profile` but cannot also
-trigger a later stuck-decision consult in the same run. You keep control over
+allowance per task, so it combines with `--pr` but cannot also trigger a
+later stuck-decision consult in the same run. You keep control over
 scope and preferences: the coordinator still owns the final task definition, and
 the consultation recommends rather than deciding for you.
 
@@ -368,9 +367,9 @@ the consultation recommends rather than deciding for you.
 Add `--outcome` when the task carries an explicitly requested measurable
 objective — for example, a speed-up target measured with a named benchmark.
 It is a bare leading option like `--stats`: it takes no value, combines with
-`--pr`, `--consult`, and `--profile NAME` in any order, and does not change
-routing. Without it, a number or performance goal in the task text is ordinary
-context and the task proceeds exactly as today.
+`--pr`, `--consult`, and `--stats` in any order, and does not change model
+configuration. Without it, a number or performance goal in the task text is
+ordinary context and the task proceeds exactly as today.
 
 When it is present, Work pre-registers a lean outcome card before any
 implementation: the objective, the metric (direction and units), the

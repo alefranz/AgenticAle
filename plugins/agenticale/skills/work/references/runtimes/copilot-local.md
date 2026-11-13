@@ -26,56 +26,45 @@ and does not inherit a prior call's context or an accumulated session state from
 the harness. The coordinator must therefore pass the full bounded task packet on
 every call and must not rely on the harness retaining context between rounds.
 
-## Routing bootstrap on this surface
+## Model selection on this surface
 
-At activation, follow the shared bootstrap in `ROUTING.md`:
-discover the personal and project `preferences.md` preference files
-(`routing.md` remains accepted as a legacy name), interpret the active
-runtime's preferences, apply invocation choices, and resolve this runtime's
-routes once for the activation. The preference section uses the `copilot`
-runtime name; this
-binding retains its own dispatch limits (the per-call model argument on
-`runSubagent`, the stateless calls, and the parent-model cost-tier ceiling).
-Precedence is invocation, project, personal, then installed baseline. Do not
-scan unrelated files. Invocation choices are session-scoped and do not
-persist to a preference file or `preferences.md`. With Node available, the
-default path is
-the single `startup` call from the installed skill and the interpretation path
-is `resolve --input <file> --explain`; this surface has no generated agent
-set, so
-`startup` performs no agent comparison.
+This host exposes a per-call model argument on `runSubagent`. It uses the same
+preference file as the main Copilot binding — there are no per-runtime sections
+anymore. When a preference file is present, pass the role's assignment from the
+active preference file; the preference file is documented in the "Model
+configuration (this installation)" section the installation appends to the
+skills. If that section is absent from the loaded skill, there is no preference
+file and no model selection. When no assignment exists for a role, spawn
+without a model field (the session default). This binding retains its own dispatch limits (the per-call
+model argument on `runSubagent`, the stateless calls, and the parent-model
+cost-tier ceiling).
 
 ## Requested versus effective settings
 
-The explicit model argument on `runSubagent` carries the snapshot's requested
-selection, bounded by the harness's parent-model cost-tier ceiling. A
-successful dispatch is not proof the requested model was honored: distinguish
-requested from effective settings using runtime metadata or local traces, and
-keep an unknown effective setting unknown.
+The explicit model argument on `runSubagent` carries the requested selection,
+bounded by the harness's parent-model cost-tier ceiling. A successful dispatch
+is not proof the requested model was honored; keep an unknown effective
+setting unknown.
 
 ## How `inherit` is realized
 
-When the resolved route for a key is `mode: inherit`, the coordinator omits the
-model argument on the `runSubagent` call so the child runs on the session model
-rather than a forced one. `inherit` is an explicit, intentional choice; it is not
-a fallback and not a missing value.
+When the role's assignment is `inherit`, the coordinator omits the model
+argument on the `runSubagent` call so the child runs on the session model
+rather than a forced one. `inherit` is an explicit, intentional choice; it is
+not a fallback and not a missing value.
 
 ## Caller and session overrides
 
-An explicit invocation choice wins over discovered preference files for the
-entries it names; every other entry still resolves from the discovered files
-and the installed baseline. Invocation choices
-stay within the session and never rewrite `preferences.md` or any preference
-file.
+An explicit invocation choice wins for the entries it names and stays within
+the session; it rewrites no preference file.
 
 ## Limitations (stated honestly)
 
 - Parent-model cost-tier ceiling. The harness enforces a cost-tier ceiling tied
   to the parent (coordinator) model. A cheap coordinator may therefore be unable
-  to launch a requested stronger reviewer: if the resolved review or deep-review
-  route names a model above the coordinator's cost tier, the harness may not
-  honor it. Report this as a limitation rather than assuming the stronger
-  reviewer ran.
+  to launch a requested stronger reviewer: if the assigned review or deep-review
+  model sits above the coordinator's cost tier, the harness may not honor it.
+  Report this as a limitation rather than assuming the stronger reviewer ran.
 - Statelessness has a cost. Because calls do not share state, the coordinator
   cannot rely on cross-call context; every round re-sends its packet.
 - Effort controls are unconfirmed. The harness's effort controls are assessed

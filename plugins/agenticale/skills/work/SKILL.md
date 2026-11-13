@@ -1,6 +1,6 @@
 ---
 name: work
-description: "Coordinate an everyday coding task — a requested outcome, existing changes, or a preceding review's findings — through review, focused implementation, and fixes, optionally through a new or existing pull request. Explicit-only: invoke with /work (optionally /work --pr, /work --consult, /work --outcome, and /work --profile NAME) to start a reviewed task; the model does not start this workflow on its own."
+description: "Coordinate an everyday coding task — a requested outcome, existing changes, or a preceding review's findings — through review, focused implementation, and fixes, optionally through a new or existing pull request. Explicit-only: invoke with /work (optionally /work --pr, /work --consult, and /work --outcome) to start a reviewed task; the model does not start this workflow on its own."
 version: 1
 slash: true
 disable-model-invocation: true
@@ -27,7 +27,7 @@ arguments token as the task. A leading `--pr` option selects PR delivery:
 complete the implementation and its checks, complete the independent review,
 make coherent task commits, push, and create or update a pull request. A
 leading `--stats` option requests a session usage summary in the final report;
-the options — `--pr`, `--stats`, `--consult`, `--outcome`, and `--profile` —
+the options — `--pr`, `--stats`, `--consult`, and `--outcome` —
 are combinable in any order, and the remaining text is the task. `--pr` never takes a bare
 argument: task text is never consumed as a PR target, so `/work --pr fix the bug` is PR
 delivery for the task "fix the bug". `--pr=<PR-URL>` selects an exact existing
@@ -46,31 +46,11 @@ selected existing work. Investigation-only requests stay investigation-only,
 and a mention of an existing PR or a request to address its feedback alone
 does not authorize publishing.
 
-A routing profile is a separate leading option:
-
-- A leading `--profile NAME` or `--profile=NAME` option selects a routing
-  profile; `--` is an explicit option delimiter; option parsing stops at the
-  first non-option token, and the remaining text is the task.
-- A missing profile name (a trailing `--profile`, or one followed by another
-  option), or two different profile names, is reported before dispatch,
-  listing the profile names available for the active runtime.
-- An unambiguous natural-language instruction (for example, "use the
-  server-b routing profile") selects the profile; merely mentioning a profile
-  while discussing the task does not select it.
-- No selector, or `--profile default`, uses the ordinary default routing
-  (installed baseline, personal preferences, project preferences).
-- The selection stays in session state for the activation: a fresh `/work`
-  invocation without a selector returns to default, and the continuation
-  prompt that every incomplete stop carries includes the selected profile so
-  the user can preserve it deliberately.
-- A profile controls child routing only: it never changes the coordinator's
-  model, the runtime, or credentials or endpoints.
-
 A leading `--consult` option requests an independent task-framing consultation
 before implementation starts. It is a bare leading option like `--stats` — it
 never takes a value, so `/work --consult fix the bug` consults, then
-implements the task "fix the bug". It combines with `--pr`, `--stats`, and
-`--profile` in any order, and it does not change routing.
+implements the task "fix the bug". It combines with `--pr` and `--stats` in
+any order.
 
 When `--consult` is present, the initial consultation is mandatory and runs
 before any implementation round:
@@ -100,8 +80,8 @@ A leading `--outcome` option selects outcome-driven evaluation for a task that
 carries an explicitly requested measurable objective. It is a bare leading
 option like `--stats` — it never takes a value — so `/work --outcome speed up
 the export by at least 20%` runs the protocol for the task text that follows.
-It combines with `--pr`, `--stats`, `--consult`, and `--profile` in any order,
-and it does not change routing. It is explicit opt-in only: a task whose text
+It combines with `--pr`, `--stats`, and `--consult` in any order. It is
+explicit opt-in only: a task whose text
 mentions a number, a performance goal, or a "better" outcome but omits
 `--outcome` is an ordinary correctness task and is handled exactly as today.
 When `--outcome` is present, the coordinator follows the protocol in
@@ -161,7 +141,7 @@ direct reads in the coordinator context and dispatch a focused explore round
 only when the question needs a separate context; no cheap discovery round is
 mandatory. Give every discovery round its one question and stop condition, and
 do not assume a question about subtle semantics is automatically suitable for
-a fast route — resolve its route through the routing contract.
+a fast role.
 
 Choose the smallest useful path:
 
@@ -214,10 +194,8 @@ in the task text.
 The round reuses the same comparison and scope semantics as a standalone
 `/review --deep`: the merge base of the current branch and the resolved base
 to the current working-tree result, including relevant untracked files,
-recorded before dispatch. The reviewer is resolved through this activation's
-routing snapshot like any other round — the same `deep-review` route that a
-`/review --deep` would use under equivalent routing inputs — so a selected
-routing profile applies unchanged.
+recorded before dispatch. The reviewer runs on the `deep-review` role, like
+any other round.
 
 The review enters the normal Work loop: applicable blocking findings go
 through the existing fix and re-review rules, with verification of the fixes
@@ -230,8 +208,8 @@ with its report and no publication. Without such instructions, the existing
 delivery defaults apply.
 
 This rule covers this one explicit entry only: no new command, flag, role, or
-routing configuration, and no general support for multi-step command chaining
-in the task text.
+configuration, and no general support for multi-step command chaining in the
+task text.
 
 ## Establish intent without circular validation
 
@@ -250,150 +228,52 @@ defects and unmet requirements
 within the established scope automatically; optional suggestions must not turn
 the work into open-ended refactoring or opportunistic cleanup.
 
-## Route only the rounds needed
+## Dispatch only the rounds needed
 
 | Purpose | Task contract |
 | --- | --- |
 | Focused project or external-source discovery | [explore](references/tasks/explore.md) |
 | Routine implementation | [implement](references/tasks/implement.md) |
-| Concurrency, subtle state, security, or difficult contract reasoning | [implement](references/tasks/implement.md) with hard-task routing context |
+| Concurrency, subtle state, security, or difficult contract reasoning | [implement](references/tasks/implement.md) on the `implement-hard` role |
 | Fix specific review findings | [fix](references/tasks/fix.md) |
-| Review findings requiring concurrency, durability, state-machine, or ownership reasoning | [fix](references/tasks/fix.md) contract on the `implement-hard` route (hard-task routing context) |
+| Review findings requiring concurrency, durability, state-machine, or ownership reasoning | [fix](references/tasks/fix.md) contract on the `implement-hard` role |
 | Independent review of changes | [review](references/tasks/review.md) |
 | Integration review across substantial interacting slices | [deep-review](references/tasks/deep-review.md) |
 | Explicit request to begin with a deep review of existing branch changes | [deep-review](references/tasks/deep-review.md) |
 | Independent task-framing recommendation (`--consult`) or a second opinion on one stuck decision | [consult](references/tasks/consult.md) |
 
 A hard fix keeps the fix task role and the fix counters: dispatch it on the
-configured `implement-hard` route, carrying the bounded fix contract explicitly
-in the task packet, or an equivalently scoped implement contract where the
-binding's profile body differs. The task role and the routing key are separate
-choices; record both, with the reason for the hard route, in the routing
-record. Respect the configured policy and the profiles the binding exposes —
-never silently substitute a stronger or weaker route, and surface a requested
-route the binding cannot honour.
+`implement-hard` role, carrying the bounded fix contract explicitly in the
+task packet, or an equivalently scoped implement contract where the installed
+profile body differs. The task role and the dispatched role are separate
+choices; record both in the dispatch record, with the reason for the hard
+dispatch. Never silently substitute a stronger or weaker role, and surface a
+requested role the binding cannot honour.
 
-### Resolve routing before dispatching
+### Dispatch
 
-Before dispatching any round, run the shared routing bootstrap described in
-[the routing contract](references/ROUTING.md) — the same bootstrap autonomous
-mode uses — once per activation, at start. Activation always uses the loaded
-installation's resources, relative to this loaded SKILL.md — never the
-AgenticAle repository checkout, which is not a routing source even when the
-task is developing AgenticAle itself:
+Select the actual runtime from the host's tool surface — never from a
+selected model name — and its binding under `references/runtimes/`; the
+binding defines how to spawn a fresh child for each role. The workflow never
+selects a model: on OpenCode the model and effort are baked into the
+installed `agenticale/<role>` agent profiles at install time; on other
+surfaces the binding's native fields carry a role assignment only where the
+host supports it and the installation's preference file — its "Model
+configuration (this installation)" section, when present — provides one.
+A role whose installed profile is missing or unreadable blocks only that
+role's dispatch: report it with the binding's refresh procedure. Roles no
+round uses are irrelevant. The workflow creates or modifies no configuration
+file; a missing preference file is normal. Where the installation documents
+a preference file, the selected file (or profile file) is read at most once
+at activation and stays fixed for the activation; a new invocation starts
+fresh.
 
-1. Select the actual runtime from the host's tool surface — never from a
-   selected model name — and its binding under `references/runtimes/`.
-2. Establish the Git worktree root, or the explicitly established workspace
-   root for a non-Git project. When no root is established, omit `--root`;
-   only the personal preference location is checked.
-3. Run the default path — one mechanical call from the installed skill:
-
-   ```sh
-   node scripts/routing.mjs startup --runtime <runtime> --root <root> [--profile NAME]
-   ```
-
-   with `--profile NAME` when a routing profile is selected and the
-   activation carries no invocation-level preferences. On the
-   invocation-preference path, `startup` serves only as the file-existence
-   probe: its policy and its profile check are not final there, and
-   `--profile` need not be passed to it — if it is, its unknown-profile
-   result is provisional and is not reported. Then act on the result:
-   - Invocation-level preferences — direct task-time overrides, an
-     explicitly supplied invocation Markdown file, or a profile selected at
-     invocation: `startup` accepts no invocation layers, so none of its
-     results is final. Interpret the discovered files (if any) and the
-     invocation preferences into the ordered structured layers, lowest to
-     highest precedence per the routing contract, write them to a temporary
-     file — one of the two paths that create one — and resolve them:
-
-     ```sh
-     node scripts/routing.mjs resolve --runtime <runtime> --input <layers-file> [--profile NAME] --explain
-     ```
-
-     with `--profile NAME` for an invocation-selected profile; profile
-     availability is validated only by this final resolution — the
-     resolver's unknown-profile error lists the available names, including
-     those defined by the invocation Markdown itself (a profile defined
-     there is valid), and is the one that gets reported. The `--explain`
-     output is the snapshot, as for the interpretation path below.
-   - `resolved` (no invocation-level preferences): the output IS the routing
-     snapshot. Store `policy`, `routeProvenance`, `profile`, `work` (the
-     effective worker-round allowance and its source), and (on OpenCode)
-     the `agents` entries in session state; no further reference reading is
-     required to resolve or compare routes.
-   - `interpretation-required`: a documented preference file is present.
-     `presentFiles` lists the effective file per scope; when a scope also
-     lists a file in `preferenceFiles.<location>.ignored` (both filenames
-     present), only the effective file is interpreted and the ignored file
-     is identified, not merged. Read the listed `presentFiles`, interpret
-     them per the routing contract (Markdown or clear equivalent prose; the
-     helper never parses Markdown), write the structured layers to a
-     temporary file — the other path that creates one — and resolve them:
-
-     ```sh
-     node scripts/routing.mjs resolve --runtime <runtime> --input <layers-file> [--profile NAME] --explain
-     ```
-
-     `--input` is a file path of structured preference JSON, never inline
-     JSON, and is omitted when there are no preferences. The `--explain`
-     output — `policy`, `routeProvenance`, `profile`, and `work` — is the
-     snapshot; the plain (non-`--explain`) output is the strict version-1
-     export the OpenCode preparation flow writes for the installer, not the
-     snapshot.
-   - Non-zero exit (unreadable preference file, unknown or invalid profile):
-     report the actionable error once. An unreadable preference file is a
-     genuine error on every path. An unknown or invalid profile error is
-     final on the paths where `startup`'s results are final (no
-     invocation-level preferences); on the invocation-preference path it is
-     the final `resolve --input <layers-file> --profile NAME --explain` that
-     validates and reports profile availability. Missing preference files
-     are normal — never create or modify files, never ask the user to
-     configure routing, and never investigate fallbacks or retry.
-4. Check the capability before the affected dispatch. On OpenCode the
-   comparison is the `agents` entries of the `resolved` startup output when
-   the activation was finalized directly from that output — no discovered
-   preference files and no invocation-level preferences; otherwise — the
-   snapshot came from `resolve --input ... --explain` on the
-   interpretation-required or invocation-preference path, or Node is
-   unavailable — perform the in-context comparison against the final
-   snapshot: read the `model:` and `reasoningEffort:` frontmatter of the
-   applicable installed profiles (the default `agents/agenticale/<role>.md`
-   set, or the named set for a selected profile) and apply the same match
-   rules (an `inherit` route matches a profile with no `model` line; an
-   explicit route must match model and, on effort-capable runtimes, effort).
-   Dispatch a role only when it matches; a missing, mismatched, or
-   unreadable profile blocks only that
-   role's dispatch, reported with the binding's preparation and refresh
-   procedure. Roles no round uses are irrelevant; an unused unavailable role
-   never blocks unrelated work. On other runtimes, compare each selection
-   with the binding's native dispatch fields as the binding says.
-5. Where Node is unavailable, apply the routing contract in context: check
-   the documented preference filenames (`preferences.md`, with `routing.md`
-   as the legacy name) at each documented preference location, read and
-   interpret the effective files — including the optional `## Work`
-   section's worker-round allowance (default eight), keeping its source —
-   and resolve the seven routes keeping each route's source. This is the
-   documented fallback path; the contract section describes it.
-6. Start quietly: keep routine routing details in session state and do not
-   narrate a routine bootstrap. Surface routing information only when it
-   explains a selected profile, a material change, a limitation, or a
-   required user action.
-
-A missing key in a complete policy is an error, not an implicit inheritance. An
-unsupported request can use only an explicitly configured fallback; it must
-not silently inherit the session model in place of a route the policy names or
-invent a weaker model. Record requested versus effective settings when native
-metadata makes the latter available; an unknown effective setting stays
-unknown, and a child's self-reported model name never establishes what it ran
-on.
-
-Keep the snapshot fixed during the activation, including context compaction. A
-new `/work` invocation or an explicit user request re-runs the bootstrap; a
-re-resolution affects subsequent dispatches only, never an already-running
-child. The bootstrap is read-only: it never creates or modifies a routing
-file, and the snapshot stays in session state (see "State stays in the
-session").
+A role with no installed profile (or no binding support) must not silently
+inherit the session model in place of a role the installation names. An
+explicit task-time model request the host cannot honour is reported as a
+limitation, never silently substituted; when native metadata makes the
+effective settings available, record requested versus effective, and a
+child's self-reported model name never establishes what it ran on.
 
 Default to routine implementation. Exploration, consultation, and deep review
 are conditional, not mandatory stages; `--consult` is the explicit opt-in that
@@ -428,15 +308,22 @@ review target has the same fix/review caps as a slice.
 
 The worker allowance defaults to eight worker rounds (explore, implement,
 hard implementation, or fix), covering the whole task across exploration,
-implementation, and fixes. It can be overridden by the documented `## Work`
-section of the preference file ([the routing
-contract](references/ROUTING.md)); the activation's routing snapshot reports
-the effective allowance and its source. The override changes what is
-available, never what is required, and never the fix/review/consultation
-caps, the progress safeguards, scope, or permissions; it applies to Work
-only — Autonomous Mode keeps its own budget rules. The allowance is what is
-available, not what is required: Work finishes as soon as the requested
-outcome is complete. Do not dispatch rounds to use up a remaining allowance
+implementation, and fixes. An explicit task-time instruction at invocation
+wins; otherwise a top-level `## Work` section in the preference file sets
+it through the one documented entry, `- worker rounds: N` (a positive
+integer), read from the SAME file the installation's selection uses: the
+ordinary preference file — `<project-root>/.agenticale/preferences.md`
+(project) or `~/.agenticale/preferences.md` (personal), the project file
+winning when both are present — or `preferences.NAME.md` at those same
+locations when a profile is selected at activation; one lookup, no merging.
+An invalid value is an actionable error naming its source and the value,
+never silently defaulted or clamped. The allowance's source is the installed
+default, a preference file, or the invocation. The override changes only the available worker
+rounds — never how many must run, the consultation allowance, the per-slice
+fix/review caps, the progress safeguards, scope, or permissions; it is
+Work-specific — Autonomous Mode keeps its own budget rules. The allowance is
+what is available, not what is required: Work finishes as soon as the
+requested outcome is complete. Do not dispatch rounds to use up a remaining allowance
 or manufacture work to spend it. Allow at most two fix cycles per slice, three review passes per slice, and
 one consultation per task; a `--consult` invocation consumes that allowance for
 its initial task-framing consultation. Review calls do not consume the worker
@@ -476,7 +363,7 @@ task, the evidence, what work or verification was completed and remains
 unchecked, and any retry/reset information the host supplied. Inspect the
 actual working tree and preserve partial changes. Keep unfinished work and
 review blockers visibly incomplete, and do not publish a pull request before
-its required checks and review gates pass. Do not switch routes or models, do
+its required checks and review gates pass. Do not switch roles or models, do
 the child's work in the coordinator, wait or retry automatically, or create
 durable cooldown state. The user can decide when to resume Work; provide the
 next concrete action, with the continuation prompt that every incomplete stop
@@ -488,7 +375,7 @@ quota cooldown and handoff recovery.
 Apply [the shared contract's checkpoint, decision summary, and stop-report
 rules](references/rounds.md#checkpoints-decision-summary-and-stop-reports).
 Use its progress narration guidance for each substantive dispatch. Keep routine
-routing records and counters in session state and the continuation prompt in
+dispatch records and counters in session state and the continuation prompt in
 the stop report; Work writes no operational files for these.
 
 When an allowance is exhausted, do not dispatch another round of that type.
@@ -614,3 +501,46 @@ result — overall duration, the per-session table (or a compact excerpt of
 it), totals, and the per-provider breakdown — in the final report. If the
 active binding has no such procedure, state that the option is unsupported
 on the active runtime.
+
+## Model configuration (this installation)
+
+At activation the workflow may read one optional preference file: first
+`<project-root>/.agenticale/preferences.md`, then
+`~/.agenticale/preferences.md`. A missing file is normal (no
+customization); the workflow never creates or modifies preference files.
+
+Format: a Markdown list of direct role assignments, one per line:
+
+- `- <role>: <model>` or `- <role>: <model>, <effort>`
+- `<role>` is one of: explore, implement, implement-hard, fix, review,
+  deep-review, consult.
+- Roles not listed use the host default.
+- Nothing else is interpreted: no tiers, no fallbacks, no runtime sections,
+  no profile sections, no merging of files.
+
+A leading `--profile NAME` option (or an unambiguous natural-language
+equivalent) selects the file `preferences.NAME.md` instead, again project
+first, then personal. `NAME` is 1-40 characters: a lowercase letter, then
+lowercase letters, digits, or hyphens, with no trailing hyphen; `default`
+and `inherit` are reserved. A missing selected file is a concise, actionable
+error listing the files that exist at the checked locations — never a
+silent fallback. The selected file is read once at activation and stays
+fixed; the selection stays in session state for the activation.
+
+Application: where the active runtime binding exposes per-spawn model/effort
+fields, the role's assignment is passed at dispatch; where the host cannot
+select a model per child, the assignment has no effect (say so when the
+user asks for it). A profile never changes the session model, runtime,
+credentials, or endpoints.
+
+The same file may also carry the top-level `## Work` section documented in
+the skill body (worker-round allowance); it is the only other supported
+section.
+
+Example `preferences.md`:
+
+    - review: openai/gpt-6.1-sol, xhigh
+    - deep-review: openai/gpt-6.1-sol, xhigh
+
+    ## Work
+    - worker rounds: 12

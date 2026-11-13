@@ -174,25 +174,32 @@ try {
     const t = join(scratch, "a-model-choice");
     const r = run("install.mjs", ["install", "--target", t]);
     check(r.exit === 1, "install: no model choice exits 1");
-    check(r.err.includes("Install requires --models PATH|PRESET, --routing PATH, or --no-model."), "install: no-model-choice message");
+    check(r.err.includes("Install requires --models PATH|PRESET or --no-model."), "install: no-model-choice message");
+  }
+  {
+    // The retired --routing option is now an unknown argument.
+    const t = join(scratch, "a-routing-arg");
+    const r = run("install.mjs", ["install", "--target", t, "--routing", join(scratch, "r.json")]);
+    check(r.exit === 1 && r.err.includes("Unknown argument '--routing'."), "install: --routing is an unknown argument");
   }
   {
     const t = join(scratch, "a-fresh");
     const r = run("install.mjs", ["install", "--target", t, "--no-model"]);
     check(r.exit === 0, "install fresh --no-model exits 0");
     check(r.out.includes("Installation complete."), "install fresh: Installation complete");
-    check(r.out.includes("pasting this prompt into an OpenCode session: Verify my AgenticAle routing for the opencode runtime"), "install fresh: the completion line carries the ready-to-paste verification prompt (same line, not a second print)");
+    check(r.out.includes("Verify your model configuration after install (and after any reinstall with a different model configuration) by pasting this prompt into an OpenCode session: Verify my AgenticAle model configuration for the opencode runtime"), "install fresh: the completion line carries the ready-to-paste verification prompt (same line, not a second print)");
+    check(r.out.includes(`'${t}/agents/agenticale'`), "install fresh: the verification prompt names the single-quoted agent profiles directory");
     const state = await readState(t);
     check(state.schema === STATE_VERSION, "install fresh: state schema 6");
     check(state.mode === "copy", "install fresh: state mode copy");
     check(state.package === PACKAGE, "install fresh: state package");
-    check(state.entries.length === 36, "install fresh: 36 entries");
+    check(state.entries.length === 32, "install fresh: 32 entries");
     const profiles = state.entries.filter((e) => e.path.startsWith("agents/agenticale/"));
     check(profiles.length === 7, "install fresh: 7 generated profiles");
     check(state.entries.some((e) => e.path === "agents/agenticale/implement-hard.md"), "install fresh: implements implement-hard.md profile");
     check(state.entries.some((e) => e.path === "commands/work.md") && state.entries.some((e) => e.path === "commands/review.md") && state.entries.some((e) => e.path === "commands/autonomous.md"), "install fresh: three command entries in state");
     const files = (await relFiles(t)).filter((f) => f !== STATE);
-    check(files.length === 36, "install fresh: 36 files on disk");
+    check(files.length === 32, "install fresh: 32 files on disk");
     const workCommand = await readFile(join(t, "commands", "work.md"), "utf8");
     check(workCommand.includes("`work`") && workCommand.includes("$ARGUMENTS"), "install fresh: work command loads the skill by exact ID");
     const reviewCommand = await readFile(join(t, "commands", "review.md"), "utf8");
@@ -201,24 +208,21 @@ try {
     check(autonomousCommand.includes("`autonomous`") && autonomousCommand.includes("$ARGUMENTS"), "install fresh: autonomous command loads the skill by exact ID");
     const srcLookup = await readFile(join(t, "skills", "source-code-lookup", "SKILL.md"), "utf8");
     check(srcLookup.includes('Source root: "~/dev"'), "install fresh: source root default marker");
-    check(await exists(join(t, "skills", "work", "references", "routing.json")), "install fresh: materializes work/references/routing.json");
-    check(await exists(join(t, "skills", "work", "references", "preferences.example.md")), "install fresh: materializes work/references/preferences.example.md");
-    check(await exists(join(t, "skills", "work", "scripts", "routing.mjs")), "install fresh: materializes work/scripts/routing.mjs");
+    check(!(await exists(join(t, "skills", "work", "references", "routing.json"))), "install fresh: materializes no work/references/routing.json");
+    check(!(await exists(join(t, "skills", "work", "references", "preferences.example.md"))), "install fresh: materializes no work/references/preferences.example.md");
+    check(!(await exists(join(t, "skills", "work", "scripts", "routing.mjs"))), "install fresh: materializes no work/scripts/routing.mjs");
     check(await exists(join(t, "skills", "work", "scripts", "session-stats.mjs")), "install fresh: materializes work/scripts/session-stats.mjs");
   }
   {
-    // The verification prompt's dynamic paths stay copy-pasteable when the
-    // target contains spaces: every one of them is single-quoted.
+    // The verification prompt's dynamic path stays copy-pasteable when the
+    // target contains spaces: it is single-quoted.
     const t = join(scratch, "a-verify spaced target");
     const r = run("install.mjs", ["install", "--target", t, "--no-model"]);
     check(r.exit === 0, "install spaced target: exits 0");
-    const helper = join(t, "skills", "work", "scripts", "routing.mjs");
-    const profiles = join(t, "agents", "agenticale");
-    const binding = join(t, "skills", "work", "references", "runtimes", "opencode.md");
-    check(r.out.includes(`node '${helper}' startup --runtime opencode --root '`), "install spaced target: startup names the single-quoted helper path with --root");
-    check(r.out.includes(`node '${helper}' resolve --runtime opencode --input '`), "install spaced target: resolve names the single-quoted helper path");
-    check(r.out.includes(`'${profiles}'`), "install spaced target: the agent profiles directory is single-quoted");
-    check(r.out.includes(`'${binding}'`), "install spaced target: the runtime binding path is single-quoted");
+    check(r.out.includes(`'${t}/agents/agenticale'`), "install spaced target: the agent profiles directory is single-quoted");
+    check(r.out.includes("(explore, implement, implement-hard, fix, review, deep-review, consult)"), "install spaced target: the verification prompt names the seven roles");
+    check(r.out.includes("role lines in a preference file (.agenticale/preferences.md, project or personal) do not apply to this OpenCode installation"), "install spaced target: the verification prompt states that role lines do not apply to this OpenCode installation");
+    check(r.out.includes("a top-level ## Work section in the preference file does apply"), "install spaced target: the verification prompt states that the ## Work section applies");
   }
   {
     // Idempotent re-install: no rewrites, same state.
@@ -269,18 +273,23 @@ try {
     const notJson = join(scratch, "bad1.json");
     await writeFile(notJson, "{nope");
     let r = run("install.mjs", ["install", "--target", join(scratch, "bad1"), "--models", notJson]);
-    check(r.exit === 1 && r.err.includes("Model mapping is not valid JSON"), "models: not-valid-JSON rejected");
+    check(r.exit === 1 && r.err.includes("Model config is not valid JSON"), "models: not-valid-JSON rejected");
     check(!(await exists(join(scratch, "bad1"))), "models: bad JSON writes nothing");
 
     const arr = join(scratch, "bad2.json");
     await writeFile(arr, "[]");
     r = run("install.mjs", ["install", "--target", join(scratch, "bad2"), "--models", arr]);
-    check(r.exit === 1 && r.err.includes("Model mapping must be a JSON object keyed by role name"), "models: array rejected");
+    check(r.exit === 1 && r.err.includes('Model config must be a JSON object mapping roles to "provider/model[#effort]" values'), "models: array rejected");
 
     const unknown = join(scratch, "bad3.json");
     await writeFile(unknown, JSON.stringify({ bogus: "x/y#low" }));
     r = run("install.mjs", ["install", "--target", join(scratch, "bad3"), "--models", unknown]);
-    check(r.exit === 1 && r.err.includes("Unknown role in model mapping"), "models: unknown role rejected");
+    check(r.exit === 1 && r.err.includes("Unknown role in model config") && r.err.includes("'bogus'"), "models: unknown role rejected and named");
+
+    const badEffort = join(scratch, "bad4.json");
+    await writeFile(badEffort, JSON.stringify({ review: "x/y#extreme" }));
+    r = run("install.mjs", ["install", "--target", join(scratch, "bad4"), "--models", badEffort]);
+    check(r.exit === 1 && r.err.includes("Model for role 'review' has an invalid reasoning effort 'extreme'"), "models: invalid effort suffix rejected and names role and value");
   }
   {
     // Arg-shape errors.
@@ -288,10 +297,8 @@ try {
     check(missing.exit === 1 && missing.err.includes("--models requires a value that is not another option."), "models: missing value");
     const both = run("install.mjs", ["install", "--target", join(scratch, "x2"), "--models", join(scratch, "m.json"), "--no-model"]);
     check(both.exit === 1 && both.err.includes("--models and --no-model cannot be used together."), "models+no-model rejected");
-    const routingMap = join(scratch, "r.json");
-    await writeFile(routingMap, JSON.stringify({}));
-    const both2 = run("install.mjs", ["install", "--target", join(scratch, "x3"), "--models", join(scratch, "m.json"), "--routing", routingMap]);
-    check(both2.exit === 1 && both2.err.includes("--routing and --models cannot be used together."), "models+routing rejected");
+    const routing = run("install.mjs", ["install", "--target", join(scratch, "x3"), "--models", join(scratch, "m.json"), "--routing", join(scratch, "r.json")]);
+    check(routing.exit === 1 && routing.err.includes("Unknown argument '--routing'."), "models+routing rejected: --routing is an unknown argument");
   }
   {
     // Collision on an already-installed tree: blocked, then --replace.
@@ -379,7 +386,7 @@ try {
     check(r.out.includes("preserve-modified: commands/autonomous.md"), `migration copy schema ${schema}: modified command entry reported`);
     const state = await readState(t);
     check(state.schema === STATE_VERSION, `migration copy schema ${schema}: advanced to schema ${STATE_VERSION}`);
-    check(state.entries.length === 36, `migration copy schema ${schema}: 36 entries`);
+    check(state.entries.length === 32, `migration copy schema ${schema}: 32 entries`);
     check(r.out.includes("backup created:"), `migration copy schema ${schema}: replaced command entry backed up`);
     check((await readFile(modPath, "utf8")).includes("$ARGUMENTS"), `migration copy schema ${schema}: commands/autonomous.md now carries the generated entry`);
     check((await readFile(join(t, "commands", "work.md"), "utf8")).includes("$ARGUMENTS"), `migration copy schema ${schema}: commands/work.md now carries the generated entry`);
@@ -394,7 +401,7 @@ try {
     check(r.out.includes(`  migrating from schema ${LEGACY_GENERATED_SCHEMA} copy install`), "migration generated schema 5: migrating message");
     const state = await readState(t);
     check(state.schema === STATE_VERSION, "migration generated schema 5: advanced to schema 6");
-    check(state.entries.length === 36, "migration generated schema 5: 36 entries");
+    check(state.entries.length === 32, "migration generated schema 5: 32 entries");
     check(await exists(join(t, "agents", "agenticale", "implement-hard.md")), "migration generated schema 5: implement-hard profile now present");
     check(state.entries.some((e) => e.path === "agents/agenticale/implement-hard.md"), "migration generated schema 5: implement-hard in state");
     check((await readFile(join(t, "commands", "work.md"), "utf8")).includes("$ARGUMENTS"), "migration generated schema 5: command entries added");
@@ -414,7 +421,7 @@ try {
     check(r.exit === 0, "migration current-release schema 6: exits 0 without --replace");
     check(!r.out.includes("Already up to date"), "migration current-release schema 6: reconciles instead of reporting up-to-date");
     const state2 = await readState(t);
-    check(state2.entries.length === 36, "migration current-release schema 6: 36 entries");
+    check(state2.entries.length === 32, "migration current-release schema 6: 32 entries");
     check((await readFile(join(t, "commands", "autonomous.md"), "utf8")).includes("$ARGUMENTS"), "migration current-release schema 6: command entries added");
   }
   {
@@ -434,7 +441,7 @@ try {
     check(r.exit === 0, "migration pre-review schema 6: exits 0 without --replace");
     check(!r.out.includes("Already up to date"), "migration pre-review schema 6: reconciles instead of reporting up-to-date");
     const state2 = await readState(t);
-    check(state2.entries.length === 36, "migration pre-review schema 6: 36 entries");
+    check(state2.entries.length === 32, "migration pre-review schema 6: 32 entries");
     check(state2.entries.some((e) => e.path === "skills/review/SKILL.md"), "migration pre-review schema 6: the review skill is added");
     check((await readFile(join(t, "commands", "review.md"), "utf8")).includes("$ARGUMENTS"), "migration pre-review schema 6: the review command entry is added");
   }
@@ -480,7 +487,7 @@ try {
     check(r.out.includes("  migrating from schema 4 link install"), "migration link schema 4: migrating message");
     check(r.out.includes("  converted: the previous link install was converted to a copy install of the generated bundle."), "migration link schema 4: converted message");
     const state = await readState(t);
-    check(state.schema === STATE_VERSION && state.mode === "copy" && state.entries.length === 36, "migration link schema 4: now schema 6 copy 36 entries");
+    check(state.schema === STATE_VERSION && state.mode === "copy" && state.entries.length === 32, "migration link schema 4: now schema 6 copy 32 entries");
     check((await readFile(join(t, "commands", "work.md"), "utf8")).includes("$ARGUMENTS"), "migration link schema 4: command links replaced by the generated files");
   }
   // Build the link inventory for a schema (the validator requires the exact
@@ -516,7 +523,7 @@ try {
     check(r.out.includes(`  migrating from schema ${schema} link install`), `migration link schema ${schema}: migrating message`);
     check(r.out.includes("  converted: the previous link install was converted to a copy install of the generated bundle."), `migration link schema ${schema}: converted message`);
     const state = await readState(t);
-    check(state.schema === STATE_VERSION && state.mode === "copy" && state.entries.length === 36, `migration link schema ${schema}: now schema 6 copy 36 entries`);
+    check(state.schema === STATE_VERSION && state.mode === "copy" && state.entries.length === 32, `migration link schema ${schema}: now schema 6 copy 32 entries`);
   }
   {
     // R6 + physical boundary: the stored retired profile link (agents/autonomous)
@@ -545,7 +552,7 @@ try {
     check((await readFile(otherTarget, "utf8")) === "other\n", "R6 link repoint: repointed link's target content untouched");
     check(!(await exists(join(t, "agents", "autonomous", "consult.md"))), "R6 link repoint: no profile copies written through the old path");
     const state = await readState(t);
-    check(state.schema === STATE_VERSION && state.mode === "copy" && state.entries.length === 36, "R6 link repoint: converted to schema 6 copy 36 entries");
+    check(state.schema === STATE_VERSION && state.mode === "copy" && state.entries.length === 32, "R6 link repoint: converted to schema 6 copy 32 entries");
     check(await exists(join(t, "agents", "agenticale", "consult.md")), "R6 link repoint: new profiles installed under the renamed namespace");
   }
   {
@@ -570,7 +577,7 @@ try {
     check(r.out.includes("preserve-modified: agents/autonomous"), "R6 link→dir: replaced-by-directory preserved");
     check((await readFile(kept, "utf8")) === "USER-KEPT\n", "R6 link→dir: pre-existing bytes in the preserved directory are not deleted");
     const state = await readState(t);
-    check(state.schema === STATE_VERSION && state.mode === "copy" && state.entries.length === 36, "R6 link→dir: converted to schema 6 copy 36 entries");
+    check(state.schema === STATE_VERSION && state.mode === "copy" && state.entries.length === 32, "R6 link→dir: converted to schema 6 copy 32 entries");
     check(await exists(join(t, "agents", "agenticale", "consult.md")), "R6 link→dir: new profiles installed under the renamed namespace");
     check(!(await exists(join(t, "agents", "autonomous", "consult.md"))), "R6 link→dir: no profile copies written into the preserved directory");
   }
@@ -616,7 +623,7 @@ try {
     check(r.out.includes("migrate-remove: agents/autonomous/review.md") && r.out.includes("backup created:"), "namespace rename: the old profiles are retired under a backup");
     check(r.out.includes("create: agents/agenticale/review.md"), "namespace rename: the new profile paths are installed");
     const state = await readState(t);
-    check(state.schema === STATE_VERSION && state.entries.length === 36, "namespace rename: 36 entries in the refreshed state");
+    check(state.schema === STATE_VERSION && state.entries.length === 32, "namespace rename: 32 entries in the refreshed state");
     check(state.entries.every((e) => !e.path.startsWith("agents/autonomous/")), "namespace rename: no old-namespace entries remain in state");
     check(state.entries.some((e) => e.path === "agents/agenticale/implement-hard.md"), "namespace rename: the new implement-hard profile is in state");
     check(await exists(join(t, "agents", "agenticale", "implement-hard.md")), "namespace rename: the new implement-hard profile is on disk");
@@ -636,7 +643,7 @@ try {
     check(r.out.includes("migrate-remove: agents/autonomous/review.md") && r.out.includes("backup created:"), "namespace rename schema 5: the old profiles are retired under a backup");
     check(r.out.includes("create: agents/agenticale/implement-hard.md"), "namespace rename schema 5: the added implement-hard profile is created");
     const state = await readState(t);
-    check(state.schema === STATE_VERSION && state.entries.length === 36, "namespace rename schema 5: 36 entries in the refreshed state");
+    check(state.schema === STATE_VERSION && state.entries.length === 32, "namespace rename schema 5: 32 entries in the refreshed state");
     check(state.entries.every((e) => !e.path.startsWith("agents/autonomous/")), "namespace rename schema 5: no old-namespace entries remain in state");
     check(await exists(join(t, "agents", "agenticale", "implement-hard.md")), "namespace rename schema 5: the new implement-hard profile is on disk");
     check(!(await exists(join(t, "agents", "autonomous", "review.md"))), "namespace rename schema 5: the old profile files are removed");
@@ -754,7 +761,7 @@ try {
   {
     const t = join(scratch, "c-model-choice");
     const r = run("install-standalone.mjs", ["install", "--target", t]);
-    check(r.exit === 1 && r.err.includes("Install requires --models PATH|PRESET, --routing PATH, or --no-model."), "standalone: no model choice exits 1");
+    check(r.exit === 1 && r.err.includes("Install requires --models PATH|PRESET or --no-model."), "standalone: no model choice exits 1");
   }
   {
     const t = join(scratch, "c-fresh");
@@ -764,14 +771,14 @@ try {
     check(state.schema === 1, "standalone fresh: schema 1");
     check(state.scope === "project", "standalone fresh: scope project");
     check(state.sourceLayout === "autonomous,pull-request-description,review,source-code-lookup,work", "standalone fresh: sourceLayout string");
-    check(state.entries.length === 26, "standalone fresh: 26 entries");
+    check(state.entries.length === 22, "standalone fresh: 22 entries");
     const files = (await relFiles(t)).filter((f) => f !== STANDALONE_STATE);
-    check(files.length === 26, "standalone fresh: 26 files on disk");
+    check(files.length === 22, "standalone fresh: 22 files on disk");
     check(!files.some((f) => f.startsWith("agents/")), "standalone fresh: no agents/");
     check(!files.some((f) => f.startsWith("commands/")), "standalone fresh: no commands/");
-    check(await exists(join(t, "work", "references", "routing.json")), "standalone fresh: materializes work/references/routing.json");
-    check(await exists(join(t, "work", "references", "preferences.example.md")), "standalone fresh: materializes work/references/preferences.example.md");
-    check(await exists(join(t, "work", "scripts", "routing.mjs")), "standalone fresh: materializes work/scripts/routing.mjs");
+    check(!(await exists(join(t, "work", "references", "routing.json"))), "standalone fresh: materializes no work/references/routing.json");
+    check(!(await exists(join(t, "work", "references", "preferences.example.md"))), "standalone fresh: materializes no work/references/preferences.example.md");
+    check(!(await exists(join(t, "work", "scripts", "routing.mjs"))), "standalone fresh: materializes no work/scripts/routing.mjs");
     // Idempotent.
     const before = await readFile(join(t, STANDALONE_STATE), "utf8");
     const r2 = run("install-standalone.mjs", ["install", "--target", t, "--no-model"]);
@@ -797,7 +804,7 @@ try {
     check(r.exit === 0, "standalone pre-review migration: exits 0 without --replace");
     check(!r.out.includes("Already up to date"), "standalone pre-review migration: reconciles instead of reporting up-to-date");
     const state2 = await readStandaloneState(t);
-    check(state2.entries.length === 26, "standalone pre-review migration: 26 entries");
+    check(state2.entries.length === 22, "standalone pre-review migration: 22 entries");
     check(state2.sourceLayout === "autonomous,pull-request-description,review,source-code-lookup,work", "standalone pre-review migration: the review skill is in the source layout");
     check(state2.entries.some((e) => e.path === "review/SKILL.md"), "standalone pre-review migration: the review skill is added");
   }
@@ -1134,284 +1141,184 @@ try {
 
   // ---------------------------------------------------------------------
   // E2. setup subcommand: the consented install-time setup creates the
-  //     personal preferences file as a minimal scaffold with no role
-  //     overrides, so the installed baseline routing applies, if and only if
-  //     it is absent. It never
-  //     overwrites an existing file, dry-run writes nothing, and the
-  //     scaffold carries none of the example's illustrative identifiers.
+  //     personal preferences file as a minimal scaffold (no active entries;
+  //     states that role lines do not apply to an OpenCode installation
+  //     while the ## Work section does; a ## Work section with a
+  //     commented-out worker-rounds line) if and only if it is absent. It
+  //     never overwrites an existing file, dry-run writes nothing, and the
+  //     printed guidance carries the customization prompt and the one-time
+  //     verification prompt.
   // ---------------------------------------------------------------------
   {
-    const exampleText = await readFile(join(repo, "skills", "work", "references", "preferences.example.md"), "utf8");
-    const illustrativeIds = [...new Set([...exampleText.matchAll(/[a-z0-9][a-z0-9-]*\/[a-z0-9][a-z0-9-]*/g)].map((m) => m[0]))];
-    check(illustrativeIds.length > 0, "setup: the example file carries illustrative identifiers");
-    const assertNoIllustrativeIds = (label, content) => {
-      for (const id of illustrativeIds) {
-        check(!content.includes(id), `setup: ${label} carries no illustrative identifier '${id}'`);
+    // The default target (and therefore the verification prompt's profiles
+    // directory) is pinned to an isolated XDG_CONFIG_HOME so it is
+    // deterministic and distinct from the custom targets.
+    const fakeXDG = join(scratch, "e2-xdg");
+    const env = { XDG_CONFIG_HOME: fakeXDG, HOME: fakeXDG, USERPROFILE: fakeXDG };
+    const assertScaffoldContent = (label, content) => {
+      check(content.startsWith("# AgenticAle preferences (personal)"), `setup: ${label} is the personal preferences scaffold`);
+      check(content.includes("## Work"), `setup: ${label} carries the ## Work section`);
+      check(content.includes("<!-- - worker rounds: 12 -->"), `setup: ${label} carries the commented-out worker-rounds line`);
+      check(content.includes("do NOT apply to an OpenCode installation"), `setup: ${label} states that role lines do not apply to an OpenCode installation`);
+      check(content.includes("## Work` section DOES apply"), `setup: ${label} states that the ## Work section applies`);
+      check(content.includes("--models PATH|PRESET") && content.includes("--no-model"), `setup: ${label} points at the installer options for changing models`);
+      check(!content.includes("<!-- - review: provider/model, high -->"), `setup: ${label} carries no commented-out example role line`);
+      const active = content.replace(/<!--[\s\S]*?-->/g, "");
+      for (const role of ["explore", "implement", "implement-hard", "fix", "review", "deep-review", "consult"]) {
+        check(!new RegExp(`^- ${role}:`, "m").test(active), `setup: ${label} carries no active role override for ${role}`);
       }
+    };
+    const assertVerifyPrompt = (label, out, profilesDir) => {
+      check(out.includes("Verify your model configuration by pasting this prompt into an OpenCode session: Verify my AgenticAle model configuration for the opencode runtime"), `setup: ${label} guidance carries the one-time verification prompt (same line, not a second print)`);
+      check(out.includes(`'${profilesDir}/agents/agenticale'`), `setup: ${label} verification prompt names the single-quoted agent profiles directory`);
+      check(out.includes("(explore, implement, implement-hard, fix, review, deep-review, consult)"), `setup: ${label} verification prompt names the seven roles`);
+      check(out.includes("role lines in a preference file (.agenticale/preferences.md, project or personal) do not apply to this OpenCode installation"), `setup: ${label} verification prompt states that role lines do not apply to this installation`);
+      check(out.includes("a top-level ## Work section in the preference file does apply"), `setup: ${label} verification prompt states that the ## Work section applies`);
     };
 
     // Scaffold created at a custom personal path.
-    const personal = join(scratch, "e2-created", "routing.md");
-    const r = run("install.mjs", ["setup", "--personal-path", personal]);
+    const personal = join(scratch, "e2-created", "preferences.md");
+    const r = run("install.mjs", ["setup", "--personal-path", personal], { env });
     check(r.exit === 0, "setup: creates the scaffold and exits 0");
+    check(r.out.includes("create: minimal scaffold"), "setup: reports the minimal-scaffold create");
     check(r.out.includes(personal), "setup: prints the file path");
     const content = await readFile(personal, "utf8");
-    check(!content.match(/^## (codex|copilot|opencode|antigravity)\b/m), "setup: scaffold carries no runtime section (baseline routing applies)");
-    for (const role of ["explore", "implement", "implement-hard", "fix", "review", "deep-review", "consult"]) {
-      check(!content.includes(`- ${role}:`), `setup: scaffold carries no role override for ${role}`);
-    }
-    assertNoIllustrativeIds("created scaffold", content);
-    check(r.out.includes("preferences.example.md"), "setup: guidance names the packaged example");
-    check(r.out.includes(".agenticale/preferences.md"), "setup: guidance names the project-scope file");
-    check(r.out.includes("Paste this prompt into an OpenCode session"), "setup: prints a ready-to-paste prompt");
-    check(r.out.includes(`preferences file at ${personal}`), "setup: the paste prompt names the created file");
+    assertScaffoldContent("created scaffold", content);
+    check(r.out.includes("Role lines in this file do NOT apply to this OpenCode installation: models are fixed in the generated agent profiles at install time"), "setup: guidance states that role lines do not apply to this OpenCode installation");
+    check(r.out.includes("a project file <repo>/.agenticale/preferences.md takes precedence over this personal file."), "setup: guidance names the project-scope file");
+    check(r.out.includes("Paste this prompt into an OpenCode session to continue customizing:"), "setup: prints a ready-to-paste prompt");
+    check(r.out.includes(`Help me customize my AgenticAle personal preferences file at ${personal}`), "setup: the paste prompt names the created file");
+    check(r.out.includes("Remember that role lines in this file do not apply to this OpenCode installation"), "setup: the paste prompt states that role lines do not apply");
+    assertVerifyPrompt("setup", r.out, join(fakeXDG, "opencode"));
 
     // Idempotent: a second run leaves the scaffold byte-identical.
-    const again = run("install.mjs", ["setup", "--personal-path", personal]);
+    const again = run("install.mjs", ["setup", "--personal-path", personal], { env });
     check(again.exit === 0, "setup re-run: exits 0");
     check((await readFile(personal, "utf8")) === content, "setup re-run: scaffold byte-identical");
     check(again.out.includes("left untouched"), "setup re-run: reports left untouched");
 
     // A pre-existing file (different content) is left byte-identical, exit 0.
-    const existing = join(scratch, "e2-existing", "routing.md");
+    const existing = join(scratch, "e2-existing", "preferences.md");
     await mkdir(dirname(existing), { recursive: true });
-    const owned = "# USER-OWNED routing\nReview with USER-CHOSEN-ROUTING.\n";
+    const owned = "# USER-OWNED preferences\n- review: USER/CHOSEN, high\n";
     await writeFile(existing, owned, "utf8");
-    const r2 = run("install.mjs", ["setup", "--personal-path", existing]);
+    const r2 = run("install.mjs", ["setup", "--personal-path", existing], { env });
     check(r2.exit === 0, "setup existing: exits 0");
     check((await readFile(existing, "utf8")) === owned, "setup existing: file left byte-identical");
     check(r2.out.includes("left untouched"), "setup existing: left-untouched line");
     check(r2.out.includes(existing), "setup existing: prints the file path");
-    check(r2.out.includes("preferences.example.md"), "setup existing: guidance still printed");
-    check(r2.out.includes("Paste this prompt into an OpenCode session"), "setup existing: prompt still printed");
+    check(r2.out.includes("Paste this prompt into an OpenCode session to continue customizing:"), "setup existing: prompt still printed");
+    assertVerifyPrompt("setup existing", r2.out, join(fakeXDG, "opencode"));
 
     // --dry-run writes nothing (absent and present cases).
-    const dryAbsent = join(scratch, "e2-dry-absent", "routing.md");
-    const r3 = run("install.mjs", ["setup", "--personal-path", dryAbsent, "--dry-run"]);
+    const dryAbsent = join(scratch, "e2-dry-absent", "preferences.md");
+    const r3 = run("install.mjs", ["setup", "--personal-path", dryAbsent, "--dry-run"], { env });
     check(r3.exit === 0 && r3.out.includes("Dry run complete; no files were changed."), "setup dry-run: no files changed message");
     check(r3.out.includes("would create"), "setup dry-run: plans the create");
     check(!(await exists(dryAbsent)), "setup dry-run: absent file not created");
     check(!(await exists(dirname(dryAbsent))), "setup dry-run: parent directory not created");
-    const dryPresent = join(scratch, "e2-dry-present", "routing.md");
+    const dryPresent = join(scratch, "e2-dry-present", "preferences.md");
     await mkdir(dirname(dryPresent), { recursive: true });
     const owned2 = "USER-DRY-CONTENT\n";
     await writeFile(dryPresent, owned2, "utf8");
-    const r4 = run("install.mjs", ["setup", "--personal-path", dryPresent, "--dry-run"]);
+    const r4 = run("install.mjs", ["setup", "--personal-path", dryPresent, "--dry-run"], { env });
     check(r4.exit === 0 && (await readFile(dryPresent, "utf8")) === owned2, "setup dry-run: present file untouched");
     check(r4.out.includes("would leave untouched"), "setup dry-run: present file reported untouched");
 
     // Default personal path under an isolated home.
-    const fakeHome = await mkdtemp(join(scratch, "e2-home-"));
-    const r5 = run("install.mjs", ["setup"], { env: { HOME: fakeHome, USERPROFILE: fakeHome } });
-    const def = join(fakeHome, ".agenticale", "preferences.md");
+    const r5 = run("install.mjs", ["setup"], { env });
+    const def = join(fakeXDG, ".agenticale", "preferences.md");
     check(r5.exit === 0, "setup default: exits 0");
     check(await exists(def), "setup default: creates ~/.agenticale/preferences.md");
     const defaultContent = await readFile(def, "utf8");
-    assertNoIllustrativeIds("default scaffold", defaultContent);
-    const r5b = run("install.mjs", ["setup"], { env: { HOME: fakeHome, USERPROFILE: fakeHome } });
+    assertScaffoldContent("default scaffold", defaultContent);
+    const r5b = run("install.mjs", ["setup"], { env });
     check(r5b.exit === 0, "setup default re-run: exits 0");
     check((await readFile(def, "utf8")) === defaultContent, "setup default re-run: existing scaffold left untouched");
     check(r5b.out.includes("left untouched"), "setup default re-run: reports left untouched");
 
-    // Legacy sibling at the default home: a user's legacy
-    // ~/.agenticale/routing.md with no preferences.md makes setup create
-    // nothing and report the legacy path; the legacy file is never renamed,
-    // migrated, or removed, and the guidance (including the paste prompt) is
-    // still printed, targeting the legacy file — the user's effective file,
-    // since no preferences.md exists for the prompt to read.
-    const legacyHome = await mkdtemp(join(scratch, "e2-legacy-home-"));
-    const legacyPath = join(legacyHome, ".agenticale", "routing.md");
-    const legacyContent = "# USER-OWNED legacy routing\nReview with USER-CHOSEN-ROUTING.\n";
-    await mkdir(join(legacyHome, ".agenticale"), { recursive: true });
-    await writeFile(legacyPath, legacyContent, "utf8");
-    const legacyEnv = { HOME: legacyHome, USERPROFILE: legacyHome };
-    const absentPreferences = join(legacyHome, ".agenticale", "preferences.md");
-    const r10 = run("install.mjs", ["setup"], { env: legacyEnv });
-    check(r10.exit === 0, "setup legacy sibling: exits 0");
-    check(r10.out.includes("create nothing"), "setup legacy sibling: reports it creates nothing");
-    check(!r10.out.includes("would create nothing"), "setup legacy sibling: real run does not use the dry-run phrasing");
-    check(r10.out.includes(legacyPath), "setup legacy sibling: names the legacy path");
-    check(r10.out.includes("Paste this prompt into an OpenCode session"), "setup legacy sibling: guidance still printed");
-    check(r10.out.includes(`personal preferences file at ${legacyPath}. Read the file`), "setup legacy sibling: the paste prompt targets the effective legacy file");
-    check(!r10.out.includes(`personal preferences file at ${absentPreferences}`), "setup legacy sibling: the paste prompt does not name the absent preferences.md");
-    check(!(await exists(absentPreferences)), "setup legacy sibling: preferences.md not created");
-    check((await readFile(legacyPath, "utf8")) === legacyContent, "setup legacy sibling: legacy file byte-identical (not renamed, migrated, or removed)");
-    const r11 = run("install.mjs", ["setup", "--dry-run"], { env: legacyEnv });
-    check(r11.exit === 0, "setup legacy sibling --dry-run: exits 0");
-    check(r11.out.includes("would create nothing"), "setup legacy sibling --dry-run: reports it would create nothing");
-    check(r11.out.includes(legacyPath), "setup legacy sibling --dry-run: names the legacy path");
-    check(r11.out.includes(`personal preferences file at ${legacyPath}. Read the file`), "setup legacy sibling --dry-run: the paste prompt targets the effective legacy file");
-    check(!r11.out.includes(`personal preferences file at ${absentPreferences}`), "setup legacy sibling --dry-run: the paste prompt does not name the absent preferences.md");
-    check(r11.out.includes("Dry run complete; no files were changed."), "setup legacy sibling --dry-run: no files changed message");
-    check(!(await exists(absentPreferences)), "setup legacy sibling --dry-run: preferences.md still not created");
-    check((await readFile(legacyPath, "utf8")) === legacyContent, "setup legacy sibling --dry-run: legacy file still byte-identical");
-
-    // Both present at the default home: a user's preferences.md AND a
-    // legacy routing.md. preferences.md takes precedence at the same scope,
-    // so it is the effective file: setup creates nothing, touches neither
-    // file, and the guidance — including the paste prompt — must target
-    // preferences.md, never the ignored legacy file (the legacy-only
-    // creation-suppressed line must not appear either).
-    const bothHome = await mkdtemp(join(scratch, "e2-both-home-"));
-    const bothPrefs = join(bothHome, ".agenticale", "preferences.md");
-    const bothLegacy = join(bothHome, ".agenticale", "routing.md");
-    const bothPrefsContent = "# USER-OWNED preferences\nFix with USER-PREFERENCES-FILE.\n";
-    const bothLegacyContent = "# USER-OWNED legacy routing\nReview with USER-LEGACY-FILE.\n";
-    await mkdir(join(bothHome, ".agenticale"), { recursive: true });
-    await writeFile(bothPrefs, bothPrefsContent, "utf8");
-    await writeFile(bothLegacy, bothLegacyContent, "utf8");
-    const bothEnv = { HOME: bothHome, USERPROFILE: bothHome };
-    const assertBothHome = async (label) => {
-      check((await readFile(bothPrefs, "utf8")) === bothPrefsContent, `setup both present: preferences.md byte-identical after ${label}`);
-      check((await readFile(bothLegacy, "utf8")) === bothLegacyContent, `setup both present: legacy routing.md byte-identical after ${label}`);
-      check((await readdir(join(bothHome, ".agenticale"))).sort().join(",") === "preferences.md,routing.md", `setup both present: nothing new created in .agenticale after ${label}`);
-    };
-    const r20 = run("install.mjs", ["setup"], { env: bothEnv });
-    check(r20.exit === 0, "setup both present: exits 0");
-    check(r20.out.includes("left untouched"), "setup both present: reports preferences.md left untouched");
-    check(!r20.out.includes("create nothing"), "setup both present: no legacy-only creation-suppressed line");
-    check(r20.out.includes(`personal preferences file at ${bothPrefs}. Read the file`), "setup both present: the paste prompt targets the effective preferences.md");
-    check(!r20.out.includes(bothLegacy), "setup both present: the output never names the ignored legacy path");
-    await assertBothHome("real run");
-    const r21 = run("install.mjs", ["setup", "--dry-run"], { env: bothEnv });
-    check(r21.exit === 0, "setup both present --dry-run: exits 0");
-    check(r21.out.includes("would leave untouched"), "setup both present --dry-run: would leave preferences.md untouched");
-    check(!r21.out.includes("create nothing"), "setup both present --dry-run: no legacy-only creation-suppressed line");
-    check(r21.out.includes(`personal preferences file at ${bothPrefs}. Read the file`), "setup both present --dry-run: the paste prompt targets the effective preferences.md");
-    check(!r21.out.includes(bothLegacy), "setup both present --dry-run: the output never names the ignored legacy path");
-    check(r21.out.includes("Dry run complete; no files were changed."), "setup both present --dry-run: no files changed message");
-    await assertBothHome("dry-run");
-
-    // D2: setup takes --target so the guidance names the packaged example
-    // under the target the bundle was installed into (same default resolution
-    // as install); without --target it still points at the default directory;
-    // --dry-run + --target writes nothing. XDG_CONFIG_HOME is pinned so the
-    // default directory is deterministic and distinct from the custom target.
-    const fakeXDG = join(scratch, "e2-xdg");
-    const customTarget = join(scratch, "e2-custom-target");
-    const r7 = run("install.mjs", ["setup", "--target", customTarget, "--personal-path", join(scratch, "e2-t", "routing.md"), "--dry-run"], { env: { XDG_CONFIG_HOME: fakeXDG } });
-    check(r7.exit === 0, "setup --target: exits 0");
-    check(r7.out.includes(join(customTarget, "skills", "work", "references", "preferences.example.md")), "setup --target: guidance names the packaged example under the custom target");
-    check(!r7.out.includes(fakeXDG), "setup --target: guidance does not reference the default configuration directory");
-    const r8 = run("install.mjs", ["setup", "--personal-path", join(scratch, "e2-t2", "routing.md"), "--dry-run"], { env: { XDG_CONFIG_HOME: fakeXDG } });
-    check(r8.exit === 0, "setup default target: exits 0");
-    check(r8.out.includes(join(fakeXDG, "opencode", "skills", "work", "references", "preferences.example.md")), "setup default target: guidance names the packaged example under the default configuration directory");
-    const dryCustom = join(scratch, "e2-dry-custom", "routing.md");
-    const r9 = run("install.mjs", ["setup", "--target", customTarget, "--personal-path", dryCustom, "--dry-run"], { env: { XDG_CONFIG_HOME: fakeXDG } });
-    check(r9.exit === 0 && r9.out.includes("Dry run complete; no files were changed."), "setup --target --dry-run: no files changed message");
-    check(r9.out.includes(join(customTarget, "skills", "work", "references", "preferences.example.md")), "setup --target --dry-run: guidance still points at the custom target");
-    check(!(await exists(dryCustom)), "setup --target --dry-run: absent personal file not created");
-    check(!(await exists(dirname(dryCustom))), "setup --target --dry-run: parent directory not created");
-
-    // The one-time post-install verification prompt: printed with the setup
-    // guidance on the pasting-session line, and its text covers both helper
-    // branches with the complete flags — the resolved/match comparison and
-    // the interpretation-required resolve of the interpreted layers from a
-    // temporary JSON file (never the Markdown), with the project preference
-    // location checked via --root. Dry-run with a spaced target also pins
-    // the single-quoted dynamic paths.
-    const verifyXDG = join(scratch, "e2-verify-xdg");
+    // A spaced --target keeps the verification prompt's profiles directory
+    // copy-pasteable (single-quoted).
     const verifyTarget = join(scratch, "e2-verify spaced target");
-    const rv = run("install.mjs", ["setup", "--target", verifyTarget, "--personal-path", join(scratch, "e2-verify-personal", "routing.md"), "--dry-run"], { env: { XDG_CONFIG_HOME: verifyXDG } });
+    const rv = run("install.mjs", ["setup", "--target", verifyTarget, "--personal-path", join(scratch, "e2-verify-personal", "preferences.md"), "--dry-run"], { env });
     check(rv.exit === 0, "setup verify prompt: dry-run exits 0");
-    check(rv.out.includes("After editing, verify your routing by pasting this prompt into an OpenCode session: Verify my AgenticAle routing for the opencode runtime"), "setup verify prompt: the guidance line carries the prompt (same line, not a second print)");
-    const verifyHelper = join(verifyTarget, "skills", "work", "scripts", "routing.mjs");
-    check(rv.out.includes(`node '${verifyHelper}' startup --runtime opencode --root '`), "setup verify prompt: startup names the single-quoted helper path with --root (project location checked)");
-    check(rv.out.includes("--root '<the project root of the session you are pasting this into: that working directory, or the directory containing its .agenticale folder; the home directory when there is no project>'"), "setup verify prompt: the --root placeholder is the session's project root with the home-directory fallback");
-    check(rv.out.includes('if the result is the resolved policy, confirm every role in its agents output reports "match"'), "setup verify prompt: the resolved branch confirms every agents role reports match");
-    check(rv.out.includes('if it reports "interpretation-required" because a preference file is present'), "setup verify prompt: the interpretation-required branch is named");
-    check(rv.out.includes("read and interpret each listed preference file (a project file takes precedence over the personal file; any legacy file reported as ignored is never read)"), "setup verify prompt: project over personal, ignored legacy files never read");
-    check(rv.out.includes("write the interpreted structured layers to a temporary JSON file as an array ordered lowest to highest precedence (personal first, then project)"), "setup verify prompt: interpreted layers go to a temporary JSON file, lowest to highest");
-    check(rv.out.includes(`node '${verifyHelper}' resolve --runtime opencode --input '<that temporary JSON file>' --explain`), "setup verify prompt: resolve names the single-quoted helper path with --runtime opencode, the JSON --input, and --explain");
-    check(rv.out.includes(`'${join(verifyTarget, "agents", "agenticale")}'`), "setup verify prompt: the agent profiles directory is single-quoted");
-    check(rv.out.includes(`'${join(verifyTarget, "skills", "work", "references", "runtimes", "opencode.md")}'`), "setup verify prompt: the runtime binding path is single-quoted");
+    assertVerifyPrompt("setup spaced target", rv.out, verifyTarget);
 
     // Arg shape: --personal-path is setup-only; install-only options are
     // rejected by setup; the --= form works.
-    const bad1 = run("install.mjs", ["setup", "--no-model"]);
+    const bad1 = run("install.mjs", ["setup", "--no-model"], { env });
     check(bad1.exit === 1 && bad1.err.includes("apply only to install/uninstall, not setup."), "setup: install-only options rejected");
-    const bad2 = run("install.mjs", ["install", "--target", join(scratch, "e2-x"), "--no-model", "--personal-path", join(scratch, "e2-x", "routing.md")]);
+    const bad2 = run("install.mjs", ["install", "--target", join(scratch, "e2-x"), "--no-model", "--personal-path", join(scratch, "e2-x", "preferences.md")], { env });
     check(bad2.exit === 1 && bad2.err.includes("--personal-path applies only to setup"), "install: --personal-path rejected");
-    const bad3 = run("install.mjs", ["setup", "--personal-path"]);
+    const bad3 = run("install.mjs", ["setup", "--personal-path"], { env });
     check(bad3.exit === 1 && bad3.err.includes("--personal-path requires a value"), "setup: --personal-path missing value");
-    const eqPath = join(scratch, "e2-eq", "routing.md");
-    const r6 = run("install.mjs", [`setup`, `--personal-path=${eqPath}`]);
+    const eqPath = join(scratch, "e2-eq", "preferences.md");
+    const r6 = run("install.mjs", [`setup`, `--personal-path=${eqPath}`], { env });
     check(r6.exit === 0 && await exists(eqPath), "setup: --personal-path= form creates the scaffold");
   }
 
   // ---------------------------------------------------------------------
   // F. OpenCode preparation refresh: rerun the existing installer with a
-  //    different --routing policy (the explicit profile-update path). Requested
-  //    versus installed policies are compared through the installer's own
-  //    safeguards: a mismatch is never applied silently (the whole update is
-  //    blocked, no partial application), and a profile the user has modified
+  //    different flat model config (the explicit profile-update path). The
+  //    update is all-or-nothing (a user-modified destination blocks the
+  //    whole update before any mutation), and a profile the user has modified
   //    is never overwritten without an explicit --replace (its edit is
   //    backed up first).
   // ---------------------------------------------------------------------
-  const prepRoles = (suffix, reviewModel) => Object.fromEntries(
+  const prepModels = (suffix) => Object.fromEntries(
     ["explore", "implement", "implement-hard", "fix", "review", "deep-review", "consult"].map((name) => [name, name === "review"
-      ? { mode: "explicit", model: reviewModel, reasoningEffort: "high", fallbacks: [{ model: `acme/review-${suffix}-fb`, reasoningEffort: "medium" }] }
-      : { mode: "explicit", model: `acme/${name}-${suffix}`, reasoningEffort: "high", fallbacks: [] }]),
+      ? `acme/review-${suffix}#high`
+      : `acme/${name}-${suffix}#high`]),
   );
-  // The shape the preparation procedure exports: a complete version-1 policy
-  // for the active runtime only.
-  const policyA = { schemaVersion: 1, runtimes: { opencode: prepRoles("a", "acme/review-a") } };
-  const policyB = { schemaVersion: 1, runtimes: { opencode: prepRoles("b", "acme/review-b") } };
   const pathA = join(scratch, "f-prep-a.json");
   const pathB = join(scratch, "f-prep-b.json");
-  await writeFile(pathA, JSON.stringify(policyA), "utf8");
-  await writeFile(pathB, JSON.stringify(policyB), "utf8");
+  await writeFile(pathA, JSON.stringify(prepModels("a")), "utf8");
+  await writeFile(pathB, JSON.stringify(prepModels("b")), "utf8");
   {
     const t = join(scratch, "f-prep");
-    const fresh = run("install.mjs", ["install", "--target", t, "--routing", pathA]);
-    check(fresh.exit === 0, "prep refresh: fresh install with --routing exits 0");
+    const fresh = run("install.mjs", ["install", "--target", t, "--models", pathA]);
+    check(fresh.exit === 0, "prep refresh: fresh install with --models exits 0");
     let review = await readFile(join(t, "agents", "agenticale", "review.md"), "utf8");
-    check(review.includes("model: acme/review-a"), "prep refresh: review profile renders the requested model");
-    check(!review.includes("acme/review-a-fb"), "prep refresh: the requested fallback is not materialized into the profile");
+    check(review.includes("model: acme/review-a") && review.includes("reasoningEffort: high"), "prep refresh: the review profile renders the requested model and effort");
+    const consult = await readFile(join(t, "agents", "agenticale", "consult.md"), "utf8");
+    check(consult.includes("model: acme/consult-a"), "prep refresh: the consult profile renders its requested model");
 
-    // Idempotent re-run with the same requested policy: a no-op.
-    const same = run("install.mjs", ["install", "--target", t, "--routing", pathA]);
-    check(same.exit === 0 && same.out.includes("Already up to date."), "prep refresh: the same requested policy is a no-op");
+    // Idempotent re-run with the same requested config: a no-op.
+    const same = run("install.mjs", ["install", "--target", t, "--models", pathA]);
+    check(same.exit === 0 && same.out.includes("Already up to date."), "prep refresh: the same requested config is a no-op");
 
     // The documented refresh command updates the existing installation: the
     // owned, unmodified profiles are retired and recreated under the normal
     // ownership, backup, and rollback safeguards (no --replace is needed for
     // owned content).
-    const updated = run("install.mjs", ["install", "--target", t, "--routing", pathB]);
-    check(updated.exit === 0 && updated.out.includes("Installation complete."), "prep refresh: the installer update applies the new requested policy");
+    const updated = run("install.mjs", ["install", "--target", t, "--models", pathB]);
+    check(updated.exit === 0 && updated.out.includes("Installation complete."), "prep refresh: the installer update applies the new flat model config");
     check(updated.out.includes("migrate-remove: agents/agenticale/review.md") && updated.out.includes("backup created:"), "prep refresh: the update retires the old profiles under a backup");
     review = await readFile(join(t, "agents", "agenticale", "review.md"), "utf8");
-    check(review.includes("model: acme/review-b"), "prep refresh: review profile now renders the requested model");
+    check(review.includes("model: acme/review-b"), "prep refresh: the review profile now renders the requested model");
     check(await exists(join(t, "agents", "agenticale", "implement-hard.md")), "prep refresh: seven profiles retained with a distinct implement-hard");
-
-    // The refreshed install's own helper (install-relative, no checkout)
-    // resolves its packaged routing baseline to the selected OpenCode routes.
-    const helper = spawnSync(process.execPath, [join(t, "skills", "work", "scripts", "routing.mjs"), "resolve", "--runtime", "opencode"], { encoding: "utf8", input: "" });
-    check(helper.status === 0, `prep refresh: the installed helper runs from the target without the checkout${helper.status === 0 ? "" : ` (stderr: ${helper.stderr.trim()})`}`);
-    const helperPolicy = JSON.parse(helper.stdout);
-    check(JSON.stringify(helperPolicy.runtimes.opencode) === JSON.stringify(policyB.runtimes.opencode), "prep refresh: the installed helper resolves the installed OpenCode routes");
   }
   {
-    // A profile the user has modified blocks the whole requested-policy update
+    // A profile the user has modified blocks the whole requested-config update
     // (all-or-nothing, no partial application), and --replace preserves the
-    // modified profile while applying the rest of the new policy.
+    // modified profile while applying the rest of the new config.
     const t = join(scratch, "f-prep-modified");
-    const fresh = run("install.mjs", ["install", "--target", t, "--routing", pathA]);
+    const fresh = run("install.mjs", ["install", "--target", t, "--models", pathA]);
     check(fresh.exit === 0, "prep modified: setup install exits 0");
     const fix = join(t, "agents", "agenticale", "fix.md");
     await writeFile(fix, "USER-EDITED-FIX\n", "utf8");
-    const blockedMod = run("install.mjs", ["install", "--target", t, "--routing", pathB]);
+    const blockedMod = run("install.mjs", ["install", "--target", t, "--models", pathB]);
     check(blockedMod.exit === 1 && blockedMod.err.includes("Differing content already exists at:"), "prep modified: a user-modified profile collides without --replace");
     check(blockedMod.err.includes("No changes were made."), "prep modified: the collision is reported before any mutation");
     let review = await readFile(join(t, "agents", "agenticale", "review.md"), "utf8");
     check(review.includes("model: acme/review-a"), "prep modified: the blocked update left the other profiles untouched");
     check((await readFile(fix, "utf8")) === "USER-EDITED-FIX\n", "prep modified: the user-modified profile is left in place");
-    const replacedMod = run("install.mjs", ["install", "--target", t, "--routing", pathB, "--replace"]);
+    const replacedMod = run("install.mjs", ["install", "--target", t, "--models", pathB, "--replace"]);
     check(replacedMod.exit === 0 && replacedMod.out.includes("preserve-modified: agents/agenticale/fix.md"), "prep modified: the user edit is reported as preserved");
     check(replacedMod.out.includes("backup created:"), "prep modified: --replace backs up the user edit before replacing");
     review = await readFile(join(t, "agents", "agenticale", "review.md"), "utf8");
-    check(review.includes("model: acme/review-b"), "prep modified: --replace applies the new policy to the unmodified profiles");
-    check((await readFile(fix, "utf8")) !== "USER-EDITED-FIX\n" && (await readFile(fix, "utf8")).includes("model: acme/fix-b"), "prep modified: --replace backs up and replaces the modified profile with the new policy");
+    check(review.includes("model: acme/review-b"), "prep modified: --replace applies the new config to the unmodified profiles");
+    check((await readFile(fix, "utf8")) !== "USER-EDITED-FIX\n" && (await readFile(fix, "utf8")).includes("model: acme/fix-b"), "prep modified: --replace backs up and replaces the modified profile with the new config");
   }
 
   console.log(`Installer tests passed: ${assertions} assertions.`);

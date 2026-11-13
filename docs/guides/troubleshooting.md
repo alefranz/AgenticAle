@@ -15,29 +15,25 @@ prompt for a fresh session — or rerun `/autonomous` to resume its durable
 handoff; only Autonomous persists recovery state on disk.
 
 If a model cannot be found, check that its identifier is available in your
-account and inspect the Markdown routing file. Plugin users can edit Markdown
-and start a new `/work`, `/review`, or `/autonomous` activation. OpenCode users may need to
-refresh generated profiles; see the
-[model routing guide](model-routing.md#opencode-profile-refresh). For a quick
-routing trial, use `--no-model` and then create a `preferences.md` preference
-file (the legacy `routing.md` name is still accepted). An unreadable
-`preferences.md` is reported as an error — it is never a silent fallback to a
-legacy `routing.md` beside it.
+account and that the installation's model configuration names it. On OpenCode
+the models are fixed in the generated profiles at install time: rerun the
+installer with a different `--models PATH|PRESET` (or `--no-model`)
+configuration, then restart or start a new session. On other hosts the
+preference file can assign a model per role; edit it and start a new `/work`,
+`/review`, or `/autonomous` activation. See the [model configuration
+guide](model-routing.md).
 
-## Routing file precedence and invalid work allowance
+## Preference file precedence and invalid work allowance
 
-If both `preferences.md` and the legacy `routing.md` exist at the same scope
-(project or personal), `preferences.md` is the effective file and `routing.md`
-is ignored — never merged. Edits to `routing.md` have no effect while
-`preferences.md` is present, and the workflow identifies the ignored file
-rather than silently dropping it. If a preference file carries an invalid
-`## Work` worker-round value (zero, a fraction, or a word), the activation
-fails with an actionable error naming the file and the value; it is never
-silently defaulted and never clamped — set the entry to a positive integer.
-See [user preferences and
-precedence](model-routing.md#user-preferences-and-precedence) and [Work
+If both the project and the personal preference file exist, the project file
+wins; the files are never merged. If the selected preference file carries an
+invalid `## Work` worker-round value (zero, a fraction, or a word), the
+activation fails with an actionable error naming the file and the value; it
+is never silently defaulted and never clamped — set the entry to a positive
+integer. See [the preference
+file](model-routing.md#other-hosts-the-preference-file) and [Work
 worker-round allowance](model-routing.md#work-worker-round-allowance) in the
-model routing guide.
+model configuration guide.
 
 ## Provider quota exhaustion
 
@@ -45,7 +41,7 @@ When a host or provider explicitly reports that a usage quota or rate limit is
 exhausted, Work stops and reports the affected role, evidence, partial work,
 unchecked work, and any retry or reset details supplied by the host. Inspect
 the working tree before resuming so partial changes are preserved. Work does
-not automatically wait, retry, change the route, or create durable cooldown
+not automatically wait, retry, switch models, or create durable cooldown
 state. Missing output, a generic `429`, or an authentication, network, billing,
 or account error alone does not confirm quota exhaustion; handle those through
 the ordinary error guidance. Autonomous has a separate durable recovery policy.

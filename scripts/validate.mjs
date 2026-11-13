@@ -3,17 +3,13 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  STANDARD_TIERS,
-  resolveAllRuntimes,
-  runtimeSupportsEffort,
-  validateV2Routing,
-} from "../skills/work/scripts/routing.mjs";
+import { loadModelConfig } from "./model-config.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(scriptDirectory, "..");
 
-// The seven routing keys that define every route across all four runtimes.
+// The seven roles every route is built from; the adapter maps each one 1:1
+// to its own OpenCode profile.
 const routes = [
   "consult",
   "deep-review",
@@ -35,7 +31,6 @@ const taskContracts = [
   "review",
 ];
 
-const runtimes = ["antigravity", "codex", "copilot", "opencode"];
 const profileNames = ["consult", "deep-review", "explore", "fix", "implement", "implement-hard", "review"];
 const skillNames = ["work", "review", "autonomous", "pull-request-description", "source-code-lookup"];
 const retiredSkillNames = ["work-mode", "autonomous-mode"];
@@ -48,17 +43,13 @@ const requiredPaths = [
   "skills/work/SKILL.md",
   "skills/work/agents/openai.yaml",
   "skills/work/references/rounds.md",
-  "skills/work/references/ROUTING.md",
   "skills/work/references/outcome-evaluation.md",
-  "skills/work/references/preferences.example.md",
-  "skills/work/references/routing.json",
   "skills/work/references/runtimes/copilot.md",
   "skills/work/references/runtimes/copilot-local.md",
   "skills/work/references/runtimes/codex.md",
   "skills/work/references/runtimes/opencode.md",
   "skills/work/references/runtimes/antigravity.md",
   ...taskContracts.map((name) => `skills/work/references/tasks/${name}.md`),
-  "skills/work/scripts/routing.mjs",
   "skills/work/scripts/session-stats.mjs",
   "skills/review/SKILL.md",
   "skills/review/agents/openai.yaml",
@@ -71,6 +62,8 @@ const requiredPaths = [
   "adapters/opencode/commands/autonomous.md",
   "adapters/opencode/commands/review.md",
   "adapters/opencode/commands/work.md",
+  "adapters/opencode/models.json",
+  "adapters/plugin/model-configuration.md",
 ].sort();
 
 // The RETIRED layout that must be gone from the authored source tree.
@@ -80,6 +73,16 @@ const retiredPaths = [
   "skills/work-mode",
   "skills/autonomous-mode",
   "plugins/agenticale/com.github.copilot",
+];
+
+// The model-routing simplification retired the tiered routing layer: these
+// authored paths must be gone from the source tree; their presence means a
+// stale copy was restored.
+const obsoleteRoutingPaths = [
+  "skills/work/references/ROUTING.md",
+  "skills/work/references/preferences.example.md",
+  "skills/work/references/routing.json",
+  "skills/work/scripts/routing.mjs",
 ];
 
 const failures = [];
@@ -273,99 +276,28 @@ function validateSkillPullRequest() {
   }
 }
 
-// The authored baseline is the version-2 defaults contract: a common
-// role-to-tier map plus per-runtime tier definitions, no role exceptions.
-// It must resolve (with no preferences) to exactly the 21 explicit routes
-// (3 runtimes x 7 roles) with empty fallbacks, so the packaged defaults stay
-// fully explicit and comparable with the version-1 history.
-function validateRoutingContract() {
-  const path = "skills/work/references/routing.json";
-  let routing;
-  try {
-    routing = JSON.parse(readText(path));
-  } catch (error) {
-    fail(path, `routing contract is not valid JSON (${error.message})`, "restore a parseable routing contract");
-    return;
+// The flat model configs: the packaged default (adapters/opencode/models.json)
+// plus every bundled examples/*.json preset. Each is loaded through the shared
+// flat-config loader so the exact schema the build and installers enforce is
+// asserted here; every failure names the offending role and value. Missing
+// roles are legal (they inherit the session model), so coverage is not
+// required.
+async function validateModelConfigs() {
+  const defaultPath = "adapters/opencode/models.json";
+  const examplesRoot = "examples";
+  let exampleFiles = [];
+  if (existsSync(join(repositoryRoot, examplesRoot)) && statSync(join(repositoryRoot, examplesRoot)).isDirectory()) {
+    exampleFiles = readdirSync(join(repositoryRoot, examplesRoot)).filter((file) => file.endsWith(".json")).sort();
   }
-  try {
-    validateV2Routing(routing);
-  } catch (error) {
-    fail(path, `routing contract violates the shared version-2 baseline schema (${error.message})`, "align routing.json with the documented contract in references/ROUTING.md");
-    return;
+  if (exampleFiles.length === 0) {
+    fail(examplesRoot, "no bundled model config presets found", "restore the examples/*.json presets");
   }
-  if (typeof routing.provenance !== "string" || routing.provenance.length === 0) {
-    fail(path, "provenance must be a non-empty string", "record where the routing values came from");
-  }
-  if (!routing.runtimes || typeof routing.runtimes !== "object" || Array.isArray(routing.runtimes)) {
-    fail(path, "routing must include a runtimes object", "add the runtimes object");
-    return;
-  }
-  const runtimeKeys = Object.keys(routing.runtimes).sort();
-  if (JSON.stringify(runtimeKeys) !== JSON.stringify([...runtimes].sort())) {
-    fail(path, `runtimes must be exactly ${runtimes.join(", ")}`, "keep one entry per supported runtime");
-  }
-  for (const runtime of runtimes) {
-    const map = routing.runtimes[runtime];
-    if (!map || typeof map !== "object" || Array.isArray(map)) {
-      fail(path, `missing runtime '${runtime}'`, `add the ${runtime} runtime`);
-      continue;
+  for (const path of [defaultPath, ...exampleFiles.map((file) => `${examplesRoot}/${file}`)]) {
+    try {
+      await loadModelConfig(join(repositoryRoot, path));
+    } catch (error) {
+      fail(path, `model config does not load (${error.message})`, "every role value must be a well-formed \"provider/model[#effort]\" string");
     }
-    const tierKeys = Object.keys(map.tiers ?? {}).sort();
-    if (JSON.stringify(tierKeys) !== JSON.stringify([...STANDARD_TIERS].sort())) {
-      fail(path, `runtime '${runtime}' must declare exactly the standard tiers: ${STANDARD_TIERS.join(", ")}`, "declare the packaged fast/routine/standard/deep tiers");
-    }
-    if (Object.keys(map.roles ?? {}).length !== 0) {
-      fail(path, `runtime '${runtime}' must not carry role exceptions in the authored baseline`, "keep roles empty; role exceptions are runtime preferences");
-    }
-  }
-  // The baseline must resolve to exactly 28 explicit routes with no fallbacks.
-  let resolved;
-  try {
-    resolved = resolveAllRuntimes(routing, []);
-  } catch (error) {
-    fail(path, `baseline does not resolve (${error.message})`, "every role must map to a tier declared by every runtime");
-    return;
-  }
-  for (const runtime of runtimes) {
-    const runtimeRoutes = resolved.runtimes[runtime]?.routes ?? {};
-    for (const route of routes) {
-      const entry = runtimeRoutes[route];
-      if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
-        fail(path, `runtime '${runtime}' is missing route '${route}'`, `add the ${runtime}/${route} route`);
-        continue;
-      }
-      if (entry.mode !== "explicit") {
-        fail(path, `route ${runtime}/${route} must use mode "explicit"`, "restore mode: explicit (no fallbacks)");
-      }
-      if (typeof entry.model !== "string" || entry.model.length === 0) {
-        fail(path, `route ${runtime}/${route} must have a non-empty model string`, "set a model identifier valid for the selected runtime");
-      }
-      if (runtimeSupportsEffort(runtime)) {
-        if (typeof entry.reasoningEffort !== "string" || entry.reasoningEffort.length === 0) {
-          fail(path, `route ${runtime}/${route} must have a non-empty reasoningEffort string`, "set the reasoning effort");
-        }
-      } else {
-        if (entry.reasoningEffort !== undefined) {
-          fail(path, `route ${runtime}/${route} must not have reasoningEffort (runtime does not support effort)`, "remove reasoningEffort for runtimes without effort control");
-        }
-      }
-      if (!Array.isArray(entry.fallbacks) || entry.fallbacks.length !== 0) {
-        fail(path, `route ${runtime}/${route} fallbacks must be an empty array (no fallbacks)`, "remove the fallbacks");
-      }
-    }
-  }
-}
-
-// Validate that the shipped human preferences example presents the
-// documented tier-first Markdown interface, including the opencode default
-// section, the Work worker-round allowance section, and the two packaged
-// named profile sections.
-function validateRoutingExample() {
-  const path = "skills/work/references/preferences.example.md";
-  if (!existsSync(join(repositoryRoot, path))) return; // requiredPaths flags absence
-  const example = readText(path);
-  for (const required of ["## opencode", "### Tiers", "### Role overrides", "## Work", "worker rounds", "## Profile: server-b", "## Profile: alternate-provider", "#### Tiers", "| fast |", "| routine |", "| standard |", "| deep |"]) {
-    if (!example.includes(required)) fail(path, `preferences example is missing '${required}'`, "keep the tier table, optional role overrides, the Work section, and the packaged profile sections in the Markdown example");
   }
 }
 
@@ -523,7 +455,7 @@ function validateNeutralContracts() {
     const text = readText(path);
     for (const { pattern, label } of providerPatterns) {
       if (pattern.test(text)) {
-        fail(path, `capability-neutral contract must not reference provider/model '${label}'`, "use capability-neutral wording; routing lives in routing.json");
+        fail(path, `capability-neutral contract must not reference provider/model '${label}'`, "use capability-neutral wording; model choices live in adapters/opencode/models.json and the installation's agent profiles");
       }
     }
   }
@@ -555,6 +487,11 @@ function validateBundleSurface() {
   for (const path of retiredPaths) {
     if (existsSync(join(repositoryRoot, path))) {
       fail(path, "retired layout path is still present", "remove the retired authored source");
+    }
+  }
+  for (const path of obsoleteRoutingPaths) {
+    if (existsSync(join(repositoryRoot, path))) {
+      fail(path, "obsolete model-routing path is still present (removed with the model-routing simplification)", "do not restore the tiered routing layer; model configuration is flat");
     }
   }
   if (existsSync(join(repositoryRoot, "commands")) && statSync(join(repositoryRoot, "commands")).isDirectory()) {
@@ -594,36 +531,35 @@ function validateBundleSurface() {
       fail(`${packageRoot}/com.github.copilot`, "committed package must not ship a per-role Copilot directory", "remove the retired Copilot catalog");
     }
 
-    // The packaged resources: the version-2 baseline, preference example,
-    // shared routing module, and session stats helper.
+    // The packaged resource: the session stats helper (model configuration is
+    // no longer a packaged file; it is rendered into the agent profiles at
+    // build/install time).
     for (const extra of [
-      "skills/work/references/routing.json",
-      "skills/work/references/preferences.example.md",
-      "skills/work/scripts/routing.mjs",
       "skills/work/scripts/session-stats.mjs",
     ]) {
       if (!existsSync(join(repositoryRoot, packageRoot, extra))) {
-        fail(`${packageRoot}/${extra}`, "committed package is missing a packaged routing resource", "regenerate the plugin with node scripts/publish-default-plugin.mjs");
+        fail(`${packageRoot}/${extra}`, "committed package is missing a packaged resource", "regenerate the plugin with node scripts/publish-default-plugin.mjs");
       }
     }
     const obsoleteSnapshot = `${packageRoot}/skills/work/references/resolved-routing.json`;
     if (existsSync(join(repositoryRoot, obsoleteSnapshot))) {
       fail(obsoleteSnapshot, "committed package still carries the redundant resolved routing snapshot", "regenerate the plugin without resolved-routing.json");
     }
-    const packageRoutingPath = `${packageRoot}/skills/work/references/routing.json`;
-    if (existsSync(join(repositoryRoot, packageRoutingPath))) {
-      let packaged;
-      try {
-        packaged = JSON.parse(readText(packageRoutingPath));
-      } catch (error) {
-        fail(packageRoutingPath, `committed baseline is not valid JSON (${error.message})`, "regenerate the plugin with node scripts/publish-default-plugin.mjs");
+    // Obsolete model-routing artifacts: the tiered routing layer was removed
+    // with the model configuration simplification, so the package must not
+    // carry any of its files.
+    for (const obsolete of [
+      "skills/work/references/routing.json",
+      "skills/work/scripts/routing.mjs",
+    ]) {
+      if (existsSync(join(repositoryRoot, packageRoot, obsolete))) {
+        fail(`${packageRoot}/${obsolete}`, "committed package still carries an obsolete routing artifact", "regenerate the plugin with node scripts/publish-default-plugin.mjs");
       }
-      if (packaged !== undefined) {
-        try {
-          validateV2Routing(packaged);
-        } catch (error) {
-          fail(packageRoutingPath, `committed baseline violates the version-2 schema (${error.message})`, "regenerate the plugin with node scripts/publish-default-plugin.mjs");
-        }
+    }
+    for (const name of skillNames) {
+      const skillRoutingPath = `${packageRoot}/skills/${name}/references/routing.json`;
+      if (existsSync(join(repositoryRoot, skillRoutingPath))) {
+        fail(skillRoutingPath, "installed skill must not carry references/routing.json", "regenerate the plugin with node scripts/publish-default-plugin.mjs");
       }
     }
   }
@@ -762,8 +698,7 @@ validateSkillReview();
 validateSkillAutonomous();
 validateSkillSourceLookup();
 validateSkillPullRequest();
-validateRoutingContract();
-validateRoutingExample();
+await validateModelConfigs();
 validateAdapter();
 validateCommandTemplates();
 validateNeutralContracts();
@@ -774,5 +709,5 @@ if (failures.length > 0) {
   for (const failure of failures) console.error(`- ${failure}`);
   process.exitCode = 1;
 } else {
-  console.log(`Validation passed: ${requiredPaths.length} source-of-truth files, ${taskContracts.length} neutral task contracts, routing contract, ${profileNames.length} adapter profiles, ${commandNames.length} adapter command templates, and sanitation.`);
+  console.log(`Validation passed: ${requiredPaths.length} source-of-truth files, ${taskContracts.length} neutral task contracts, flat model configs, ${profileNames.length} adapter profiles, ${commandNames.length} adapter command templates, and sanitation.`);
 }

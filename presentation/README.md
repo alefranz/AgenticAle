@@ -77,7 +77,7 @@ Then open the local server address printed in your terminal in a browser.
 2. **The Problem:** Why Single-Context AI Coding Breaks Down (context rot, self-review bias, model mismatch, babysitting tax)
 3. **Core Deep Dive:** Enter `/work` — Opinionated Subagent Orchestration & workflow pipeline
 4. **Context Hygiene:** Fresh Context per Round & The Zero-Trust Independent Review Gate
-5. **Model Routing:** Right Model for the Job — Declarative 4-tier routing (`fast`, `routine`, `standard`, `deep`)
+5. **Model Configuration:** Right Model for the Job — Per-Role Model Configuration (seven roles; install-time OpenCode profiles; one preference file; `--profile NAME`)
 6. **PR Delivery:** From Prompt to High-Confidence PR (`/work --pr`, `--consult`, `--outcome`)
 7. **Supporting Skills:** Guardrails against model bad habits (`source-code-lookup` & `pull-request-description`)
 8. **Ecosystem & Strategy:** When to use Copilot Fusion vs. AgenticAle `/work` & the "Glass Box" narration feature

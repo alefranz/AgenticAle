@@ -31,8 +31,8 @@ jobs:
       - name: Validate source of truth
         run: node scripts/validate.mjs
 
-      - name: Test routing
-        run: node scripts/test-routing.mjs
+      - name: Test models
+        run: node scripts/test-models.mjs
 
       - name: Test installers (OpenCode + standalone)
         run: node scripts/test-installer.mjs

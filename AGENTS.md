@@ -15,8 +15,8 @@ not invoke its workflow.
 | Shared rounds, task packets, review and fix rules | `skills/work/references/rounds.md` |
 | Specialist behavior | `skills/work/references/tasks/*.md` |
 | Supporting capabilities | `skills/source-code-lookup/SKILL.md`, `skills/pull-request-description/SKILL.md` |
-| Routing semantics and implementation | `skills/work/references/ROUTING.md`, `skills/work/scripts/routing.mjs` |
-| Routing defaults and customization example | `skills/work/references/routing.json`, `skills/work/references/preferences.example.md` |
+| Flat model config and shared validation | `adapters/opencode/models.json`, `scripts/model-config.mjs` |
+| Plugin preference file (fragment) | `adapters/plugin/model-configuration.md` |
 
 Runtime bindings in `skills/work/references/runtimes/`, presentation metadata
 in `skills/*/agents/`, `adapters/opencode/`, and build/install scripts are also
@@ -73,8 +73,8 @@ release documentation for the later convergence task unless explicitly included.
 This scope applies to implementation and review alike; pass it to any agents
 used by an explicitly invoked workflow.
 
-Run `node scripts/validate.mjs` and `git diff --check`. For routing logic changes,
-also run `node scripts/test-routing.mjs`; use relevant behavior examples or
+Run `node scripts/validate.mjs` and `git diff --check`. For model-config changes,
+also run `node scripts/test-models.mjs`; use relevant behavior examples or
 fixtures for instruction changes. Add checks when needed to establish the
 requested behavior. Build and installer checks belong to convergence when the
 change does not concern those layers. Do not claim live runtime verification

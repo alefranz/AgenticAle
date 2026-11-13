@@ -20,7 +20,7 @@
 **Talking Points:**
 - Welcome everyone. Most of us use GitHub Copilot or coding agents every day now, and for small edits or quick questions, a normal chat session is great.
 - But as soon as you hand an agent a real engineering task—something that touches multiple files, requires investigating dependencies, and needs to end in a solid PR—raw single-thread chat starts showing cracks.
-- Today I want to walk through **AgenticAle**, a portable set of agent skills, focusing mainly on `/work`: why it’s structured around fresh subagents and model routing, where it fits alongside tools like Copilot Fusion, and how it can even serve as a "glass box" to build intuition for agentic coding.
+- Today I want to walk through **AgenticAle**, a portable set of agent skills, focusing mainly on `/work`: why it’s structured around fresh subagents and per-role model configuration, where it fits alongside tools like Copilot Fusion, and how it can even serve as a "glass box" to build intuition for agentic coding.
 
 ---
 
@@ -56,7 +56,7 @@
   `Coordinator` -> `Explore` (optional) -> `Implement` -> `Independent Review` -> `Fix` (if needed) -> `Delivery / PR`
 - **Compromise by Design:**
   - Adds a small orchestration overhead (not meant for a 1-line typo fix).
-  - In exchange: handles context hygiene, model routing, and independent review automatically for 90% of real tasks.
+  - In exchange: handles context hygiene, per-role model configuration, and independent review automatically for 90% of real tasks.
 
 **Talking Points:**
 - This is where the `/work` skill comes in. Its philosophy is simple: **automate good agentic hygiene so you don't have to think about it.**
@@ -84,24 +84,23 @@
 
 ---
 
-### Slide 5: Right Model for the Job — Declarative Routing
+### Slide 5: Right Model for the Job — Per-Role Model Configuration
 **On Slide:**
-- **4 Capability Tiers (`routing.json`):**
-  - `fast` -> `explore` (quick codebase discovery & external lookups)
-  - `routine` -> `implement`, `fix` (everyday code changes & straightforward fixes)
-  - `standard` -> `review`, `implement-hard` (independent code review & escalated complex implementation/fixes)
-  - `deep` -> `deep-review`, `consult` (high-risk architectural consultation & deep verification)
-- **Automatic Escalation:**
-  - If a task or review finding is non-trivial, `/work` escalates from `implement`/`fix` (`routine`) to `implement-hard` (`standard`).
-- **Customizable via Markdown:**
-  - Override per-user or per-repo in `.agenticale/preferences.md` or switch on the fly with `/work --profile NAME`.
+- **Seven Roles, One Model Each:**
+  - `explore`, `implement`, `implement-hard`, `fix`, `review`, `deep-review`, `consult` — each gets its own model, and its own reasoning effort where the host supports it.
+- **OpenCode: set at install time**
+  - `--models PATH|PRESET` bakes a flat per-role config into the seven generated agent profiles; `--no-model` makes every role inherit the session model.
+- **Other hosts: one optional preference file**
+  - Direct role assignments (`.agenticale/preferences.md`, project first, then personal) — nothing else is interpreted.
+- **Named setups with `--profile NAME`:**
+  - Selects `preferences.NAME.md` at the same locations; a missing file is a clear error, never a silent fallback.
 
 **Talking Points:**
-- Alongside fresh context, `/work` solves model selection through **declarative role routing**.
-- Instead of running one model for everything, `/work` maps each role to one of four tiers: `fast`, `routine`, `standard`, and `deep`.
-- Exploration runs on `fast`. Standard implementation and simple fixes run on `routine`.
-- But when it's time for the **independent review**, or when an implementation/fix hits a complex edge case (`implement-hard`), it routes to the stronger `standard` tier. And if you need upfront framing (`--consult`) or a `deep-review`, it uses the `deep` tier with maximum reasoning effort.
-- You don't have to touch JSON to tweak this—you can write plain Markdown preferences or pass `--profile` at invocation time.
+- Alongside fresh context, `/work` solves model selection **per role**: each of the seven roles — `explore`, `implement`, `implement-hard`, `fix`, `review`, `deep-review`, `consult` — gets its own model, and where the host supports it, its own reasoning effort.
+- On OpenCode the model configuration is set **at install time**: a flat per-role config — a JSON file or a bundled preset like `openai` — is baked into the seven generated agent profiles, so dispatching the role *is* the routing.
+- On the other hosts (Copilot, Codex, Antigravity), the configuration is **one optional Markdown preference file** with direct role assignments like `- review: openai/gpt-6.1-sol, xhigh` — a project file wins over the personal one, and nothing else in the file is interpreted.
+- For named setups, a leading `--profile NAME` selects `preferences.NAME.md` at the same locations — and a missing file is a concise, actionable error, never a silent fallback.
+- When a task or review finding needs concurrency, subtle state, security, or difficult contract reasoning, `/work` runs the implement or fix contract on the `implement-hard` role, which you can point at your strongest model.
 
 ---
 
@@ -176,7 +175,7 @@
   - **Keep Shared (Commodity Workflow Skills):** Context isolation, review/fix state machine, PR delivery (`work`, `review`).
   - **Customize Locally (Repo & Org Layer):**
     - `AGENTS.md` for repo architecture, build commands, and conventions.
-    - `.agenticale/preferences.md` for model/tier routing and `SOURCE_ROOT`.
+    - `.agenticale/preferences.md` for per-role model configuration.
     - Domain-specific leaf skills (like internal deployment or telemetry lookup).
 
 **Talking Points:**
@@ -196,7 +195,7 @@
   - Pulls the next item from the backlog -> implements -> runs strict independent review -> updates/grooms the backlog -> records a compact two-line ledger entry and exact `NEXT` action.
 - **Built for Subscription Windows & Local Models:**
   - **Quota-Aware:** Persists provider rate-limit cooldown & retry state in `active.md`—waits for your subscription usage window to reset and resumes cleanly without losing progress.
-  - **Local Model Friendly (`copilot-local` / profiles):** Pair cloud reasoning for review/coordination with local models for routine worker rounds.
+  - **Local Model Friendly (`--profile NAME` preference files):** Pair cloud reasoning for review/coordination with local models for routine worker rounds.
   - **Best Fit Today:** An awesome laboratory for hobby projects, greenfield prototypes, or overnight mechanical migrations.
 
 **Talking Points:**
@@ -205,7 +204,7 @@
 - Instead of keeping state only in the chat session, `/autonomous` maintains `BACKLOG.md` and `docs/handoffs/active.md`. It picks a task, runs worker and strict review rounds, refines the backlog as it learns more about the codebase, and writes a durable checkpoint after every single round.
 - Two features make it especially fun for hobby projects:
   1. **Subscription window awareness:** If you hit a provider quota limit at 2 AM, it records the exact state and cooldown window in the handoff file so it can wait or resume later with zero lost work.
-  2. **Hybrid local/cloud routing:** You can route routine coding rounds to local models while keeping a strong cloud model for the reviewer.
+  2. **Hybrid local/cloud configuration:** You can point routine coding roles at local models while keeping a strong cloud model for the reviewer.
 - I wouldn't point `/autonomous` at a mission-critical production monorepo unattended tomorrow—but as a sandbox for side projects and seeing where long-horizon engineering is headed, it's eye-opening.
 
 ---

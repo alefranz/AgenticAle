@@ -493,7 +493,7 @@
           <ul>
             <li>Welcome everyone. Most of us use GitHub Copilot or coding agents every day now, and for small edits or quick questions, a normal chat session is great.</li>
             <li>But as soon as you hand an agent a real engineering task—something that touches multiple files, requires investigating dependencies, and needs to end in a solid PR—raw single-thread chat starts showing cracks.</li>
-            <li>Today I want to walk through <strong>AgenticAle</strong>, a portable set of agent skills, focusing mainly on <code>/work</code>: why it's structured around fresh subagents and model routing, where it fits alongside tools like Copilot Fusion, and how it can even serve as a "glass box" to build intuition for agentic coding.</li>
+            <li>Today I want to walk through <strong>AgenticAle</strong>, a portable set of agent skills, focusing mainly on <code>/work</code>: why it's structured around fresh subagents and per-role model configuration, where it fits alongside tools like Copilot Fusion, and how it can even serve as a "glass box" to build intuition for agentic coding.</li>
           </ul>`
       },
       {
@@ -535,15 +535,15 @@
       },
       {
         index: 4,
-        title: "Right Model for the Job — Declarative Routing",
+        title: "Right Model for the Job — Per-Role Model Configuration",
         section: "Section 3 • Model Strategy",
-        notes: `<p><strong>Slide 5: Right Model for the Job — Declarative Routing</strong></p>
+        notes: `<p><strong>Slide 5: Right Model for the Job — Per-Role Model Configuration</strong></p>
           <ul>
-            <li>Alongside fresh context, <code>/work</code> solves model selection through <strong>declarative role routing</strong>.</li>
-            <li>Instead of running one model for everything, <code>/work</code> maps each role to one of four tiers: <code>fast</code>, <code>routine</code>, <code>standard</code>, and <code>deep</code>.</li>
-            <li>Exploration runs on <code>fast</code>. Standard implementation and simple fixes run on <code>routine</code>.</li>
-            <li>But when it's time for the <strong>independent review</strong>, or when an implementation/fix hits a complex edge case (<code>implement-hard</code>), it routes to the stronger <code>standard</code> tier. And if you need upfront framing (<code>--consult</code>) or a <code>deep-review</code>, it uses the <code>deep</code> tier with maximum reasoning effort.</li>
-            <li>You don't have to touch JSON to tweak this—you can write plain Markdown preferences or pass <code>--profile</code> at invocation time.</li>
+            <li>Alongside fresh context, <code>/work</code> solves model selection <strong>per role</strong>: each of the seven roles — explore, implement, implement-hard, fix, review, deep-review, consult — gets its own model, and where the host supports it, its own reasoning effort.</li>
+            <li>On OpenCode, <code>--models PATH|PRESET</code> sets the model configuration at install time: a <code>flat per-role config</code> — a JSON file or a bundled preset like <code>openai</code> — is baked into the <code>seven generated agent profiles</code>; <code>--no-model</code> inherits the session model.</li>
+            <li>On the other hosts (Copilot, Codex, Antigravity), the configuration is one optional preference file, <code>.agenticale/preferences.md</code>, with direct role assignments like <code>- review: openai/gpt-6.1-sol, xhigh</code> — a project file wins over the personal one, and nothing else is interpreted.</li>
+            <li><strong>For named setups</strong>, a leading <code>--profile NAME</code> selects <code>preferences.NAME.md</code> instead of <code>preferences.md</code>, at <code>.agenticale</code> in the project or under <code>~/.agenticale</code> — a missing file is a concise, actionable error, never a silent fallback.</li>
+            <li>When a task or review finding needs concurrency, subtle state, security, or difficult contract reasoning, <code>/work</code> runs the implement or fix contract on the implement-hard role, which you can point at your strongest model.</li>
           </ul>`
       },
       {
@@ -605,7 +605,7 @@
             <li>Instead of keeping state only in the chat session, <code>/autonomous</code> maintains <code>BACKLOG.md</code> and <code>docs/handoffs/active.md</code>. It picks a task, runs worker and strict review rounds, refines the backlog as it learns more about the codebase, and writes a durable checkpoint after every single round.</li>
             <li>Two features make it especially fun for hobby projects:</li>
             <li>1. <strong>Subscription window awareness:</strong> If you hit a provider quota limit at 2 AM, it records the exact state and cooldown window in the handoff file so it can wait or resume later with zero lost work.</li>
-            <li>2. <strong>Hybrid local/cloud routing:</strong> You can route routine coding rounds to local models while keeping a strong cloud model for the reviewer.</li>
+            <li>2. <strong>Hybrid local/cloud configuration:</strong> You can point routine coding roles at local models while keeping a strong cloud model for the reviewer.</li>
             <li>I wouldn't point <code>/autonomous</code> at a mission-critical production monorepo unattended tomorrow—but as a sandbox for side projects and seeing where long-horizon engineering is headed, it's eye-opening.</li>
           </ul>`
       },

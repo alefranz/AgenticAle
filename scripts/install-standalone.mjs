@@ -45,7 +45,6 @@ function usage() {
   node scripts/install-standalone.mjs [install] [--scope project|user]
                                       [--target PATH] [--source-root PATH]
                                       (--models PATH|PRESET | --no-model)
-                                      [--effort LEVEL] [--routing PATH]
                                       [--replace] [--dry-run]
   node scripts/install-standalone.mjs uninstall [--scope project|user]
                                                [--target PATH] [--dry-run]
@@ -73,12 +72,10 @@ Options:
                  Local source checkout root for the source-code-lookup skill
                  (default in the skill: ~/dev)
   --models PATH|PRESET
-                 JSON mapping or bundled preset (openai, zen, local, example)
-                 converted to the routing contract
-  --no-model      Explicitly make every route inherit the session model
-  --effort LEVEL  Route-wide reasoning-effort override (low/medium/high/xhigh/max)
-  --routing PATH  Build from a caller-supplied routing file instead of the
-                  packaged skills/work/references/routing.json
+                 Flat per-role model config: a JSON object mapping roles to
+                 "provider/model[#effort]" (presets: example, local, openai,
+                 gpt, zen); a missing role inherits the session model
+  --no-model      Explicitly make every role inherit the session model
   --replace      Back up and replace differing destinations during install/update
   --dry-run      Print the planned operation without changing the filesystem
   --help         Show this help
@@ -102,10 +99,7 @@ function parseArguments(argv) {
   let target;
   let sourceRoot;
   let models;
-  let routing;
   let noModel = false;
-  let effort;
-  let effortOverride = false;
   let replace = false;
   let dryRun = false;
 
@@ -150,24 +144,8 @@ function parseArguments(argv) {
     } else if (argument.startsWith("--models=")) {
       if (models !== undefined) throw new Error("--models may be supplied only once.");
       models = argument.slice("--models=".length);
-    } else if (argument === "--routing") {
-      if (routing !== undefined) throw new Error("--routing may be supplied only once.");
-      routing = requireValue(index, "--routing");
-      index += 1;
-    } else if (argument.startsWith("--routing=")) {
-      if (routing !== undefined) throw new Error("--routing may be supplied only once.");
-      routing = argument.slice("--routing=".length);
     } else if (argument === "--no-model") {
       noModel = true;
-    } else if (argument === "--effort") {
-      if (effort !== undefined) throw new Error("--effort may be supplied only once.");
-      effort = requireValue(index, "--effort");
-      effortOverride = true;
-      index += 1;
-    } else if (argument.startsWith("--effort=")) {
-      if (effort !== undefined) throw new Error("--effort may be supplied only once.");
-      effort = argument.slice("--effort=".length);
-      effortOverride = true;
     } else if (argument === "--replace") {
       replace = true;
     } else if (argument === "--dry-run") {
@@ -182,17 +160,14 @@ function parseArguments(argv) {
   if (scope !== "project" && scope !== "user") {
     throw new Error(`--scope must be 'project' or 'user' (got '${scope}').`);
   }
-  if (command === "uninstall" && (replace || models !== undefined || routing !== undefined || noModel || effortOverride || sourceRoot !== undefined)) {
-    throw new Error("--replace, --models, --routing, --effort, --no-model, and --source-root apply only to install/update, not uninstall.");
+  if (command === "uninstall" && (replace || models !== undefined || noModel || sourceRoot !== undefined)) {
+    throw new Error("--replace, --models, --no-model, and --source-root apply only to install/update, not uninstall.");
   }
   if (models !== undefined && noModel) {
     throw new Error("--models and --no-model cannot be used together.");
   }
-  if (routing !== undefined && models !== undefined) {
-    throw new Error("--routing and --models cannot be used together.");
-  }
-  if (command === "install" && models === undefined && routing === undefined && !noModel) {
-    throw new Error("Install requires --models PATH|PRESET, --routing PATH, or --no-model.");
+  if (command === "install" && models === undefined && !noModel) {
+    throw new Error("Install requires --models PATH|PRESET or --no-model.");
   }
 
   const defaultTarget = target
@@ -206,11 +181,8 @@ function parseArguments(argv) {
     scope,
     target: defaultTarget,
     models,
-    routing: routing === undefined ? null : resolve(routing),
     sourceRoot: sourceRoot === undefined ? null : resolveSourceRoot(sourceRoot),
     noModel,
-    effort,
-    effortOverride,
     replace,
     dryRun,
     help: false,
@@ -234,10 +206,7 @@ async function buildStandaloneEntries(options) {
     await buildBundles({
       output: tempRoot,
       models: options.models ?? null,
-      routing: options.routing ?? null,
       noModel: options.noModel,
-      effort: options.effort ?? "high",
-      effortOverride: options.effortOverride,
       sourceRoot: options.sourceRoot,
     });
     return await readStandaloneEntries(join(tempRoot, "standalone", ".agents", "skills"));

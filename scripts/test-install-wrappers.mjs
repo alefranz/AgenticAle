@@ -66,7 +66,7 @@ const STUB_INSTALLER = [
   "const args = process.argv.slice(2);",
   'appendFileSync(process.env.AGENTICALE_STUB_RECORD ?? "stub-record.jsonl", JSON.stringify(args) + "\\n");',
   'if (args[0] === "setup") {',
-  '  console.log("stub: routing setup complete");',
+  '  console.log("stub: preferences setup complete");',
   '  process.exit(Number(process.env.AGENTICALE_STUB_SETUP_EXIT ?? "0"));',
   "}",
   'console.log("stub: install complete");',
@@ -408,18 +408,18 @@ try {
     const spaced = join(scratch, "has space", "repo");
     await mkdir(spaced, { recursive: true });
     const t = join(scratch, "t-spaced");
-    const r = await runCase("spaced", { args: [...baseArgs, "--source-root", spaced, "--models", "example", "--effort", "high", "--replace", "--target", t] });
+    const r = await runCase("spaced", { args: [...baseArgs, "--source-root", spaced, "--models", "example", "--replace", "--target", t] });
     check(r.exit === 0 && !r.timedOut, "spaced: the wrapper exits 0");
-    check(r.record.length === 1 && JSON.stringify(r.record[0]) === JSON.stringify(["--models", "example", "--effort", "high", "--source-root", spaced, "--target", t, "--replace"]), "spaced: a spaced --source-root survives as a single discrete word among the forwarded options");
+    check(r.record.length === 1 && JSON.stringify(r.record[0]) === JSON.stringify(["--models", "example", "--source-root", spaced, "--target", t, "--replace"]), "spaced: a spaced --source-root survives as a single discrete word among the forwarded options");
     check(!r.record[0].includes("--no-model"), "spaced: --no-model is absent when --models was given");
   }
   {
-    const routingFile = join(scratch, "routing-fixture.json");
-    await writeFile(routingFile, "{}\n", "utf8");
-    const t = join(scratch, "t-routing");
-    const r = await runCase("routing", { args: [...baseArgs, "--routing", routingFile, "--target", t] });
-    check(r.record.length === 1 && JSON.stringify(r.record[0]) === JSON.stringify(["--routing", routingFile, "--target", t]), "routing: --routing is forwarded and --no-model is not appended");
-    check(!r.record[0].includes("--no-model"), "routing: the default routing selection is not added on top of --routing");
+    const modelsFile = join(scratch, "models-fixture.json");
+    await writeFile(modelsFile, "{}\n", "utf8");
+    const t = join(scratch, "t-models");
+    const r = await runCase("models-file", { args: [...baseArgs, "--models", modelsFile, "--target", t] });
+    check(r.record.length === 1 && JSON.stringify(r.record[0]) === JSON.stringify(["--models", modelsFile, "--target", t]), "models file: --models is forwarded and --no-model is not appended");
+    check(!r.record[0].includes("--no-model"), "models file: the default model selection is not added on top of --models");
   }
 
   // --- --dry-run ---------------------------------------------------------------------
@@ -471,7 +471,7 @@ try {
     const r = await runCase("setup-fail", { args: [...baseArgs, "--setup", "--target", join(scratch, "t-sf")], env: { AGENTICALE_STUB_SETUP_EXIT: "7" } });
     check(r.exit === 7, "setup failure: the setup exit code (7) is propagated after a successful install");
     check(r.stdout.includes("stub: install complete"), "setup failure: the install itself succeeded");
-    check(r.stderr.includes("routing setup step failed"), "setup failure: the setup failure is reported clearly");
+    check(r.stderr.includes("preferences setup step failed"), "setup failure: the setup failure is reported clearly");
     check(r.cwdEntries.length === 1 && r.cwdEntries[0] === "tmp", "setup failure: the temp dir was cleaned up");
     check(r.tmpEntries.length === 0, "setup failure: the isolated temp root is empty after the run");
   }
@@ -518,7 +518,7 @@ try {
       // on read) cannot exit and trips the timeout.
       const r = await runTtyCase("install-fail", { args: [...baseArgs, "--target", join(scratch, "t-ty-if")], env: { AGENTICALE_STUB_EXIT: "5" }, keepStdin: true, timeoutMs: 20000 });
       check(r.exit === 5 && !r.timedOut, "tty install failure: the failing installer's exit code (5) is returned promptly with no consent input ever written");
-      check(!r.stdout.includes("Create a personal routing customization file"), "tty install failure: no consent prompt was presented after a failed install");
+      check(!r.stdout.includes("Create a personal AgenticAle preferences file"), "tty install failure: no consent prompt was presented after a failed install");
       check(r.record.length === 1 && !r.record.some((line) => line[0] === "setup"), "tty install failure: the stub was never invoked with a setup argv");
     }
   } else {

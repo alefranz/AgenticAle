@@ -5,7 +5,7 @@ generated OpenCode binding is seven profiles plus the five skills, and the three
 public workflows are invoked explicitly. Every write goes to a newly created
 temporary directory; do not substitute a real OpenCode profile path.
 
-Discovery and routing checks below make no model request. Live workflow behavior
+Discovery and model checks below make no model request. Live workflow behavior
 is **not tested** in this pass; record results per capability in
 [runtime-compatibility.md](runtime-compatibility.md) and do not report them here
 as verified.
@@ -108,11 +108,12 @@ rm -rf "$smoke_root"
   command list exposes `/work`, `/review`, and `/autonomous`; the workflow
   skills' shared-round links resolve to the installed
   `skills/work/references/rounds.md`;
-- the install state is `.autonomous-mode-install.json`; the installed
-  `work/references/` carries one version-2 baseline (`routing.json`), the JSON
-  preference example, and the shared `routing.mjs` module; uninstall removes
-  the recorded copy and its state file while leaving the isolated profile
-  directory safe to delete.
+- the install state is `.autonomous-mode-install.json` (a 32-file
+  inventory); the installed `work/references/` carries the shared
+  `rounds.md`, the runtime bindings, the task contracts, and the
+  `outcome-evaluation.md` reference, and `work/scripts/` carries the
+  `session-stats.mjs` helper; uninstall removes the recorded copy and its
+  state file while leaving the isolated profile directory safe to delete.
 
 The commands above verify discovery without making a model request. An
 end-to-end model run is intentionally manual because it consumes provider
@@ -157,45 +158,35 @@ worktree, confirm Git cleanup after use. For a missing fixture repo, confirm one
 canonical clone and reuse on a second lookup. Keep raw source output in the
 Explore child and verify the coordinator receives a compact, cited answer.
 
-To smoke-test per-route selection, make a copy of `examples/gpt.json` inside the
+To smoke-test per-role model selection, make a copy of `examples/gpt.json` inside the
 temporary smoke root and replace each example ID with a model ID shown by
-`/models` in the isolated OpenCode profile. Before the uninstall command above,
-run `node scripts/install.mjs --target <isolated-profile-path> --models
-<edited-json-path> --replace`, then inspect `opencode debug agents`: the `model`
-values for `agenticale/explore` and `agenticale/review` should match the edited
+`/models` in the isolated OpenCode profile. Before the uninstall command
+above, run
+`node scripts/install.mjs --target <isolated-profile-path> --models <edited-json-path> --replace`,
+then inspect `opencode debug agents`: the `model` values for
+`agenticale/explore` and `agenticale/review` should match the edited
 mapping. A role omitted from the JSON object inherits the current session model.
 Re-run the same install without `--replace` and confirm it reports the profile
 is up to date. The uninstall should remove unchanged rendered profiles.
 
-## Markdown preference checks
+## Preference file checks
 
-These checks use the optional Markdown files documented in
+These checks use the optional preference file documented in
 [customizing model routing](setup.md#customizing-model-routing). They make no
-model request. Interpret the Markdown preferences into structured layers and
-pass those layers to the resolver from the installed `skills/work` directory:
-
-```sh
-node scripts/routing.mjs resolve --runtime opencode --input <structured-layer.json>
-```
-
-Check that no files yields the packaged baseline, a personal file overrides
-only its entries, and the project file overrides the personal file. For
-OpenCode, compare the resolved route against the current profile fields in
-`opencode debug agents`; refresh explicitly if no profile matches. The
-resolver output can be saved and passed to the existing installer:
-
-```sh
-node scripts/routing.mjs resolve --runtime opencode --input <structured-layer.json> > <preparation-path>/resolved-policy.json
-node scripts/install.mjs --target <isolated-profile-path> --routing <preparation-path>/resolved-policy.json
-```
-
-Fallback pairs are preserved in the export but honored only when a matching
-preconfigured profile exists.
+model request. Role lines in the preference file do not apply to an OpenCode
+installation — the models are fixed in the generated agent profiles at
+install time — so there is no preference-driven dispatch to check on
+OpenCode. The top-level `## Work` section (worker-round allowance) does
+apply: a project file wins over a personal file, and an invalid value (not a
+positive integer) is an actionable error naming the file and the value. To
+change the models themselves, reinstall with a different `--models`
+configuration as described above, then inspect `opencode debug agents` for
+the new profile values.
 
 ## Live workflow checks (not tested)
 
-The discovery steps above are runnable by hand. The live model-routing and
-workflow checks in [runtime-compatibility.md](runtime-compatibility.md) are a
+The discovery steps above are runnable by hand. The live model and workflow
+checks in [runtime-compatibility.md](runtime-compatibility.md) are a
 separate pass. Run them when provider credentials are available and record each
 capability as verified, limited, or not tested there. Do not mark a capability
 verified here on the basis of a discovery result.

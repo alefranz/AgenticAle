@@ -8,16 +8,15 @@ import { buildBundles, parseArguments } from "./build.mjs";
 
 function usage() {
   return `Usage:
-  node scripts/install-copilot.mjs [--models PATH|PRESET | --routing PATH | --no-model]
-                                   [--effort LEVEL]
+  node scripts/install-copilot.mjs [--models PATH|PRESET | --no-model]
                                    [--source-root PATH] [--dry-run]
 
 Builds a temporary Agent Plugins 1.0 package and installs it with
 'copilot plugin install'. GitHub Copilot in VS Code discovers the same install.
 The installer builds the shared AgenticAle plugin (skills only) from the
-packaged routing by default; \`--models\`/\`--routing\`/\`--no-model\`/\`--effort\`
-are passed through to the build and retained for explicit routing
-customization. No model request is made by this installer.`;
+packaged model config by default; \`--models\`/\`--no-model\` are passed
+through to the build and retained for explicit model customization. No model
+request is made by this installer.`;
 }
 
 function run(command, args) {

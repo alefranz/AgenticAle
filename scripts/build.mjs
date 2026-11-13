@@ -3,46 +3,25 @@
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { lstat, mkdir, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import {
-  applyBuildOverrides,
-  legacyInventoryToV2,
-  mergeV2MissingRuntimes,
-  normalizeV1ToV2,
-  resolveAllRuntimes,
-  runtimeSupportsEffort,
-  strictValidateRouting,
-  validateRouting,
-  validateV2Routing,
-} from "../skills/work/scripts/routing.mjs";
+import { DEFAULT_MODEL_CONFIG, loadModelConfig } from "./model-config.mjs";
 
-// Shared routing contract: the validator is owned by the packaged module so
-// the build, validate, tests, and the installed resolver all enforce one
-// schema. The build re-exports it for callers that import it from here.
-export { strictValidateRouting, validateRouting };
+// Shared flat model configuration: the role list, the effort levels, the
+// preset-name mapping, and the loader/validator the build, the installers,
+// and the validator all share, so one schema is enforced everywhere.
+//
+// Model selection is a build-time input only: the seven generated OpenCode
+// agent profiles carry the model/effort frontmatter, and the workflow never
+// resolves models at activation.
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(scriptDirectory, "..");
 const buildStateName = ".agenticale-build.json";
 
-export const roles = [
-  "consult",
-  "deep-review",
-  "explore",
-  "fix",
-  "implement-hard",
-  "implement",
-  "review",
-];
-
-const roleSet = new Set(roles);
-const effortLevels = new Set(["low", "medium", "high", "xhigh", "max"]);
-const modelPresets = new Map([
-  ["example", "examples/example.json"],
-  ["local", "examples/local.json"],
-  ["openai", "examples/openai.json"],
-  ["gpt", "examples/gpt.json"],
-  ["zen", "examples/gpt.json"],
-]);
+// The authored fragment appended as the final top-level section of the
+// workflow skills in the plugin and standalone outputs (not the opencode
+// output, not the two non-workflow skills).
+const modelConfigFragmentPath = join(repositoryRoot, "adapters", "plugin", "model-configuration.md");
+const workflowSkillNames = ["work", "review", "autonomous"];
 
 // The three output roots (relative to the build output directory) that the
 // build owns and regenerates on every run.
@@ -57,7 +36,7 @@ const SKILL_NAMES = ["work", "review", "autonomous", "pull-request-description",
 export const pluginManifest = {
   $schema: "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   name: "agenticale",
-  version: "0.21.0",
+  version: "0.22.0",
   description: "Reviewed coding tasks with focused specialist agents, optional PR delivery, and durable autonomous project work.",
   author: { name: "Ale Franz" },
   homepage: "https://github.com/alefranz/AgenticAle",
@@ -69,8 +48,8 @@ export const pluginManifest = {
 function usage() {
   return `Usage:
   node scripts/build.mjs [--output PATH]
-                         [--routing PATH | --models PATH|PRESET] [--no-model]
-                         [--effort LEVEL] [--source-root PATH]
+                        [--models PATH|PRESET | --no-model]
+                        [--source-root PATH]
 
 Builds the skills-first bundle from the common core and the OpenCode adapter:
   <output>/plugin/agenticale            Agent Plugins 1.0 package (skills + plugin.json)
@@ -79,14 +58,11 @@ Builds the skills-first bundle from the common core and the OpenCode adapter:
 
 Options:
   --output PATH         Build root (default: dist)
-  --routing PATH        Build from a caller-supplied routing file instead of the
-                        packaged skills/work/references/routing.json
-  --models PATH|PRESET  Legacy import: read an examples mapping and convert it to
-                        the routing contract (presets: gpt, openai, zen, local,
-                        example)
-  --no-model            Omit model and reasoning-effort; every route inherits
-  --effort LEVEL        Route-wide reasoning-effort override (low/medium/high/
-                        xhigh/max); overrides the effort of every route
+  --models PATH|PRESET  Flat per-role model config: a JSON object mapping roles
+                        to "provider/model[#effort]" (presets: example, local,
+                        openai, gpt, zen); a missing role inherits the session
+                        model
+  --no-model            Omit model and reasoning-effort; every role inherits
   --source-root PATH    Render a different source-code-lookup root
   --help                Show this help`;
 }
@@ -101,11 +77,7 @@ function requireValue(argv, index, option) {
 export function parseArguments(argv) {
   let output = join(repositoryRoot, "dist");
   let models = null;
-  let routing = null;
   let noModel = false;
-  let effort = "high";
-  let effortOverride = false;
-  let coordinatorEffortRetired = false;
   let sourceRoot = null;
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -120,26 +92,8 @@ export function parseArguments(argv) {
       index += 1;
     } else if (argument.startsWith("--models=")) {
       models = argument.slice("--models=".length);
-    } else if (argument === "--routing") {
-      routing = requireValue(argv, index, argument);
-      index += 1;
-    } else if (argument.startsWith("--routing=")) {
-      routing = argument.slice("--routing=".length);
     } else if (argument === "--no-model") {
       noModel = true;
-    } else if (argument === "--effort") {
-      effort = requireValue(argv, index, argument);
-      effortOverride = true;
-      index += 1;
-    } else if (argument.startsWith("--effort=")) {
-      effort = argument.slice("--effort=".length);
-      effortOverride = true;
-    } else if (argument === "--coordinator-effort") {
-      requireValue(argv, index, argument);
-      index += 1;
-      coordinatorEffortRetired = true;
-    } else if (argument.startsWith("--coordinator-effort=")) {
-      coordinatorEffortRetired = true;
     } else if (argument === "--source-root") {
       sourceRoot = resolve(requireValue(argv, index, argument));
       index += 1;
@@ -152,154 +106,29 @@ export function parseArguments(argv) {
     }
   }
 
-  if (coordinatorEffortRetired) {
-    console.log("Note: --coordinator-effort is retired; the session (coordinator) now owns its own effort, so this option is ignored.");
-  }
   if (noModel && models) {
     throw new Error("--models and --no-model cannot be used together.");
   }
-  if (routing && models) {
-    throw new Error("Conflicting routing inputs: --routing and --models cannot be used together.");
-  }
-  if (!effortLevels.has(effort)) throw new Error(`Invalid --effort '${effort}'.`);
   if (resolve(output) === repositoryRoot) {
     throw new Error("--output must not be the repository root.");
   }
 
-  return { output, models, routing, noModel, effort, effortOverride, sourceRoot, help: false };
+  return { output, models, noModel, sourceRoot, help: false };
 }
 
-function modelPath(value) {
-  const preset = modelPresets.get(value.toLowerCase());
-  return preset ? join(repositoryRoot, preset) : resolve(value);
+// The effective flat model config for this build: --models reads a caller
+// config (a preset name or a path) directly; --no-model makes every role
+// inherit; with neither, the packaged flat default is used.
+async function loadModelOptions(options) {
+  if (options.noModel) return { config: {}, modelsSource: "none (--no-model)" };
+  const value = options.models ?? DEFAULT_MODEL_CONFIG;
+  const { config } = await loadModelConfig(value);
+  return { config, modelsSource: options.models ? `--models ${options.models}` : DEFAULT_MODEL_CONFIG };
 }
 
-async function readLegacyModels(value) {
-  const path = modelPath(value);
-  let parsed;
-  try {
-    parsed = JSON.parse(await readFile(path, "utf8"));
-  } catch (error) {
-    if (error instanceof SyntaxError) throw new Error(`Model mapping is not valid JSON: ${path}.`);
-    throw error;
-  }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error("Model mapping must be a JSON object keyed by role name.");
-  }
-  for (const [role, model] of Object.entries(parsed)) {
-    if (!roleSet.has(role)) throw new Error(`Unknown role in model mapping: ${role}.`);
-    if (typeof model !== "string" || model.length === 0) throw new Error(`Invalid model for ${role}.`);
-  }
-  return parsed;
-}
-
-// The packaged version-2 defaults baseline: the installed baseline for the
-// default build and the fill source for runtimes a caller input leaves
-// undeclared. It is always complete (all three runtimes).
-async function loadPackagedRouting() {
-  const packaged = JSON.parse(
-    await readFile(join(repositoryRoot, "skills", "work", "references", "routing.json"), "utf8"),
-  );
-  validateV2Routing(packaged);
-  return packaged;
-}
-
-// Markdown is the runtime preference format the workflow interprets in
-// context; it is never a build input. A Markdown path supplied to --routing
-// gets a clear explanation before any parsing.
-function markdownRoutingGuidance(path) {
-  return `--routing PATH expects a JSON policy (version 1 or 2), not a Markdown preference file: ${path}. `
-    + "Customize routing at runtime with <project>/.agenticale/preferences.md or ~/.agenticale/preferences.md (the legacy name .agenticale/routing.md is still accepted at each scope), including a top-level ## Work section that overrides the Work workflow's worker-round allowance (see the work skill's references/ROUTING.md), "
-    + "or export a resolved version-1 JSON policy (node skills/work/scripts/routing.mjs resolve) and pass that JSON file to --routing.";
-}
-
-// Loads the effective version-2 baseline for this build from the explicit
-// inputs: --routing accepts a version-1 policy (normalized to exact direct role
-// exceptions over the packaged tiers) or a version-2 baseline (undeclared
-// runtimes filled from the packaged defaults, as before); --models imports a
-// legacy role-to-model inventory; with neither, the packaged baseline is used.
-async function loadRouting(options) {
-  const packaged = await loadPackagedRouting();
-
-  if (options.routing) {
-    const path = resolve(options.routing);
-    if (path.toLowerCase().endsWith(".md")) throw new Error(markdownRoutingGuidance(path));
-    let parsed;
-    try {
-      parsed = JSON.parse(await readFile(path, "utf8"));
-    } catch (error) {
-      if (error instanceof SyntaxError) throw new Error(`Routing file is not valid JSON: ${path}.`);
-      throw error;
-    }
-    if (parsed?.schemaVersion === 1) {
-      strictValidateRouting(parsed);
-      // A complete version-1 policy is not reinterpreted as a sparse tier
-      // override: it normalizes to exact direct role exceptions, and runtimes
-      // the policy leaves undeclared keep the packaged defaults (F6 merge, now
-      // inside the shared module).
-      const added = Object.keys(packaged.runtimes).filter((runtime) => !parsed.runtimes[runtime]);
-      const baseline = normalizeV1ToV2(parsed, packaged);
-      const note = added.length
-        ? ` (undeclared runtime(s) ${added.join(", ")} merged from the packaged preset)`
-        : "";
-      return { baseline, routingSource: `--routing ${options.routing}${note}` };
-    }
-    if (parsed?.schemaVersion === 2) {
-      const { merged, added } = mergeV2MissingRuntimes(parsed, packaged);
-      const note = added.length
-        ? ` (undeclared runtime(s) ${added.join(", ")} merged from the packaged preset)`
-        : "";
-      return { baseline: merged, routingSource: `--routing ${options.routing}${note}` };
-    }
-    throw new Error(`Routing schemaVersion must be 1 or 2 (got ${JSON.stringify(parsed?.schemaVersion)}).`);
-  }
-
-  if (options.models) {
-    const inventory = await readLegacyModels(options.models);
-    const { baseline, omitted, skippedRuntimes } = legacyInventoryToV2(inventory, packaged);
-    baseline.provenance = "Imported from a legacy --models inventory.";
-    const reportParts = [
-      omitted.length
-        ? `Imported legacy --models inventory; ${omitted.length} omitted key(s) converted to explicit inheritance (${omitted.join(", ")}).`
-        : "Imported legacy --models inventory (all roles present; none converted to inheritance).",
-    ];
-    if (skippedRuntimes && skippedRuntimes.length > 0) {
-      reportParts.push(`Skipped runtime(s) ${skippedRuntimes.join(", ")} (kept packaged defaults).`);
-    }
-    const report = reportParts.join(" ");
-    return { baseline, routingSource: `--models ${options.models} (legacy import)`, importReport: report };
-  }
-
-  return { baseline: packaged, routingSource: "packaged skills/work/references/routing.json" };
-}
-
-// F5: --effort is a route-wide reasoning-effort override and is only meaningful
-// on explicit routes. Inheritance means inherit BOTH model and effort, so an
-// effort override applied to any inherit route (or to the all-inherit result
-// of --no-model) would produce contradictory outputs (a model-less profile
-// labeled explicit, while the shipped policy still says inherit). Reject the
-// combination up front, before any mutation, against the pre-override
-// resolution snapshot (tier references already resolved to concrete routes).
-function assertEffortOverrideCompatible(resolution, options) {
-  if (!options.effortOverride) return;
-  if (options.noModel) {
-    throw new Error("--effort cannot be combined with --no-model: --no-model inherits both model and effort, so a route-wide effort override is contradictory.");
-  }
-  const inherited = [];
-  for (const [runtime, runtimeResolution] of Object.entries(resolution.runtimes)) {
-    if (!runtimeSupportsEffort(runtime)) continue;
-    for (const [role, entry] of Object.entries(runtimeResolution.routes)) {
-      if (entry.mode === "inherit") inherited.push(`${runtime}/${role}`);
-    }
-  }
-  if (inherited.length > 0) {
-    throw new Error(`--effort cannot be applied to routes that inherit (${inherited.join(", ")}). Inheritance means inherit both model and effort; remove --effort or set those routes to explicit.`);
-  }
-}
-
-// Each OpenCode profile is one routing key (seven profiles, one per key), so
-// the profile name IS the routing key. The task-contract body is resolved
-// separately: implement and implement-hard share implement.md.
+// Each OpenCode profile is one role (seven profiles, one per role), so the
+// profile name IS the role. The task-contract body is resolved separately:
+// implement and implement-hard share implement.md.
 const TASK_CONTRACT_FOR_PROFILE = {
   "implement-hard": "implement",
 };
@@ -307,14 +136,17 @@ function taskContractFor(profileName) {
   return TASK_CONTRACT_FOR_PROFILE[profileName] ?? profileName;
 }
 
-function renderOpenCodeProfile(profile, resolved, body) {
+// A listed role renders explicit frontmatter (model, and the effort when the
+// value carries one); an unlisted role renders neither line and inherits the
+// session model.
+function renderOpenCodeProfile(profile, assignment, body) {
   const lines = ["---"];
   lines.push(`description: ${profile.description}`);
   lines.push(`mode: ${profile.mode}`);
   lines.push(`steps: ${profile.steps}`);
-  if (resolved.mode === "explicit") {
-    if (resolved.model) lines.push(`model: ${resolved.model}`);
-    if (resolved.reasoningEffort) lines.push(`reasoningEffort: ${resolved.reasoningEffort}`);
+  if (assignment) {
+    lines.push(`model: ${assignment.model}`);
+    if (assignment.effort) lines.push(`reasoningEffort: ${assignment.effort}`);
   }
   lines.push("permissions:");
   for (const permission of profile.permissions) {
@@ -344,9 +176,11 @@ function renderSourceRoot(text, sourceRoot) {
   return text.replace(marker, `Source root: ${JSON.stringify(sourceRoot)}`);
 }
 
-// Copy the five public skills into a skills root and write the one effective
-// version-2 routing baseline used by runtime resolution.
-async function populateSkillsRoot(skillsRoot, sourceRoot, baseline) {
+// Copy the five public skills into a skills root. When modelConfigSection is
+// given (the plugin and standalone outputs only), the authored
+// model-configuration fragment is appended as the final top-level section of
+// the work, review, and autonomous SKILL.md copies.
+async function populateSkillsRoot(skillsRoot, sourceRoot, modelConfigSection) {
   for (const name of SKILL_NAMES) {
     await copyDirTree(join(repositoryRoot, "skills", name), join(skillsRoot, name));
   }
@@ -355,7 +189,13 @@ async function populateSkillsRoot(skillsRoot, sourceRoot, baseline) {
     const rendered = renderSourceRoot(await readFile(lookupPath, "utf8"), sourceRoot);
     await writeFile(lookupPath, rendered.replace(/\r\n?/g, "\n"), "utf8");
   }
-  await writeText(join(skillsRoot, "work", "references", "routing.json"), `${JSON.stringify(baseline, null, 2)}\n`);
+  if (modelConfigSection !== null) {
+    for (const name of workflowSkillNames) {
+      const skillPath = join(skillsRoot, name, "SKILL.md");
+      const text = (await readFile(skillPath, "utf8")).trimEnd();
+      await writeText(skillPath, `${text}\n\n${modelConfigSection.trimEnd()}\n`);
+    }
+  }
 }
 
 // Copies the adapter-owned command templates (thin launchers that load the
@@ -451,7 +291,7 @@ async function assertManagedRootContained(outputRoot, managedPath) {
   const anchor = lastExisting ?? outputRoot;
   const realAnchor = await resolveRealPath(anchor);
   if (realAnchor !== realOutputRoot && !realAnchor.startsWith(prefix)) {
-    throw new Error(`Refusing to build into a path outside the output root: ${anchor}.`);
+    throw new Error(`Refusing to build into a path outside the output root: ${anchor}`);
   }
 }
 
@@ -553,17 +393,7 @@ async function assertBuildOutputOwned(output) {
 
 export async function buildBundles(options) {
   await assertSafeOutput(options.output);
-  const { baseline, routingSource, importReport } = await loadRouting(options);
-  if (importReport) console.log(importReport);
-  // One resolution pass feeds everything. The pre-override resolution guards
-  // the F5 effort check; the adjusted resolution renders OpenCode profiles.
-  const preResolution = resolveAllRuntimes(baseline, []);
-  assertEffortOverrideCompatible(preResolution, options);
-  const adjusted = applyBuildOverrides(baseline, {
-    noModel: options.noModel,
-    effort: options.effortOverride ? options.effort : null,
-  });
-  const resolved = resolveAllRuntimes(adjusted, []);
+  const { config, modelsSource } = await loadModelOptions(options);
 
   const adapter = JSON.parse(
     await readFile(join(repositoryRoot, "adapters", "opencode", "adapter.json"), "utf8"),
@@ -578,13 +408,13 @@ export async function buildBundles(options) {
   const profiles = [];
   for (const profile of adapter.profiles) {
     const route = profile.name;
-    const resolvedRoute = resolved.runtimes.opencode.routes[route];
+    const assignment = config[route] ?? null;
     const bodySource = await readFile(
       join(repositoryRoot, "skills", "work", "references", "tasks", `${taskContractFor(route)}.md`),
       "utf8",
     );
     const body = bodySource.replace(/\r\n?/g, "\n").trim();
-    profiles.push({ profile, route, resolved: resolvedRoute, text: renderOpenCodeProfile(profile, resolvedRoute, body) });
+    profiles.push({ profile, route, assignment, text: renderOpenCodeProfile(profile, assignment, body) });
   }
 
   // Remove only the roots this build owns (including the retired baseline
@@ -594,37 +424,40 @@ export async function buildBundles(options) {
   }
   await mkdir(options.output, { recursive: true });
 
-  const profileRecords = profiles.map(({ profile, route, resolved }) => {
-    const record = { name: profile.name, route, steps: profile.steps, mode: resolved.mode };
-    if (resolved.model) record.model = resolved.model;
-    if (resolved.reasoningEffort) record.reasoningEffort = resolved.reasoningEffort;
+  const profileRecords = profiles.map(({ profile, route, assignment }) => {
+    const record = { name: profile.name, route, steps: profile.steps, mode: assignment ? "explicit" : "inherit" };
+    if (assignment) {
+      record.model = assignment.model;
+      if (assignment.effort) record.reasoningEffort = assignment.effort;
+    }
     return record;
   });
 
   await writeFile(statePath, `${JSON.stringify({
     schemaVersion: 2,
     package: { name: pluginManifest.name, version: pluginManifest.version },
-    routingSource,
-    effortMode: options.effortOverride ? `route-wide override: ${options.effort}` : "per-route",
+    modelsSource,
     noModel: options.noModel,
     sourceRoot: options.sourceRoot,
     outputs: OUTPUT_ROOTS,
     profiles: profileRecords,
   }, null, 2)}\n`, "utf8");
 
+  const modelConfigSection = await readFile(modelConfigFragmentPath, "utf8");
+
   // 1. Agent Plugins 1.0 package.
   await writeText(join(pluginRoot, "plugin.json"), `${JSON.stringify(pluginManifest, null, 2)}\n`);
-  await populateSkillsRoot(join(pluginRoot, "skills"), options.sourceRoot, adjusted);
+  await populateSkillsRoot(join(pluginRoot, "skills"), options.sourceRoot, modelConfigSection);
 
   // 2. Standalone (project) skill binding.
-  await populateSkillsRoot(standaloneSkillsRoot, options.sourceRoot, adjusted);
+  await populateSkillsRoot(standaloneSkillsRoot, options.sourceRoot, modelConfigSection);
 
   // 3. OpenCode V2 binding (generated profiles + command entries + skills).
   for (const { profile, text } of profiles) {
     await writeText(join(openCodeRoot, profile.outputPath), text);
   }
   await populateCommandEntries(openCodeRoot, adapter);
-  await populateSkillsRoot(join(openCodeRoot, "skills"), options.sourceRoot, adjusted);
+  await populateSkillsRoot(join(openCodeRoot, "skills"), options.sourceRoot, null);
 
   const explicitCount = profileRecords.filter((record) => record.mode === "explicit").length;
   return {
@@ -648,9 +481,7 @@ async function main() {
     console.log(`Built standalone skills: ${result.standaloneRoot}`);
     console.log(`Built OpenCode binding: ${result.openCodeRoot}`);
     if (options.noModel) {
-      console.log("Built model-neutral bundles; OpenCode profiles inherit the session model and effort.");
-    } else if (options.effortOverride) {
-      console.log(`Applied route-wide effort ${options.effort}; ${result.modelCount} of 7 OpenCode profiles carry explicit model routes.`);
+      console.log("Built model-neutral bundles; every OpenCode profile inherits the session model and effort.");
     } else {
       console.log(`${result.modelCount} of 7 OpenCode profiles carry explicit model routes; the rest inherit the session model.`);
     }

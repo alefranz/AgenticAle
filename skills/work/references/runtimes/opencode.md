@@ -16,20 +16,20 @@ session that receives a command entry is the coordinator.
 OpenCode V2 is the only currently planned mandatory shim. Its documented
 subagent interface selects a configured agent and has no documented per-call
 model override, so this binding does not dispatch a model directly. Instead the
-configured routes are materialized as generated agent profiles, and a "direct
-child dispatch" means the coordinator invokes the child tool naming the
-preconfigured agent profile for that routing key.
+role's model and effort are materialized in the generated profile at install
+time, and a "direct child dispatch" means the coordinator invokes the child
+tool naming the preconfigured agent profile for that role.
 
 - Dispatch field: the child tool takes a configured agent/profile identifier, not
   a free model string. The exact tool schema must be verified in the spike;
   retain the profiles unless that check demonstrates they are unnecessary.
 - Model and effort: encoded inside the generated profile, not on the call. The
   profile carries the model (provider-qualified, `provider/model[#variant]` form)
-  and the reasoning effort for that route.
+  and the reasoning effort for that role.
 
-The compatibility mapping from routing key to generated OpenCode profile is:
+The compatibility mapping from role to generated OpenCode profile is:
 
-| Routing key | OpenCode profile ID |
+| Role | OpenCode profile ID |
 | --- | --- |
 | `explore` | `agenticale/explore` |
 | `implement` | `agenticale/implement` |
@@ -40,250 +40,52 @@ The compatibility mapping from routing key to generated OpenCode profile is:
 | `consult` | `agenticale/consult` |
 
 `implement` and `implement-hard` are separate generated profiles that select the
-same underlying implementation task contract with different routing context; the
-difference is routing, not instructions. There are seven generated profiles, one
-per routing key.
+same underlying implementation task contract with different dispatch context;
+the difference is dispatch, not instructions. There are seven generated
+profiles, one per role.
 
-## Routing bootstrap and profile selection on this surface
+## When a role's profile is missing or not what you need
 
-At activation, follow the shared bootstrap in `ROUTING.md`. With Node
-available, the default path is one mechanical call from the installed skill,
-which checks the personal and project `preferences.md` preference locations
-(the legacy `routing.md` name is still accepted) without reading their
-contents and resolves this runtime's seven routes once for the activation:
+Rerun the checkout-based installer with the flat model config you want. This is
+the only step that needs the AgenticAle source checkout (obtain one by cloning
+`https://github.com/alefranz/AgenticAle`); preference reading and task resources
+stay install-relative:
 
 ```sh
-node scripts/routing.mjs startup --runtime opencode --root <root> [--profile NAME]
+node <AgenticAle-checkout>/scripts/install.mjs install --models <path|preset> [--target PATH]
 ```
 
-With no preference file present and no invocation-level preferences, the
-activation finalizes from this `resolved` output, and its `agents` entries are
-the model and effort comparison against the installed profiles: dispatch a role
-only when its entry is `match`; `missing`, `mismatch`, or `unreadable` blocks
-only that role's dispatch and is reported with the explicit preparation and
-refresh procedure below. The profile is the installed state; no second
-resolved-policy file is needed. Roles no round uses are irrelevant — an unused
-unavailable role never blocks unrelated work. With a present file, interpret
-the listed file per the shared bootstrap and resolve the interpreted layers
-through `resolve --input <file> --explain`; that output is the routing
-snapshot. The same `resolve --input <file> --explain` resolution finalizes
-the snapshot whenever the activation carries invocation-level preferences,
-with or without a present file. Whenever the snapshot came from that
-resolution rather than from the `resolved` startup output — whose `agents`
-entries compare the installed baseline, not those final routes — compare each
-resolved route in context against the final snapshot instead: read the
-`model` and `reasoningEffort` frontmatter of the applicable installed set
-(the default `agents/agenticale/<role>.md` profiles, or the named set for a
-selected profile) and apply the same match rules (an `inherit` route matches a
-profile with no `model` line; an explicit route must match model and effort).
-The plain, non-`--explain` `resolve` output is the strict version-1 export the
-preparation and refresh flow below writes for the installer — never the
-snapshot. Precedence is invocation, project, personal, then installed
-baseline. Do not scan unrelated files. Invocation choices are session-scoped
-and do not persist to `preferences.md` or a preference file.
-
-A one-time post-install verification is also available: after a fresh install
-or an edit to a preference file, paste the verification prompt the installer
-prints into an OpenCode session. It runs the bootstrap with `--root` set to
-the pasting session's project root, so the project preference location is
-checked alongside the personal one; on the `resolved` result it confirms
-every role in the `agents` output reports `match`, and on the
-`interpretation-required` path it reads and interprets each listed preference
-file (a project file takes precedence over the personal file; any legacy file
-reported as ignored is never read), writes the interpreted structured layers
-(lowest to highest precedence) to a temporary JSON file, and resolves them
-with `resolve --runtime opencode --input <file> --explain` — and compares
-each resolved route with its installed profile (an `inherit` route matches a
-profile with no `model` line, an explicit route must match model and
-effort); a `mismatch`, `missing`, or `unreadable` result points to the
-preparation/refresh procedure below.
-
-Where Node is unavailable, apply the in-context path: check the two documented
-preference locations, interpret the active `opencode` runtime preferences, and
-compare each resolved selection with the actual profile's `model` and
-`reasoningEffort` fields. Dispatch only a matching profile. If none matches,
-report the limitation and follow the explicit preparation and refresh
-procedure below. When the activation selected a routing profile, the
-comparison runs against that profile's named set — see the next section.
-
-## Named routing sets on this surface
-
-The seven default generated profile IDs (`agenticale/<role>`) are unchanged.
-When a routing profile is selected for the activation — with `--profile NAME`
-or an unambiguous natural-language instruction per the routing contract — the
-activation resolves its routes with that profile, and the coordinator must use
-an explicitly prepared **named set**: additional user-owned agent files in
-the namespace `agents/agenticale/routing/<profile>/<role>.md`, with dispatch
-identifier `agenticale/routing/<profile>/<role>` (for example
-`agenticale/routing/server-b/implement`). Each named-set profile carries the
-selected profile's resolved model and effort for that role.
-
-Named sets live in the same target directory the installer uses
-(`XDG_CONFIG_HOME/opencode`, otherwise `~/.config/opencode`), but they are
-outside the installer's ownership. The current installer generates and
-manages only the flat default seven under `agents/agenticale/` — its
-install-state validation rejects nested named-set paths — so it never
-creates, refreshes, or touches named-set files. Preparing or refreshing a
-named set is a manual, explicit, user-approved action. Selecting a profile
-never invokes or changes the installer, the default profiles,
-`opencode.jsonc`, or any global host configuration.
-
-**Host acceptance of the `agenticale/routing/...` identifier namespace is not
-verified in this environment.** Before dispatching to a named set, the
-coordinator must confirm that the host accepts the identifier — the child tool
-resolves it to the intended prepared profile, and the available-agents
-listing shows it — and record that confirmation in the session. If the host
-does not accept it, report the limitation with the exact preparation steps
-instead of dispatching.
-
-Selection rule: dispatch a named-set profile only when it matches the routing
-key **and** the current resolved selection — the same model/effort comparison
-as the procedure below. If the named set is missing a file or stale (its
-prepared values differ from the currently resolved selection, for example
-because routing files changed since preparation), report the missing or stale
-routes with the exact preparation steps. Never fall back to the default
-`agenticale/<role>` set for a selected profile, and never treat a
-default-set profile as a substitute for a named one. The exact preparation
-steps reported for a missing or stale named set:
-
-1. Resolve the requested routes with the selected profile:
-
-   ```sh
-   node scripts/routing.mjs resolve --runtime opencode \
-     --input <ordered-structured-layers.json> --profile <name>
-   ```
-
-   The output is the version-1 OpenCode policy: seven routes, each an
-   explicit selection or an intentional inheritance. The `--input` argument
-   is a file path of the interpreted structured layers — used only when
-   preferences exist; it is never inline JSON. This is deliberately the plain,
-   strict version-1 export that the named-set profiles are written from; the
-   `--explain` form is the workflow's routing snapshot and is not used here.
-
-2. For each route, create or refresh `agents/agenticale/routing/<name>/<role>.md`
-   by mirroring the matching default profile `agents/agenticale/<role>.md` —
-   the same `description`, `mode`, `steps`, `permissions`, and
-   task-contract body — but with the `model:` and `reasoningEffort:` lines
-   set from that route's resolved selection. Omit both lines for an
-   `inherit` route so the prepared profile inherits the session model. These
-   are user-owned files outside the installer's management; the installer
-   does not create, refresh, or remove them.
-3. Start a new OpenCode session; confirm the host accepts the
-   `agenticale/routing/<name>/<role>` identifiers — they appear in the
-   available-agents listing and the child tool resolves them to the intended
-   prepared profiles — and record the confirmation in the session. If the
-   host does not accept them, report the limitation with these exact steps
-   and do not dispatch.
-4. Before dispatch, compare each route's requested selection with the
-   prepared file's `model` and `reasoningEffort`; report missing or stale
-   routes with these exact steps. Never fall back to the default
-   `agenticale/<role>` set for a selected profile.
-
-## OpenCode preparation and refresh
-
-Use this procedure when no installed profile matches. Reading preferences
-never rewrites active profiles or host-wide model configuration.
-
-1. **Resolve the requested routes.** From the installed `skills/work`
-   directory, use the packaged resolver with the ordered structured layers
-   interpreted from personal Markdown, project Markdown, and any invocation
-   preferences. This preserves persistent customizations when preparing the
-   active profiles:
-
-   ```sh
-   node scripts/routing.mjs resolve --runtime opencode --input <ordered-structured-layers.json>
-   ```
-
-   The output is a complete version-1 OpenCode policy: seven explicit routes
-   or intentional inheritance. This is deliberately the plain, strict
-   version-1 export — the policy file the installer consumes in step 5 — not
-   the workflow's routing snapshot; the `--explain` form (provenance and
-   profile) is never written here.
-2. **Compare with the active profiles.** When the activation was finalized
-   directly from the `resolved` startup output — no discovered preference
-   files and no invocation-level preferences — rerun
-   `node scripts/routing.mjs startup --runtime opencode --root <root>` and use
-   its `agents` entries, which is re-runnable after a refresh, instead of
-   hand-reading seven profiles. Whenever the snapshot came from
-   `resolve --input <file> --explain` — the interpretation path, where
-   `startup` reports no `agents`, or the invocation-preference path, where
-   any `agents` entries compare the installed baseline rather than the final
-   snapshot — or Node is unavailable (no helper output at all), the
-   comparison — including the re-check after a refresh — is in context: read
-   the `model` and `reasoningEffort` frontmatter of each applicable profile in
-   the OpenCode target directory (the default `agents/agenticale/<role>.md`
-   set, or the named set for a selected profile) and apply step 3's match
-   rules against the final snapshot. If profiles are unavailable or
-   unreadable, report the comparison as a limitation and do not dispatch as if
-   matched.
-3. **Use a matching profile.** A route matches when the profile's model and
-   effort equal the requested selection; an `inherit` request matches a
-   profile with no `model` line. Dispatch it by its profile ID from the
-   mapping above. Before promising an ordered fallback, check that each
-   requested fallback pair also has a matching preconfigured profile; a
-   fallback without a matching profile cannot be honored on this surface.
-4. **Otherwise, save the resolved policy.** Write the output from step 1 to
-   an explicit preparation path outside project workflow state and tell the
-   user where it is:
-
-   ```sh
-   node scripts/routing.mjs resolve --runtime opencode \
-     --input <ordered-structured-layers.json> > <preparation-path>/resolved-policy.json
-   ```
-5. **Refresh with the existing checkout-based installer.** This is the only
-   step that needs the AgenticAle source checkout (the preparation
-   dependency; obtain one by cloning
-   `https://github.com/alefranz/AgenticAle`). Preference reading and task
-   resources stay install-relative. Rerun the existing OpenCode
-   `install` command against the resolved policy:
-
-   ```sh
-   node <AgenticAle-checkout>/scripts/install.mjs install --routing <preparation-path>/resolved-policy.json
-   ```
-
-   with any explicitly chosen target options — `--target PATH` for a
-   non-default OpenCode profile directory (default `XDG_CONFIG_HOME/opencode`,
-   otherwise `~/.config/opencode`) and `--source-root PATH` for the
-   source-code-lookup skill. The installer rebuilds the full generated
-   OpenCode bundle (all seven profiles, the command entries, and the skills)
-   from the supplied policy under its normal ownership, backup, collision, and
-   rollback safeguards; a profile the user has modified is reported
-   (`preserve-modified`) and left in place until the user explicitly approves
-   replacement with `--replace`, which backs it up first.
-6. **Activate, then re-check.** The installer's completion message is the
-   activation step: restart OpenCode (a new session picks up the refreshed
-   profiles) — the installer leaves `opencode.jsonc` unchanged. Do not treat
-   refreshed profiles as effective until the host's verified reload or
-   new-session behavior confirms it, and check requested versus installed
-   selections again (step 2) before dispatch.
+(or `--no-model` to make every role inherit the session model), under the
+installer's normal ownership, backup, collision, and rollback safeguards: a
+profile you have modified is reported (`preserve-modified`) and left in place
+until you explicitly approve replacement with `--replace`, which backs it up
+first. Then start a new OpenCode session: do not treat refreshed profiles as
+effective until a new session picks them up. `--profile` is not an option on
+this surface — models are selected at install time.
 
 ## Requested versus effective settings
 
-The selected profile's model and reasoning effort carry the requested
-selection; what a profile actually resolves to depends on the account's model
-availability. Keep an unknown effective setting unknown, and do not treat a
-profile as refreshed mid-task unless the host's verified reload or new-session
-behavior confirms it.
+The profile's frontmatter carries the requested model and effort; what it
+actually resolves to depends on the account's model availability. Keep an
+unknown effective setting unknown, and never let a child's self-reported model
+name establish the effective model.
 
 ## How `inherit` is realized
 
 Because the shim can only select preconfigured profiles, `inherit` on OpenCode is
 realized by the generated profile carrying no forced model of its own, so the
 child runs on the session model rather than a pinned one. In practice every
-packaged OpenCode route is explicit (materialized as a profile with a concrete
+packaged OpenCode role is explicit (materialized as a profile with a concrete
 model/effort), so `inherit` is expressed by a profile that defers to the session
 model. Do not attempt to express `inherit` by omitting a per-call model field;
 the native tool does not accept a per-call model override.
 
 ## Caller and session overrides
 
-An explicit user/task override can only select a matching preconfigured
-profile. Because the native tool only selects preconfigured profiles, arbitrary
-task-time model overrides cannot be promised: use a matching installed route,
-or route the change through the explicit preparation/refresh path in
-`ROUTING.md`; do not change global model configuration mid-task. Overrides
-supplied at task time stay within the session and do not rewrite
-`preferences.md` or any preference file.
+An explicit user/task override can only select a matching installed profile;
+arbitrary task-time model overrides cannot be promised — reinstall with a
+different `--models` config instead. Never change global model configuration
+mid-task; overrides stay in the session and rewrite no preference file.
 
 ## Session usage summary (opt-in)
 
@@ -307,49 +109,18 @@ remaining delivery.
 
 - Task-time arbitrary model overrides are not supported. The child tool selects
   a preconfigured profile, so a caller cannot name an arbitrary model at task
-  time. To change routes, regenerate the generated shim; a requested model with
-  no matching profile is reported as a limitation, not silently substituted.
-- Generated profiles are the source of the effective model. What a profile
-  actually resolves to depends on the generated artifact and the account's model
-  availability. The baseline inventory in `examples/` is a mapping reference, not
-  proof of current account access.
+  time. A requested model with no matching profile is reported as a limitation,
+  not silently substituted.
+- The generated profile is the source of the effective model. What it actually
+  resolves to depends on the generated artifact and the account's model
+  availability.
 - Per-call selection is unconfirmed. The documented interface has no per-call
-  model override. If the spike shows OpenCode supports per-call selection and
-  permissions/step behavior remain correctly represented, the model-only shim can
-  be removed; until that check passes, retain the profiles.
-- Do not change global model configuration mid-task. Route changes go through
-  regenerating the profiles, not by editing a global setting while a task runs.
-- Fallback chains are not executed. A requested fallback list is preserved in
-  the version-1 export, but the seven-profile adapter materializes exactly one
-  model per role; it cannot materialize multiple models for one role or execute
-  an arbitrary fallback chain. A fallback is honored only when a matching
-  preconfigured profile exists, and that availability is checked before the
-  fallback is promised.
-- Profile refresh in the first release requires the existing checkout-based
-  installer (the preparation dependency in the procedure above). Source-free
-  automatic profile refresh is a later extension, and automatic in-workflow
-  refresh is deferred until reload behavior and ownership integration have been
-  verified.
-- Named-set identifier acceptance is unverified. Host acceptance of the
-  `agenticale/routing/<profile>/<role>` namespace is not verified in this
-  environment; the coordinator confirms it in the session before dispatch and,
-  when the host does not accept it, reports the limitation with the exact
-  preparation steps.
-- Profile selection never regenerates profiles implicitly. The current
-  installer generates only the default seven — its install-state validation
-  rejects nested named-set paths — so named-set preparation and refresh are
-  manual, and automatic named-set refresh is a later extension; selecting a
-  profile changes no installed profile, `opencode.jsonc`, or global host
-  configuration.
-- Stale or missing named sets are reported, not substituted. A selected
-  profile whose named set is missing or out of date is reported with the exact
-  preparation steps; it is never silently served by the default
-  `agenticale/<role>` set.
-- An unavailable role in the default set blocks only that role's dispatch.
-  `startup` reports `missing`, `mismatch`, or `unreadable` per role; other
-  available roles proceed, and an unused unavailable role never blocks
-  unrelated work. Ordinary activation is install-relative — the helper and
-  skills beside the installed SKILL.md — and needs no AgenticAle checkout.
+  model field. If a live check shows OpenCode supports per-call selection and
+  permissions/step behavior remain correctly represented, the model-only shim
+  can be removed; until that check passes, retain the profiles.
+- Do not change global model configuration mid-task. Model changes go through
+  reinstalling with a different `--models` config, not by editing a global
+  setting while a task runs.
 
 The skill selects this binding from the actual runtime/tool surface, not from the
 chosen language model. A surface that is not OpenCode V2 does not use this

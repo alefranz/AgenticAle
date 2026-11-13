@@ -57,7 +57,7 @@ export default withMermaid(defineConfig({
       {
         text: 'Guides',
         items: [
-          { text: 'Model routing', link: '/guides/model-routing' },
+          { text: 'Model configuration', link: '/guides/model-routing' },
           { text: 'Troubleshooting', link: '/guides/troubleshooting' },
         ],
       },

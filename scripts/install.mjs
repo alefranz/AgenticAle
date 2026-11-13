@@ -93,8 +93,8 @@ const legacyLinkPaths = versionTwoLinkPaths.filter((path) => path !== "skills/so
 function usage() {
   return `Usage:
   node scripts/install.mjs [install] [--target PATH] [--source-root PATH]
-                           (--models PATH|PRESET | --no-model) [--effort LEVEL]
-                           [--routing PATH] [--replace] [--dry-run]
+                           (--models PATH|PRESET | --no-model)
+                           [--replace] [--dry-run]
   node scripts/install.mjs uninstall [--target PATH] [--dry-run]
   node scripts/install.mjs setup [--target PATH] [--personal-path PATH] [--dry-run]
 
@@ -104,19 +104,18 @@ repository source. Older copy installs (schema 1-4) and link installs are
 migrated to the generated copy layout on install.
 
 The setup subcommand creates the personal preferences file (default
-~/.agenticale/preferences.md) as a minimal scaffold with no role overrides, so
-the installed baseline routing applies, if and only if it is absent. It never
-overwrites,
-migrates, or removes a preference file, never creates the project-scope file,
-and never prompts: explicit consent is the caller's job. With the default
-path, if the target is absent but the legacy ~/.agenticale/routing.md
-exists, setup creates nothing and reports the legacy path: a preferences.md
-would take precedence over it, and only the user renames the file. For
-setup, --target PATH (the same flag and default resolution as install)
-selects the target whose installed
-skills/work/references/preferences.example.md the printed guidance points at;
-the target itself is never validated or modified. See
-skills/work/references/ROUTING.md (User customization).
+~/.agenticale/preferences.md) as a minimal scaffold with no active entries
+(a ## Work section with a commented-out worker-rounds line), if and only if
+it is absent. For an OpenCode installation the scaffold states that role
+lines in the file do not apply (models are fixed in the generated agent
+profiles; rerun the installer with a different --models PATH|PRESET or
+--no-model config to change them) while the ## Work section does apply. It
+never overwrites, migrates, or removes a preference file, never creates the
+project-scope file, and never prompts: explicit consent is the caller's
+job. For setup, --target PATH (the same flag and default resolution as
+install) selects the target whose generated agent profiles the printed
+verification prompt points at; the target itself is never validated or
+modified.
 
 Options:
   --target PATH  OpenCode configuration directory (default: XDG_CONFIG_HOME/opencode
@@ -125,13 +124,10 @@ Options:
                  Local source checkout root for the source-code-lookup skill
                  (default in the skill: ~/dev)
   --models PATH|PRESET
-                 JSON mapping or bundled preset (openai, zen, local, example)
-                 converted to the routing contract; unspecified roles inherit
-                 the session model
-  --no-model      Explicitly make every route inherit the session model
-  --effort LEVEL  Route-wide reasoning-effort override (low/medium/high/xhigh/max)
-  --routing PATH  Build from a caller-supplied routing file instead of the
-                  packaged skills/work/references/routing.json
+                 Flat per-role model config: a JSON object mapping roles to
+                 "provider/model[#effort]" (presets: example, local, openai,
+                 gpt, zen); a missing role inherits the session model
+  --no-model      Explicitly make every role inherit the session model
   --replace      Back up and replace differing destinations during install/update
   --personal-path PATH
                   (setup) personal preferences file to create if absent
@@ -145,10 +141,7 @@ function parseArguments(argv) {
   let target;
   let sourceRoot;
   let models;
-  let routing;
   let noModel = false;
-  let effort;
-  let effortOverride = false;
   let replace = false;
   let dryRun = false;
   let personalPath;
@@ -196,24 +189,8 @@ function parseArguments(argv) {
     } else if (argument.startsWith("--models=")) {
       if (models !== undefined) throw new Error("--models may be supplied only once.");
       models = argument.slice("--models=".length);
-    } else if (argument === "--routing") {
-      if (routing !== undefined) throw new Error("--routing may be supplied only once.");
-      routing = requireValue(index, "--routing");
-      index += 1;
-    } else if (argument.startsWith("--routing=")) {
-      if (routing !== undefined) throw new Error("--routing may be supplied only once.");
-      routing = argument.slice("--routing=".length);
     } else if (argument === "--no-model") {
       noModel = true;
-    } else if (argument === "--effort") {
-      if (effort !== undefined) throw new Error("--effort may be supplied only once.");
-      effort = requireValue(index, "--effort");
-      effortOverride = true;
-      index += 1;
-    } else if (argument.startsWith("--effort=")) {
-      if (effort !== undefined) throw new Error("--effort may be supplied only once.");
-      effort = argument.slice("--effort=".length);
-      effortOverride = true;
     } else if (argument === "--replace") {
       replace = true;
     } else if (argument === "--dry-run") {
@@ -225,23 +202,20 @@ function parseArguments(argv) {
     }
   }
 
-  if (command === "uninstall" && (replace || models !== undefined || routing !== undefined || noModel || effortOverride || sourceRoot !== undefined)) {
-    throw new Error("--replace, --models, --routing, --effort, --no-model, and --source-root apply only to install/update, not uninstall.");
+  if (command === "uninstall" && (replace || models !== undefined || noModel || sourceRoot !== undefined)) {
+    throw new Error("--replace, --models, --no-model, and --source-root apply only to install/update, not uninstall.");
   }
   if (command !== "setup" && personalPath !== undefined) {
     throw new Error("--personal-path applies only to setup, not install or uninstall.");
   }
-  if (command === "setup" && (sourceRoot !== undefined || replace || models !== undefined || routing !== undefined || noModel || effortOverride)) {
-    throw new Error("--source-root, --replace, --models, --routing, --effort, and --no-model apply only to install/uninstall, not setup.");
+  if (command === "setup" && (sourceRoot !== undefined || replace || models !== undefined || noModel)) {
+    throw new Error("--source-root, --replace, --models, and --no-model apply only to install/uninstall, not setup.");
   }
   if (models !== undefined && noModel) {
     throw new Error("--models and --no-model cannot be used together.");
   }
-  if (routing !== undefined && models !== undefined) {
-    throw new Error("--routing and --models cannot be used together.");
-  }
-  if (command === "install" && models === undefined && routing === undefined && !noModel) {
-    throw new Error("Install requires --models PATH|PRESET, --routing PATH, or --no-model.");
+  if (command === "install" && models === undefined && !noModel) {
+    throw new Error("Install requires --models PATH|PRESET or --no-model.");
   }
 
   const defaultBase = process.env.XDG_CONFIG_HOME
@@ -253,11 +227,8 @@ function parseArguments(argv) {
     target: resolve(target ?? join(defaultBase, "opencode")),
     personalPath: personalPath === undefined ? null : resolveSourceRoot(personalPath),
     models,
-    routing: routing === undefined ? null : resolve(routing),
     sourceRoot: sourceRoot === undefined ? null : resolveSourceRoot(sourceRoot),
     noModel,
-    effort,
-    effortOverride,
     replace,
     dryRun,
     help: false,
@@ -281,10 +252,7 @@ async function buildOpenCodeEntries(options) {
     await buildBundles({
       output: tempRoot,
       models: options.models ?? null,
-      routing: options.routing ?? null,
       noModel: options.noModel,
-      effort: options.effort ?? "high",
-      effortOverride: options.effortOverride,
       sourceRoot: options.sourceRoot,
     });
     return await readGeneratedEntries(join(tempRoot, "opencode"));
@@ -959,7 +927,7 @@ async function installBundle(options) {
   await removeEmptyPackageDirectories(options.target);
   console.log("Installation complete.");
   console.log("Next: restart OpenCode and use the /work, /review, and /autonomous commands; this installer leaves opencode.jsonc unchanged.");
-  console.log(`Verify your routing after install (and after editing your preferences) by pasting this prompt into an OpenCode session: ${verifyPromptFor(options.target)}`);
+  console.log(`Verify your model configuration after install (and after any reinstall with a different model configuration) by pasting this prompt into an OpenCode session: ${verifyPromptFor(options.target)}`);
   console.log("See docs/setup.md for child-session permissions and docs/autonomous.md for unattended /autonomous runs.");
 }
 
@@ -1075,112 +1043,72 @@ async function uninstallBundle(options) {
   console.log(`Uninstall complete.${preserved ? ` Preserved ${preserved} modified destination(s).` : ""}`);
 }
 
-// Minimal personal preferences scaffold: it carries no role overrides, so
-// the installed baseline routing (which matches the generated agent
-// profiles) applies by default; the user adds a runtime section with
-// overrides to customize. It carries no illustrative model identifiers:
-// those belong to preferences.example.md, where they are documented as
-// illustrative only.
-const routingScaffold = `# AgenticAle preferences (personal)
+// Minimal personal preferences scaffold for an OpenCode installation: it
+// states the contract (role lines do NOT apply here — models are fixed in
+// the generated agent profiles at install time — and the ## Work section
+// DOES apply) with no active entries, so the models configured at install
+// time apply by default; the user uncomments or adds a ## Work line to
+// customize. It carries no illustrative model identifiers.
+const preferencesScaffold = `# AgenticAle preferences (personal)
 
-Personal preferences, created by the AgenticAle installer. By default every
-role uses the installed baseline routing, which matches the agent profiles
-generated at install time. To customize, add a runtime section with a
-\`### Role overrides\` list that points a role at a specific model or tier. See
-the installed preferences.example.md for the full format.
+Personal preferences, created by the AgenticAle installer. Role lines in
+this file do NOT apply to an OpenCode installation: models are fixed in
+the generated agent profiles at install time; to change them, rerun the
+installer with a different \`--models PATH|PRESET\` (or \`--no-model\`)
+config. The top-level \`## Work\` section DOES apply (worker-round
+allowance).
+
+## Work
+<!-- - worker rounds: 12 -->
 `;
 
 // The one-time post-install verification, printed by the install and setup
-// output: a prompt to paste into an OpenCode session, not a raw helper
-// command. It tells the pasting session to run the `startup` bootstrap with
-// `--root` set to its own project root (its working directory, or the
-// directory containing the project's .agenticale; the home directory when
-// there is no project — the helper deduplicates a root equal to home into
-// the personal location), so the personal and the project preference
-// locations are both checked. On the "resolved" result the session confirms
-// every role in the `agents` output reports "match"; on the
-// "interpretation-required" result it reads and interprets each listed
-// preference file (a project file takes precedence over the personal one;
-// any legacy file reported as ignored is never read), writes the interpreted
-// structured layers (an array ordered lowest to highest precedence, personal
-// first) to a temporary JSON file, and resolves them with
-// `resolve --runtime opencode --input <file> --explain` — a path to that
-// structured JSON, never inline JSON and never the Markdown file —
-// comparing each route with the installed agent profiles. The dynamic paths
-// are single-quoted so a target with spaces stays copy-pasteable.
+// output: a prompt to paste into an OpenCode session. It tells the pasting
+// session to read the generated agent profiles and report each role's
+// installed model and effort, and to state that preference-file role lines
+// do not apply to this installation while the preference file's ## Work
+// section does. The dynamic path is single-quoted so a target with spaces
+// stays copy-pasteable.
 const verifyPromptFor = (target) => {
-  const helper = join(target, "skills", "work", "scripts", "routing.mjs");
-  const rootPlaceholder = `<the project root of the session you are pasting this into: that working directory, or the directory containing its .agenticale folder; the home directory when there is no project>`;
-  return `Verify my AgenticAle routing for the opencode runtime: run \`node '${helper}' startup --runtime opencode --root '${rootPlaceholder}'\`, which checks the personal preference location and that project location; if the result is the resolved policy, confirm every role in its agents output reports "match"; if it reports "interpretation-required" because a preference file is present, read and interpret each listed preference file (a project file takes precedence over the personal file; any legacy file reported as ignored is never read), write the interpreted structured layers to a temporary JSON file as an array ordered lowest to highest precedence (personal first, then project), then run \`node '${helper}' resolve --runtime opencode --input '<that temporary JSON file>' --explain\`, and compare each resolved route with its installed agent profile in '${join(target, "agents", "agenticale")}' (an "inherit" route matches a profile with no "model:" line, and an explicit route must match the profile's model and reasoning effort); report any mismatch, missing, or unreadable role along with the preparation/refresh procedure in '${join(target, "skills", "work", "references", "runtimes", "opencode.md")}'.`;
+  const profiles = join(target, "agents", "agenticale");
+  return `Verify my AgenticAle model configuration for the opencode runtime: for each of the seven roles (explore, implement, implement-hard, fix, review, deep-review, consult), read the generated agent profile in '${profiles}' and report its model and reasoningEffort (a profile with no model line inherits the session model); note that role lines in a preference file (.agenticale/preferences.md, project or personal) do not apply to this OpenCode installation because its models are fixed in the generated profiles, while a top-level ## Work section in the preference file does apply (worker-round allowance).`;
 };
 
-// Consent-gated personal preferences setup (the narrow exception documented
-// in skills/work/references/ROUTING.md, "User customization"). Creates the
-// personal preference file (default ~/.agenticale/preferences.md,
-// overridable for tests and non-default layouts with --personal-path) if and
-// only if it is absent. Anything already present at the path — file,
-// directory, or link — is left untouched: preference files are never
-// overwritten, migrated, or removed, and the project-scope file is never
-// created. With the default path, a present legacy ~/.agenticale/routing.md
-// whose preferences.md target is absent makes setup create nothing and
-// report the legacy path: a preferences.md would take precedence over it,
-// and only the user renames the file; in that legacy-only case the guidance
-// and paste prompt target the legacy file, the user's effective file. When
-// both exist, preferences.md is already effective and the guidance targets
-// it. It never prompts and needs no TTY: explicit consent is the
-// caller's job.
+// Consent-gated personal preferences setup. Creates the personal preference
+// file (default ~/.agenticale/preferences.md, overridable for tests and
+// non-default layouts with --personal-path) if and only if it is absent.
+// Anything already present at the path — file, directory, or link — is left
+// untouched: preference files are never overwritten, migrated, or removed,
+// and the project-scope file is never created. It never prompts and needs no
+// TTY: explicit consent is the caller's job.
 async function setupPersonalRouting(options) {
-  const legacyPersonalPath = join(homedir(), ".agenticale", "routing.md");
   const personalPath = options.personalPath ?? join(homedir(), ".agenticale", "preferences.md");
-  // The legacy guard applies to the default path only: with --personal-path
-  // the caller names the target explicitly, so no legacy sibling is inferred.
-  // (parseArguments resolves an omitted --personal-path to null.)
-  const legacyPresent = options.personalPath === null
-    ? (await pathStatus(legacyPersonalPath)) !== null
-    : false;
-  // The packaged example ships inside the installed skill. options.target is
-  // the effective target: the caller's --target PATH, or the same default
-  // resolution install and uninstall use (XDG_CONFIG_HOME/opencode when set,
-  // otherwise ~/.config/opencode), so the guidance cannot drift from where an
-  // install with that --target would have placed the example.
-  const examplePath = join(options.target, "skills", "work", "references", "preferences.example.md");
-  // The guidance and paste prompt must name the file the user will actually
-  // read: preferences.md when it is created or already present, and the
-  // legacy routing.md when setup creates nothing because only the legacy
-  // file exists, so the prompt's "Read the file" step is true in both cases.
-  const promptFor = (effectivePath) => `Help me customize my AgenticAle personal preferences file at ${effectivePath}. Read the file and the installed preferences example, tell me which model and effort each of the seven roles currently resolves to for the opencode runtime, and then walk me through the changes I want to make without inventing model identifiers my host does not support.`;
+  // options.target is the effective target: the caller's --target PATH, or
+  // the same default resolution install and uninstall use
+  // (XDG_CONFIG_HOME/opencode when set, otherwise ~/.config/opencode), so the
+  // verification prompt cannot drift from where an install with that
+  // --target placed the generated agent profiles.
+  const promptFor = (effectivePath) => `Help me customize my AgenticAle personal preferences file at ${effectivePath}. Remember that role lines in this file do not apply to this OpenCode installation (models are fixed in the generated agent profiles; rerunning the installer with a different --models PATH|PRESET or --no-model config changes them). Read the file, tell me what the top-level ## Work section currently sets, and walk me through the ## Work changes I want to make.`;
   const printGuidance = (effectivePath) => {
-    console.log(`Edit the file to customize model routing: the packaged example is at ${examplePath} (the installed skill), and a project file <repo>/.agenticale/preferences.md takes precedence over this personal file (the legacy name routing.md is still accepted at each scope; a preferences.md takes precedence over a routing.md at the same scope).`);
+    console.log(`Role lines in this file do NOT apply to this OpenCode installation: models are fixed in the generated agent profiles at install time; to change them, rerun the installer with a different \`--models PATH|PRESET\` (or \`--no-model\`) config. The top-level \`## Work\` section DOES apply (worker-round allowance); a project file <repo>/.agenticale/preferences.md takes precedence over this personal file.`);
     console.log("");
     console.log("Paste this prompt into an OpenCode session to continue customizing:");
     console.log("");
     console.log(promptFor(effectivePath));
     console.log("");
-    console.log(`After editing, verify your routing by pasting this prompt into an OpenCode session: ${verifyPromptFor(options.target)}`);
+    console.log(`Verify your model configuration by pasting this prompt into an OpenCode session: ${verifyPromptFor(options.target)}`);
   };
 
   const present = (await pathStatus(personalPath)) !== null;
-  const effectivePersonalPath = legacyPresent && !present ? legacyPersonalPath : personalPath;
-  console.log(`${options.dryRun ? "Dry-run " : ""}Routing setup -> ${personalPath}`);
+  console.log(`${options.dryRun ? "Dry-run " : ""}Preferences setup -> ${personalPath}`);
   if (present) {
     console.log(`  ${options.dryRun ? "would leave" : "left"} untouched: ${personalPath} already exists; preference files are never overwritten, migrated, or removed`);
-  } else if (legacyPresent) {
-    console.log(`  ${options.dryRun ? "would create" : "create"} nothing: the legacy personal file ${legacyPersonalPath} exists, and a preferences.md would take precedence over it; the installer never renames, migrates, or removes preference files — rename ${legacyPersonalPath} to ${personalPath} yourself if you want the new name`);
   } else {
-    console.log(`  ${options.dryRun ? "would create" : "create"}: minimal scaffold (no role overrides; the installed baseline routing applies)`);
+    console.log(`  ${options.dryRun ? "would create" : "create"}: minimal scaffold (no active entries; the models configured at install time apply)`);
   }
   if (options.dryRun) {
-    printGuidance(effectivePersonalPath);
+    printGuidance(personalPath);
     console.log("Dry run complete; no files were changed.");
-    return;
-  }
-  if (legacyPresent && !present) {
-    // Default path only, legacy-only case: the target preferences.md is
-    // absent and a legacy routing.md exists. Create nothing and leave both
-    // files exactly as found; the guidance targets the legacy file, the
-    // user's effective file. With preferences.md present it already takes
-    // precedence (effectivePersonalPath), so the guidance below targets it.
-    printGuidance(effectivePersonalPath);
     return;
   }
   if (!present) {
@@ -1189,7 +1117,7 @@ async function setupPersonalRouting(options) {
       // wx (create exclusively) is the second line of defense behind the
       // lstat probe: if the file appears in between, refuse instead of
       // overwriting, and report it as left untouched.
-      await writeFile(personalPath, routingScaffold, { encoding: "utf8", flag: "wx" });
+      await writeFile(personalPath, preferencesScaffold, { encoding: "utf8", flag: "wx" });
     } catch (error) {
       if (error.code === "EEXIST") {
         console.log(`  left untouched: ${personalPath} already exists; preference files are never overwritten, migrated, or removed`);

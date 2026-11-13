@@ -23,52 +23,40 @@ Fresh-context and model-override compatibility must be checked against the actua
 exposed spawn tool. Live verification is documentation-only for this pass and is
 not tested here.
 
-## Routing bootstrap on this surface
+## Model selection on this surface
 
-At activation, follow the shared bootstrap in `ROUTING.md`:
-discover the personal and project `preferences.md` preference files
-(`routing.md` remains accepted as a legacy name), interpret the active
-runtime's preferences, apply invocation choices, and resolve this runtime's
-routes once for the activation. The preference section uses the `codex`
-runtime name.
-Precedence is invocation, project, personal, then installed baseline. Do not
-scan unrelated files. Invocation choices are session-scoped and do not
-persist to a preference file or `preferences.md`. With Node available, the
-default path is
-the single `startup` call from the installed skill and the interpretation path
-is `resolve --input <file> --explain`; this surface has no generated agent
-set, so
-`startup` performs no agent comparison.
+This host exposes per-spawn model and reasoning fields on the child. When a
+preference file is present, pass the role's assignment from the active
+preference file; the preference file is documented in the "Model
+configuration (this installation)" section the installation appends to the
+skills. If that section is absent from the loaded skill, there is no preference
+file and no model selection. When no assignment exists for a role, spawn
+without a model field (the session default).
 
 ## Requested versus effective settings
 
-The per-spawn model and reasoning fields carry the snapshot's requested
-selection. Whether the host actually honored them is a live check: record
-requested versus effective settings when runtime metadata or local traces make
-the effective values available, and keep an unknown effective setting unknown.
-A child's self-reported model name does not establish the effective model.
+The per-spawn fields carry the requested selection; whether the host actually
+honored them is a live check. Keep an unknown effective setting unknown, and
+never let a child's self-reported model name establish the effective model.
 
 ## How `inherit` is realized
 
-When the resolved route for a key is `mode: inherit`, the coordinator omits the
+When the role's assignment is `inherit`, the coordinator omits the
 model/reasoning field on the child spawn. With the field omitted, the child runs
 on the session's current model and effort rather than a forced one. `inherit` is
 an explicit, intentional choice; it is not a fallback and not a missing value.
 
 ## Caller and session overrides
 
-An explicit invocation choice wins over discovered preference files for the
-entries it names; every other entry still resolves from the discovered files
-and installed baseline. Invocation choices
-stay within the session and never rewrite `preferences.md` or any preference
-file.
+An explicit invocation choice wins for the entries it names and stays within
+the session; it rewrites no preference file.
 
 ## Limitations (stated honestly)
 
 - Custom agent files can override the spawn choices. Codex's custom agent files
   can override the explicit model and reasoning choices, so the default adapter
-  should avoid depending on installed custom profiles. Do not assume the resolved
-  route survives if a custom agent file in the project pins its own model.
+  should avoid depending on installed custom profiles. Do not assume the role's
+  selection survives if a custom agent file in the project pins its own model.
 - Per-call model override is unconfirmed against the live tool. Whether the
   exposed spawn tool actually accepts a per-call model override (as opposed to a
   configured profile) must be checked on the real tool schema. Do not promise
@@ -82,8 +70,8 @@ file.
   Code Agent Host; they are different surfaces.
 - Reasoning-level support is unconfirmed per version. Support only verified
   reasoning levels on a target; surface an unsupported level before dispatch
-  and use only an explicitly configured fallback for it, rather than assuming
-  it is honored or silently substituting another selection.
+  and report it as a limitation instead of assuming it is honored or silently
+  substituting another selection.
 
 The skill selects this binding from the actual runtime/tool surface, not from the
 chosen language model. A surface that is not the Codex CLI or the official Codex

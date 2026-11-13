@@ -9,30 +9,28 @@ Use it for a multi-step project, such as:
 - `/autonomous Add CSV export, update its tests, and prepare the release`
 - `/autonomous 4 Migrate the report pipeline and verify the new behavior`
 - `/autonomous` to resume the active handoff
-- `/autonomous --profile server-b` to resume the active goal with that routing
-  profile
 
 The slash form is conceptual: use the invocation supported by your client, as
 described in [installation and client setup](../../setup.md). Autonomous starts
 only when explicitly invoked. Leading options — a positive-integer worker-round
-budget, `--profile NAME` (or `--profile=NAME`), and the `--` delimiter — may
-appear in either order, with everything after the options as the goal text,
-possibly empty. A profile-only or budget-and-profile invocation with no goal
-text RESUMEs the active goal; with no budget, the default budget is used. The
-session becomes the coordinator and proceeds in sequential, bounded rounds.
+budget and the `--` delimiter — may appear in either order, with everything
+after the options as the goal text, possibly empty. An invocation with no
+goal text RESUMEs the active goal; with no budget, the default budget is
+used. The session becomes the coordinator and proceeds in sequential, bounded
+rounds.
 Code and configuration changes receive independent review by default, with
 focused fixes for blocking findings.
 
-The selected profile name is durable goal configuration: it is recorded in the
-active handoff and persists across resumes, so a resume without a selector
-keeps it; `--profile default` clears a named selection back to ordinary
-routing. A mid-run profile change applies only to future dispatches — it never
-changes an already-running child, never resets budgets or review counters,
-never bypasses the provider quota rules, and never authorizes provider
-switching. A selected profile that no longer resolves — removed, renamed, or
-defined only for another runtime — blocks the next dispatch with an actionable
-explanation. See [named routing profiles](../../guides/model-routing.md#named-routing-profiles)
-for the selection and precedence rules.
+Model configuration is not durable goal state: the preference file (or a
+selected `preferences.NAME.md`) is read once at each activation and stays
+fixed for that activation, and a fresh resume reads the current installation
+again. A change to the installation's model configuration takes effect only
+at the next fresh activation or resume: it never changes an already-running
+child, never resets budgets or review counters, never bypasses the provider
+quota-recovery rules, and never authorizes automatic provider switching. If a
+role's installed model selection changed materially since the handoff was
+written, the resume reports it. See
+[model configuration](../../guides/model-routing.md).
 
 Concise progress narration keeps the sequence readable in the main conversation:
 what was learned, what happens next, and why. When your client collapses subagent
@@ -98,7 +96,7 @@ missing information, or clarify an ambiguous pull request destination. If a
 round cannot proceed because of a permission or capability limit, it reports
 the blocker and the choice needed to continue.
 
-For the detailed state, budget, routing, review, and resume rules, read the
+For the detailed state, budget, review, and resume rules, read the
 [Autonomous skill source](https://github.com/alefranz/AgenticAle/blob/main/skills/autonomous/SKILL.md)
 and the shared
 [round contract](https://github.com/alefranz/AgenticAle/blob/main/skills/work/references/rounds.md).
