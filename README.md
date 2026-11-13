@@ -33,7 +33,7 @@ breakdown — in the final report.
 **[Open the documentation site](https://alefranz.github.io/AgenticAle/)** for
 [getting started](https://alefranz.github.io/AgenticAle/getting-started.html),
 [skill guides](https://alefranz.github.io/AgenticAle/skills/work/),
-[installation and routing](https://alefranz.github.io/AgenticAle/setup.html),
+[installation and model configuration](https://alefranz.github.io/AgenticAle/setup.html),
 and [contributing](https://github.com/alefranz/AgenticAle/blob/main/CONTRIBUTING.md).
 
 ## Start here
@@ -124,10 +124,12 @@ ends the stop. Every incomplete stop includes a copy-pasteable continuation
 prompt. Provider quota exhaustion is separate: Work stops without durable
 recovery, while Autonomous applies its own cooldown and handoff policy.
 
-## Customize model routing
+## Customize model configuration
 
-Routing preferences and install options are documented in the
-[model routing guide](https://alefranz.github.io/AgenticAle/guides/model-routing.html).
+Each of the seven worker roles gets its own model — set at install time on
+OpenCode, or in one optional preference file on the other hosts. The details
+are in the
+[model configuration guide](https://alefranz.github.io/AgenticAle/guides/model-routing.html).
 
 ## Choose where the task finishes
 
@@ -150,7 +152,7 @@ guides explain when each skill is loaded and what it returns.
 ## Customize or contribute
 
 - [Installation, updates, and client options](https://alefranz.github.io/AgenticAle/setup.html)
-- [Model routing](https://alefranz.github.io/AgenticAle/guides/model-routing.html)
+- [Model configuration](https://alefranz.github.io/AgenticAle/guides/model-routing.html)
 - [Troubleshooting](https://alefranz.github.io/AgenticAle/guides/troubleshooting.html)
 - [Site maintenance](https://github.com/alefranz/AgenticAle/blob/main/docs/site-maintenance.md)
 - [Contributing checks](https://github.com/alefranz/AgenticAle/blob/main/CONTRIBUTING.md)

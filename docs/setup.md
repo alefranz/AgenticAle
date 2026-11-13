@@ -76,9 +76,11 @@ installer from the repository root:
 node scripts/install-copilot.mjs
 ```
 
-To inherit the active Copilot model and effort instead of applying per-route
-defaults, or to override routing, pass the routing options below. Remove the
-plugin with:
+The installer accepts `--models PATH|PRESET` and `--no-model` and retains
+them in the build state, but for the Copilot plugin the workflow roles' models
+are set at activation time through the preference file (see the
+[model configuration guide](guides/model-routing.md#other-hosts-the-preference-file)).
+Remove the plugin with:
 
 ```sh
 copilot plugin uninstall agenticale
@@ -97,16 +99,18 @@ codex plugin marketplace add alefranz/AgenticAle
 codex plugin add agenticale@agenticale
 ```
 
-For a local checkout during development, use `codex plugin marketplace add
-/absolute/path/to/AgenticAle` instead of the GitHub source. Then install with
+For a local checkout during development, use
+`codex plugin marketplace add /absolute/path/to/AgenticAle` instead of the
+GitHub source. Then install with
 the same `codex plugin add` command. You can also open Plugins in the ChatGPT
 desktop app, select the AgenticAle marketplace, and install the plugin there.
 Start a new chat or session afterward. In CLI and VS Code, use `/skills` or
 mention `$work`, `$review`, or `$autonomous`; in the desktop app, open Skills
 or mention the skill in your prompt.
 
-Refresh a Git-backed marketplace with `codex plugin marketplace upgrade
-agenticale`. Inspect installs with `codex plugin list` and remove this plugin
+Refresh a Git-backed marketplace with
+`codex plugin marketplace upgrade agenticale`. Inspect installs with
+`codex plugin list` and remove this plugin
 with `codex plugin remove agenticale@agenticale`. See the [official Codex plugin
 commands](https://learn.chatgpt.com/docs/developer-commands#codex-plugin).
 
@@ -117,8 +121,8 @@ Codex CLI, the official VS Code extension, and Codex mode in the ChatGPT
 desktop app can discover these standalone skills. The installer requires no
 native agent or plugin.
 
-A routing choice is required (`--no-model` for inheritance, `--models
-PATH|PRESET`, or `--routing PATH`); the examples below show each. The default
+A model selection is required (`--models PATH|PRESET`, or `--no-model` for
+session-model inheritance); the examples below show each. The default
 destination is project scope, `<cwd>/.agents/skills`. Because of the overlap
 guard, running it from a checkout of this repository installs into the
 repository itself and is rejected, so from a checkout use user scope:
@@ -138,8 +142,9 @@ node /path/to/AgenticAle/scripts/install-standalone.mjs --no-model
 discovery location; on Windows `%USERPROFILE%\.agents\skills`). `--target PATH`
 overrides the destination entirely. The state file is
 `.agenticale-standalone-install.json` (schema 1). Like the OpenCode
-installer, it prints a non-blocking `notice: another AgenticAle install
-appears present (<path>)` if the target already carries the other layout's
+installer, it prints a non-blocking
+`notice: another AgenticAle install appears present (<path>)` if the target
+already carries the other layout's
 marker.
 
 After installation, start a new chat or session in the chosen client. In Codex
@@ -201,47 +206,47 @@ wrapper itself to that release. In either case the wrapper prints the release
 tag, downloads that release's source archive, and runs the installer from the
 extracted archive; it never launches an AI session and cleans up its temporary
 directory. Prerequisites: Node.js 20 or later plus `curl` and `tar` (Windows
-10 or later provides `curl.exe` and `tar`). With no routing selection it
+10 or later provides `curl.exe` and `tar`). With no model selection it
 installs session-model inheritance (the wrapper appends `--no-model`).
 
 | Option | Effect |
 | --- | --- |
-| *(none)* | Every role inherits the session model and effort (`--no-model` is appended). |
+| *(none)* | Every role inherits the session model (`--no-model` is appended). |
 | `--version TAG` | Install that release tag instead of resolving the latest. |
-| `--models PATH\|PRESET` | Import a model mapping or bundled preset into the routing contract. |
-| `--effort LEVEL` | Route-wide reasoning-effort override (`low`/`medium`/`high`/`xhigh`/`max`). |
+| `--models PATH\|PRESET` | Flat per-role model config: a JSON file mapping roles to `"provider/model[#effort]"`, or a bundled preset (`example`, `local`, `openai`, `gpt`, `zen`); a missing role inherits the session model. |
+| `--no-model` | Every role inherits the session model. |
 | `--source-root PATH` | Embed a different default source-lookup root into the installed skill. |
 | `--replace` | Back up and replace differing destinations during install/update. |
 | `--dry-run` | Print the planned operation without changing the filesystem. |
-| `--setup` | Also run the consented routing setup step after a successful install. |
+| `--setup` | Also create the personal AgenticAle preferences file (`~/.agenticale/preferences.md`) after a successful install. |
 
-For the full routing options, see
-[install-time routing options](guides/model-routing.md#install-time-routing-options).
+For the model flags and the preference file, see
+[model configuration](guides/model-routing.md).
 
 After a successful install the wrapper offers a consented setup step: with
 `--setup` it runs unconditionally; on a terminal without `--setup` it asks
 "Create a personal AgenticAle preferences file (~/.agenticale/preferences.md)?
 [y/N]" (default no); non-interactive runs skip it and print a one-line tip.
 The step creates the personal `~/.agenticale/preferences.md` only when it is
-absent — a minimal scaffold with no role overrides, so the installed
-baseline routing applies — and it never overwrites, migrates, or removes a
-preference file or creates the project-scope file. The legacy name `routing.md`
-is still accepted at each scope and, when both files exist at one scope,
-`preferences.md` takes precedence and the legacy file is ignored — never
-merged; when only the legacy file is present, the step creates nothing rather
-than a file that would silently take precedence (rename it yourself to move to
-the new name). It then prints the file's path, editing
-guidance (the packaged example and project-scope precedence), and a
-ready-to-paste prompt for an OpenCode session to finish the customization;
-see [user preferences and precedence](guides/model-routing.md#user-preferences-and-precedence).
+absent — a minimal scaffold with no active entries, so the models configured
+at install time apply — and it never overwrites, migrates, or removes a
+preference file or creates the project-scope file. On an OpenCode
+installation the scaffold states that role lines in the file do not apply
+(the models are fixed in the generated agent profiles; rerun the installer
+with a different `--models` configuration to change them) while the top-level
+`## Work` section does apply (worker-round allowance; a project file
+`<repo>/.agenticale/preferences.md` takes precedence over the personal file).
+It then prints the file's path, that guidance, and a ready-to-paste prompt
+for an OpenCode session to walk through the `## Work` changes.
 
-After the install — or after editing the preferences file — you can verify
-your routing. The installer prints a ready-to-paste prompt for an OpenCode
-session; it checks your preference files and the installed profiles, and
-reports any mismatch with the preparation steps to run. See the
-[user preferences](guides/model-routing.md#user-preferences-and-precedence)
-and [OpenCode profile refresh](guides/model-routing.md#opencode-profile-refresh)
-sections of the model routing guide for details.
+After the install — or after any reinstall with a different model
+configuration — you can verify your model configuration. The installer prints
+a ready-to-paste prompt for an OpenCode session; it reads the generated agent
+profiles and reports each role's model and reasoning effort (a profile with no
+model line inherits the session model), and notes that role lines in a
+preference file do not apply to this installation while the preference
+file's `## Work` section does. See the
+[model configuration guide](guides/model-routing.md) for details.
 
 #### Alternative: install from a local checkout
 
@@ -257,7 +262,7 @@ This installer is copy-only: it no longer offers a link mode. On install it
 migrates older copy installs (state schema 1-4), older link installs
 (schema 1-4), and older six-profile generated installs (schema 5) to the
 current generated copy layout (state `.autonomous-mode-install.json`,
-schema 6, a 35-file inventory).
+schema 6, a 32-file inventory).
 
 If the target already carries another AgenticAle marker (for example a
 standalone `.agenticale-standalone-install.json`), the installer surfaces a
@@ -325,28 +330,29 @@ Restart any running CLI or IDE session after installing or updating so the
 skills are loaded into active context.
 
 See the [Antigravity installation reference](https://antigravity.google/docs/cli/install/)
-and [model routing guide](guides/model-routing.md).
+and [model configuration guide](guides/model-routing.md).
 
-## Model routing
+## Model configuration
 
-The complete policy, preference precedence, and client-specific behavior live in
-[the model routing guide](guides/model-routing.md). The following legacy
-section anchors remain available for existing links.
+The complete model configuration — install-time model flags, the preference
+file, and the Work worker-round allowance — lives in
+[the model configuration guide](guides/model-routing.md). The following
+legacy section anchors remain available for existing links.
 
 ### Routing options
 
-See [routing options and install examples](guides/model-routing.md#install-time-routing-options)
+See [install-time model options](guides/model-routing.md#opencode-models-are-set-at-install-time)
 in the focused guide.
 
 ### Customizing model routing
 
-See [customizing model routing](guides/model-routing.md#user-preferences-and-precedence)
-for the preference file locations and precedence.
+See [the preference file](guides/model-routing.md#other-hosts-the-preference-file)
+for the preference file locations and format.
 
 ### Choosing models: cheap by default, strong when it matters
 
-See [choosing routes](guides/model-routing.md#choosing-models-by-role) for the
-packaged tier intent.
+See [the seven roles](guides/model-routing.md#the-seven-roles) for the
+per-role model intent.
 
 ### OpenCode permissions
 
@@ -419,7 +425,7 @@ Modified files are preserved during uninstall.
 ## Troubleshooting
 
 See the focused [troubleshooting guide](guides/troubleshooting.md) for common
-invocation, routing, and OpenCode permission issues.
+invocation, model-configuration, and OpenCode permission issues.
 
 ## Limitations
 
@@ -427,15 +433,16 @@ invocation, routing, and OpenCode permission issues.
   [runtime-compatibility.md](runtime-compatibility.md) and is **not tested** in
   this pass. Do not treat the inspected client versions as verified.
 - OpenCode enforces the generated per-profile step and permission rules. Copilot
-  has no equivalent per-route hard step ceiling, and some child-session
+  has no equivalent per-profile hard step ceiling, and some child-session
   restrictions are prompt conventions when a client does not support the
   corresponding custom-agent field.
 - Skills can request a model and effort but cannot prevent host-side fallback.
   A host that silently substitutes a model without detection or control does not
-  get a strict-routing claim; that limitation is recorded per host, not here.
+  get a strict model-selection claim; that limitation is recorded per host,
+  not here.
 - A fresh child context provides independence, but it does not automatically
-  mean a different model family; use `--models` or `--routing` for explicit
-  model separation.
+  mean a different model family; use `--models` or the preference file for
+  explicit model separation.
 - Prompt instructions complement OpenCode permissions; they cannot make an
   inherently irreversible operation safe.
 - Unattended operation still needs bounded budgets and final human inspection.

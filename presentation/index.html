@@ -557,7 +557,7 @@
           <ul>
             <li>Welcome everyone. Most of us use GitHub Copilot or coding agents every day now, and for small edits or quick questions, a normal chat session is great.</li>
             <li>But as soon as you hand an agent a real engineering task—something that touches multiple files, requires investigating dependencies, and needs to end in a solid PR—raw single-thread chat starts showing cracks.</li>
-            <li>Today I want to walk through <strong>AgenticAle</strong>, a portable set of agent skills, focusing mainly on <code>/work</code>: why it's structured around fresh subagents and model routing, where it fits alongside tools like Copilot Fusion, and how it can even serve as a "glass box" to build intuition for agentic coding.</li>
+            <li>Today I want to walk through <strong>AgenticAle</strong>, a portable set of agent skills, focusing mainly on <code>/work</code>: why it's structured around fresh subagents and per-role model configuration, where it fits alongside tools like Copilot Fusion, and how it can even serve as a "glass box" to build intuition for agentic coding.</li>
           </ul>
         </aside>
       </section>
@@ -683,7 +683,7 @@
             <h4 style="font-size: 0.9em; color: var(--accent-amber); margin-bottom: 4px;">⚖️ A Conscious Compromise by Design</h4>
             <p style="margin: 0; font-size: 0.84em;">
               <strong>Orchestration overhead:</strong> Spawning subagents adds slight latency—not meant for a 1-line typo fix.<br>
-              <strong>The payoff:</strong> Automatically manages context isolation, model tier routing, and independent review gates for 90% of real engineering work.
+              <strong>The payoff:</strong> Automatically manages context isolation, per-role model configuration, and independent review gates for 90% of real engineering work.
             </p>
           </div>
         </div>
@@ -744,51 +744,51 @@
         </aside>
       </section>
 
-      <!-- SLIDE 5: Declarative Routing -->
+      <!-- SLIDE 5: Per-Role Model Configuration -->
       <section>
         <div class="slide-wrapper">
           <div class="slide-header">
             <div class="section-pill emerald">Section 2 &bull; Core Deep Dive</div>
-            <h2>Right Model for the Job — Declarative Routing</h2>
+            <h2>Right Model for the Job — Per-Role Model Configuration</h2>
             <div class="slide-subtitle">Matching model strength, speed, and reasoning effort to the exact role requirements</div>
           </div>
 
-          <!-- 4 Tiers Grid -->
+          <!-- Per-Role Model Configuration Grid -->
           <div class="grid-4" style="margin-bottom: 14px;">
             <div class="card" style="border-top: 3px solid var(--accent-cyan);">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                <span class="badge badge-cyan">fast</span>
-                <span style="font-size: 0.7em; color: var(--text-dim);">Low latency</span>
+                <span class="badge badge-cyan">roles</span>
+                <span style="font-size: 0.7em; color: var(--text-dim);">Per-role</span>
               </div>
-              <h4 style="font-size: 0.95em; color: var(--accent-cyan);">explore</h4>
-              <p style="font-size: 0.78em; margin: 0;">Codebase discovery, grep search, lockfile inspection, external lookups.</p>
+              <h4 style="font-size: 0.95em; color: var(--accent-cyan);">Seven roles, one model each</h4>
+              <p style="font-size: 0.78em; margin: 0;">explore, implement, implement-hard, fix, review, deep-review, consult — each with its own model and effort.</p>
             </div>
 
             <div class="card" style="border-top: 3px solid var(--accent-emerald);">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                <span class="badge badge-emerald">routine</span>
-                <span style="font-size: 0.7em; color: var(--text-dim);">Cost-effective</span>
+                <span class="badge badge-emerald">install</span>
+                <span style="font-size: 0.7em; color: var(--text-dim);">OpenCode</span>
               </div>
-              <h4 style="font-size: 0.95em; color: var(--accent-emerald);">implement, fix</h4>
-              <p style="font-size: 0.78em; margin: 0;">Everyday implementation, straightforward fixes, test execution.</p>
+              <h4 style="font-size: 0.95em; color: var(--accent-emerald);">Profiles set at install time</h4>
+              <p style="font-size: 0.78em; margin: 0;">--models PATH|PRESET bakes a flat per-role config into the seven generated agent profiles; --no-model inherits the session model.</p>
             </div>
 
             <div class="card" style="border-top: 3px solid var(--accent-indigo);">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                <span class="badge badge-indigo">standard</span>
-                <span style="font-size: 0.7em; color: var(--text-dim);">Strong reasoning</span>
+                <span class="badge badge-indigo">preference</span>
+                <span style="font-size: 0.7em; color: var(--text-dim);">Per-spawn</span>
               </div>
-              <h4 style="font-size: 0.95em; color: var(--accent-indigo);">review, implement-hard</h4>
-              <p style="font-size: 0.78em; margin: 0;">Independent code review, complex multi-file logic, escalated fixes.</p>
+              <h4 style="font-size: 0.95em; color: var(--accent-indigo);">One preference file</h4>
+              <p style="font-size: 0.78em; margin: 0;">Direct role assignments in .agenticale/preferences.md — project first, then personal; nothing else is interpreted.</p>
             </div>
 
             <div class="card" style="border-top: 3px solid var(--accent-purple);">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                <span class="badge badge-purple">deep</span>
-                <span style="font-size: 0.7em; color: var(--text-dim);">Max reasoning</span>
+                <span class="badge badge-purple">profile</span>
+                <span style="font-size: 0.7em; color: var(--text-dim);">Named files</span>
               </div>
-              <h4 style="font-size: 0.95em; color: var(--accent-purple);">deep-review, consult</h4>
-              <p style="font-size: 0.78em; margin: 0;">High-risk architecture, requirements framing, subtle concurrency.</p>
+              <h4 style="font-size: 0.95em; color: var(--accent-purple);">--profile NAME</h4>
+              <p style="font-size: 0.78em; margin: 0;">Selects preferences.NAME.md at the same locations; a missing file is a clear error, never a silent fallback.</p>
             </div>
           </div>
 
@@ -796,26 +796,26 @@
             <div class="card highlight" style="padding: 12px 18px;">
               <h4 style="color: var(--accent-amber); font-size: 0.95em; margin-bottom: 4px;">🚀 Automatic Escalation</h4>
               <p style="font-size: 0.84em; margin: 0;">
-                If an implementation hits unexpected structural complexity or tricky review findings, <code>/work</code> automatically escalates the role from <code>routine</code> to <code>implement-hard</code> on the <code>standard</code> tier.
+                When a task or review finding needs concurrency, subtle state, security, or difficult contract reasoning, <code>/work</code> runs the <code>implement</code> or <code>fix</code> contract on the <code>implement-hard</code> role.
               </p>
             </div>
             <div class="card" style="padding: 12px 18px;">
               <h4 style="color: var(--accent-cyan); font-size: 0.95em; margin-bottom: 4px;">📝 Customizable via Plain Markdown</h4>
               <p style="font-size: 0.84em; margin: 0;">
-                Override models per user or repository in <code>.agenticale/preferences.md</code>, or switch active tiers on the fly with <code>/work --profile &lt;name&gt;</code> without touching any JSON.
+                Override per user or repository in <code>.agenticale/preferences.md</code>, or select a named setup with <code>/work --profile &lt;name&gt;</code>; a missing file is a clear error, never a silent fallback.
               </p>
             </div>
           </div>
         </div>
 
         <aside class="notes">
-          <p><strong>Slide 5: Right Model for the Job — Declarative Routing</strong></p>
+          <p><strong>Slide 5: Right Model for the Job — Per-Role Model Configuration</strong></p>
           <ul>
-            <li>Alongside fresh context, <code>/work</code> solves model selection through <strong>declarative role routing</strong>.</li>
-            <li>Instead of running one model for everything, <code>/work</code> maps each role to one of four tiers: <code>fast</code>, <code>routine</code>, <code>standard</code>, and <code>deep</code>.</li>
-            <li>Exploration runs on <code>fast</code>. Standard implementation and simple fixes run on <code>routine</code>.</li>
-            <li>But when it's time for the <strong>independent review</strong>, or when an implementation/fix hits a complex edge case (<code>implement-hard</code>), it routes to the stronger <code>standard</code> tier. And if you need upfront framing (<code>--consult</code>) or a <code>deep-review</code>, it uses the <code>deep</code> tier with maximum reasoning effort.</li>
-            <li>You don't have to touch JSON to tweak this—you can write plain Markdown preferences or pass <code>--profile</code> at invocation time.</li>
+            <li>Alongside fresh context, <code>/work</code> solves model selection <strong>per role</strong>: each of the seven roles — explore, implement, implement-hard, fix, review, deep-review, consult — gets its own model, and where the host supports it, its own reasoning effort.</li>
+            <li>On OpenCode, <code>--models PATH|PRESET</code> sets the model configuration at install time: a <code>flat per-role config</code> — a JSON file or a bundled preset like <code>openai</code> — is baked into the <code>seven generated agent profiles</code>; <code>--no-model</code> inherits the session model.</li>
+            <li>On the other hosts (Copilot, Codex, Antigravity), the configuration is one optional preference file, <code>.agenticale/preferences.md</code>, with direct role assignments like <code>- review: openai/gpt-6.1-sol, xhigh</code> — a project file wins over the personal one, and nothing else is interpreted.</li>
+            <li><strong>For named setups</strong>, a leading <code>--profile NAME</code> selects <code>preferences.NAME.md</code> instead of <code>preferences.md</code>, at <code>.agenticale</code> in the project or under <code>~/.agenticale</code> — a missing file is a concise, actionable error, never a silent fallback.</li>
+            <li>When a task or review finding needs concurrency, subtle state, security, or difficult contract reasoning, <code>/work</code> runs the implement or fix contract on the implement-hard role, which you can point at your strongest model.</li>
           </ul>
         </aside>
       </section>
@@ -844,7 +844,7 @@
               <h4 style="color: var(--accent-purple);"><span class="badge badge-purple">Flag</span> <code>/work --consult &lt;task&gt;</code></h4>
               <p>Think before you code with high-reasoning models:</p>
               <ul>
-                <li>Dispatches a read-only <code>consult</code> subagent on the <code>deep</code> tier <em>before</em> coding.</li>
+                <li>Dispatches a read-only <code>consult</code> subagent on its <code>configured model</code> <em>before</em> coding.</li>
                 <li>Challenges requirements framing and surfaces hidden edge cases.</li>
                 <li>Asks only the questions that genuinely require human judgment.</li>
               </ul>
@@ -964,7 +964,7 @@
               <div style="background: rgba(15, 23, 42, 0.6); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color);">
                 <h5 style="color: var(--accent-indigo); font-size: 0.85em; margin-bottom: 6px;">2. Explicit Profile Control</h5>
                 <p style="font-size: 0.78em; margin: 0;">
-                  Pin exact model tiers and reasoning effort per role across your team (e.g. keeping review on strict high-reasoning models regardless of turn).
+                  Pin exact models and reasoning effort per role across your team (e.g. keeping review on strict high-reasoning models regardless of turn).
                 </p>
               </div>
 
@@ -1031,7 +1031,7 @@
                 </li>
                 <li>
                   <strong>Preferences Layer (<code>preferences.md</code>):</strong><br>
-                  Model tier mappings, <code>SOURCE_ROOT</code>, routing profiles.
+                  Per-role model assignments, and the <code>## Work</code> worker-round allowance.
                 </li>
                 <li>
                   <strong>Domain Leaf Skills:</strong><br>
@@ -1088,10 +1088,10 @@
 
             <div class="card">
               <h4 style="color: var(--accent-emerald); font-size: 0.95em;">💻 Local Model Friendly</h4>
-              <p style="font-size: 0.82em;">Hybrid cloud &amp; on-device model routing:</p>
+              <p style="font-size: 0.82em;">Hybrid cloud &amp; on-device model configuration:</p>
               <ul>
                 <li>Pair fast local models (via Ollama / LM Studio) for routine coding.</li>
-                <li>Route strict review gates to strong cloud reasoning models.</li>
+                <li>Point the review role at strong cloud reasoning models.</li>
                 <li><strong>Ideal use case today:</strong> Side projects, greenfield prototypes, and overnight mechanical refactors.</li>
               </ul>
             </div>
@@ -1106,7 +1106,7 @@
             <li>Instead of keeping state only in the chat session, <code>/autonomous</code> maintains <code>BACKLOG.md</code> and <code>docs/handoffs/active.md</code>. It picks a task, runs worker and strict review rounds, refines the backlog as it learns more about the codebase, and writes a durable checkpoint after every single round.</li>
             <li>Two features make it especially fun for hobby projects:</li>
             <li>1. <strong>Subscription window awareness:</strong> If you hit a provider quota limit at 2 AM, it records the exact state and cooldown window in the handoff file so it can wait or resume later with zero lost work.</li>
-            <li>2. <strong>Hybrid local/cloud routing:</strong> You can route routine coding rounds to local models while keeping a strong cloud model for the reviewer.</li>
+            <li>2. <strong>Hybrid local/cloud configuration:</strong> You can point routine coding roles at local models while keeping a strong cloud model for the reviewer.</li>
             <li>I wouldn't point <code>/autonomous</code> at a mission-critical production monorepo unattended tomorrow—but as a sandbox for side projects and seeing where long-horizon engineering is headed, it's eye-opening.</li>
           </ul>
         </aside>

@@ -4,9 +4,9 @@ The normal automated checks do not make model requests. Use this checklist to
 verify plugin discovery with an isolated Copilot home before a release. The
 package is the modern shared skills package: five skills and no custom
 coordinator, no per-role agents, and no `commands/` entry. Skill invocation and
-model routing are native to the Copilot host.
+per-role model selection are native to the Copilot host.
 
-Discovery and routing checks below make no model request. Live workflow behavior
+Discovery and model checks below make no model request. Live workflow behavior
 is **not tested** in this pass; record results per capability in
 [runtime-compatibility.md](runtime-compatibility.md) and do not report them here
 as verified.
@@ -63,33 +63,30 @@ copilot plugin uninstall agenticale
 copilot plugin marketplace remove agenticale
 ```
 
-## Markdown preference checks
+## Preference file checks
 
-These checks exercise the Markdown customization path (see
+These checks exercise the preference file customization path (see
 [customizing model routing](setup.md#customizing-model-routing)) in an isolated
-home before a live model run. The workflow interprets each Markdown layer and
-passes the structured result to the resolver:
-
-```sh
-node scripts/routing.mjs resolve --runtime copilot --input <structured-layer.json>
-```
-
-Check that no files yields the packaged baseline, a personal preference
-overrides only its entries, and a project preference overrides the personal
-file. A role override affects only that role; a `default` instruction resets it to
-the packaged mapping, while `mode: "inherit"` uses the session model and
-effort. The Copilot binding dispatches per-call model and effort, so a matching
-selection needs no profile refresh. Record the effective model from metadata or
-trace in [runtime-compatibility.md](runtime-compatibility.md).
+home before a live model run. The workflow reads at most one preference file
+at activation — `<project-root>/.agenticale/preferences.md` first, then
+`~/.agenticale/preferences.md`; a project file wins. Check that no files means
+the host default applies to every role, that a role line affects only that
+role, and that the project file wins over the personal file for the same
+role; `--profile NAME` selects `preferences.NAME.md` instead, and a missing
+selected file is a concise error, never a silent fallback. A role line has no
+effect where the host cannot select a model per child. The Copilot binding
+dispatches per-call model and effort, so a matching selection needs no
+profile refresh. Record the effective model from metadata or trace in
+[runtime-compatibility.md](runtime-compatibility.md).
 
 ## Optional live check (not tested)
 
-A live model-routing check is a separate pass and is **not tested** in this
-documentation-only migration. When provider credentials are available, use the
-tiny fixture in [runtime-compatibility.md](runtime-compatibility.md): implement a
-small change with one available model, review it with a different available
-model, then run the override, unavailable-model, unsupported-effort,
-inheritance, conflicting-defaults, and negative-activation variants. Record
+A live model-configuration check is a separate pass and is **not tested** in
+this documentation-only migration. When provider credentials are available,
+use the tiny fixture in [runtime-compatibility.md](runtime-compatibility.md):
+implement a small change with one available model, review it with a different
+available model, then run the role-override, unavailable-model,
+unsupported-effort, inheritance, and negative-activation variants. Record
 requested versus effective settings per capability; a single successful dispatch
 does not prove the effective model.
 

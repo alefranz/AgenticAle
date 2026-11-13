@@ -20,15 +20,14 @@ checked:
 - `/review`
 - `/review main check the migration commit for regressions`
 - `/review --deep v1.4.0 audit the combined API changes`
-- `/review --profile server-b main focus on the lock ordering`
 - `/review only my uncommitted changes`
 
-Leading options — `--deep`, `--profile NAME` (or `--profile=NAME`), and the
-`--` delimiter — may appear in any order, with everything after the options
-as the review context: a focus, acceptance criteria, or a named local base.
-A base is always named in that remaining text; there is no separate base
-flag. Add `--deep` for the expensive integration-level audit (the
-deep-review contract) instead of the ordinary review.
+Leading options — `--deep` and the `--` delimiter — may appear in any order,
+with everything after the options as the review context: a focus,
+acceptance criteria, or a named local base. A base is always named in that
+remaining text; there is no separate base flag. Add `--deep` for the
+expensive integration-level audit (the deep-review contract) instead of the
+ordinary review.
 
 | Request form | Review behavior |
 | --- | --- |
@@ -36,14 +35,12 @@ deep-review contract) instead of the ordinary review.
 | `/review <base or criteria>` | Names a local base or supplies focus or criteria; ordinary review. |
 | `/review only my uncommitted changes` | Reviews the local changes relative to `HEAD` instead of the merge-base comparison. |
 | `/review --deep ...` | The same recorded comparison reviewed by the deep-review contract. |
-| `/review --profile NAME ...` | The review route is resolved through that named routing profile. |
 
-A selected profile is session-scoped: a fresh `/review` without a selector
-uses ordinary routing. An unambiguous natural-language instruction (for
-example, "use the server-b routing profile") selects a profile; merely
-mentioning one does not. An unknown, conflicting, or missing profile
-selector is reported before dispatch. Named routing profiles are described
-in [named routing profiles](../../guides/model-routing.md#named-routing-profiles).
+The workflow never selects a model: on OpenCode the reviewer's model comes
+from the generated `agenticale/review` or `agenticale/deep-review` profile,
+and on other hosts the role's model can come from the installation's
+preference file (a leading `--profile NAME` selects `preferences.NAME.md`
+instead). See [model configuration](#model-configuration).
 
 The examples use conceptual slash syntax; select the installed skill or use
 the client-specific invocation described in [setup](../../setup.md). Review
@@ -67,12 +64,12 @@ rebased, or reset. The comparison is recorded before the reviewer is
 dispatched; when it has no net changes there is nothing to review and no
 reviewer is dispatched.
 
-## The routing tiers
+## Model configuration
 
-The review round uses the standard tier; `--deep` uses the deep tier. In
-the packaged defaults these are the review and deep-review routes, and
-routes remain configurable. See
-[Choosing models by role](../../guides/model-routing.md#choosing-models-by-role).
+The review round runs the review role; `--deep` runs the deep-review role.
+Each role's model comes from the installation — the generated agent profiles
+on OpenCode, or the preference file on per-spawn hosts. See
+[model configuration](../../guides/model-routing.md).
 
 ## What you receive
 

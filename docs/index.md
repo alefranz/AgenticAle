@@ -8,10 +8,10 @@ Antigravity.
 
 - **Independent review before work is called done.** A fresh reviewer inspects
   the result of each task, and blocking findings are fixed before delivery.
-- **Cost-aware model routing.** Routine, high-volume work can run on
-  inexpensive or local models while stronger models are reserved for hard work
-  and independent review. Routes are configurable and can inherit your session
-  model.
+- **Per-role model configuration.** Each of the seven roles gets its own
+  model: routine, high-volume work can run on inexpensive or local models
+  while stronger models are reserved for hard work and independent review.
+  A role you do not configure inherits your session model.
 - **Portable across clients.** The same skills work with GitHub Copilot,
   Codex, OpenCode, and Google Antigravity.
 - **Explicit-only invocation.** Workflows start only when you invoke them; an
@@ -32,7 +32,7 @@ Antigravity.
 
 **First step:** choose your client in the [setup guide](./setup.md), install,
 then run `/work <task>` with a concrete task. For focused help, see the
-[model routing](./guides/model-routing.md) and
+[model configuration](./guides/model-routing.md) and
 [troubleshooting](./guides/troubleshooting.md) guides. The
 [architecture](./architecture.md) and
 [runtime compatibility](./runtime-compatibility.md) pages are canonical

@@ -12,11 +12,10 @@ focused changes with clear verification are easiest to review.
   workflow skills are `skills/work`, `skills/review`, and `skills/autonomous`;
   the two supporting skills are `skills/pull-request-description` and
   `skills/source-code-lookup`. The OpenCode adapter lives under
-  `adapters/opencode`, and the routing contract is
-  `skills/work/references/ROUTING.md`, with the version-2 defaults baseline at
-  `skills/work/references/routing.json`, the Markdown customization example at
-  `skills/work/references/preferences.example.md`, and the shared module at
-  `skills/work/scripts/routing.mjs`. Do not add retired-layout paths
+  `adapters/opencode`, with the flat model config at
+  `adapters/opencode/models.json`, the model-configuration fragment at
+  `adapters/plugin/model-configuration.md`, and the shared module at
+  `scripts/model-config.mjs`. Do not add retired-layout paths
   (`commands/`, `agents/autonomous/`, `skills/work-mode`,
   `skills/autonomous-mode`) at the repository root. The adapter-owned OpenCode
   command templates under `adapters/opencode/commands/` are part of the
@@ -26,7 +25,7 @@ focused changes with clear verification are easiest to review.
   hand; regenerate them with `node scripts/publish-default-plugin.mjs`.
   Disposable `dist/` output remains uncommitted.
 - Keep provider, model, machine, account, and project assumptions out of the
-  installable bundle. The packaged routing baseline is an inventory, not a
+  installable bundle. The packaged model config is an inventory, not a
   verified account mapping.
 - Update the README, setup, or architecture documentation when behavior or
   setup changes. Record live runtime results in `docs/runtime-compatibility.md`;
@@ -41,7 +40,7 @@ For integrated changes and release readiness, run the full sequence in this orde
 
 ```sh
 node scripts/validate.mjs
-node scripts/test-routing.mjs
+node scripts/test-models.mjs
 node scripts/test-session-stats.mjs
 node scripts/test-installer.mjs
 node scripts/test-build.mjs
@@ -52,18 +51,19 @@ node scripts/check-plugin-version.mjs --base public/main
 git diff --check
 ```
 
-- `validate.mjs` checks the authored source of truth: 31 source-of-truth files
-  (including the routing contract, the version-2 `routing.json` baseline, the
-  `preferences.example.md` example, the shared `routing.mjs` module, and the
-  `session-stats.mjs` helper), 6
+- `validate.mjs` checks the authored source of truth: 29 source-of-truth files
+  (including the flat model config at `adapters/opencode/models.json`, the
+  model-configuration fragment at `adapters/plugin/model-configuration.md`,
+  and the `session-stats.mjs` helper), 6
   capability-neutral task contracts, 7 OpenCode adapter profiles, 3 OpenCode
   command templates, the absence of the retired layout, and sanitation.
-- `test-routing.mjs` covers the shared routing module: version 1/2
-  validation, preference merging, resolution, normalization, the `resolve`
-  CLI, and the `startup` CLI — the read-only location probe, the no-file
-  `resolved` short path (including a customized installed baseline), the
-  `interpretation-required` result, and the exit-1 errors for an unreadable
-  preference file and an unknown profile without files.
+- `test-models.mjs` covers the flat model configuration
+  (`scripts/model-config.mjs`) and its build/installer behavior: validation of
+  the flat role map, the rendering of the seven OpenCode profiles from the
+  flat config, the build state's `modelsSource`, the model-configuration
+  fragment spliced into the plugin/standalone workflow skills, the absence of
+  any routing artifact in build output, and the installer's ownership
+  semantics for generated profiles.
 - `test-session-stats.mjs` covers the work skill's session usage stats
   helper: the paginated session tree walk with the cycle guard, normalization
   of null and missing fields, totals (reasoning excluded from total), the
@@ -71,10 +71,11 @@ git diff --check
   `--live` additionally exercises the CLI against the running OpenCode server
   for the calling session, and skips cleanly when it is unavailable.
 - `test-installer.mjs` covers the OpenCode and standalone
-  installers, including old copy and link state migration and user-owned
-  routing-file preservation, in isolated temporary directories.
-- `test-build.mjs` covers the three build output roots, routing
-  serialization, argument behavior, and artifact drift.
+  installers, including old copy and link state migration and per-role model
+  selection (`--models PATH|PRESET` or `--no-model`) rendered into the
+  generated profiles, in isolated temporary directories.
+- `test-build.mjs` covers the three build output roots, per-role model
+  rendering from the flat model config, argument behavior, and artifact drift.
 - `publish-default-plugin.mjs --check` verifies the committed plugin and both
   catalogs are current.
 - `check-plugin-version.mjs` compares the final distributed plugin and both
@@ -88,11 +89,9 @@ git diff --check
 
 Installer tests use temporary directories and must not target a real OpenCode
 profile. For a manual release check, follow `docs/smoke-test.md` (OpenCode) and
-`docs/copilot-smoke-test.md` (Copilot). Workflow-interpretation evaluation
-fixtures for the routing customization boundary live in
-[`docs/routing-fixtures`](docs/routing-fixtures/README.md); standalone review
+`docs/copilot-smoke-test.md` (Copilot). Standalone review
 interpretation examples live in [docs/review-fixtures.md](docs/review-fixtures.md).
-Live model-routing and workflow checks are recorded in
+Live model-configuration and workflow checks are recorded in
 [docs/runtime-compatibility.md](docs/runtime-compatibility.md).
 
 Please describe the problem, the chosen behavior, and the verification in a
