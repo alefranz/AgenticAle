@@ -51,17 +51,23 @@ node scripts/check-plugin-version.mjs --base public/main
 git diff --check
 ```
 
-- `validate.mjs` checks the authored source of truth: 29 source-of-truth files
+- `validate.mjs` checks the authored source of truth: 30 source-of-truth files
   (including the flat model config at `adapters/opencode/models.json`, the
   model-configuration fragment at `adapters/plugin/model-configuration.md`,
-  and the `session-stats.mjs` helper), 6
-  capability-neutral task contracts, 7 OpenCode adapter profiles, 3 OpenCode
+  the adapter-owned coordinator body, and the `session-stats.mjs` helper), 6
+  capability-neutral task contracts, 9 OpenCode adapter worker profiles plus
+  the conditional coordinator entry, 3 OpenCode
   command templates, the absence of the retired layout, and sanitation.
 - `test-models.mjs` covers the flat model configuration
   (`scripts/model-config.mjs`) and its build/installer behavior: validation of
-  the flat role map, the rendering of the seven OpenCode profiles from the
-  flat config, the build state's `modelsSource`, the model-configuration
-  fragment spliced into the plugin/standalone workflow skills, the absence of
+  the flat role map (nine worker roles plus the optional coordinator session
+  key), the rendering of the OpenCode profiles from the
+  flat config (seven base workers always; `implement-easy`/`consult-hard` and
+  the coordinator only when configured), the build state's `modelsSource`,
+  the model-configuration fragment spliced into the plugin/standalone
+  workflow skills (nine child keys, no coordinator assignment, no retired
+  `deep-review` key, the combined `#variant` form and the legacy comma-effort
+  form), the absence of
   any routing artifact in build output, and the installer's ownership
   semantics for generated profiles.
 - `test-session-stats.mjs` covers the work skill's session usage stats
@@ -71,7 +77,8 @@ git diff --check
   `--live` additionally exercises the CLI against the running OpenCode server
   for the calling session, and skips cleanly when it is unavailable.
 - `test-installer.mjs` covers the OpenCode and standalone
-  installers, including old copy and link state migration and per-role model
+  installers, including old copy, link, and generated-state (schema 5-6)
+  migration and per-role model
   selection (`--models PATH|PRESET` or `--no-model`) rendered into the
   generated profiles, in isolated temporary directories.
 - `test-build.mjs` covers the three build output roots, per-role model

@@ -69,13 +69,24 @@ baked into the installed `agenticale/<role>` agent profiles at install
 time; on other surfaces the binding's native fields carry a role assignment
 only where the host supports it and the installation's preference file (its
 "Model configuration (this installation)" section, when present) provides
-one. A role whose installed profile is missing or unreadable blocks only
+one. When the installation configures a coordinator, the OpenCode command
+entry runs this workflow in the current session on the
+`agenticale/coordinator` profile from the first turn, including on a fresh
+resume; without a configured coordinator (or under `--no-model`) the caller
+session's own model coordinates. A role whose installed profile is missing
+or unreadable blocks only
 that role's dispatch, reported with the binding's refresh procedure; roles
 no round uses are irrelevant, and an unavailable role never blocks unrelated
 work. The workflow creates or modifies no configuration file; a missing
-preference file is normal. Where the installation documents a preference
-file, the selected file (or profile file) is read at most once at
-activation and stays fixed for the activation; a fresh resume starts fresh,
+preference file is normal. The only other configuration evidence the
+workflow may read is the install-ownership manifest the active runtime
+binding documents, read-only at most once at activation and solely to
+establish whether a needed optional route was configured in the current
+install inventory, including when a leftover profile file is present; it
+never resolves models from that manifest and never modifies it. Where the
+installation documents a preference file, the selected file (or profile
+file) is read at most once at activation and stays fixed for the activation;
+a fresh resume starts fresh,
 and the prior handoff's model choices are diagnostic history that never
 override the current installation — report a material change to a role's
 installed model selection. The preference file's `## Work` worker-round
@@ -102,18 +113,32 @@ fresh context and a bounded task:
 | --- | --- | --- |
 | One-question source discovery | [explore](../work/references/tasks/explore.md) | Focused evidence gathering; source acquisition is allowed, project code changes are not. |
 | Normal implementation slice | [implement](../work/references/tasks/implement.md) | Small, verifiable coding task. |
+| Explicitly prescribed, bounded, mechanically verifiable docs correction or reference-checked rename (only when configured) | [implement](../work/references/tasks/implement.md) on the `implement-easy` role | Defined mechanical work with a deterministic acceptance check. |
 | Hard implementation slice | [implement](../work/references/tasks/implement.md) on the `implement-hard` role | Reasoning-heavy work that benefits from an explicitly bounded specialist context. |
 | Review-findings fix pass | [fix](../work/references/tasks/fix.md) | Narrow, evidence-led changes. |
 | Hard review-findings fix pass | [fix](../work/references/tasks/fix.md) contract on the `implement-hard` role | Findings needing concurrency, durability, state-machine, or ownership reasoning. |
 | Per-slice independent review | [review](../work/references/tasks/review.md) | Adversarial verification in a context independent from the worker. |
-| Periodic integration audit / escalated slice review | [deep-review](../work/references/tasks/deep-review.md) | Cross-slice review in a fresh context. |
-| Stuck decision second opinion | [consult](../work/references/tasks/consult.md) | One read-only recommendation on a decision the loop cannot settle. |
+| Periodic integration audit / escalated slice review | [review-deep](../work/references/tasks/review-deep.md) | Cross-slice review in a fresh context. |
+| Second opinion on one bounded focused decision | [consult](../work/references/tasks/consult.md) | One read-only recommendation on a decision the loop cannot settle, or a clear, direct, complex choice that warrants independent framing. |
+| A focused decision with conflicting evidence, interacting constraints, or costly reversal (only when configured) | [consult](../work/references/tasks/consult.md) on the `consult-hard` role | The same read-only consult contract and the same consultation allowance, on the stronger route. |
 
-Implementation slices default to the implement contract. Dispatch a slice on
-the `implement-hard` role only when it is genuinely reasoning-heavy: concurrency/async/cancellation/timing behaviour, the
-cross-repository contract surface, subtle shared-state behaviour, or
-security-relevant code paths. Mechanical renames, dependency swaps, packaging,
-and docs never qualify.
+Select routes by the shared
+[routing policy](../work/references/rounds.md#routing-policy), which binds
+this workflow exactly as it binds reviewed task work. Implementation slices
+default to the implement contract. Dispatch `implement-easy` only when the
+installation configures it AND the slice is explicitly prescribed, bounded,
+and mechanically verifiable; an unconfigured easy route falls back to
+`implement` with its existing assignment. Dispatch a slice on the
+`implement-hard` role directly — no consultation first — when its
+correctness risk is visible: concurrency/async/cancellation/timing
+behaviour, the cross-repository contract surface, subtle shared-state
+behaviour, security-relevant code paths, compatibility surfaces, or
+interacting contracts. Risk is assessed per slice: mechanical renames,
+dependency swaps, packaging, and docs are not exempt when their actual risk
+is visible, and none qualifies merely by label. Reassess a routine slice
+that exposes such risk mid-flight, and reassess the next slice's route at
+every slice boundary and fresh resume — earlier dispatch records are
+diagnostic history, not a route lock.
 A hard fix keeps the fix task role and the fix counters: dispatch it on the
 `implement-hard` role, carrying the bounded fix contract explicitly in the
 packet, or an equivalently scoped implement contract where the installed
@@ -122,7 +147,7 @@ choices; record both in the round's dispatch record, with the reason for the
 hard dispatch. Never silently substitute a stronger or weaker role, and
 surface a requested role the binding cannot honour.
 Independent review is required even when every role runs the same model.
-Hard slices are prime candidates for the deep-review escalation below.
+Hard slices are prime candidates for the deep review escalation below.
 
 ## Non-interactive child sessions
 
@@ -291,7 +316,7 @@ each slice or inconclusive attempt before dispatching the next assignment;
 record rejected experiments and reconcile their changes before the next slice.
 This adds no state files and does not reset budgets, review counts, or stop
 conditions. Strict mode gates each changed slice; standard mode retains its
-normal verification policy. The periodic and opportunistic deep-review gates
+normal verification policy. The periodic and opportunistic deep review gates
 below still govern escalation; decomposition adds no per-step deep review.
 Apply [the shared contract's checkpoint](../work/references/rounds.md#checkpoints-decision-summary-and-stop-reports)
 after every substantive worker or reviewer result. Use its progress narration
@@ -306,8 +331,10 @@ For each current slice or discovery assignment:
    template. Invoke one foreground child subagent carrying the matching task
    contract: the explore contract for a focused discovery question, the
    implement contract for an implementation slice, the implement contract on
-   the `implement-hard` role for a hard implementation slice (see the
-   dispatch rules above), and the fix contract for a review-directed fix.
+   the `implement-easy` role for a configured, explicitly mechanical slice,
+   the implement contract on the `implement-hard` role for a hard
+   implementation slice (see the dispatch rules above), and the fix contract
+   for a review-directed fix.
    Check the report against a quick verification (`git -C <repo> status` and,
    when applicable, `git -C <repo> log -1`). If the
    host result proves provider quota exhaustion, handle it under
@@ -327,7 +354,7 @@ For each current slice or discovery assignment:
    independently and reports findings. See "Review gate" below.
 4. **Gate.** In strict mode the task is only complete when a review round
    returns no blocking findings. Otherwise send a fix round (see below) and
-   re-review. After a clean gate, check the opportunistic deep-review escalation
+   re-review. After a clean gate, check the opportunistic deep review escalation
    triggers below before moving to the next task.
 5. **Record the ledger line(s)** (one per round) and move to the next task.
 
@@ -430,10 +457,10 @@ When host/provider evidence identifies quota exhaustion, use the quota recovery
 path above instead of recording an ordinary interruption. Quota-only waits and
 launch rejections do not trigger this section's repeated-interruption limit.
 
-## Periodic deep-review gate
+## Periodic deep review gate
 
 A clean per-slice review proves a slice; it does not reliably expose mistakes
-at the seams between slices. Run one foreground round with the deep-review
+at the seams between slices. Run one foreground round with the review-deep
 contract after the first applicable trigger below, but only after the current
 slice has passed its normal gate:
 
@@ -449,9 +476,9 @@ Do not run it for a one-slice investigation, a docs-only session, or merely
 because a normal reviewer emitted a non-blocking nit. It is an integration
 gate, not a full repository audit and not a replacement for the strict
 per-slice reviewer. Deep-review rounds do not consume the worker-round budget,
-but are recorded in the ledger as `R<N>: deep-review clean|findings — ...`.
+but are recorded in the ledger as `R<N>: review-deep clean|findings — ...`.
 
-Give the audit the exact commit or diff range since the preceding deep-review
+Give the audit the exact commit or diff range since the preceding deep review
 (or session start), the accepted-slice summaries, affected repositories, and
 the cross-slice acceptance commands. It must independently run the relevant
 integrated verification and inspect the whole supplied range. It appends an
@@ -459,16 +486,16 @@ audit verdict to the active handoff and follows the active persistence policy.
 Blocking findings each receive a dedicated fix round; judgmental
 findings are followed by a fresh deep review scoped to the fix delta and the
 invariants it touched, while mechanical-only rounds close by local
-verification (see the Review gate's finding-class rules). Cap deep-review
+verification (see the Review gate's finding-class rules). Cap deep review
 re-audits at two per audit target per session; on a further blocking
 verdict, stop and ask the user. Promote every non-blocking nit to a
 `BACKLOG.md` checkbox before closing the audit.
 
-## Opportunistic deep-review escalation
+## Opportunistic deep review escalation
 
 The per-slice reviewer is independent in context even when it runs the same
 model as the worker. After a slice passes its normal review gate, and
-before archiving it, run one foreground round with the deep-review contract
+before archiving it, run one foreground round with the review-deep contract
 over that slice's commit or diff range when any of these is true:
 
 - the slice touched a high-risk surface per the dispatch rules above —
@@ -480,15 +507,15 @@ over that slice's commit or diff range when any of these is true:
   spot; or
 - the user explicitly asks for a deep review on this slice.
 
-Use the deep-review prompt template with a single-slice audit range.
+Use the deep review prompt template with a single-slice audit range.
 Blocking findings each receive a dedicated fix round; judgmental
 findings are followed by a fresh escalated review scoped to the fix delta,
 while mechanical-only rounds close by local verification (see the Review
-gate's finding-class rules). Cap deep-review re-audits at two per target per
+gate's finding-class rules). Cap deep review re-audits at two per target per
 session, on top of the one escalation; on a further blocking verdict, stop
 and ask the user. Escalation rounds do not consume the worker-round budget
 and are recorded in the ledger as
-`R<N>: deep-review clean|findings — escalated slice`.
+`R<N>: review-deep clean|findings — escalated slice`.
 
 Budget guard: run at most one opportunistic escalation per session. If a
 further trigger fires, record it in the active handoff as a deferred-escalation
@@ -498,13 +525,24 @@ at two per session, separately from the escalation and re-audits.
 
 ## Decision consultation (independent second opinion)
 
-This skill runs unattended, so the escape hatch for a stuck decision is not
-a question to the user: it is one foreground round with the consult contract —
-an independent second opinion. When a stop condition below would end in "ask
-the user a question" about a reversible judgement decision (a blocked task,
-a third review pass with surviving findings, a standard-setting question,
-or any decision the handoff cannot settle), the main loop may run one
-consult round instead of asking.
+This skill runs unattended, so the escape hatch for a decision the loop
+cannot settle is not a question to the user: it is one foreground round with
+the consult contract — an independent second opinion. When a stop condition
+below would end in "ask the user a question" about a reversible judgement
+decision (a blocked task, a third review pass with surviving findings, a
+standard-setting question, or any decision the handoff cannot settle), the
+main loop may run one consult round instead of asking. A consult is also
+warranted before the loop commits to a clear, direct, complex choice — a
+bounded focused decision whose framing benefits from independent review —
+not only when the loop is stuck.
+
+Where the installation configures the `consult-hard` route, dispatch the
+consult on it directly when the decision's character is apparent: conflicting
+evidence, interacting constraints, or a costly reversal. It is read-only,
+carries the same consult contract, and consumes the same consultation
+allowance as an ordinary consult; when the route is not configured, the
+decision runs on `consult`. A requested stronger advice the host cannot
+honour is surfaced as a limitation, never silently substituted.
 
 Give the consult exactly one decision: the question, the candidate options
 with what each does to scope, budget, and risk, what was already tried and
@@ -599,7 +637,7 @@ resets counters or weakens scope.
 **Autonomy envelope.** The coordinator continues the fix → verify →
 re-review loop without asking the user while all of these hold: the work
 stays docs/config-only or is reversible under the active persistence policy;
-the session's deep-review work stays within one opportunistic escalation plus
+the session's deep review work stays within one opportunistic escalation plus
 two re-audits plus two consults; the worker budget and the shared gate's
 two fix cycles (three review passes) per target remain available; and no
 irreversible action is required. The shared caps and worker budget gate
@@ -718,7 +756,7 @@ NITS: one line each (or "none")
 EVIDENCE: the commands YOU ran with results
 ```
 
-## Deep-review prompt template
+## Deep review prompt template
 
 ```
 You are the independent integration auditor for accepted autonomous-mode
@@ -791,7 +829,7 @@ Stop the loop and report to the user when any of these hit:
   consult authorizes no further fix cycle or review pass — the user alone
   grants those as named increments. Report the exhaustion with the
   continuation prompt so a resume can act on the grant.
-- **Autonomy-envelope guard breach** — deep-review work beyond one
+- **Autonomy-envelope guard breach** — deep review work beyond one
   escalation plus two re-audits, a target that has reached the shared gate's
   two fix cycles (three review passes) without a clean result, or work
   leaving docs/config-only/reversible scope — stop and ask.
@@ -854,6 +892,9 @@ the main loop may make itself even though it normally does not edit files.
   to avoid a reset — a fresh, compact handoff is the intended recovery path.
 - Dispatching a routine slice on the `implement-hard` role "to be safe" —
   the role is for reasoning-heavy work only; wall-clock is the cost.
+- Dispatching a judgment slice on the `implement-easy` role because it looks
+  small — the easy route is only for explicitly prescribed, mechanically
+  verifiable work, and only where the installation configures it.
 - Running the deep reviewer on routine slices "to be safe" — escalation is
   trigger-based and capped per session.
 - Re-running the full review after a mechanical fix — a deterministic edit
@@ -882,12 +923,33 @@ customization); the workflow never creates or modifies preference files.
 
 Format: a Markdown list of direct role assignments, one per line:
 
-- `- <role>: <model>` or `- <role>: <model>, <effort>`
-- `<role>` is one of: explore, implement, implement-hard, fix, review,
-  deep-review, consult.
-- Roles not listed use the host default.
-- Nothing else is interpreted: no tiers, no fallbacks, no runtime sections,
-  no profile sections, no merging of files.
+- `- <role>: <provider/model[#variant]>` — one combined value, for example
+  `openai/gpt-6.1-sol#high`. The optional `#variant` suffix carries the
+  reasoning variant (`low`, `medium`, `high`, `xhigh`, `max`); where the
+  host exposes separate model and effort fields, the variant is passed as
+  the effort selection.
+- The earlier forms stay accepted: `- <role>: <model>` (no effort) and
+  `- <role>: <model>, <effort>` (for example
+  `- review: openai/gpt-6.1-sol, xhigh`). The comma form means the same
+  assignment as the combined `#variant` form, so existing preference files
+  keep working unchanged; use one form or the other on a line.
+- `<role>` is one of the nine child worker keys: explore, implement,
+  implement-easy, implement-hard, fix, review, review-deep, consult,
+  consult-hard. There is no coordinator key: the host owns the session
+  model, and this file never changes it. Where a Sol-class model is
+  available on your account, a medium variant (for example
+  `openai/gpt-6.1-sol#medium`) is a reasonable session default to select in
+  the host itself.
+- Roles not listed use the host default (the session model).
+- `implement-easy` and `consult-hard` are optional routes. When they are not
+  listed, the shared routing policy dispatches the base route (`implement`
+  or `consult`) with its existing assignment — a defined fallback, not an
+  error. When one IS listed but the host cannot honor the requested
+  selection, the workflow surfaces the limitation; it never silently
+  substitutes a weaker route.
+- Nothing else is interpreted: no tiers, no fallbacks beyond the optional
+  routes above, no runtime sections, no profile sections, no merging of
+  files.
 
 A leading `--profile NAME` option (or an unambiguous natural-language
 equivalent) selects the file `preferences.NAME.md` instead, again project
@@ -902,16 +964,19 @@ Application: where the active runtime binding exposes per-spawn model/effort
 fields, the role's assignment is passed at dispatch; where the host cannot
 select a model per child, the assignment has no effect (say so when the
 user asks for it). A profile never changes the session model, runtime,
-credentials, or endpoints.
+credentials, or endpoints. The effective selection is established only from
+native host evidence (runtime metadata or local traces), never from a
+child's self-reported model name; keep an unknown effective setting unknown.
 
 The same file may also carry the top-level `## Work` section documented in
 the skill body (worker-round allowance); it is the only other supported
 section.
 
-Example `preferences.md`:
+Example `preferences.md` (both value forms are accepted):
 
-    - review: openai/gpt-6.1-sol, xhigh
-    - deep-review: openai/gpt-6.1-sol, xhigh
+    - review: openai/gpt-6.1-sol#xhigh
+    - review-deep: openai/gpt-6.1-sol, xhigh
+    - consult-hard: openai/gpt-6.1-sol#xhigh
 
     ## Work
     - worker rounds: 12

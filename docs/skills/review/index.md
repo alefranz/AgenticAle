@@ -26,7 +26,7 @@ Leading options — `--deep` and the `--` delimiter — may appear in any order,
 with everything after the options as the review context: a focus,
 acceptance criteria, or a named local base. A base is always named in that
 remaining text; there is no separate base flag. Add `--deep` for the
-expensive integration-level audit (the deep-review contract) instead of the
+expensive integration-level audit (the review-deep contract) instead of the
 ordinary review.
 
 | Request form | Review behavior |
@@ -34,10 +34,10 @@ ordinary review.
 | `/review` | The local default base, no extra criteria, ordinary review of the net changes to the working-tree result. |
 | `/review <base or criteria>` | Names a local base or supplies focus or criteria; ordinary review. |
 | `/review only my uncommitted changes` | Reviews the local changes relative to `HEAD` instead of the merge-base comparison. |
-| `/review --deep ...` | The same recorded comparison reviewed by the deep-review contract. |
+| `/review --deep ...` | The same recorded comparison reviewed by the review-deep contract. |
 
 The workflow never selects a model: on OpenCode the reviewer's model comes
-from the generated `agenticale/review` or `agenticale/deep-review` profile,
+from the generated `agenticale/review` or `agenticale/review-deep` profile,
 and on other hosts the role's model can come from the installation's
 preference file (a leading `--profile NAME` selects `preferences.NAME.md`
 instead). See [model configuration](#model-configuration).
@@ -66,7 +66,7 @@ reviewer is dispatched.
 
 ## Model configuration
 
-The review round runs the review role; `--deep` runs the deep-review role.
+The review round runs the review role; `--deep` runs the review-deep role.
 Each role's model comes from the installation — the generated agent profiles
 on OpenCode, or the preference file on per-spawn hosts. See
 [model configuration](../../guides/model-routing.md).
@@ -99,7 +99,7 @@ This guide explains the user-facing workflow. The authoritative
 instructions are the [review skill source](https://github.com/alefranz/AgenticAle/blob/main/skills/review/SKILL.md),
 the [shared round contract](https://github.com/alefranz/AgenticAle/blob/main/skills/work/references/rounds.md),
 the [review task contract](https://github.com/alefranz/AgenticAle/blob/main/skills/work/references/tasks/review.md),
-and the [deep-review task contract](https://github.com/alefranz/AgenticAle/blob/main/skills/work/references/tasks/deep-review.md).
+and the [review-deep task contract](https://github.com/alefranz/AgenticAle/blob/main/skills/work/references/tasks/review-deep.md).
 Installation remains in the [setup guide](../../setup.md);
 architecture and runtime support remain in the canonical
 [architecture](../../architecture.md)

@@ -12,6 +12,10 @@ one verifiable slice at a time, gives each fresh child a focused context, enforc
 budgets and review gates, and saves the evidence and next action in the
 repository. There is no separate orchestration service calling model APIs or
 shuffling messages between agents, and no `AgenticAle Autonomous` agent to pick.
+On OpenCode, when the installation configures a coordinator model, the
+`/autonomous` command entry — including a fresh resume — runs in the current
+session on the generated `agenticale/coordinator` profile from the first turn;
+without one, the invoking session coordinates on its own model.
 
 ```mermaid
 flowchart LR
@@ -210,27 +214,27 @@ for an example and an instruction you can give a planning agent.
 
 ## Model routing across sessions
 
-`autonomous` runs the same routing bootstrap as `work` (the routing contract
-in the installed `work` skill): the shared short routing startup discovers
-the personal and repository preference files and resolves the snapshot for
-the active runtime — one mechanical helper call when no preference files
-exist and the activation carries no invocation-level preferences — and the
-compact routing summary is recorded in the handoff state
-rather than narrated before dispatching any child, surfacing only
-consequential routing information.
+`autonomous` uses the same model configuration and shared routing policy as
+`work`. On OpenCode the models are fixed in the generated agent profiles at
+install time; on the other hosts the workflow reads the one optional
+preference file (project first, then personal) at most once per activation.
+There is no tier system and no routing bootstrap: the workflow never selects
+a model itself, and an unconfigured optional route (`implement-easy`,
+`consult-hard`) falls back to its base route with its existing assignment.
 
-- The run records a compact routing summary in the existing handoff/report
-  structure: each tier's model and effort with its source, plus any role
-  exceptions, persisted as an `ESTABLISHED` fact in the active handoff, carried
-  into the final report and the session-close archive. Each round's record
-  keeps the role, the selected tier or direct choice, the requested
-  model/effort, the selection's provenance, any fallback actually attempted,
-  and the effective settings or the reason they are unknown.
-- A fresh resume re-reads the current preference files and compares the
-  resolution against the recorded summary, reporting material changes before
-  continuing. The prior handoff's routing record is diagnostic history, not a
-  layer that overrides current preferences.
-- The bootstrap is read-only: it never creates or modifies a routing file. See
+- Each round's dispatch record stays in the existing handoff and round
+  ledger: the task role, the dispatched role (including a hard fix on
+  `implement-hard`), the task contract it ran, and — only where the active
+  binding exposes it — the role's model selection. A child's self-reported
+  model name never establishes what it ran on; an unknown selection stays
+  unknown.
+- A fresh resume re-reads the current installation and reassesses the next
+  slice's route against it, reporting material changes before continuing.
+  The prior handoff's dispatch records are diagnostic history, not a route
+  lock and not a layer that overrides the current configuration.
+- Routing creates no new state and no configuration file: the records live
+  in the existing handoff/ledger, and the workflow never creates or modifies
+  a preference file. See
   [setup and customization](setup.md#customizing-model-routing) for the
   customization path.
 

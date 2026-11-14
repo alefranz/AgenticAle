@@ -1,9 +1,12 @@
 {
+  "coordinator": "openai/gpt-6.1-sol#medium",
   "explore": "local-llama/qwen3.8-27b#medium",
-  "implement": "local-llama/qwen3.8-27b#medium",
-  "implement-hard": "local-llama/qwen3.8-27b#xhigh",
-  "fix": "local-llama/qwen3.8-27b#medium",
+  "implement-easy": "local-llama/qwen3.8-27b#medium",
+  "implement": "alibaba-token-plan/qwen4-max-preview#medium",
+  "implement-hard": "alibaba-token-plan/qwen4-max-preview#xhigh",
+  "fix": "alibaba-token-plan/qwen4-max-preview#medium",
   "review": "openai/gpt-6.1-sol#high",
-  "deep-review": "openai/gpt-6.1-sol#xhigh",
-  "consult": "openai/gpt-6.1-sol#xhigh"
+  "review-deep": "openai/gpt-6-astra#high",
+  "consult-hard": "openai/gpt-6-astra#high",
+  "consult": "openai/gpt-6.1-sol#high"
 }

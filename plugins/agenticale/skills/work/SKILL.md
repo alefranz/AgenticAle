@@ -70,8 +70,8 @@ before any implementation round:
   normal implementation and review flow.
 
 `--consult` consumes the single consultation allowance per task; an activation
-run with it cannot also dispatch a later stuck-decision consult unless you grant
-a further allowance. The coordinator still owns the final task definition, and
+run with it cannot also dispatch a later focused-decision consult unless you
+grant a further allowance. The coordinator still owns the final task definition, and
 the user retains control over scope and preferences — the consultation
 recommends, it never invents a user preference or vetoes the user's choice.
 Without `--consult`, consultation stays optional as it is today.
@@ -184,17 +184,17 @@ invocation keeps the existing exact-target identity and failure rules.
 An unambiguous natural-language request to begin with a deep review of the
 existing branch changes — for example, "First perform a deep review of the
 current branch changes" — selects the
-[deep-review](references/tasks/deep-review.md) contract for the first review
+[review-deep](references/tasks/review-deep.md) contract for the first review
 round, which runs before any implementation round. It is explicit-only, like
 the other entry rules here: a deep review is never started on the
 coordinator's own initiative, and merely mentioning one while discussing the
-task does not select it. There is no deep-review flag; the request is named
+task does not select it. There is no deep review flag; the request is named
 in the task text.
 
 The round reuses the same comparison and scope semantics as a standalone
 `/review --deep`: the merge base of the current branch and the resolved base
 to the current working-tree result, including relevant untracked files,
-recorded before dispatch. The reviewer runs on the `deep-review` role, like
+recorded before dispatch. The reviewer runs on the `review-deep` role, like
 any other round.
 
 The review enters the normal Work loop: applicable blocking findings go
@@ -234,13 +234,24 @@ the work into open-ended refactoring or opportunistic cleanup.
 | --- | --- |
 | Focused project or external-source discovery | [explore](references/tasks/explore.md) |
 | Routine implementation | [implement](references/tasks/implement.md) |
+| Explicitly prescribed, bounded, mechanically verifiable docs correction or reference-checked rename (only when configured) | [implement](references/tasks/implement.md) on the `implement-easy` role |
 | Concurrency, subtle state, security, or difficult contract reasoning | [implement](references/tasks/implement.md) on the `implement-hard` role |
 | Fix specific review findings | [fix](references/tasks/fix.md) |
 | Review findings requiring concurrency, durability, state-machine, or ownership reasoning | [fix](references/tasks/fix.md) contract on the `implement-hard` role |
 | Independent review of changes | [review](references/tasks/review.md) |
-| Integration review across substantial interacting slices | [deep-review](references/tasks/deep-review.md) |
-| Explicit request to begin with a deep review of existing branch changes | [deep-review](references/tasks/deep-review.md) |
-| Independent task-framing recommendation (`--consult`) or a second opinion on one stuck decision | [consult](references/tasks/consult.md) |
+| Integration review across substantial interacting slices | [review-deep](references/tasks/review-deep.md) |
+| Explicit request to begin with a deep review of existing branch changes | [review-deep](references/tasks/review-deep.md) |
+| Independent task-framing recommendation (`--consult`) or a second opinion on one bounded focused decision | [consult](references/tasks/consult.md) |
+| A focused decision with conflicting evidence, interacting constraints, or costly reversal (only when configured) | [consult](references/tasks/consult.md) on the `consult-hard` role |
+
+Select routes by the shared
+[routing policy](references/rounds.md#routing-policy): `implement` is the
+default; `implement-easy` and `consult-hard` are opt-in routes that exist
+only where the installation configures them, and an unconfigured optional
+route falls back to its base route. Dispatch `implement-hard` directly when
+the slice's correctness risk is visible — risk is assessed per slice, and a
+consult is not a prerequisite. A `consult-hard` round consumes the same
+single consultation allowance as `consult`.
 
 A hard fix keeps the fix task role and the fix counters: dispatch it on the
 `implement-hard` role, carrying the bounded fix contract explicitly in the
@@ -260,13 +271,22 @@ installed `agenticale/<role>` agent profiles at install time; on other
 surfaces the binding's native fields carry a role assignment only where the
 host supports it and the installation's preference file — its "Model
 configuration (this installation)" section, when present — provides one.
+When the installation configures a coordinator, the OpenCode command entries
+run this workflow in the current session on the `agenticale/coordinator`
+profile from the first turn; without a configured coordinator (or under
+`--no-model`) the caller session's own model coordinates.
 A role whose installed profile is missing or unreadable blocks only that
 role's dispatch: report it with the binding's refresh procedure. Roles no
 round uses are irrelevant. The workflow creates or modifies no configuration
-file; a missing preference file is normal. Where the installation documents
-a preference file, the selected file (or profile file) is read at most once
-at activation and stays fixed for the activation; a new invocation starts
-fresh.
+file; a missing preference file is normal. The only other configuration
+evidence the workflow may read is the install-ownership manifest the active
+runtime binding documents, read-only at most once at activation and solely
+to establish whether a needed optional route was configured in the current
+install inventory, including when a leftover profile file is present; it
+never resolves models from that manifest and never modifies it. Where the
+installation documents a preference file, the selected file (or profile
+file) is read at most once at activation and stays fixed for the activation;
+a new invocation starts fresh.
 
 A role with no installed profile (or no binding support) must not silently
 inherit the session model in place of a role the installation names. An
@@ -279,7 +299,7 @@ Default to routine implementation. Exploration, consultation, and deep review
 are conditional, not mandatory stages; `--consult` is the explicit opt-in that
 makes an initial task-framing consultation mandatory before implementation,
 and an explicit request to begin with a deep review of existing branch
-changes makes the initial deep-review round mandatory instead.
+changes makes the initial deep review round mandatory instead.
 Keep the coordinator's context small by passing relevant facts and paths
 rather than full transcripts. Run rounds
 sequentially; never have a worker approve its own change.
@@ -511,12 +531,33 @@ customization); the workflow never creates or modifies preference files.
 
 Format: a Markdown list of direct role assignments, one per line:
 
-- `- <role>: <model>` or `- <role>: <model>, <effort>`
-- `<role>` is one of: explore, implement, implement-hard, fix, review,
-  deep-review, consult.
-- Roles not listed use the host default.
-- Nothing else is interpreted: no tiers, no fallbacks, no runtime sections,
-  no profile sections, no merging of files.
+- `- <role>: <provider/model[#variant]>` — one combined value, for example
+  `openai/gpt-6.1-sol#high`. The optional `#variant` suffix carries the
+  reasoning variant (`low`, `medium`, `high`, `xhigh`, `max`); where the
+  host exposes separate model and effort fields, the variant is passed as
+  the effort selection.
+- The earlier forms stay accepted: `- <role>: <model>` (no effort) and
+  `- <role>: <model>, <effort>` (for example
+  `- review: openai/gpt-6.1-sol, xhigh`). The comma form means the same
+  assignment as the combined `#variant` form, so existing preference files
+  keep working unchanged; use one form or the other on a line.
+- `<role>` is one of the nine child worker keys: explore, implement,
+  implement-easy, implement-hard, fix, review, review-deep, consult,
+  consult-hard. There is no coordinator key: the host owns the session
+  model, and this file never changes it. Where a Sol-class model is
+  available on your account, a medium variant (for example
+  `openai/gpt-6.1-sol#medium`) is a reasonable session default to select in
+  the host itself.
+- Roles not listed use the host default (the session model).
+- `implement-easy` and `consult-hard` are optional routes. When they are not
+  listed, the shared routing policy dispatches the base route (`implement`
+  or `consult`) with its existing assignment — a defined fallback, not an
+  error. When one IS listed but the host cannot honor the requested
+  selection, the workflow surfaces the limitation; it never silently
+  substitutes a weaker route.
+- Nothing else is interpreted: no tiers, no fallbacks beyond the optional
+  routes above, no runtime sections, no profile sections, no merging of
+  files.
 
 A leading `--profile NAME` option (or an unambiguous natural-language
 equivalent) selects the file `preferences.NAME.md` instead, again project
@@ -531,16 +572,19 @@ Application: where the active runtime binding exposes per-spawn model/effort
 fields, the role's assignment is passed at dispatch; where the host cannot
 select a model per child, the assignment has no effect (say so when the
 user asks for it). A profile never changes the session model, runtime,
-credentials, or endpoints.
+credentials, or endpoints. The effective selection is established only from
+native host evidence (runtime metadata or local traces), never from a
+child's self-reported model name; keep an unknown effective setting unknown.
 
 The same file may also carry the top-level `## Work` section documented in
 the skill body (worker-round allowance); it is the only other supported
 section.
 
-Example `preferences.md`:
+Example `preferences.md` (both value forms are accepted):
 
-    - review: openai/gpt-6.1-sol, xhigh
-    - deep-review: openai/gpt-6.1-sol, xhigh
+    - review: openai/gpt-6.1-sol#xhigh
+    - review-deep: openai/gpt-6.1-sol, xhigh
+    - consult-hard: openai/gpt-6.1-sol#xhigh
 
     ## Work
     - worker rounds: 12

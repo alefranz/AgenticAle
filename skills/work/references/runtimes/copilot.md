@@ -40,6 +40,13 @@ skills. If that section is absent from the loaded skill, there is no preference
 file and no model selection. When no assignment exists for a role, spawn
 without a model field (the session default).
 
+The preference file's nine worker keys include the two optional routes,
+`implement-easy` and `consult-hard`. When neither is assigned, the shared
+routing policy dispatches the base route (`implement` or `consult`) with its
+existing assignment — a defined fallback, not an error. When an optional
+route IS assigned but the host cannot honor the requested selection, surface
+the limitation rather than silently substituting a weaker one.
+
 ## Requested versus effective settings
 
 The per-call fields carry the requested selection; because this surface

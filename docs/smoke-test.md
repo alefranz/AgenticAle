@@ -1,14 +1,18 @@
 # OpenCode V2 smoke test
 
 Use this checklist before a release. It maps to the skills-first layout: the
-generated OpenCode binding is seven profiles plus the five skills, and the three
-public workflows are invoked explicitly. Every write goes to a newly created
-temporary directory; do not substitute a real OpenCode profile path.
+generated OpenCode binding is the seven base worker profiles (plus the
+optional `implement-easy`/`consult-hard` workers and the optional primary
+`coordinator` profile when the model config lists them), the five skills, and
+the three command entries; the three public workflows are invoked explicitly.
+Every write goes to a newly created temporary directory; do not substitute a
+real OpenCode profile path.
 
 Discovery and model checks below make no model request. Live workflow behavior
-is **not tested** in this pass; record results per capability in
-[runtime-compatibility.md](runtime-compatibility.md) and do not report them here
-as verified.
+is recorded per capability in
+[runtime-compatibility.md](runtime-compatibility.md) — one narrow OpenCode
+`/work` routing pass is recorded there; do not report discovery results here
+as live verification.
 
 ## Prerequisites
 
@@ -96,11 +100,14 @@ rm -rf "$smoke_root"
   reading or replacing another profile;
 - `opencode debug paths` reports config, data, cache, and state paths beneath
   the generated smoke-test root;
-- `opencode debug agents` lists the seven generated `agenticale/*` profiles
-  (`explore`, `implement`, `implement-hard`, `fix`, `review`, `deep-review`,
-  `consult`) as subagents with their step limits and permission denials. There
-  is no `coordinator` profile. With `--no-model`, each profile omits a
-  `model:` line and inherits the session model;
+- `opencode debug agents` lists the seven generated base `agenticale/*` worker
+  profiles (`explore`, `implement`, `implement-hard`, `fix`, `review`,
+  `review-deep`, `consult`) as subagents with their step limits and permission
+  denials. The optional `implement-easy` and `consult-hard` workers appear
+  only when the model config lists them, and the primary `coordinator`
+  profile appears only when the config assigns the top-level `coordinator`
+  key; with `--no-model` none of the three is generated. With `--no-model`,
+  each profile omits a `model:` line and inherits the session model;
 - the installed `work/SKILL.md`, `review/SKILL.md`, and `autonomous/SKILL.md`
   set `slash: true` and `metadata.opencode/autoinvoke: false`; the installed
   `commands/work.md`, `commands/review.md`, and `commands/autonomous.md` load
@@ -108,8 +115,9 @@ rm -rf "$smoke_root"
   command list exposes `/work`, `/review`, and `/autonomous`; the workflow
   skills' shared-round links resolve to the installed
   `skills/work/references/rounds.md`;
-- the install state is `.autonomous-mode-install.json` (a 32-file
-  inventory); the installed `work/references/` carries the shared
+- the install state is `.autonomous-mode-install.json` (schema 7; a 32-file
+  inventory by default, up to 35 files when the config lists both optional
+  workers and the coordinator); the installed `work/references/` carries the shared
   `rounds.md`, the runtime bindings, the task contracts, and the
   `outcome-evaluation.md` reference, and `work/scripts/` carries the
   `session-stats.mjs` helper; uninstall removes the recorded copy and its
@@ -160,12 +168,21 @@ Explore child and verify the coordinator receives a compact, cited answer.
 
 To smoke-test per-role model selection, make a copy of `examples/gpt.json` inside the
 temporary smoke root and replace each example ID with a model ID shown by
-`/models` in the isolated OpenCode profile. Before the uninstall command
+`/models` in the isolated OpenCode profile. Each config value is one
+`provider/model[#variant]` string; the rendered profile carries it as a single
+`model:` line (the variant rides on the model line — there is no separate
+effort field). Before the uninstall command
 above, run
 `node scripts/install.mjs --target <isolated-profile-path> --models <edited-json-path> --replace`,
 then inspect `opencode debug agents`: the `model` values for
 `agenticale/explore` and `agenticale/review` should match the edited
-mapping. A role omitted from the JSON object inherits the current session model.
+mapping, and the rendered profiles' `model:` lines should carry the exact
+`#variant` suffixes. A role omitted from the JSON object inherits the current
+session model; the optional `implement-easy`/`consult-hard` workers and the
+`coordinator` render only when the edited config lists them. The running
+server reloads the refreshed profiles automatically after a save (`/reload`
+forces a full reload); no app restart is needed, and the next fresh workflow
+invocation dispatches with them.
 Re-run the same install without `--replace` and confirm it reports the profile
 is up to date. The uninstall should remove unchanged rendered profiles.
 
@@ -183,10 +200,12 @@ change the models themselves, reinstall with a different `--models`
 configuration as described above, then inspect `opencode debug agents` for
 the new profile values.
 
-## Live workflow checks (not tested)
+## Live workflow checks
 
 The discovery steps above are runnable by hand. The live model and workflow
 checks in [runtime-compatibility.md](runtime-compatibility.md) are a
-separate pass. Run them when provider credentials are available and record each
+separate pass; one narrow OpenCode `/work` routing pass (2026-11-14) is
+recorded there, and the remaining capabilities are still open. Run them when
+provider credentials are available and record each
 capability as verified, limited, or not tested there. Do not mark a capability
 verified here on the basis of a discovery result.

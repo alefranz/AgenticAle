@@ -17,7 +17,10 @@ budget and the `--` delimiter — may appear in either order, with everything
 after the options as the goal text, possibly empty. An invocation with no
 goal text RESUMEs the active goal; with no budget, the default budget is
 used. The session becomes the coordinator and proceeds in sequential, bounded
-rounds.
+rounds. On OpenCode, when the installation configures a coordinator model,
+the `/autonomous` command entry — including a fresh resume — runs in the
+current session on the generated `agenticale/coordinator` profile from the
+first turn; without one, the invoking session coordinates on its own model.
 Code and configuration changes receive independent review by default, with
 focused fixes for blocking findings.
 
@@ -31,6 +34,22 @@ quota-recovery rules, and never authorizes automatic provider switching. If a
 role's installed model selection changed materially since the handoff was
 written, the resume reports it. See
 [model configuration](../../guides/model-routing.md).
+
+Autonomous selects routes by the same shared routing policy as
+[Work](../work/index.md): `implement` is the default; `implement-hard` is
+dispatched directly — no consultation first — when a slice's correctness
+risk is visible, assessed per slice with no category exemptions; a hard fix
+keeps the fix contract and the fix counters. The two optional routes exist
+only where your installation configures them: `implement-easy` for explicitly
+prescribed, bounded, mechanically verifiable work, and `consult-hard` for a
+focused decision with conflicting evidence, interacting constraints, or a
+costly reversal. Unconfigured, they fall back to `implement` and `consult`
+with their existing assignments — a defined fallback, not an error. A
+`consult-hard` round is read-only, carries the same consult contract, and
+consumes the same consultation allowance as an ordinary consult (one per
+decision, two per session). At every slice boundary and every fresh resume,
+the next slice's route is reassessed against the current installation;
+earlier dispatch records are diagnostic history, not a route lock.
 
 Concise progress narration keeps the sequence readable in the main conversation:
 what was learned, what happens next, and why. When your client collapses subagent

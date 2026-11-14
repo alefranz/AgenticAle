@@ -10,7 +10,8 @@ Antigravity.
 
 - **Independent review before work is called done.** A fresh reviewer inspects
   the result of each task, and blocking findings are fixed before delivery.
-- **Per-role model configuration.** Each of the seven roles gets its own
+- **Per-role model configuration.** Each of the nine worker roles (seven
+  base, two optional) gets its own
   model: routine, high-volume work can run on inexpensive or local models
   while stronger models are reserved for hard work and independent review.
   A role you do not configure inherits your session model.

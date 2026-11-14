@@ -46,8 +46,8 @@ then commit, push, and create or update the PR.
 Otherwise, report the clean review and stop.
 ```
 
-The explicit request runs the deep-review contract on the branch's net
-changes — the same comparison, scope, and deep-review role as
+The explicit request runs the review-deep contract on the branch's net
+changes — the same comparison, scope, and review-deep role as
 `/review --deep` — before any implementation round. Blocking findings go through the normal fix and
 re-review loop, and your delivery instructions are honored as written: the
 example's clean path reports the review and stops without committing,
@@ -73,7 +73,7 @@ chat or checkout:
 | `/work --pr <task>` | Complete, check, review, commit, and push; updates the task branch's open pull request or creates one. |
 | `/work --pr` (no task) | The same task selection as an empty `/work`, plus PR delivery for the selected existing work. |
 | `/work --pr=<PR URL> <task>` | Commits and pushes to that exact pull request's head branch. |
-| Explicit "first perform a deep review of the current branch changes" request | The deep-review contract reviews the branch's net changes before implementation; commits, push, and publication follow the task text's delivery instructions, including conditional ones — the clean path stops without publishing. |
+| Explicit "first perform a deep review of the current branch changes" request | The review-deep contract reviews the branch's net changes before implementation; commits, push, and publication follow the task text's delivery instructions, including conditional ones — the clean path stops without publishing. |
 
 An empty `/work` adopts coherent existing changes — committed or uncommitted,
 including a clean feature branch with existing commits — or asks what to work
@@ -96,8 +96,10 @@ file). See [model configuration](../../guides/model-routing.md).
 
 The examples use conceptual slash syntax; select the installed skill or use the
 client-specific invocation described in [setup](../../setup.md). Work starts
-only when explicitly invoked. The invoking session coordinates the task; there
-is no separate coordinator agent to choose.
+only when explicitly invoked. The invoking session coordinates the task; on
+OpenCode an optionally configured coordinator runs it in the current session
+on the `agenticale/coordinator` profile from the first turn, and without one
+there is no separate coordinator agent to choose.
 
 ## When to use it
 
@@ -117,9 +119,9 @@ implementation.
 
 Work never selects a model at activation. Each role gets its model from the
 installation: on OpenCode the generated `agenticale/<role>` agent profiles
-carry the model and effort from install time, and on other hosts (plugin or
-standalone installs) the skill's "Model configuration (this installation)"
-section documents the one optional preference file —
+carry the model (with its reasoning variant) from install time, and on other
+hosts (plugin or standalone installs) the skill's "Model configuration (this
+installation)" section documents the one optional preference file —
 `<project-root>/.agenticale/preferences.md`, else
 `~/.agenticale/preferences.md`; `--profile NAME` selects
 `preferences.NAME.md` instead. A missing preference file is normal. See
@@ -156,7 +158,7 @@ flowchart TD
     SliceAccepted --> MoreSlices{More slices useful?}
     MoreSlices -->|Yes| Implement
     MoreSlices -->|No| DeepReviewNeeded{Substantial interactions or high risk?}
-    DeepReviewNeeded -->|Yes| DeepReview[Deep review of combined work · deep-review role]
+    DeepReviewNeeded -->|Yes| DeepReview[Deep review of combined work · review-deep role]
     DeepReviewNeeded -->|No| Checks[Acceptance checks and report]
     DeepReview --> Checks
 ```
@@ -167,6 +169,19 @@ durability, state-machine, or ownership reasoning keeps the fix role and its
 fix counters, but is dispatched on the `implement-hard` role. The task role
 and the dispatched role are separate choices, and a requested role the
 binding cannot honour is reported rather than silently substituted.
+
+Work and Autonomous share one routing policy. `implement` is the default for
+a scoped, verifiable slice. Two opt-in routes exist only where your
+installation configures them: `implement-easy` for explicitly prescribed,
+bounded, mechanically verifiable work (a docs correction with a deterministic
+check, a reference-checked rename), and `consult-hard` for a focused decision
+with conflicting evidence, interacting constraints, or a costly reversal.
+Unconfigured, they fall back to `implement` and `consult` with their existing
+assignments. `implement-hard` is dispatched directly — no consultation first
+— when a slice's correctness risk is visible; risk is assessed per slice, so
+a docs or packaging change with real compatibility risk can be hard, while a
+label alone never qualifies. A `consult-hard` round consumes the same single
+consultation allowance as an ordinary consult.
 
 Every review uses the same findings gate:
 
@@ -358,9 +373,17 @@ genuinely need your input, and then continues the normal implementation and
 review flow — there is no separate approval checkpoint. `--consult` is opt-in:
 without it, consultation stays optional. It consumes the single consultation
 allowance per task, so it combines with `--pr` but cannot also trigger a
-later stuck-decision consult in the same run. You keep control over
+later focused-decision consult in the same run. You keep control over
 scope and preferences: the coordinator still owns the final task definition, and
 the consultation recommends rather than deciding for you.
+
+A consult is not only for stuck loops: one bounded focused decision — a
+clear, direct, complex choice — can warrant an independent second opinion
+before Work commits to it. Where your installation configures the optional
+`consult-hard` route, a decision with conflicting evidence, interacting
+constraints, or a costly reversal uses it directly; it is read-only, carries
+the same consult contract, and consumes the same single consultation
+allowance. Unconfigured, the decision runs on `consult`.
 
 ## Outcome-driven evaluation (opt-in)
 

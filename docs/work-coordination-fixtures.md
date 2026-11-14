@@ -77,10 +77,9 @@ or update the PR. Otherwise, report the clean review and stop.`
 
 Expected behavior:
 
-- The explicit request selects the deep-review contract for the first review
-  round, before any implementation round: the same contract and route as a
-  standalone `/review --deep` under equivalent routing inputs, resolved
-  through the activation's routing profile and preferences, with the same
+- The explicit request selects the review-deep contract for the first review
+  round, before any implementation round: the same contract and role as a
+  standalone `/review --deep` under equivalent configuration, with the same
   comparison and scope — the recorded merge-base-to-working-tree comparison of
   the current branch, including relevant untracked files, stated before
   dispatch.
@@ -619,9 +618,10 @@ Expected behavior:
 ## Hard fix with a configured-policy mismatch
 
 A blocking finding requires ownership-sensitive state-machine reasoning, so
-the fix is dispatched on the configured `implement-hard` route. The binding's
-profile for that route carries the implementation contract body, and the
-configured policy resolves `fix` to a routine-tier profile.
+the fix is dispatched on the configured `implement-hard` route — directly,
+without a consultation first. The binding's profile for that route carries
+the implementation contract body, and the installation's `fix` assignment is
+a routine model.
 
 Expected behavior:
 
@@ -634,6 +634,156 @@ Expected behavior:
 - Do not silently substitute the routine `fix` route or any stronger or
   weaker route than the configured policy resolves; if the binding cannot
   honour a requested route, surface the mismatch.
+
+## Routing policy: mechanical work on the configured easy route
+
+In either workflow, the installation configures `implement-easy`, and the
+slice is explicitly prescribed, bounded, and mechanically verifiable: correct
+one named spelling error in one named file, with a deterministic acceptance
+check (the corrected word appears and nothing else changes). The same
+installation is then used for a slice that needs design judgment.
+
+Expected behavior:
+
+- The mechanical slice dispatches on `implement-easy` with the same implement
+  task contract; the dispatch record names the easy role and the mechanical
+  acceptance check.
+- The judgment slice dispatches on `implement` even though it is small:
+  the easy route is for explicitly prescribed, mechanically verifiable work
+  only, not for anything that looks quick.
+- With `implement-easy` unconfigured, the mechanical slice runs on
+  `implement` with its existing assignment — the defined omission fallback,
+  not an error and not a silent substitution.
+
+## Routing policy: routine default and visible risk dispatching hard directly
+
+In either workflow, a scoped, verifiable slice needs ordinary implementation
+judgment; a second slice touches concurrent writers of a shared cache; a
+third is a docs/packaging change whose compatibility risk is visible (it
+changes a published contract consumers depend on).
+
+Expected behavior:
+
+- The ordinary slice dispatches on `implement`, the default.
+- The concurrency slice dispatches on `implement-hard` directly — no
+  consultation first — because its correctness risk is visible.
+- The docs/packaging slice also dispatches on `implement-hard`: risk is
+  assessed per slice, and no category of work is exempt when its actual risk
+  is visible. A category label alone ("just docs", "just a rename") never
+  qualifies a slice for the hard route either.
+- A routine slice that exposes such risk mid-flight is reassessed and, when
+  warranted, continued or redone on the hard route; the reassessment is
+  recorded with its reason.
+
+## Routing policy: a costly decision consults hard directly, on the ordinary consult allowance
+
+In either workflow, the installation configures `consult-hard`, and one
+bounded decision carries conflicting evidence, interacting constraints, or a
+costly reversal — apparent from the task framing, without the loop first
+getting stuck.
+
+Expected behavior:
+
+- Dispatch the consult on `consult-hard` directly, read-only, carrying the
+  same consult contract; it returns one recommendation and implements
+  nothing.
+- The round consumes the SAME consultation allowance as an ordinary consult:
+  in Work, the single per-task allowance (a `--consult` invocation has
+  already consumed it, so no further consult without a grant); in Autonomous
+  Mode, one per decision and two per session. It grants no worker, fix, or
+  review increment.
+- With `consult-hard` unconfigured, the same decision runs on `consult`
+  under the same allowance — the defined omission fallback.
+- A focused decision that is a clear, direct, complex choice warrants a
+  consult even when the loop is not stuck; an ordinary reversible choice the
+  coordinator can settle from evidence needs no consult.
+
+## Routing policy: unconfigured fallback versus a configured missing profile
+
+Two installations: one simply omits `consult-hard`; the other explicitly
+configures it, but the installed profile (or the host's requested selection)
+is missing or unreadable at dispatch time.
+
+Expected behavior:
+
+- Unconfigured: the decision runs on `consult` with its existing assignment.
+  No error, no limitation report — the fallback is the defined policy.
+- Configured but missing: the dispatch of that role is blocked and reported
+  with the binding's refresh procedure; the workflow does not silently
+  substitute `consult` or inherit the session model in place of the named
+  role.
+- A requested stronger route or advice the host cannot honour is surfaced as
+  a limitation (requested versus effective, where native evidence exists),
+  never silently substituted by a weaker one.
+
+## Routing policy: establishing configured intent from install evidence
+
+On OpenCode, two installations present the same available `agenticale/*`
+profiles: one omitted `implement-easy` at install time; the other configured
+it, and the profile file was later deleted. A third installation copied the
+profiles manually and has no installer manifest; a fourth has a manifest
+that is unreadable, or a project `.opencode` scope also defines
+`agenticale/*` profiles, so ownership is ambiguous. A fifth configured
+`implement-easy`, the user modified the profile, and a successful reinstall
+then omitted the route: the installer preserved the modified file
+(`preserve-modified`) but dropped its manifest entry.
+
+Expected behavior:
+
+- The workflow establishes configured intent from the installer ownership
+  manifest (`.autonomous-mode-install.json`) at the effective install root —
+  the root that supplies the installed skills and the dispatched profiles —
+  read-only, at most once per activation, with the result fixed for the
+  activation. The lookup happens whenever a needed optional assignment must
+  be established, whether the profile file is missing, unreadable, or
+  present; the available-profile catalog alone never decides the case.
+- Entry presence means the role is in the latest successful installed
+  inventory — not an install history, and not a guarantee that a preserved
+  file stays owned.
+- Omitted (a valid manifest without the optional entry, including legacy
+  schemas that never carried the optional routes): the slice runs on the
+  base route with its existing assignment — the defined omission fallback,
+  not an error. This includes the fifth installation: the preserved leftover
+  file is unowned, is never dispatched, and deleting it keeps the route
+  omitted.
+- Configured but deleted (the manifest lists the entry, the profile file is
+  absent): only that role's dispatch is blocked, reported with the refresh
+  procedure; no base-route substitution. A user-modified optional profile
+  keeps its entry only while the install still lists the route; a successful
+  reinstall that omits the route drops the entry even though it preserves
+  the modified file.
+- No manifest, an unreadable or invalid manifest, or ambiguous ownership:
+  intent is not established. The workflow reports an actionable limitation
+  naming the evidence gap and the refresh procedure; it does not dispatch
+  the optional route — even when a profile file is present — does not claim
+  the omission fallback, and never honours an explicit request for the route
+  by silently substituting a weaker one. Unrelated base roles continue on
+  their existing assignments.
+- The manifest is intent evidence only: no model is resolved from it, and
+  the workflow never writes it or any other configuration file. Rerunning
+  the installer restores both the profiles and the manifest evidence.
+
+## Routing policy: long-running goals and resumes reassess the slice, not the old route
+
+An Autonomous run accepted an easy-route slice earlier; a fresh resume
+continues the goal, and the next slice's evidence now shows shared-state
+risk. The installation's assignments may also have changed since the handoff
+was written.
+
+Expected behavior:
+
+- The fresh resume re-reads the current installation and reports a material
+  change to a role's installed model selection; the prior handoff's dispatch
+  records are diagnostic history, never a route lock or an override.
+- The next slice is routed by its current risk — here `implement-hard` —
+  regardless of the earlier easy-route assignment; the reassessment and its
+  reason are recorded in the existing handoff.
+- Routing decisions, records, and rationale stay in the existing state (the
+  active handoff in Autonomous Mode, session context in Work); no new
+  tracking file or state system is created for them.
+- Where a coordinator is configured, the resume runs in the current session
+  on the coordinator profile from the first turn, exactly as a new run; the
+  coordinator remains a session assignment, not a worker route.
 
 ## Real entry and interruption boundary for recovery-sensitive acceptance
 

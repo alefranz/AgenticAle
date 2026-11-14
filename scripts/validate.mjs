@@ -8,30 +8,35 @@ import { loadModelConfig } from "./model-config.mjs";
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(scriptDirectory, "..");
 
-// The seven roles every route is built from; the adapter maps each one 1:1
-// to its own OpenCode profile.
+// The nine worker roles every route is built from; the adapter maps each one
+// 1:1 to its own OpenCode profile. implement-easy and consult-hard are
+// optional: their profiles render only when the model config lists them.
 const routes = [
   "consult",
-  "deep-review",
+  "consult-hard",
   "explore",
   "fix",
-  "implement-hard",
   "implement",
+  "implement-easy",
+  "implement-hard",
   "review",
+  "review-deep",
 ];
 
 // The six capability-neutral task contracts authored under skills/work/references/tasks.
-// implement-hard shares the `implement` contract, so there is no seventh file.
+// implement-easy and implement-hard share the `implement` contract and
+// consult-hard shares the `consult` contract, so there are no extra files.
 const taskContracts = [
   "consult",
-  "deep-review",
   "explore",
   "fix",
   "implement",
   "review",
+  "review-deep",
 ];
 
-const profileNames = ["consult", "deep-review", "explore", "fix", "implement", "implement-hard", "review"];
+const profileNames = ["consult", "consult-hard", "explore", "fix", "implement", "implement-easy", "implement-hard", "review", "review-deep"];
+const optionalProfileNames = new Set(["consult-hard", "implement-easy"]);
 const skillNames = ["work", "review", "autonomous", "pull-request-description", "source-code-lookup"];
 const retiredSkillNames = ["work-mode", "autonomous-mode"];
 // The three adapter-owned OpenCode command templates (thin launchers for the
@@ -58,6 +63,7 @@ const requiredPaths = [
   "skills/pull-request-description/SKILL.md",
   "skills/source-code-lookup/SKILL.md",
   "adapters/opencode/adapter.json",
+  "adapters/opencode/coordinator.md",
   "adapters/opencode/README.md",
   "adapters/opencode/commands/autonomous.md",
   "adapters/opencode/commands/review.md",
@@ -325,7 +331,7 @@ function validateAdapter() {
     fail(path, "adapter must include a keyByRoute map", "add the keyByRoute map");
   } else {
     if (JSON.stringify(Object.keys(keyByRoute).sort()) !== JSON.stringify([...routes].sort())) {
-      fail(path, "keyByRoute must map exactly the seven routes", `map exactly: ${routes.join(", ")}`);
+      fail(path, "keyByRoute must map exactly the nine worker routes", `map exactly: ${routes.join(", ")}`);
     }
     for (const route of routes) {
       if (keyByRoute[route] !== route) {
@@ -339,20 +345,25 @@ function validateAdapter() {
   }
   const names = adapter.profiles.map((profile) => profile.name).sort();
   if (JSON.stringify(names) !== JSON.stringify([...profileNames].sort())) {
-    fail(path, `profiles must be exactly ${profileNames.join(", ")} (no coordinator)`, "remove the coordinator and any extra profile");
+    fail(path, `profiles must be exactly ${profileNames.join(", ")} (the coordinator is the separate conditional entry)`, "remove any extra worker profile");
   }
-  const expectedSteps = { explore: 24, implement: 64, "implement-hard": 64, fix: 48, review: 56, "deep-review": 72, consult: 20 };
+  const expectedSteps = { explore: 24, implement: 64, "implement-easy": 64, "implement-hard": 64, fix: 48, review: 56, "review-deep": 72, consult: 20, "consult-hard": 20 };
   const readOnlyDeny = ["edit", "question", "subagent"];
   const standardDeny = ["question", "subagent"];
   for (const profile of adapter.profiles) {
     const profilePath = `${path}#profiles.${profile && profile.name}`;
     if (!profile || typeof profile.name !== "string" || !profileNames.includes(profile.name)) {
-      fail(path, "every profile must be one of the seven route names", "use the documented profile names");
+      fail(path, "every profile must be one of the nine worker route names", "use the documented profile names");
       continue;
     }
+    const expectedKeys = ["description", "mode", "name", "outputPath", "permissions", "steps"];
+    if (optionalProfileNames.has(profile.name)) expectedKeys.push("optional");
     const profileKeys = Object.keys(profile).sort();
-    if (JSON.stringify(profileKeys) !== JSON.stringify(["description", "mode", "name", "outputPath", "permissions", "steps"].sort())) {
+    if (JSON.stringify(profileKeys) !== JSON.stringify(expectedKeys.sort())) {
       fail(profilePath, "profile must carry only metadata (no model/effort/body)", "remove model, reasoningEffort, and body text; keep metadata only");
+    }
+    if (optionalProfileNames.has(profile.name) && profile.optional !== true) {
+      fail(profilePath, "optional worker profiles must declare optional: true", "add optional: true so the profile renders only when configured");
     }
     if (profile.mode !== "subagent") fail(profilePath, "profile mode must be 'subagent'", "restore mode: subagent");
     if (typeof profile.steps !== "number") {
@@ -372,9 +383,43 @@ function validateAdapter() {
         fail(profilePath, "every permission must deny resource '*'", "use effect: deny with resource: *");
       }
     }
-    const expectedDeny = profile.name === "explore" || profile.name === "consult" ? readOnlyDeny : standardDeny;
+    const expectedDeny = profile.name === "explore" || profile.name === "consult" || profile.name === "consult-hard" ? readOnlyDeny : standardDeny;
     if (JSON.stringify(denyActions(profile.permissions)) !== JSON.stringify(expectedDeny)) {
       fail(profilePath, `profile must deny exactly ${expectedDeny.join(", ")}`, "restore the exact deny permission set");
+    }
+  }
+  // The conditional session coordinator: one visible primary agent, generated
+  // only when the model config assigns the coordinator key. It keeps the
+  // normal ability to dispatch children (no subagent denial) and carries no
+  // step ceiling; its body is the adapter-owned workflow-neutral coordinator
+  // file, not a worker task contract.
+  const coordinator = adapter.coordinator;
+  const coordinatorPath = `${path}#coordinator`;
+  if (!coordinator || typeof coordinator !== "object" || Array.isArray(coordinator)) {
+    fail(path, "adapter must include a coordinator entry", "add the conditional coordinator profile metadata");
+  } else {
+    const coordinatorKeys = Object.keys(coordinator).sort();
+    if (JSON.stringify(coordinatorKeys) !== JSON.stringify(["body", "description", "mode", "name", "outputPath", "permissions"])) {
+      fail(coordinatorPath, "coordinator must carry only name, outputPath, mode, description, body, and permissions", "remove model, steps, and body text; keep metadata only");
+    }
+    if (coordinator.name !== "coordinator") fail(coordinatorPath, "coordinator name must be 'coordinator'", "set name: coordinator");
+    if (coordinator.outputPath !== "agents/agenticale/coordinator.md") fail(coordinatorPath, "coordinator outputPath must be agents/agenticale/coordinator.md", "restore the coordinator output path");
+    if (coordinator.mode !== "primary") fail(coordinatorPath, "coordinator mode must be 'primary'", "restore mode: primary");
+    if (typeof coordinator.description !== "string" || coordinator.description.length === 0) {
+      fail(coordinatorPath, "coordinator description must be non-empty", "describe the coordinator in one line");
+    }
+    if (coordinator.body !== "coordinator.md") fail(coordinatorPath, "coordinator body must reference the adapter-owned coordinator.md", "set body: coordinator.md");
+    if (!Array.isArray(coordinator.permissions)) {
+      fail(coordinatorPath, "coordinator must have a permissions array", "add the permission list (empty keeps normal abilities)");
+    } else {
+      for (const permission of coordinator.permissions) {
+        if (!permission || permission.resource !== "*" || permission.effect !== "deny") {
+          fail(coordinatorPath, "every coordinator permission must deny resource '*'", "use effect: deny with resource: *");
+        }
+        if (permission && permission.action === "subagent") {
+          fail(coordinatorPath, "coordinator must keep the normal ability to dispatch children", "remove the subagent denial");
+        }
+      }
     }
   }
   if (!Array.isArray(adapter.commands)) {
@@ -444,7 +489,7 @@ function validateNeutralContracts() {
   }
   const expectedFiles = taskContracts.map((name) => `${name}.md`).sort();
   if (JSON.stringify(actual) !== JSON.stringify(expectedFiles)) {
-    fail("skills/work/references/tasks", `task contracts must be exactly ${taskContracts.join(", ")} (no implement-hard, no coordinator)`, "implement-hard shares the implement contract");
+    fail("skills/work/references/tasks", `task contracts must be exactly ${taskContracts.join(", ")} (no implement-hard, no coordinator)`, "implement-easy/implement-hard share the implement contract and consult-hard shares consult");
   }
   for (const name of taskContracts) {
     const path = `skills/work/references/tasks/${name}.md`;
@@ -456,6 +501,18 @@ function validateNeutralContracts() {
     for (const { pattern, label } of providerPatterns) {
       if (pattern.test(text)) {
         fail(path, `capability-neutral contract must not reference provider/model '${label}'`, "use capability-neutral wording; model choices live in adapters/opencode/models.json and the installation's agent profiles");
+      }
+    }
+  }
+  // The adapter-owned coordinator body is workflow-neutral too: it fixes the
+  // coordinator stance without naming providers, models, or a specific
+  // workflow's rules.
+  const coordinatorBody = "adapters/opencode/coordinator.md";
+  if (existsSync(join(repositoryRoot, coordinatorBody))) {
+    const text = readText(coordinatorBody);
+    for (const { pattern, label } of providerPatterns) {
+      if (pattern.test(text)) {
+        fail(coordinatorBody, `workflow-neutral coordinator body must not reference provider/model '${label}'`, "use capability-neutral wording; model choices live in the flat model config");
       }
     }
   }

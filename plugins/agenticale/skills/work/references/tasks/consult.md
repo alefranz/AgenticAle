@@ -4,7 +4,11 @@ Independent, read-only second opinion. The coordinator selects one of two modes
 in the task packet: **task framing**, an initial recommendation on what to build
 and how to approach it before implementation, and **focused decision**, a second
 opinion on one already-identified technical decision. Both are read-only and
-return one recommendation; neither implements.
+return one recommendation; neither implements. Where the installation
+configures the `consult-hard` route, a reasoning-heavy decision — conflicting
+evidence, interacting constraints, or a costly reversal — carries this same
+contract on that route and consumes the same consultation allowance as an
+ordinary consult.
 
 ## Common rules
 
@@ -54,7 +58,9 @@ CONFIDENCE: high | medium | low
 
 ## Focused-decision mode
 
-Use when one specific technical decision is already identified and stuck. Give
+Use when one specific technical decision is already identified — the loop is
+stuck on it, or it is a clear, direct, complex choice that warrants an
+independent second opinion before the coordinator commits. Give
 a decisive second opinion on exactly one supplied technical decision. Weigh: the
 session's stated goal and acceptance conditions, the repository conventions in
 AGENTS.md when present, reversibility and cost of being wrong, and what each

@@ -30,22 +30,29 @@ const repositoryRoot = resolve(scriptDirectory, "..");
 const stateName = ".autonomous-mode-install.json";
 const backupDirectoryName = ".autonomous-mode-backups";
 const packageName = "opencode-autonomous-mode";
-const stateVersion = 6;
+const stateVersion = 7;
 // Schema 5 was the first generated-copy schema, but it carried only the six
-// pre-`implement-hard` profiles. Schema 6 adds the seventh `implement-hard`
-// profile, so schema-5 generated states are migrated like the older schemas.
-const legacyGeneratedSchema = 5;
+// pre-`implement-hard` profiles. Schema 6 added the seventh `implement-hard`
+// profile. Schema 7 renames `deep-review` to `review-deep` and adds the
+// optional `implement-easy`/`consult-hard` worker profiles and the optional
+// `coordinator` profile, so schema-5 and schema-6 generated states are
+// migrated like the older schemas: reconciliation retires the owned
+// `deep-review` profile (a modified one is preserved and reported).
+const legacyGeneratedSchemas = new Map([
+  [5, new Set(["consult", "deep-review", "explore", "fix", "implement", "review"])],
+  [6, new Set(["consult", "deep-review", "explore", "fix", "implement", "implement-hard", "review"])],
+]);
 
-// The current (schema 6) copy inventory installs the GENERATED OpenCode output,
+// The current (schema 7) copy inventory installs the GENERATED OpenCode output,
 // not the authored repo source. The destination layout is fixed; the exact set
 // of files is discovered by walking the build output so it always matches what
 // the build produced.
 const generatedRoots = ["agents", "commands", "skills"];
 
-// The seven rendered OpenCode profiles the build emits (no coordinator).
-const profileNames = new Set(["consult", "deep-review", "explore", "fix", "implement", "implement-hard", "review"]);
-// The six profiles the retired schema-5 build emitted (no implement-hard).
-const legacyProfileNames = new Set(["consult", "deep-review", "explore", "fix", "implement", "review"]);
+// The seven base worker profiles every schema-7 build emits, plus the three
+// optional profiles it emits only when the model config lists them.
+const profileNames = new Set(["consult", "explore", "fix", "implement", "implement-hard", "review", "review-deep"]);
+const optionalProfileNames = new Set(["consult-hard", "coordinator", "implement-easy"]);
 // The three command entries the current build emits (thin launchers for the
 // explicit-only skills; OpenCode does not interpret the skills' `slash` field).
 const commandNames = new Set(["autonomous", "review", "work"]);
@@ -243,9 +250,10 @@ function resolveSourceRoot(value) {
 
 // Build the OpenCode bundle into a TEMP root and return the copy entries for
 // every generated file. This installs generated output, never authored source:
-// the build renders the seven profiles and copies the five public skills, and we
-// walk the produced tree so the inventory always matches what the build made.
-// File contents are read into memory before the temp root is removed.
+// the build renders the worker profiles (plus the coordinator when configured)
+// and copies the five public skills, and we walk the produced tree so the
+// inventory always matches what the build made. File contents are read into
+// memory before the temp root is removed.
 async function buildOpenCodeEntries(options) {
   const tempRoot = await mkdtemp(join(tmpdir(), "agenticale-opencode-"));
   try {
@@ -429,16 +437,19 @@ function safeStatePath(path) {
     && !path.split("/").some((part) => part === "." || part === "..");
 }
 
-// Schema 5 (the generated-output install) has a dynamic file set because the
-// skill files are walked from the build. It is still fully constrained: exactly
-// the rendered profiles plus only the five public skill directories, all as
-// regular files with a digest. The skill set must be exactly the current five
-// skills or exactly the four skills of the pre-review release: migration adds
-// the review skill's files, and a partial mix is rejected. Entries under
-// commands/ must be one of the three known command entries, but a pre-command
-// schema-6 state (older release installs) legally lacks them: migration adds
-// the entries, so validation only checks shape, not presence.
-function validateGeneratedEntries(entries, statePath, expectedProfiles) {
+// The generated-output installs (schemas 5-7) have a dynamic file set because
+// the skill files are walked from the build. They are still fully constrained:
+// only the rendered profiles plus only the five public skill directories, all
+// as regular files with a digest. Schema 7 requires the seven base worker
+// profiles and accepts any subset of the three optional profiles; the legacy
+// schemas require their exact historical profile sets. The skill set must be
+// exactly the current five skills or exactly the four skills of the pre-review
+// release: migration adds the review skill's files, and a partial mix is
+// rejected. Entries under commands/ must be one of the three known command
+// entries, but a pre-command state (older release installs) legally lacks
+// them: migration adds the entries, so validation only checks shape, not
+// presence.
+function validateGeneratedEntries(entries, statePath, requiredProfiles, optionalProfiles = new Set()) {
   if (!Array.isArray(entries) || entries.length === 0) {
     throw new Error(`Install state does not contain the generated entry set: ${statePath}. Move it aside and retry.`);
   }
@@ -459,11 +470,13 @@ function validateGeneratedEntries(entries, statePath, expectedProfiles) {
       // rename still carry the old namespace directory. Accept both so those
       // states validate and refresh retires the old profile paths, installing
       // the new ones under the current namespace.
-      if (parts.length !== 3 || !["agenticale", "autonomous"].includes(parts[1]) || !parts[2].endsWith(".md") || !expectedProfiles.has(parts[2].replace(/\.md$/, ""))) {
+      const profileName = parts[2]?.replace(/\.md$/, "");
+      if (parts.length !== 3 || !["agenticale", "autonomous"].includes(parts[1]) || !parts[2].endsWith(".md")
+          || (!requiredProfiles.has(profileName) && !optionalProfiles.has(profileName))) {
         throw new Error(`Install state has an unexpected generated profile: ${statePath}. Move it aside and retry.`);
       }
-      if (profiles.has(parts[2])) throw new Error(`Install state duplicates generated profile: ${statePath}.`);
-      profiles.add(parts[2]);
+      if (profiles.has(profileName)) throw new Error(`Install state duplicates generated profile: ${statePath}.`);
+      profiles.add(profileName);
     } else if (parts[0] === "commands") {
       if (parts.length !== 2 || !parts[1].endsWith(".md") || !commandNames.has(parts[1].replace(/\.md$/, ""))) {
         throw new Error(`Install state has a generated path outside the bundle: ${statePath}.`);
@@ -479,8 +492,10 @@ function validateGeneratedEntries(entries, statePath, expectedProfiles) {
       throw new Error(`Install state has a generated path outside the bundle: ${statePath}.`);
     }
   }
-  if (profiles.size !== expectedProfiles.size) {
-    throw new Error(`Install state does not contain all expected generated profiles: ${statePath}. Move it aside and retry.`);
+  for (const name of requiredProfiles) {
+    if (!profiles.has(name)) {
+      throw new Error(`Install state does not contain all expected generated profiles: ${statePath}. Move it aside and retry.`);
+    }
   }
   const sortedSkillSet = [...skills].sort().join(",");
   if (sortedSkillSet !== [...skillNames].sort().join(",") && sortedSkillSet !== [...legacySkillNames].sort().join(",")) {
@@ -492,7 +507,7 @@ function validateState(value, statePath) {
   const topLevelKeys = ["entries", "installedAt", "mode", "package", "schema"];
   if (!value || typeof value !== "object" || Array.isArray(value)
       || JSON.stringify(Object.keys(value).sort()) !== JSON.stringify(topLevelKeys)
-      || ![1, 2, 3, 4, legacyGeneratedSchema, stateVersion].includes(value.schema) || value.package !== packageName
+      || ![1, 2, 3, 4, ...legacyGeneratedSchemas.keys(), stateVersion].includes(value.schema) || value.package !== packageName
       || !["copy", "link"].includes(value.mode) || !Array.isArray(value.entries)
       || typeof value.installedAt !== "string" || !Number.isFinite(Date.parse(value.installedAt))) {
     throw new Error(`Install state is invalid: ${statePath}. Move it aside and retry, or restore a valid package state file.`);
@@ -501,14 +516,15 @@ function validateState(value, statePath) {
     if (value.mode !== "copy") {
       throw new Error(`Schema ${stateVersion} install state must be a copy install: ${statePath}. Move it aside and retry.`);
     }
-    validateGeneratedEntries(value.entries, statePath, profileNames);
+    validateGeneratedEntries(value.entries, statePath, profileNames, optionalProfileNames);
     return value;
   }
-  if (value.schema === legacyGeneratedSchema) {
+  const legacyProfiles = legacyGeneratedSchemas.get(value.schema);
+  if (legacyProfiles) {
     if (value.mode !== "copy") {
-      throw new Error(`Schema ${legacyGeneratedSchema} install state must be a copy install: ${statePath}. Move it aside and retry.`);
+      throw new Error(`Schema ${value.schema} install state must be a copy install: ${statePath}. Move it aside and retry.`);
     }
-    validateGeneratedEntries(value.entries, statePath, legacyProfileNames);
+    validateGeneratedEntries(value.entries, statePath, legacyProfiles);
     return value;
   }
 
@@ -783,7 +799,7 @@ async function installBundle(options) {
     // it — only this pass can retire the now-empty directory.
     await removeEmptyPackageDirectories(options.target);
     console.log("Already up to date.");
-    console.log("Next: restart OpenCode and use the /work, /review, and /autonomous commands; this installer leaves opencode.jsonc unchanged.");
+    console.log("Next: use the /work, /review, and /autonomous commands in OpenCode; a running server reloads the installed profiles automatically (/reload forces a full reload), so no app restart is needed. This installer leaves opencode.jsonc unchanged.");
     console.log("See docs/setup.md for child-session permissions and docs/autonomous.md for unattended /autonomous runs.");
     return;
   }
@@ -926,7 +942,7 @@ async function installBundle(options) {
   // try/catch so a rolled-back install is never swept.
   await removeEmptyPackageDirectories(options.target);
   console.log("Installation complete.");
-  console.log("Next: restart OpenCode and use the /work, /review, and /autonomous commands; this installer leaves opencode.jsonc unchanged.");
+  console.log("Next: use the /work, /review, and /autonomous commands in OpenCode; a running server reloads the installed profiles automatically (/reload forces a full reload), so no app restart is needed. This installer leaves opencode.jsonc unchanged.");
   console.log(`Verify your model configuration after install (and after any reinstall with a different model configuration) by pasting this prompt into an OpenCode session: ${verifyPromptFor(options.target)}`);
   console.log("See docs/setup.md for child-session permissions and docs/autonomous.md for unattended /autonomous runs.");
 }
@@ -1065,13 +1081,13 @@ allowance).
 // The one-time post-install verification, printed by the install and setup
 // output: a prompt to paste into an OpenCode session. It tells the pasting
 // session to read the generated agent profiles and report each role's
-// installed model and effort, and to state that preference-file role lines
-// do not apply to this installation while the preference file's ## Work
-// section does. The dynamic path is single-quoted so a target with spaces
-// stays copy-pasteable.
+// installed model (provider/model#variant), and to state that preference-file
+// role lines do not apply to this installation while the preference file's
+// ## Work section does. The dynamic path is single-quoted so a target with
+// spaces stays copy-pasteable.
 const verifyPromptFor = (target) => {
   const profiles = join(target, "agents", "agenticale");
-  return `Verify my AgenticAle model configuration for the opencode runtime: for each of the seven roles (explore, implement, implement-hard, fix, review, deep-review, consult), read the generated agent profile in '${profiles}' and report its model and reasoningEffort (a profile with no model line inherits the session model); note that role lines in a preference file (.agenticale/preferences.md, project or personal) do not apply to this OpenCode installation because its models are fixed in the generated profiles, while a top-level ## Work section in the preference file does apply (worker-round allowance).`;
+  return `Verify my AgenticAle model configuration for the opencode runtime: for each of the worker roles (explore, implement, implement-hard, fix, review, review-deep, consult) and any installed optional profiles (implement-easy, consult-hard, coordinator), read the generated agent profile in '${profiles}' and report its model line in provider/model#variant form (a profile with no model line inherits the session model); note that role lines in a preference file (.agenticale/preferences.md, project or personal) do not apply to this OpenCode installation because its models are fixed in the generated profiles, while a top-level ## Work section in the preference file does apply (worker-round allowance).`;
 };
 
 // Consent-gated personal preferences setup. Creates the personal preference

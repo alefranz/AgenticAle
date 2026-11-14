@@ -7,12 +7,13 @@ durable autonomous project work (`autonomous`), and two supporting skills
 (`source-code-lookup`, `pull-request-description`). Runtime specifics are kept
 out of the skills, and the workflow never resolves a model at activation:
 Copilot, Codex, and Antigravity dispatch native children, and OpenCode gets a
-generated set of agent profiles carrying the per-role model/effort frontmatter
-from install time as a compatibility adapter.
+generated set of agent profiles carrying the per-role model (with its
+reasoning variant) from install time as a compatibility adapter, plus an
+optional primary coordinator profile when the config assigns one.
 
-Live runtime behavior is not asserted here; see
-[runtime-compatibility.md](runtime-compatibility.md), where every capability is
-**not tested** in this documentation-only pass.
+Live runtime behavior is tracked in
+[runtime-compatibility.md](runtime-compatibility.md): most capabilities remain
+**not tested**, with one narrow recorded OpenCode `/work` routing pass.
 
 ## The authored core
 
@@ -21,18 +22,23 @@ Four concerns are separated so each can change independently:
 | Concern | Where |
 | --- | --- |
 | Workflow skills | `skills/work/SKILL.md`, `skills/review/SKILL.md`, `skills/autonomous/SKILL.md` |
-| Task contracts | `skills/work/references/tasks/<role>.md` (six: `explore`, `implement`, `fix`, `review`, `deep-review`, `consult`) |
-| Flat model config | `adapters/opencode/models.json` (role → `"provider/model[#effort]"`; unlisted roles inherit) |
+| Task contracts | `skills/work/references/tasks/<role>.md` (six: `explore`, `implement`, `fix`, `review`, `review-deep`, `consult`) |
+| Flat model config | `adapters/opencode/models.json` (role → `"provider/model[#variant]"`, plus the optional top-level `coordinator` session key; unlisted roles inherit) |
 | Plugin preference fragment | `adapters/plugin/model-configuration.md` (appended to the workflow skills in plugin and standalone outputs) |
 | Runtime bindings | `skills/work/references/runtimes/<host>.md` (five: `copilot`, `copilot-local`, `codex`, `opencode`, `antigravity`) |
 | Outcome-evaluation protocol (opt-in) | `skills/work/references/outcome-evaluation.md` (Work only; loaded only when a task is invoked with `--outcome`) |
 
 The three workflow skills are explicit-only: each sets
 `copilot/disable-model-invocation: true` and `opencode/autoinvoke: false`, and
-the OpenAI metadata (`agents/openai.yaml`) disables implicit invocation. The
-invoking session is the coordinator; there is no selectable coordinator profile
-and no `commands/` entry in the authored core (the OpenCode binding ships three
-thin command entries — see the generated binding below). The session owns its
+the OpenAI metadata (`agents/openai.yaml`) disables implicit invocation.
+The invoking session is the coordinator, and there is no `commands/` entry in
+the authored core (the OpenCode binding ships three thin command entries — see
+the generated binding below). On OpenCode the flat config may optionally
+assign a `coordinator` session model: the build then generates one visible
+primary `agenticale/coordinator` profile and binds the command entries to it,
+so the workflow runs in the current session on that model from the first turn
+(including an autonomous resume). Without a configured coordinator the
+invoking session coordinates on its own model. The session owns its
 own model and effort, and it dispatches fresh children using the task-specific
 instructions; it never selects a model.
 
@@ -43,11 +49,22 @@ requested outcome, existing changes, or a same-session preceding review's
 findings, entering at the first necessary step.
 
 `skills/work/references/rounds.md` is the shared round contract: the child task
-packet, compact reports, reset criteria, and the review/fix gate. Both workflows
-load it, and every build and install includes it. For complex bounded goals, it
+packet, compact reports, reset criteria, the shared routing policy, and the
+review/fix gate. Both workflows
+load it, and every build and install includes it. Its routing policy binds
+Work and Autonomous identically: `implement` is the default;
+`implement-easy` (explicitly prescribed, bounded, mechanically verifiable
+work) and `consult-hard` (conflicting evidence, interacting constraints, or
+costly reversal) are opt-in routes that exist only where configured, falling
+back to their base routes when omitted; `implement-hard` is dispatched
+directly when a slice's correctness risk is visible, assessed per slice with
+no category exemptions; a hard fix keeps the fix contract and counters; and
+`consult-hard` consumes the same consultation allowance as `consult`. For
+complex bounded goals, the contract
 also defines sequential decomposition: the coordinator can outline provisional
 outcomes, complete and review one slice at a time, then reassess based on the
-evidence. Replanning does not reset the task's budgets or failure limits, and
+evidence — including the next slice's route, which is never locked by an
+earlier assignment. Replanning does not reset the task's budgets or failure limits, and
 the accumulated changes receive combined acceptance checks before delivery.
 It also defines checkpoints after substantive rounds and visible progress
 narration before substantive assignments: the result, next action, and reason
@@ -58,11 +75,13 @@ host collapses child activity, without relying on any particular host layout.
 The contract also defines review-closure rules for re-reviews and the
 self-contained continuation prompt that every incomplete stop carries.
 The six task contracts are capability-neutral: they carry only the role's
-instructions, with no host-specific protocol. `implement` and `implement-hard`
-share the same `implement` contract; `implement-hard` is a dispatch role, not
-a separate contract — the OpenCode output generates it as a distinct profile
-reusing the `implement` contract body. A hard review finding keeps the `fix`
-contract and the fix counters while it dispatches on the `implement-hard` role.
+instructions, with no host-specific protocol. `implement`, `implement-easy`,
+and `implement-hard` share the same `implement` contract, and `consult` and
+`consult-hard` share the `consult` contract; the easy/hard roles are dispatch
+roles, not separate contracts — the OpenCode output generates each as a
+distinct profile reusing the shared contract body. A hard review finding keeps
+the `fix` contract and the fix counters while it dispatches on the
+`implement-hard` role.
 
 `skills/work/references/outcome-evaluation.md` carries Work's opt-in
 outcome-evaluation protocol, loaded only when a task is invoked with the bare
@@ -87,7 +106,10 @@ This repository's handoff records describe its own development. Everyday
 
 The flat model config is a flat per-role inventory: a role with no entry
 inherits the session model, and the packaged config is an inventory, not a
-verified account mapping. Fresh-agent review can use the same model as the
+verified account mapping. The two optional worker routes (`implement-easy`,
+`consult-hard`) render only when listed, and the optional top-level
+`coordinator` key assigns the coordinating session's model on OpenCode.
+Fresh-agent review can use the same model as the
 worker. Work stops and reports explicit provider quota exhaustion without
 durable recovery; only Autonomous applies the cooldown and handoff policy
 below.
@@ -104,9 +126,9 @@ exists: the three workflow skills plus their `agents/openai.yaml`, the shared
 `rounds.md`, the `outcome-evaluation.md` outcome-protocol reference, the shared
 `session-stats.mjs` helper, the five runtime bindings, the six task contracts,
 the `adapters/opencode/` metadata (adapter, command templates, flat model
-config, and README), the plugin preference fragment
+config, coordinator body, and README), the plugin preference fragment
 (`adapters/plugin/model-configuration.md`), and the two supporting skills, for
-29 source-of-truth files. The retired layout
+30 source-of-truth files. The retired layout
 (`commands/`, `agents/autonomous/`, `skills/work-mode`, `skills/autonomous-mode`)
 and the retired routing paths (`ROUTING.md`, `routing.json`,
 `preferences.example.md`, and `scripts/routing.mjs` under `skills/work/`) must
@@ -118,15 +140,19 @@ Model selection is a build-time input only: the workflow never resolves a
 model at activation. Two authored files own it:
 
 - `adapters/opencode/models.json` — the flat model config: a JSON object
-  mapping a role to `"provider/model"` or `"provider/model[#effort]"`.
-  Missing roles inherit the session model; there are no tiers, fallbacks,
-  runtime sections, or profiles. It is the packaged default and is also a
-  usable `--models` path.
+  mapping a role to `"provider/model"` or `"provider/model[#variant]"`, plus
+  the optional top-level `coordinator` key (a session assignment, not a
+  worker role). Missing roles inherit the session model; there are no tiers,
+  fallbacks, runtime sections, or profiles. It is the packaged default and is
+  also a usable `--models` path.
 - `adapters/plugin/model-configuration.md` — the preference fragment the
   build appends as the final top-level section of the workflow skills in the
   plugin and standalone outputs (not the OpenCode output, not the two
   non-workflow skills). It documents the one optional preference file the
-  workflow reads at activation on per-spawn hosts.
+  workflow reads at activation on per-spawn hosts: the nine child worker keys
+  (no coordinator key — the host owns the session model), the combined
+  `provider/model[#variant]` value form alongside the legacy comma-effort
+  form, and the optional routes' fallback semantics.
 
 The build never discovers user files, so generated packages remain
 reproducible; the installers never create, overwrite, migrate, or remove
@@ -152,7 +178,8 @@ optional preference file at activation:
 `<project-root>/.agenticale/preferences.md` first, then
 `~/.agenticale/preferences.md`; a project file wins, and a missing file is
 normal (no customization). The format is a list of direct role assignments,
-one per line (`- <role>: <model>` or `- <role>: <model>, <effort>`);
+one per line (`- <role>: <provider/model[#variant]>`, or the legacy
+`- <role>: <model>` / `- <role>: <model>, <effort>` forms);
 nothing else is interpreted. A leading `--profile NAME` selects
 `preferences.NAME.md` at the same locations instead; a missing selected file
 is a concise, actionable error listing the files that exist, never a silent
@@ -166,16 +193,24 @@ workflow creates or modifies no configuration file.
 
 OpenCode V2 is the one runtime whose documented subagent interface selects a
 preconfigured profile with no documented per-call model override, so the flat
-model config is materialized as **seven** generated profiles under
-`agents/agenticale/`: `explore`, `implement`, `implement-hard`, `fix`, `review`,
-`deep-review`, and `consult`. There is no coordinator profile. `implement-hard`
-is a distinct profile that reuses the `implement` task-contract body; its model
-and (optional) reasoning effort come from the flat config like every other role.
-Each generated profile carries the adapter's `mode`, `steps`, and
+model config is materialized as generated profiles under `agents/agenticale/`:
+the **seven base worker profiles** always render — `explore`, `implement`,
+`implement-hard`, `fix`, `review`, `review-deep`, and `consult` — while
+`implement-easy` and `consult-hard` render only when the config lists them.
+When the config assigns the top-level `coordinator` key, the build also
+generates one visible primary `agenticale/coordinator` profile (no step
+ceiling, normal ability to dispatch children) from the adapter-owned
+coordinator body; it is a session assignment, never a worker route.
+`implement`, `implement-easy`, and `implement-hard` are distinct profiles that
+reuse the `implement` task-contract body, and `consult`/`consult-hard` reuse
+the `consult` body; their models come from the flat config like every other
+role. Each generated profile carries the adapter's `mode`, `steps`, and
 `permissions` frontmatter plus the matching neutral task-contract body. A role
-with an explicit config entry writes a `model:` line and reasoning effort into
-the profile frontmatter; a role with no entry omits the `model:` line so the
-profile inherits the session model.
+with an explicit config entry writes one `model:` line in
+`provider/model[#variant]` form into the profile frontmatter (the reasoning
+variant rides on the model line; there is no separate effort field); a role
+with no entry omits the `model:` line so the profile inherits the session
+model.
 
 The binding also carries three command entries, `commands/work.md`,
 `commands/review.md`, and `commands/autonomous.md`, rendered from the
@@ -183,7 +218,11 @@ adapter-owned templates in `adapters/opencode/commands/`. Each is a thin
 launcher that explicitly loads the matching skill by its exact ID and passes
 through `$ARGUMENTS`; they are the only way OpenCode V2 exposes `/work`,
 `/review`, and `/autonomous`, because OpenCode does not interpret the skills'
-`slash` portability field. The workflow rules stay in the skills; the commands
+`slash` portability field. When the config assigns the coordinator, each
+command additionally binds `agent: agenticale/coordinator` with
+`subagent: false`, running the workflow in the current session on the
+coordinator's model from the first turn; without it the commands stay
+caller-session launchers. The workflow rules stay in the skills; the commands
 carry none of them.
 
 The adapter metadata lives at `adapters/opencode/` (`adapter.json`, the
@@ -193,16 +232,29 @@ permission denials are OpenCode adapter concerns; they are not claimed on the
 other hosts.
 
 Customization follows the same model on OpenCode: the flat model config
-determines what the seven profiles render; there remains exactly one generated
-profile per role, and there is no per-call model override. To change a role's
-model, rerun the checkout-based installer with a different `--models`
-configuration (adding `--replace` when the generated profiles differ), then
-restart or start a new session. The installer leaves `opencode.jsonc`
-unchanged and updates only the default seven. Preference-file role lines do
-not apply to an OpenCode installation — its `## Work` section does. A role
-whose installed profile is missing or unreadable blocks only that role's
-dispatch and is reported with the installer rerun rather than silently
-substituted.
+determines which profiles render — the seven base workers always, the two
+optional workers and the coordinator only when listed — with exactly one
+generated profile per configured role and no per-call model override. To
+change a role's model, rerun the checkout-based installer with a different
+`--models` configuration (adding `--replace` when the generated profiles
+differ). OpenCode picks up the refreshed profiles without an app restart: a
+running server reloads them automatically after a save (`/reload` forces a
+full reload), and the next fresh workflow invocation dispatches with them.
+The installer leaves `opencode.jsonc` and
+`default_agent` unchanged and updates only the generated profiles it owns.
+Preference-file role lines do not apply to an OpenCode installation — its
+`## Work` section does. A role whose installed profile is missing or
+unreadable blocks only that role's dispatch and is reported with the installer
+rerun rather than silently substituted; an optional route that is simply
+unconfigured falls back to its base route by the shared routing policy.
+Whether an optional route is configured is established from the installer's
+ownership manifest (`.autonomous-mode-install.json`) at the effective install
+root — read-only, at most once per activation — not from the available
+profiles alone: the latest successful install inventory is authoritative,
+so an omitted route has no entry even when a modified file was preserved
+and left behind. A missing, unreadable, or ambiguous manifest leaves intent
+unestablished and is reported as a conservative limitation without blocking
+unrelated base roles.
 
 ## Distribution
 
@@ -232,7 +284,7 @@ three output roots beneath `--output` (default `dist`):
 | --- | --- |
 | `<output>/plugin/agenticale` | Agent Plugins 1.0 package (23 files: `plugin.json` + the five skills and their resources, with the preference fragment appended to the workflow skills) |
 | `<output>/standalone/.agents/skills` | the five standalone skills (22 files), no plugin dependency, with the preference fragment appended to the workflow skills |
-| `<output>/opencode` | the seven generated profiles plus the same skills and the three command entries (32 files) |
+| `<output>/opencode` | the seven base worker profiles (plus the optional `implement-easy`/`consult-hard` and `coordinator` profiles when configured), the same skills, and the three command entries (32 files by default, up to 35) |
 
 The build writes `.agenticale-build.json` (schemaVersion 2) describing the
 package, the model config source, the no-model flag, and the rendered
@@ -250,12 +302,14 @@ reported; replacements are backed up.
 | `scripts/install-copilot.mjs` | the modern shared plugin, via `copilot plugin install` | managed by the Copilot plugin store |
 | `codex plugin marketplace add` + `codex plugin add` | the shared plugin from `.agents/plugins/marketplace.json` | managed by the Codex plugin store |
 | `scripts/install-standalone.mjs` | the five standalone skills to project scope (`<cwd>/.agents/skills`, default) or user scope (`~/.agents/skills`) | `.agenticale-standalone-install.json` (schema 1) |
-| `scripts/install.mjs` | the generated OpenCode output (skills + seven profiles + three command entries) | `.autonomous-mode-install.json` (schema 6, 32-file inventory) |
+| `scripts/install.mjs` | the generated OpenCode output (skills + seven base worker profiles + optional profiles + three command entries) | `.autonomous-mode-install.json` (schema 7, 32-file inventory by default, up to 35) |
 
 The OpenCode installer is copy-only. It builds to a temporary root and copies the
 generated output into the OpenCode configuration directory; it does not link to
 the repository source. On install it migrates older copy installs (state schema
-1-4) and older link installs (schema 1-4) to the current generated copy layout.
+1-4), older link installs (schema 1-4), and older generated installs (schema
+5-6, retiring the owned pre-rename `deep-review` profile) to the current
+generated copy layout.
 The standalone installer provides an alternative local skill install for Codex
 CLI, the VS Code extension, and Codex in the ChatGPT desktop app.
 

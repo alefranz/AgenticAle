@@ -1,14 +1,16 @@
 {
   "runtime": "opencode",
-  "render": "For each profile, emit dist/opencode/agents/agenticale/<name>.md carrying the profile's `mode`, `steps`, and `permissions` frontmatter plus the matching neutral task-contract body copied from skills/work/references/tasks/<role>.md (implement and implement-hard both use implement.md). The model/effort for that role is taken from the flat model config at build time (`adapters/opencode/models.json` by default, or the `--models` option): a listed role writes a `model:` line (and reasoning effort) into the rendered profile frontmatter, while an unlisted role omits the `model:` line so the profile inherits the session model. There are seven profiles, one per role; implement-hard is a distinct profile so its harder dispatch context is not silently dropped.",
+  "render": "For each worker profile, emit dist/opencode/agents/agenticale/<name>.md carrying the profile's `mode`, `steps`, and `permissions` frontmatter plus the matching neutral task-contract body copied from skills/work/references/tasks/<role>.md (implement, implement-easy, and implement-hard all use implement.md; consult and consult-hard both use consult.md). The model for that role is taken from the flat model config at build time (`adapters/opencode/models.json` by default, or the `--models` option): a listed role writes one `model:` line in `provider/model[#variant]` form into the rendered profile frontmatter, while an unlisted role omits the `model:` line so the profile inherits the session model. The seven base roles always render, one profile per role; the optional implement-easy and consult-hard profiles render only when the config lists them explicitly, so their harder/easier dispatch context is not silently dropped. When the config carries the top-level coordinator key, the build additionally emits the primary coordinator profile from the `coordinator` entry below (body copied from the adapter-owned coordinator.md) and binds the three command entries to it with `agent:` and `subagent: false`; without it, no coordinator profile is generated and the commands run in the caller session.",
   "keyByRoute": {
     "explore": "explore",
     "implement": "implement",
+    "implement-easy": "implement-easy",
     "implement-hard": "implement-hard",
     "fix": "fix",
     "review": "review",
-    "deep-review": "deep-review",
-    "consult": "consult"
+    "review-deep": "review-deep",
+    "consult": "consult",
+    "consult-hard": "consult-hard"
   },
   "profiles": [
     {
@@ -29,6 +31,18 @@
       "mode": "subagent",
       "steps": 64,
       "description": "Implements one small, verifiable implementation slice.",
+      "permissions": [
+        { "action": "subagent", "resource": "*", "effect": "deny" },
+        { "action": "question", "resource": "*", "effect": "deny" }
+      ]
+    },
+    {
+      "name": "implement-easy",
+      "outputPath": "agents/agenticale/implement-easy.md",
+      "mode": "subagent",
+      "steps": 64,
+      "description": "Implements one routine implementation slice (easy-task dispatch context).",
+      "optional": true,
       "permissions": [
         { "action": "subagent", "resource": "*", "effect": "deny" },
         { "action": "question", "resource": "*", "effect": "deny" }
@@ -68,8 +82,8 @@
       ]
     },
     {
-      "name": "deep-review",
-      "outputPath": "agents/agenticale/deep-review.md",
+      "name": "review-deep",
+      "outputPath": "agents/agenticale/review-deep.md",
       "mode": "subagent",
       "steps": 72,
       "description": "Expensive, integration-level audit of several accepted implementation slices.",
@@ -89,8 +103,29 @@
         { "action": "edit", "resource": "*", "effect": "deny" },
         { "action": "question", "resource": "*", "effect": "deny" }
       ]
+    },
+    {
+      "name": "consult-hard",
+      "outputPath": "agents/agenticale/consult-hard.md",
+      "mode": "subagent",
+      "steps": 20,
+      "description": "Independent second opinion on one reasoning-heavy stuck technical decision; read-only, returns one recommendation.",
+      "optional": true,
+      "permissions": [
+        { "action": "subagent", "resource": "*", "effect": "deny" },
+        { "action": "edit", "resource": "*", "effect": "deny" },
+        { "action": "question", "resource": "*", "effect": "deny" }
+      ]
     }
   ],
+  "coordinator": {
+    "name": "coordinator",
+    "outputPath": "agents/agenticale/coordinator.md",
+    "mode": "primary",
+    "description": "Workflow coordinator session: plans bounded slices, dispatches worker children, and integrates their reports.",
+    "body": "coordinator.md",
+    "permissions": []
+  },
   "commands": [
     {
       "name": "work",
