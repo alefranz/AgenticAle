@@ -141,7 +141,7 @@ and run relevant combined acceptance checks. Ensure independent review, when
 required, covers the interactions between slices, using a final ordinary review
 or deep review when prior reviews did not cover them. Choose deep review for
 substantial interactions or high-risk shared invariants, not simply because
-there are several steps. The invoking workflow's stricter deep-review triggers
+there are several steps. The invoking workflow's stricter deep review triggers
 and caps still apply. Clean slice verdicts alone do not establish completion of
 the whole task; missing integration evidence or blocking findings keep it open.
 
@@ -255,12 +255,82 @@ or the next action is no longer concrete. Return evidence and a next action for
 a fresh agent, saving them on disk only when the supplied state policy requires
 it. Productive implementation and verification need not reset on a tool count.
 
+## Routing policy
+
+Both workflows select routes by the same rules. Routes are opt-in only
+through the installation's configuration: the workflow never selects a model
+itself, and an ordinary route with no explicit configuration keeps its
+existing assignment unchanged. The two optional routes — `implement-easy`
+and `consult-hard` — exist only where the installation configures them.
+
+- **`implement` is the default**: a scoped, verifiable slice that needs
+  ordinary implementation judgment.
+- **`implement-easy`** is selected only when the installation configures it
+  AND the slice is explicitly prescribed, bounded, and mechanically
+  verifiable — a docs correction with a deterministic acceptance check, or a
+  reference-checked rename. A slice that needs design judgment, behavioral
+  reasoning, or open-ended verification is not easy, however small it looks.
+  When the route is not configured, the slice runs on `implement` with its
+  existing assignment; that fallback is the defined policy, not a silent
+  substitution.
+- **`implement-hard`** is dispatched directly — no consultation first — when
+  the slice's correctness risk is visible: concurrency/async/cancellation/
+  timing behaviour, cross-repository contract surfaces, subtle shared-state
+  behaviour, security-relevant code paths, compatibility surfaces, or
+  interacting contracts. Risk is assessed per slice: no category of work
+  (docs, packaging, renames included) is exempt when its actual risk is
+  visible, and none qualifies merely by label. A routine slice that exposes
+  such risk mid-flight is reassessed and, when warranted, continued or
+  redone on the hard route.
+- **A hard fix keeps the fix contract and the fix counters**: it dispatches
+  on `implement-hard` with the bounded fix contract carried explicitly in
+  the task packet (or an equivalently scoped implement contract where the
+  installed profile body differs), and records task role `fix`, dispatched
+  role `implement-hard`, and the reason.
+- **`consult`** covers an independent task-framing recommendation and a
+  second opinion on one bounded focused decision. A focused decision
+  warrants a consult when it is a clear, direct, complex choice whose
+  framing benefits from independent review — not only when the loop is
+  stuck.
+- **`consult-hard`** is selected only when the installation configures it,
+  for a decision with conflicting evidence, interacting constraints, or a
+  costly reversal; dispatch it directly when that character is apparent.
+  When the route is not configured, the decision runs on `consult`. It is
+  read-only, carries the same consult contract in both modes, and consumes
+  the SAME consultation allowance as `consult`: one per task in reviewed
+  task work (a `--consult` invocation consumes it), one per decision and
+  two per session in Autonomous Mode. A requested stronger advice the host
+  cannot honour is surfaced as a limitation, never silently substituted by
+  a weaker route.
+- **`review` and `review-deep`** keep their existing gates, budgets, and
+  triggers; the routing policy adds no review round and changes no cap.
+
+An optional route that is simply unconfigured falls back to its base route
+as defined above. That is different from an explicitly configured role
+whose installed profile is missing or unreadable: that blocks only that
+role's dispatch and is reported with the binding's refresh procedure —
+never silently inherited or substituted. Whether a route is configured is
+established from the installation's authoritative install evidence as the
+active binding documents — not from the presence or absence of profile
+files alone; when that evidence is unavailable or ambiguous, the binding's
+conservative limitation handling applies. The same distinction applies to a
+requested route the active binding cannot honour: report the limitation.
+
+Routing follows the current slice, not a prior route lock. At every slice
+boundary, and on every fresh resume of a long-running goal, reassess the
+next slice's risk and the current installation before selecting its route;
+earlier dispatch records are diagnostic history, not an assignment. Keep
+the routing decisions, records, and rationale in the invoking workflow's
+existing state — session context in reviewed task work, the active handoff
+in Autonomous Mode — and create no new state for them.
+
 ## Dispatch records
 
 The coordinator records each dispatched round with its role (one of the
-seven: explore, implement, implement-hard, fix, review, deep-review,
-consult), the task contract it ran, and — only where the active binding
-exposes it — the role's model selection.
+seven base roles: explore, implement, implement-hard, fix, review,
+review-deep, consult — plus implement-easy and consult-hard where the
+installation configures them), the task contract it ran, and — only where
+the active binding exposes it — the role's model selection.
 
 These records belong to the invoking workflow's state: session state in
 reviewed task work, the handoff and the round ledger in Autonomous Mode.

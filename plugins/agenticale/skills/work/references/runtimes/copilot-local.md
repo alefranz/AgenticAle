@@ -39,6 +39,14 @@ without a model field (the session default). This binding retains its own dispat
 model argument on `runSubagent`, the stateless calls, and the parent-model
 cost-tier ceiling).
 
+The preference file's nine worker keys include the two optional routes,
+`implement-easy` and `consult-hard`. When neither is assigned, the shared
+routing policy dispatches the base route (`implement` or `consult`) with its
+existing assignment — a defined fallback, not an error. When an optional
+route IS assigned, the parent-model cost-tier ceiling still applies: a
+`consult-hard` selection above the coordinator's cost tier may not be
+honored, and that is reported as a limitation, never silently substituted.
+
 ## Requested versus effective settings
 
 The explicit model argument on `runSubagent` carries the requested selection,
@@ -62,7 +70,7 @@ the session; it rewrites no preference file.
 
 - Parent-model cost-tier ceiling. The harness enforces a cost-tier ceiling tied
   to the parent (coordinator) model. A cheap coordinator may therefore be unable
-  to launch a requested stronger reviewer: if the assigned review or deep-review
+  to launch a requested stronger reviewer: if the assigned review or review-deep
   model sits above the coordinator's cost tier, the harness may not honor it.
   Report this as a limitation rather than assuming the stronger reviewer ran.
 - Statelessness has a cost. Because calls do not share state, the coordinator

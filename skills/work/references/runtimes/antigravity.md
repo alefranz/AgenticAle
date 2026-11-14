@@ -35,6 +35,14 @@ the loaded skill, there is no preference file and no model selection. When
 no assignment exists for a role, dispatch without a model field (the
 session default).
 
+The preference file's nine worker keys include the two optional routes,
+`implement-easy` and `consult-hard`. When neither is assigned, the shared
+routing policy dispatches the base route (`implement` or `consult`) with its
+existing assignment — a defined fallback, not an error. The fixed enum applies
+to every key: a concrete model ID assigned to any role — including an optional
+route — cannot be passed to `invoke_subagent` and is surfaced as a limitation,
+never silently substituted.
+
 ## Requested versus effective settings
 
 The per-dispatch `Model` field carries the requested enum selection (`flash`,

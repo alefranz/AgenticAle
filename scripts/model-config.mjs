@@ -1,6 +1,8 @@
 #!/usr/bin/env node
-// Flat model configuration: a JSON object mapping a role to
-// "provider/model" or "provider/model#effort". Missing roles inherit the
+// Flat model configuration: a JSON object mapping a worker role to
+// "provider/model" or "provider/model#effort", plus the optional top-level
+// "coordinator" key that assigns the session coordinator (a session
+// assignment, not a child worker role). Missing worker roles inherit the
 // session model; there are no tiers, fallbacks, runtimes, or profiles. This
 // module owns the role list, the effort levels, the preset-name mapping, and
 // the loader/validator that the build, the installers, and the validator all
@@ -13,16 +15,26 @@ import { fileURLToPath } from "node:url";
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(scriptDirectory, "..");
 
+// The nine child worker roles. The seven base roles always render an OpenCode
+// profile (inheriting the session model when unlisted); the two optional
+// roles render a profile only when the config lists them explicitly.
 export const roles = [
   "explore",
   "implement",
+  "implement-easy",
   "implement-hard",
   "fix",
   "review",
-  "deep-review",
+  "review-deep",
   "consult",
+  "consult-hard",
 ];
 export const roleSet = new Set(roles);
+export const optionalRoles = ["implement-easy", "consult-hard"];
+export const optionalRoleSet = new Set(optionalRoles);
+// The session coordinator assignment is a distinct top-level config key, not
+// a worker role: it selects the model of the coordinating session itself.
+export const coordinatorKey = "coordinator";
 export const effortLevels = ["low", "medium", "high", "xhigh", "max"];
 export const effortSet = new Set(effortLevels);
 
@@ -42,7 +54,8 @@ export const DEFAULT_MODEL_CONFIG = "adapters/opencode/models.json";
 // Parse the string form of one role's value: "provider/model" or
 // "provider/model#effort". Returns { model, effort } where effort is null
 // when the value carries none. The value is written verbatim into generated
-// frontmatter, so whitespace and control characters are rejected outright.
+// frontmatter (as one "provider/model[#variant]" model line), so whitespace
+// and control characters are rejected outright.
 export function parseModelValue(value, role) {
   const label = `Model for role '${role}'`;
   if (typeof value !== "string" || value.trim().length === 0) {
@@ -64,6 +77,13 @@ export function parseModelValue(value, role) {
   return { model: modelPart, effort: effortPart };
 }
 
+// The verbatim frontmatter form of a parsed assignment: one
+// "provider/model[#variant]" value (OpenCode V2 carries the variant on the
+// model line; there is no separate reasoningEffort field).
+export function formatModelValue(assignment) {
+  return assignment.effort ? `${assignment.model}#${assignment.effort}` : assignment.model;
+}
+
 // Resolve a --models value: a bundled preset name maps to its examples/
 // file; the packaged default resolves against the repository root (so a
 // build from any CWD finds it); anything else is a caller path, relative
@@ -75,9 +95,10 @@ export function resolveModelPath(value) {
 }
 
 // Load and validate a flat model config from a path or a preset name.
-// Returns { config, sourcePath } where config maps each present role to
-// { model, effort } (effort null when absent). Every failure names the
-// offending role and value. Missing roles are legal: they inherit.
+// Returns { config, coordinator, sourcePath } where config maps each present
+// worker role to { model, effort } (effort null when absent) and coordinator
+// is the parsed session-coordinator assignment or null. Every failure names
+// the offending role and value. Missing worker roles are legal: they inherit.
 export async function loadModelConfig(value) {
   const sourcePath = resolveModelPath(value);
   let text;
@@ -99,11 +120,17 @@ export async function loadModelConfig(value) {
     throw new Error(`Model config must be a JSON object mapping roles to "provider/model[#effort]" values: ${sourcePath}.`);
   }
   const config = {};
+  let coordinator = null;
   for (const [role, rawValue] of Object.entries(parsed)) {
+    if (role === coordinatorKey) {
+      coordinator = parseModelValue(rawValue, coordinatorKey);
+      continue;
+    }
     if (!roleSet.has(role)) {
-      throw new Error(`Unknown role in model config ${sourcePath}: '${role}' (expected one of ${roles.join(", ")}).`);
+      const renameHint = role === "deep-review" ? " The 'deep-review' role was renamed to 'review-deep'." : "";
+      throw new Error(`Unknown role in model config ${sourcePath}: '${role}' (expected one of ${roles.join(", ")}).${renameHint}`);
     }
     config[role] = parseModelValue(rawValue, role);
   }
-  return { config, sourcePath };
+  return { config, coordinator, sourcePath };
 }

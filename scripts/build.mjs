@@ -3,15 +3,15 @@
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { lstat, mkdir, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { DEFAULT_MODEL_CONFIG, loadModelConfig } from "./model-config.mjs";
+import { DEFAULT_MODEL_CONFIG, formatModelValue, loadModelConfig } from "./model-config.mjs";
 
 // Shared flat model configuration: the role list, the effort levels, the
 // preset-name mapping, and the loader/validator the build, the installers,
 // and the validator all share, so one schema is enforced everywhere.
 //
-// Model selection is a build-time input only: the seven generated OpenCode
-// agent profiles carry the model/effort frontmatter, and the workflow never
-// resolves models at activation.
+// Model selection is a build-time input only: the generated OpenCode agent
+// profiles carry the model frontmatter (one provider/model[#variant] line),
+// and the workflow never resolves models at activation.
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(scriptDirectory, "..");
@@ -36,7 +36,7 @@ const SKILL_NAMES = ["work", "review", "autonomous", "pull-request-description",
 export const pluginManifest = {
   $schema: "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   name: "agenticale",
-  version: "0.23.0",
+  version: "0.24.0",
   description: "Reviewed coding tasks with focused specialist agents, optional PR delivery, and durable autonomous project work.",
   author: { name: "Ale Franz" },
   homepage: "https://github.com/alefranz/AgenticAle",
@@ -58,11 +58,14 @@ Builds the skills-first bundle from the common core and the OpenCode adapter:
 
 Options:
   --output PATH         Build root (default: dist)
-  --models PATH|PRESET  Flat per-role model config: a JSON object mapping roles
-                        to "provider/model[#effort]" (presets: example, local,
-                        openai, gpt, zen); a missing role inherits the session
-                        model
-  --no-model            Omit model and reasoning-effort; every role inherits
+  --models PATH|PRESET  Flat per-role model config: a JSON object mapping worker
+                        roles to "provider/model[#variant]" (presets: example,
+                        local, openai, gpt, zen); a missing role inherits the
+                        session model. The optional coordinator key assigns the
+                        session coordinator; implement-easy and consult-hard
+                        render only when listed
+  --no-model            Omit model and variant; every role inherits and no
+                        coordinator profile is generated
   --source-root PATH    Render a different source-code-lookup root
   --help                Show this help`;
 }
@@ -118,41 +121,46 @@ export function parseArguments(argv) {
 
 // The effective flat model config for this build: --models reads a caller
 // config (a preset name or a path) directly; --no-model makes every role
-// inherit; with neither, the packaged flat default is used.
+// inherit and generates no coordinator; with neither, the packaged flat
+// default is used.
 async function loadModelOptions(options) {
-  if (options.noModel) return { config: {}, modelsSource: "none (--no-model)" };
+  if (options.noModel) return { config: {}, coordinator: null, modelsSource: "none (--no-model)" };
   const value = options.models ?? DEFAULT_MODEL_CONFIG;
-  const { config } = await loadModelConfig(value);
-  return { config, modelsSource: options.models ? `--models ${options.models}` : DEFAULT_MODEL_CONFIG };
+  const { config, coordinator } = await loadModelConfig(value);
+  return { config, coordinator, modelsSource: options.models ? `--models ${options.models}` : DEFAULT_MODEL_CONFIG };
 }
 
-// Each OpenCode profile is one role (seven profiles, one per role), so the
-// profile name IS the role. The task-contract body is resolved separately:
-// implement and implement-hard share implement.md.
+// Each OpenCode worker profile is one role, so the profile name IS the role.
+// The task-contract body is resolved separately: implement, implement-easy,
+// and implement-hard share implement.md; consult and consult-hard share
+// consult.md.
 const TASK_CONTRACT_FOR_PROFILE = {
+  "implement-easy": "implement",
   "implement-hard": "implement",
+  "consult-hard": "consult",
 };
 function taskContractFor(profileName) {
   return TASK_CONTRACT_FOR_PROFILE[profileName] ?? profileName;
 }
 
-// A listed role renders explicit frontmatter (model, and the effort when the
-// value carries one); an unlisted role renders neither line and inherits the
-// session model.
+// A listed role renders one explicit model line in provider/model[#variant]
+// form (OpenCode V2 carries the variant on the model line; there is no
+// separate reasoningEffort field); an unlisted role renders no model line and
+// inherits the session model. The permissions block is omitted when empty
+// (the coordinator keeps the normal ability to dispatch children).
 function renderOpenCodeProfile(profile, assignment, body) {
   const lines = ["---"];
   lines.push(`description: ${profile.description}`);
   lines.push(`mode: ${profile.mode}`);
-  lines.push(`steps: ${profile.steps}`);
-  if (assignment) {
-    lines.push(`model: ${assignment.model}`);
-    if (assignment.effort) lines.push(`reasoningEffort: ${assignment.effort}`);
-  }
-  lines.push("permissions:");
-  for (const permission of profile.permissions) {
-    lines.push(`  - action: ${permission.action}`);
-    lines.push(`    resource: ${JSON.stringify(permission.resource)}`);
-    lines.push(`    effect: ${permission.effect}`);
+  if (profile.steps !== undefined) lines.push(`steps: ${profile.steps}`);
+  if (assignment) lines.push(`model: ${formatModelValue(assignment)}`);
+  if (profile.permissions.length > 0) {
+    lines.push("permissions:");
+    for (const permission of profile.permissions) {
+      lines.push(`  - action: ${permission.action}`);
+      lines.push(`    resource: ${JSON.stringify(permission.resource)}`);
+      lines.push(`    effect: ${permission.effect}`);
+    }
   }
   lines.push("---", "", body);
   return `${lines.join("\n").trimEnd()}\n`;
@@ -201,9 +209,21 @@ async function populateSkillsRoot(skillsRoot, sourceRoot, modelConfigSection) {
 // Copies the adapter-owned command templates (thin launchers that load the
 // explicit-only skills by exact ID) into the OpenCode output. OpenCode V2 does
 // not interpret the skills' `slash` portability field, so the /work, /review,
-// and /autonomous entries must be installed command files.
-async function populateCommandEntries(openCodeRoot, adapter) {
+// and /autonomous entries must be installed command files. When the config
+// assigns a session coordinator, each command additionally binds the
+// generated coordinator agent (`agent:`) and forces the current session
+// (`subagent: false`); the skill load and $ARGUMENTS body stay untouched.
+// Without a coordinator the commands remain plain caller-session launchers.
+async function populateCommandEntries(openCodeRoot, adapter, coordinatorAssignment) {
   const adapterDirectory = join(repositoryRoot, "adapters", "opencode");
+  let coordinatorAgentId = null;
+  if (coordinatorAssignment) {
+    const outputPath = adapter.coordinator?.outputPath;
+    if (typeof outputPath !== "string" || !outputPath.startsWith("agents/") || !outputPath.endsWith(".md")) {
+      throw new Error("OpenCode adapter coordinator must declare an agents/<id>.md outputPath: adapters/opencode/adapter.json");
+    }
+    coordinatorAgentId = outputPath.slice("agents/".length, -".md".length);
+  }
   for (const command of adapter.commands ?? []) {
     if (typeof command?.name !== "string" || typeof command?.source !== "string" || typeof command?.outputPath !== "string") {
       throw new Error("OpenCode adapter command entries must declare name, source, and outputPath strings: adapters/opencode/adapter.json");
@@ -215,7 +235,14 @@ async function populateCommandEntries(openCodeRoot, adapter) {
     if (!command.outputPath.startsWith("commands/")) {
       throw new Error(`OpenCode command output path must live under commands/: ${command.outputPath}`);
     }
-    const text = (await readFile(source, "utf8")).replace(/\r\n?/g, "\n");
+    let text = (await readFile(source, "utf8")).replace(/\r\n?/g, "\n");
+    if (coordinatorAgentId !== null) {
+      const lines = text.split("\n");
+      const close = lines[0] === "---" ? lines.indexOf("---", 1) : -1;
+      if (close < 0) throw new Error(`OpenCode command template must carry frontmatter: ${command.source}`);
+      lines.splice(close, 0, `agent: ${coordinatorAgentId}`, "subagent: false");
+      text = lines.join("\n");
+    }
     await writeText(join(openCodeRoot, command.outputPath), text);
   }
 }
@@ -393,7 +420,7 @@ async function assertBuildOutputOwned(output) {
 
 export async function buildBundles(options) {
   await assertSafeOutput(options.output);
-  const { config, modelsSource } = await loadModelOptions(options);
+  const { config, coordinator, modelsSource } = await loadModelOptions(options);
 
   const adapter = JSON.parse(
     await readFile(join(repositoryRoot, "adapters", "opencode", "adapter.json"), "utf8"),
@@ -409,12 +436,35 @@ export async function buildBundles(options) {
   for (const profile of adapter.profiles) {
     const route = profile.name;
     const assignment = config[route] ?? null;
+    // Optional worker profiles (implement-easy, consult-hard) render only
+    // when the config lists them explicitly; the base roles always render.
+    if (profile.optional && !assignment) continue;
     const bodySource = await readFile(
       join(repositoryRoot, "skills", "work", "references", "tasks", `${taskContractFor(route)}.md`),
       "utf8",
     );
     const body = bodySource.replace(/\r\n?/g, "\n").trim();
     profiles.push({ profile, route, assignment, text: renderOpenCodeProfile(profile, assignment, body) });
+  }
+
+  // The session coordinator is generated only when the config assigns it
+  // (never under --no-model): one visible primary agent with the normal
+  // ability to dispatch children and the adapter-owned coordinator body.
+  let coordinatorProfile = null;
+  if (coordinator) {
+    const meta = adapter.coordinator;
+    if (!meta || typeof meta.name !== "string" || typeof meta.outputPath !== "string" || typeof meta.body !== "string"
+        || typeof meta.description !== "string" || typeof meta.mode !== "string" || !Array.isArray(meta.permissions)) {
+      throw new Error("OpenCode adapter must declare coordinator metadata (name, outputPath, mode, description, body, permissions): adapters/opencode/adapter.json");
+    }
+    const adapterDirectory = join(repositoryRoot, "adapters", "opencode");
+    const bodyPath = resolve(adapterDirectory, meta.body);
+    if (bodyPath !== adapterDirectory && !bodyPath.startsWith(adapterDirectory + sep)) {
+      throw new Error(`OpenCode coordinator body must stay inside the adapter directory: ${meta.body}`);
+    }
+    const bodySource = await readFile(bodyPath, "utf8");
+    const body = bodySource.replace(/\r\n?/g, "\n").trim();
+    coordinatorProfile = { meta, assignment: coordinator, text: renderOpenCodeProfile(meta, coordinator, body) };
   }
 
   // Remove only the roots this build owns (including the retired baseline
@@ -426,10 +476,7 @@ export async function buildBundles(options) {
 
   const profileRecords = profiles.map(({ profile, route, assignment }) => {
     const record = { name: profile.name, route, steps: profile.steps, mode: assignment ? "explicit" : "inherit" };
-    if (assignment) {
-      record.model = assignment.model;
-      if (assignment.effort) record.reasoningEffort = assignment.effort;
-    }
+    if (assignment) record.model = formatModelValue(assignment);
     return record;
   });
 
@@ -441,6 +488,7 @@ export async function buildBundles(options) {
     sourceRoot: options.sourceRoot,
     outputs: OUTPUT_ROOTS,
     profiles: profileRecords,
+    coordinator: coordinatorProfile ? { name: coordinatorProfile.meta.name, model: formatModelValue(coordinatorProfile.assignment) } : null,
   }, null, 2)}\n`, "utf8");
 
   const modelConfigSection = await readFile(modelConfigFragmentPath, "utf8");
@@ -456,7 +504,10 @@ export async function buildBundles(options) {
   for (const { profile, text } of profiles) {
     await writeText(join(openCodeRoot, profile.outputPath), text);
   }
-  await populateCommandEntries(openCodeRoot, adapter);
+  if (coordinatorProfile) {
+    await writeText(join(openCodeRoot, coordinatorProfile.meta.outputPath), coordinatorProfile.text);
+  }
+  await populateCommandEntries(openCodeRoot, adapter, coordinator);
   await populateSkillsRoot(join(openCodeRoot, "skills"), options.sourceRoot, null);
 
   const explicitCount = profileRecords.filter((record) => record.mode === "explicit").length;
@@ -466,6 +517,8 @@ export async function buildBundles(options) {
     standaloneRoot: standaloneSkillsRoot,
     copilotRoot: pluginRoot,
     modelCount: explicitCount,
+    profileCount: profileRecords.length,
+    coordinator: coordinatorProfile !== null,
   };
 }
 
@@ -481,9 +534,12 @@ async function main() {
     console.log(`Built standalone skills: ${result.standaloneRoot}`);
     console.log(`Built OpenCode binding: ${result.openCodeRoot}`);
     if (options.noModel) {
-      console.log("Built model-neutral bundles; every OpenCode profile inherits the session model and effort.");
+      console.log("Built model-neutral bundles; every OpenCode profile inherits the session model and effort, and no coordinator profile is generated.");
     } else {
-      console.log(`${result.modelCount} of 7 OpenCode profiles carry explicit model routes; the rest inherit the session model.`);
+      console.log(`${result.modelCount} of ${result.profileCount} OpenCode worker profiles carry explicit model routes; the rest inherit the session model.`);
+      if (result.coordinator) {
+        console.log("Coordinator profile generated; the /work, /review, and /autonomous commands bind agenticale/coordinator in the current session.");
+      }
     }
   } catch (error) {
     console.error(`Build failed: ${error.message}`);

@@ -1,11 +1,14 @@
 # Troubleshooting
 
-If `/work`, `/review`, or `/autonomous` is not found, restart the client after
-installation. For OpenCode, restart OpenCode; for Copilot, restart the Copilot
-session; for Antigravity, restart the CLI or desktop app session (and verify with
-`agy plugin list` that `agenticale` is enabled). OpenCode uses
-generated command entries; other clients discover the installed skills through
-their own skill or plugin interface. See [setup](../setup.md) for installation.
+If `/work`, `/review`, or `/autonomous` is not found after installation, let
+the client pick up the installed entries. For OpenCode, a running server
+reloads installed agents, commands, and skills automatically after a save;
+use `/reload` to force a full reload — no app restart is needed. For Copilot,
+restart the Copilot session; for Antigravity, restart the CLI or desktop app
+session (and verify with `agy plugin list` that `agenticale` is enabled).
+OpenCode uses generated command entries; other clients discover the installed
+skills through their own skill or plugin interface. See [setup](../setup.md)
+for installation.
 
 If an OpenCode child stops for approval or cannot resume, review the configured
 permissions below. Child actions need preconfigured allow or deny rules so they
@@ -18,10 +21,38 @@ If a model cannot be found, check that its identifier is available in your
 account and that the installation's model configuration names it. On OpenCode
 the models are fixed in the generated profiles at install time: rerun the
 installer with a different `--models PATH|PRESET` (or `--no-model`)
-configuration, then restart or start a new session. On other hosts the
+configuration; the running server reloads the refreshed profiles
+automatically (`/reload` forces a full reload), and the next fresh workflow
+invocation uses them. On other hosts the
 preference file can assign a model per role; edit it and start a new `/work`,
 `/review`, or `/autonomous` activation. See the [model configuration
 guide](model-routing.md).
+
+## Optional route reported missing on OpenCode
+
+When the workflow reports that a configured optional route (`implement-easy`
+or `consult-hard`) cannot dispatch, the install manifest lists the route but
+its profile is missing or unreadable: rerun the installer with the same
+`--models` configuration to restore it (the running server reloads
+automatically; `/reload` forces a full reload). That is different from the
+defined fallback when the route was never configured. If the workflow
+instead reports that configured intent could not be established, the
+ownership manifest (`.autonomous-mode-install.json`) is absent, unreadable,
+or ambiguous — for example after a manual profile copy, or with
+`agenticale/*` profiles defined in more than one configuration scope. Rerun
+the installer into the effective configuration directory to restore both
+the profiles and the manifest; unrelated base roles keep working in the
+meantime. See [optional routes: omitted versus
+missing](model-routing.md#optional-routes-omitted-versus-missing) in the
+model configuration guide.
+
+If you customized an optional profile and then reinstalled without that
+route, the install succeeds and keeps your modified file
+(`preserve-modified`) but drops its manifest entry: the route is omitted,
+the workflow falls back to the base route, and the leftover file is never
+dispatched. Delete the leftover manually if you want it gone — `--replace`
+only replaces profiles the new install generates — and reinstall with the
+route configured to use it again.
 
 ## Preference file precedence and invalid work allowance
 

@@ -14,8 +14,10 @@ requested pull request, includes independent review, acceptance checks, and
 fixes for blocking findings, so your attention goes to completed work.
 
 Describe the outcome you want and invoke a workflow explicitly. The session
-where you invoke it coordinates the work; there is no separate coordinator to
-select.
+where you invoke it coordinates the work. On OpenCode you can optionally
+configure a coordinator model at install time; the workflow commands then run
+in the current session on the generated `agenticale/coordinator` profile.
+Other hosts keep the invoking session as the coordinator.
 
 ```text
 /work Fix the date filtering bug
@@ -128,9 +130,9 @@ recovery, while Autonomous applies its own cooldown and handoff policy.
 
 ## Customize model configuration
 
-Each of the seven worker roles gets its own model — set at install time on
-OpenCode, or in one optional preference file on the other hosts. The details
-are in the
+Each worker role gets its own model — seven base roles plus two optional
+routes — set at install time on OpenCode, or in one optional preference file
+on the other hosts. The details are in the
 [model configuration guide](https://alefranz.github.io/AgenticAle/guides/model-routing.html).
 
 ## Choose where the task finishes

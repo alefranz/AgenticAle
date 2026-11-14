@@ -1,6 +1,6 @@
 # Implementation task contract
 
-Implement one bounded, verifiable slice in a fresh child context; the routine-versus-hard distinction is a dispatch choice, not a separate contract.
+Implement one bounded, verifiable slice in a fresh child context; the easy/routine-versus-hard distinction is a dispatch choice, not a separate contract.
 
 ## Mission and scope
 
@@ -17,11 +17,12 @@ experiment, report its result against the decision criterion and identify any
 changes requiring retention or cleanup. A rejected hypothesis is not feature
 completion.
 
-This one contract serves both routine slices and genuinely reasoning-heavy
-ones — concurrency/async/cancellation/timing behaviour, cross-repository
+This one contract serves easy, routine, and genuinely reasoning-heavy
+slices — concurrency/async/cancellation/timing behaviour, cross-repository
 contract surfaces, subtle shared-state behaviour, or security-relevant code
-paths. A difficult slice is assigned to this same contract with a hard-task
-dispatch context; the instructions here do not change with the assignment.
+paths. An easy or difficult slice is assigned to this same contract with the
+matching dispatch context; the instructions here do not change with the
+assignment.
 
 ## Permitted actions
 

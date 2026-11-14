@@ -4,6 +4,6 @@
   "implement-hard": "local-llama/qwen3.8-27b#xhigh",
   "fix": "local-llama/qwen3.8-27b#medium",
   "review": "openai/gpt-6.1-sol#high",
-  "deep-review": "openai/gpt-6.1-sol#xhigh",
+  "review-deep": "openai/gpt-6.1-sol#xhigh",
   "consult": "openai/gpt-6.1-sol#xhigh"
 }

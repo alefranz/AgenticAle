@@ -61,7 +61,23 @@ async function buildFixture(name, args = [], { env, cwd } = {}) {
   };
 }
 
-const ALL_ROLES = ["consult", "deep-review", "explore", "fix", "implement", "implement-hard", "review"];
+const BASE_ROLES = ["consult", "explore", "fix", "implement", "implement-hard", "review", "review-deep"];
+const ALL_ROLES = ["consult", "consult-hard", "explore", "fix", "implement", "implement-easy", "implement-hard", "review", "review-deep"];
+
+// The exact example preset acceptance: one primary coordinator plus nine
+// workers, each with its exact provider/model#variant value.
+const EXAMPLE_ASSIGNMENTS = {
+  coordinator: "openai/gpt-6.1-sol#medium",
+  explore: "local-llama/qwen3.8-27b#medium",
+  "implement-easy": "local-llama/qwen3.8-27b#medium",
+  implement: "alibaba-token-plan/qwen4-max-preview#medium",
+  "implement-hard": "alibaba-token-plan/qwen4-max-preview#xhigh",
+  fix: "alibaba-token-plan/qwen4-max-preview#medium",
+  review: "openai/gpt-6.1-sol#high",
+  "review-deep": "openai/gpt-6-astra#high",
+  "consult-hard": "openai/gpt-6-astra#high",
+  consult: "openai/gpt-6.1-sol#high",
+};
 
 try {
   // Default build: three output roots, correct shapes and file counts.
@@ -99,10 +115,13 @@ try {
   check(!standaloneRel.some((path) => ["agents", "commands"].includes(path.split("/")[0])), "standalone bundle has no top-level agents/ or commands/");
   check(standaloneRel.includes("work/scripts/session-stats.mjs"), "standalone bundle ships work/scripts/session-stats.mjs");
 
-  // OpenCode root: seven profiles, one per role (including implement-hard).
+  // OpenCode root: the seven base worker profiles, one per base role
+  // (including implement-hard); optional workers and the coordinator render
+  // only when configured.
   const profileNames = openCodeRel.filter((path) => path.startsWith("agents/agenticale/")).map((path) => path.split("/").pop().replace(".md", ""));
-  check(JSON.stringify([...profileNames].sort()) === JSON.stringify([...ALL_ROLES].sort()), "OpenCode bundle has exactly seven profiles, one per role");
-  check(!openCodeRel.some((path) => path.endsWith("coordinator.md")), "OpenCode bundle has no coordinator profile");
+  check(JSON.stringify([...profileNames].sort()) === JSON.stringify([...BASE_ROLES].sort()), "OpenCode bundle has exactly the seven base profiles, one per base role");
+  check(!openCodeRel.some((path) => path.endsWith("coordinator.md")), "default OpenCode bundle has no coordinator profile");
+  check(!openCodeRel.some((path) => path.endsWith("implement-easy.md") || path.endsWith("consult-hard.md")), "default OpenCode bundle has no optional worker profiles");
 
   // OpenCode command entries: thin launchers for the explicit-only skills.
   check(openCodeRel.includes("commands/work.md") && openCodeRel.includes("commands/review.md") && openCodeRel.includes("commands/autonomous.md"), "OpenCode bundle has the three command entries");
@@ -113,19 +132,22 @@ try {
   check(reviewCommand.includes("`review`") && reviewCommand.includes("$ARGUMENTS"), "review command loads the review skill by exact ID and passes $ARGUMENTS");
   const autonomousCommand = await readText(join(fixture.openCodeRoot, "commands", "autonomous.md"));
   check(autonomousCommand.includes("`autonomous`") && autonomousCommand.includes("$ARGUMENTS"), "autonomous command loads the autonomous skill by exact ID and passes $ARGUMENTS");
+  for (const [name, text] of [["work", workCommand], ["review", reviewCommand], ["autonomous", autonomousCommand]]) {
+    check(!/^agent:/m.test(text) && !/^subagent:/m.test(text), `default ${name} command has no agent/subagent binding without a configured coordinator`);
+  }
 
-  // Default models render per role from the packaged flat model config.
+  // Default models render per role from the packaged flat model config as
+  // one provider/model#variant model line (no separate reasoningEffort).
   const defaultModels = JSON.parse(await readText(join(repository, "adapters", "opencode", "models.json")));
-  for (const role of ALL_ROLES) {
-    const [model, effort] = defaultModels[role].split("#");
+  for (const role of BASE_ROLES) {
     const text = await readText(join(fixture.openCodeRoot, "agents", "agenticale", `${role}.md`));
-    check(text.includes(`model: ${model}`), `${role} profile renders the flat config model ${model}`);
-    check(text.includes(`reasoningEffort: ${effort}`), `${role} profile renders the flat config effort ${effort}`);
+    check(text.includes(`model: ${defaultModels[role]}`), `${role} profile renders the flat config model line ${defaultModels[role]}`);
+    check(!/^reasoningEffort:/m.test(text), `${role} profile has no separate reasoningEffort line`);
   }
 
   // Each profile keeps its adapter metadata (subagent mode + exact deny set).
   const readOnly = ["explore", "consult"];
-  for (const name of ALL_ROLES) {
+  for (const name of BASE_ROLES) {
     const text = await readText(join(fixture.openCodeRoot, "agents", "agenticale", `${name}.md`));
     check(text.includes("mode: subagent"), `${name} profile is a subagent`);
     if (readOnly.includes(name)) {
@@ -148,13 +170,14 @@ try {
   check(state.schemaVersion === 2, "build state schemaVersion is 2");
   check(state.modelsSource === "adapters/opencode/models.json", "build state modelsSource is the packaged flat model config");
   check(state.noModel === false, "build state noModel is false for the default build");
-  check(JSON.stringify(state.profiles.map((p) => p.name).sort()) === JSON.stringify([...ALL_ROLES].sort()), "build state records all seven profiles");
-  check(state.profiles.every((p) => p.mode === "explicit" && typeof p.model === "string" && typeof p.reasoningEffort === "string"), "build state profiles all carry explicit model/effort for the packaged defaults");
+  check(JSON.stringify(state.profiles.map((p) => p.name).sort()) === JSON.stringify([...BASE_ROLES].sort()), "build state records the seven base profiles");
+  check(state.profiles.every((p) => p.mode === "explicit" && typeof p.model === "string" && p.model.includes("#") && p.reasoningEffort === undefined), "build state profiles all carry one explicit provider/model#variant value for the packaged defaults");
+  check(state.coordinator === null, "default build state records no coordinator");
 
   // --no-model renders profiles without model/effort lines and records the
   // model-neutral source in the build state.
   const noModel = await buildFixture("no-model", ["--no-model"]);
-  for (const name of ALL_ROLES) {
+  for (const name of BASE_ROLES) {
     const text = await readText(join(noModel.openCodeRoot, "agents", "agenticale", `${name}.md`));
     check(!/^model:/m.test(text) && !/^reasoningEffort:/m.test(text), `${name} profile has no model/effort lines under --no-model`);
   }
@@ -162,6 +185,13 @@ try {
   check(noModelState.modelsSource === "none (--no-model)", "--no-model build state modelsSource is 'none (--no-model)'");
   check(noModelState.noModel === true, "--no-model build state noModel is true");
   check(noModelState.profiles.every((p) => p.mode === "inherit" && p.model === undefined), "--no-model build state profiles all inherit");
+  check(noModelState.coordinator === null, "--no-model build state records no coordinator");
+  const noModelRel = await listRelative(noModel.openCodeRoot);
+  check(!noModelRel.some((path) => path.endsWith("coordinator.md")), "--no-model bundle generates no coordinator profile");
+  for (const name of ["work", "review", "autonomous"]) {
+    const text = await readText(join(noModel.openCodeRoot, "commands", `${name}.md`));
+    check(!/^agent:/m.test(text) && !/^subagent:/m.test(text), `--no-model ${name} command stays a caller-session launcher`);
+  }
   const pluginHashes = async (root) => {
     const list = await listFiles(root);
     return Promise.all(list.map(async (path) => [portable(relative(root, path)), hash(await readFile(path))]));
@@ -180,7 +210,7 @@ try {
   const localState = JSON.parse(await readText(localFixture.buildState));
   check(localState.modelsSource === "--models local", "local preset build state modelsSource records the --models preset");
   const localReview = await readText(join(localFixture.openCodeRoot, "agents", "agenticale", "review.md"));
-  check(localReview.includes("model: local-llama/qwen3.8-27b"), "local preset renders a provider-qualified model for review");
+  check(localReview.includes("model: local-llama/qwen3.8-27b#xhigh"), "local preset renders one provider-qualified model#variant line for review");
 
   // --models with a caller file that lists only some roles: listed roles
   // render explicit frontmatter, unlisted roles inherit the session model.
@@ -190,9 +220,42 @@ try {
   const callerState = JSON.parse(await readText(callerFixture.buildState));
   check(callerState.modelsSource === `--models ${callerModels}`, "caller-file build state modelsSource records the --models path");
   const callerReview = await readText(join(callerFixture.openCodeRoot, "agents", "agenticale", "review.md"));
-  check(callerReview.includes("model: acme/rev") && callerReview.includes("reasoningEffort: high"), "caller file: the listed review role renders explicit frontmatter");
+  check(callerReview.includes("model: acme/rev#high"), "caller file: the listed review role renders one explicit model line");
   const callerConsult = await readText(join(callerFixture.openCodeRoot, "agents", "agenticale", "consult.md"));
   check(!/^model:/m.test(callerConsult) && !/^reasoningEffort:/m.test(callerConsult), "caller file: an unlisted role inherits (no model line)");
+  const callerRel = await listRelative(callerFixture.openCodeRoot);
+  check(!callerRel.some((path) => path.endsWith("coordinator.md") || path.endsWith("implement-easy.md") || path.endsWith("consult-hard.md")), "caller file: unlisted optional roles and the coordinator do not render");
+
+  // The exact example preset: 1 primary coordinator + 9 workers (35 files),
+  // exact model values, and commands bound to the coordinator in the current
+  // session with the skill load and $ARGUMENTS retained.
+  {
+    const exampleFixture = await buildFixture("example-preset", ["--models", "example"]);
+    const exampleRel = await listRelative(exampleFixture.openCodeRoot);
+    check(exampleRel.length === 35, "example preset OpenCode bundle has 35 files (10 profiles + 3 commands + 22 skills)");
+    const exampleProfiles = exampleRel.filter((path) => path.startsWith("agents/agenticale/")).map((path) => path.split("/").pop().replace(".md", ""));
+    check(JSON.stringify(exampleProfiles.sort()) === JSON.stringify([...ALL_ROLES, "coordinator"].sort()), "example preset renders exactly 1 primary + 9 worker profiles");
+    for (const role of ALL_ROLES) {
+      const text = await readText(join(exampleFixture.openCodeRoot, "agents", "agenticale", `${role}.md`));
+      check(text.includes(`model: ${EXAMPLE_ASSIGNMENTS[role]}`), `example preset: ${role} renders the exact model line ${EXAMPLE_ASSIGNMENTS[role]}`);
+      check(!/^reasoningEffort:/m.test(text), `example preset: ${role} has no separate reasoningEffort line`);
+    }
+    const exampleCoordinator = await readText(join(exampleFixture.openCodeRoot, "agents", "agenticale", "coordinator.md"));
+    check(exampleCoordinator.includes("mode: primary") && exampleCoordinator.includes(`model: ${EXAMPLE_ASSIGNMENTS.coordinator}`), "example preset: the coordinator is a primary agent with its exact model");
+    check(!/- action: subagent/.test(exampleCoordinator), "example preset: the coordinator can dispatch children (no subagent denial)");
+    for (const name of ["work", "review", "autonomous"]) {
+      const text = await readText(join(exampleFixture.openCodeRoot, "commands", `${name}.md`));
+      check(/^agent: agenticale\/coordinator$/m.test(text) && /^subagent: false$/m.test(text), `example preset: ${name} command binds agenticale/coordinator with subagent: false`);
+      check(text.includes(`\`${name}\``) && text.includes("$ARGUMENTS"), `example preset: ${name} command keeps the exact skill load and $ARGUMENTS`);
+    }
+    const exampleState = JSON.parse(await readText(exampleFixture.buildState));
+    check(exampleState.coordinator !== null && exampleState.coordinator.model === EXAMPLE_ASSIGNMENTS.coordinator, "example preset build state records the coordinator assignment");
+    check(exampleState.profiles.length === 9 && exampleState.profiles.every((p) => p.mode === "explicit"), "example preset build state records nine explicit worker profiles");
+    // The plugin and standalone outputs are model-agnostic: identical file
+    // sets with and without the coordinator config.
+    check(JSON.stringify(await listRelative(exampleFixture.pluginRoot)) === JSON.stringify(pluginRel), "example preset plugin bundle file set matches the default build");
+    check(JSON.stringify(await listRelative(exampleFixture.standaloneRoot)) === JSON.stringify(standaloneRel), "example preset standalone bundle file set matches the default build");
+  }
 
   // Error handling: retired/unknown arguments, conflicts, and bad flat configs.
   const retiredRouting = spawnSync(process.execPath, [build, "--output", join(scratch, "err"), "--routing", join(scratch, "r.json")], { encoding: "utf8" });

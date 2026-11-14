@@ -4,6 +4,6 @@
   "implement-hard": "opencode/gpt-6.1-sol#high",
   "fix": "opencode/gpt-6-luna#max",
   "review": "opencode/gpt-6.1-sol#high",
-  "deep-review": "opencode/gpt-6.1-sol#xhigh",
+  "review-deep": "opencode/gpt-6.1-sol#xhigh",
   "consult": "opencode/gpt-6.1-sol#xhigh"
 }

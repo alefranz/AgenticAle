@@ -17,7 +17,7 @@ branch review. The session coordinates; one fresh reviewer inspects the
 recorded comparison and returns its findings. This skill reviews — it does
 not implement, fix, or publish. Read [the shared round contract](../work/references/rounds.md)
 before dispatching, including its task-packet and report rules. The review and
-deep-review task contracts are shared with the work and autonomous workflows;
+review-deep task contracts are shared with the work and autonomous workflows;
 invoking this skill does not activate either of them.
 
 ## Entry and arguments
@@ -25,7 +25,7 @@ invoking this skill does not activate either of them.
 Consume the invoking user's text directly; do not treat a placeholder
 arguments token as the request. Interpret the complete arguments as:
 
-- Leading options: an optional `--deep` option selects the deep-review
+- Leading options: an optional `--deep` option selects the review-deep
   contract for the review round. `--` is an explicit option delimiter; option
   parsing stops at the first non-option token, and everything after the
   options is the review context: a focus, acceptance criteria, an explicit
@@ -91,20 +91,26 @@ nothing to review and stop; do not dispatch a reviewer.
 Select the runtime binding from the host's tool surface — never from a
 selected model name — under `../work/references/runtimes/`; on OpenCode
 dispatch the installed `agenticale/review` profile, or
-`agenticale/deep-review` when `--deep` was selected. The workflow never
+`agenticale/review-deep` when `--deep` was selected. The workflow never
 selects a model. Where the installation appends a "Model configuration
 (this installation)" section, the preference file it documents is the only
-configuration file the workflow reads — at most once, at activation;
-otherwise the workflow reads, creates, or modifies no configuration file. A
-missing or unreadable profile blocks the dispatch and is reported with the
-binding's refresh procedure. Where the installation documents a preference
-file, the selected file stays fixed for the activation.
+preference file the workflow reads — at most once, at activation. The only
+other configuration evidence it may read is the install-ownership manifest
+the active runtime binding documents, read-only at most once at activation
+and solely to establish whether a needed optional route was configured in
+the current install inventory, including when a leftover profile file is
+present; it never resolves models from that manifest. Otherwise the workflow
+reads, creates, or modifies no configuration file, and it never modifies the
+manifest. A missing or unreadable profile blocks the dispatch and is
+reported with the binding's refresh procedure. Where the installation
+documents a preference file, the selected file stays fixed for the
+activation.
 
 ## Dispatch exactly one reviewer
 
 Dispatch one fresh child subagent carrying the
 [review contract](../work/references/tasks/review.md) — or the
-[deep-review contract](../work/references/tasks/deep-review.md) when `--deep`
+[review-deep contract](../work/references/tasks/review-deep.md) when `--deep`
 was selected — with the task packet the shared round contract defines. The
 packet supplies:
 

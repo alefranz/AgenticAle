@@ -17,7 +17,7 @@ branch review. The session coordinates; one fresh reviewer inspects the
 recorded comparison and returns its findings. This skill reviews — it does
 not implement, fix, or publish. Read [the shared round contract](../work/references/rounds.md)
 before dispatching, including its task-packet and report rules. The review and
-deep-review task contracts are shared with the work and autonomous workflows;
+review-deep task contracts are shared with the work and autonomous workflows;
 invoking this skill does not activate either of them.
 
 ## Entry and arguments
@@ -25,7 +25,7 @@ invoking this skill does not activate either of them.
 Consume the invoking user's text directly; do not treat a placeholder
 arguments token as the request. Interpret the complete arguments as:
 
-- Leading options: an optional `--deep` option selects the deep-review
+- Leading options: an optional `--deep` option selects the review-deep
   contract for the review round. `--` is an explicit option delimiter; option
   parsing stops at the first non-option token, and everything after the
   options is the review context: a focus, acceptance criteria, an explicit
@@ -91,20 +91,26 @@ nothing to review and stop; do not dispatch a reviewer.
 Select the runtime binding from the host's tool surface — never from a
 selected model name — under `../work/references/runtimes/`; on OpenCode
 dispatch the installed `agenticale/review` profile, or
-`agenticale/deep-review` when `--deep` was selected. The workflow never
+`agenticale/review-deep` when `--deep` was selected. The workflow never
 selects a model. Where the installation appends a "Model configuration
 (this installation)" section, the preference file it documents is the only
-configuration file the workflow reads — at most once, at activation;
-otherwise the workflow reads, creates, or modifies no configuration file. A
-missing or unreadable profile blocks the dispatch and is reported with the
-binding's refresh procedure. Where the installation documents a preference
-file, the selected file stays fixed for the activation.
+preference file the workflow reads — at most once, at activation. The only
+other configuration evidence it may read is the install-ownership manifest
+the active runtime binding documents, read-only at most once at activation
+and solely to establish whether a needed optional route was configured in
+the current install inventory, including when a leftover profile file is
+present; it never resolves models from that manifest. Otherwise the workflow
+reads, creates, or modifies no configuration file, and it never modifies the
+manifest. A missing or unreadable profile blocks the dispatch and is
+reported with the binding's refresh procedure. Where the installation
+documents a preference file, the selected file stays fixed for the
+activation.
 
 ## Dispatch exactly one reviewer
 
 Dispatch one fresh child subagent carrying the
 [review contract](../work/references/tasks/review.md) — or the
-[deep-review contract](../work/references/tasks/deep-review.md) when `--deep`
+[review-deep contract](../work/references/tasks/review-deep.md) when `--deep`
 was selected — with the task packet the shared round contract defines. The
 packet supplies:
 
@@ -163,12 +169,33 @@ customization); the workflow never creates or modifies preference files.
 
 Format: a Markdown list of direct role assignments, one per line:
 
-- `- <role>: <model>` or `- <role>: <model>, <effort>`
-- `<role>` is one of: explore, implement, implement-hard, fix, review,
-  deep-review, consult.
-- Roles not listed use the host default.
-- Nothing else is interpreted: no tiers, no fallbacks, no runtime sections,
-  no profile sections, no merging of files.
+- `- <role>: <provider/model[#variant]>` — one combined value, for example
+  `openai/gpt-6.1-sol#high`. The optional `#variant` suffix carries the
+  reasoning variant (`low`, `medium`, `high`, `xhigh`, `max`); where the
+  host exposes separate model and effort fields, the variant is passed as
+  the effort selection.
+- The earlier forms stay accepted: `- <role>: <model>` (no effort) and
+  `- <role>: <model>, <effort>` (for example
+  `- review: openai/gpt-6.1-sol, xhigh`). The comma form means the same
+  assignment as the combined `#variant` form, so existing preference files
+  keep working unchanged; use one form or the other on a line.
+- `<role>` is one of the nine child worker keys: explore, implement,
+  implement-easy, implement-hard, fix, review, review-deep, consult,
+  consult-hard. There is no coordinator key: the host owns the session
+  model, and this file never changes it. Where a Sol-class model is
+  available on your account, a medium variant (for example
+  `openai/gpt-6.1-sol#medium`) is a reasonable session default to select in
+  the host itself.
+- Roles not listed use the host default (the session model).
+- `implement-easy` and `consult-hard` are optional routes. When they are not
+  listed, the shared routing policy dispatches the base route (`implement`
+  or `consult`) with its existing assignment — a defined fallback, not an
+  error. When one IS listed but the host cannot honor the requested
+  selection, the workflow surfaces the limitation; it never silently
+  substitutes a weaker route.
+- Nothing else is interpreted: no tiers, no fallbacks beyond the optional
+  routes above, no runtime sections, no profile sections, no merging of
+  files.
 
 A leading `--profile NAME` option (or an unambiguous natural-language
 equivalent) selects the file `preferences.NAME.md` instead, again project
@@ -183,16 +210,19 @@ Application: where the active runtime binding exposes per-spawn model/effort
 fields, the role's assignment is passed at dispatch; where the host cannot
 select a model per child, the assignment has no effect (say so when the
 user asks for it). A profile never changes the session model, runtime,
-credentials, or endpoints.
+credentials, or endpoints. The effective selection is established only from
+native host evidence (runtime metadata or local traces), never from a
+child's self-reported model name; keep an unknown effective setting unknown.
 
 The same file may also carry the top-level `## Work` section documented in
 the skill body (worker-round allowance); it is the only other supported
 section.
 
-Example `preferences.md`:
+Example `preferences.md` (both value forms are accepted):
 
-    - review: openai/gpt-6.1-sol, xhigh
-    - deep-review: openai/gpt-6.1-sol, xhigh
+    - review: openai/gpt-6.1-sol#xhigh
+    - review-deep: openai/gpt-6.1-sol, xhigh
+    - consult-hard: openai/gpt-6.1-sol#xhigh
 
     ## Work
     - worker rounds: 12

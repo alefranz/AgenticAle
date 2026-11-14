@@ -15,9 +15,12 @@ The package exposes three public workflows, all explicit-only skills:
 - `/autonomous [budget] [goal]` for a durable, multi-round project.
 
 The other two skills, `source-code-lookup` and `pull-request-description`, are
-supporting and are loaded by the workflows when their tasks arise. There is no
-coordinator to select and no `commands/` entry: the session you invoke the
-skill in is the coordinator.
+supporting and are loaded by the workflows when their tasks arise. The session
+you invoke a skill in is the coordinator. On OpenCode you may optionally
+configure a coordinator model at install time: the `/work`, `/review`, and
+`/autonomous` command entries then run in the current session on the generated
+`agenticale/coordinator` profile from the first turn; without it they stay
+caller-session launchers. There is no `commands/` entry in the authored core.
 
 ## Install: choose your client
 
@@ -161,11 +164,13 @@ invocation details.
 
 ### OpenCode V2 (generated profiles)
 
-Installs the *generated* OpenCode binding: the five skills, seven generated
-agent profiles under `agents/agenticale/`, and the three command entries
-`commands/work.md`, `commands/review.md`, and `commands/autonomous.md` that
-expose `/work`, `/review`, and `/autonomous` in the OpenCode TUI. It copies
-into the OpenCode configuration
+Installs the *generated* OpenCode binding: the five skills, the seven base
+worker profiles under `agents/agenticale/` (plus the optional
+`implement-easy`/`consult-hard` worker profiles and the optional primary
+`coordinator` profile when your model config lists them), and the three
+command entries `commands/work.md`, `commands/review.md`, and
+`commands/autonomous.md` that expose `/work`, `/review`, and `/autonomous` in
+the OpenCode TUI. It copies into the OpenCode configuration
 directory and does not link to the repository source. The default target is
 `$XDG_CONFIG_HOME/opencode` when set, otherwise `~/.config/opencode`.
 
@@ -242,10 +247,13 @@ for an OpenCode session to walk through the `## Work` changes.
 After the install — or after any reinstall with a different model
 configuration — you can verify your model configuration. The installer prints
 a ready-to-paste prompt for an OpenCode session; it reads the generated agent
-profiles and reports each role's model and reasoning effort (a profile with no
-model line inherits the session model), and notes that role lines in a
+profiles and reports each role's model and reasoning variant (a profile with
+no model line inherits the session model), and notes that role lines in a
 preference file do not apply to this installation while the preference
-file's `## Work` section does. See the
+file's `## Work` section does. OpenCode picks up refreshed profiles without
+an app restart: a running server reloads them automatically after a save,
+and `/reload` forces a full reload; the next fresh workflow invocation uses
+the refreshed profiles. See the
 [model configuration guide](guides/model-routing.md) for details.
 
 #### Alternative: install from a local checkout
@@ -260,9 +268,15 @@ node scripts/install.mjs --no-model
 The install command requires either `--models PATH|PRESET` or `--no-model`.
 This installer is copy-only: it no longer offers a link mode. On install it
 migrates older copy installs (state schema 1-4), older link installs
-(schema 1-4), and older six-profile generated installs (schema 5) to the
-current generated copy layout (state `.autonomous-mode-install.json`,
-schema 6, a 32-file inventory).
+(schema 1-4), and older generated installs (schema 5-6, including the
+pre-rename `deep-review` profile) to the current generated copy layout
+(state `.autonomous-mode-install.json`, schema 7, a 32-file inventory by
+default and up to 35 files when the config lists both optional workers and
+the coordinator). The manifest is also the workflow's read-only evidence
+for configured-route intent: its current inventory distinguishes an optional
+route omitted at install time from a configured profile that later went
+missing, even when a preserved modified file is left behind (see the
+[model configuration guide](guides/model-routing.md)).
 
 If the target already carries another AgenticAle marker (for example a
 standalone `.agenticale-standalone-install.json`), the installer surfaces a
@@ -351,8 +365,8 @@ for the preference file locations and format.
 
 ### Choosing models: cheap by default, strong when it matters
 
-See [the seven roles](guides/model-routing.md#the-seven-roles) for the
-per-role model intent.
+See [the nine worker roles](guides/model-routing.md#the-nine-worker-roles) for
+the per-role model intent.
 
 ### OpenCode permissions
 
@@ -430,8 +444,9 @@ invocation, model-configuration, and OpenCode permission issues.
 ## Limitations
 
 - Live runtime support per client is recorded in
-  [runtime-compatibility.md](runtime-compatibility.md) and is **not tested** in
-  this pass. Do not treat the inspected client versions as verified.
+  [runtime-compatibility.md](runtime-compatibility.md). Most capabilities
+  remain **not tested**; one narrow OpenCode `/work` routing pass is recorded
+  there. Do not treat the inspected client versions as verified.
 - OpenCode enforces the generated per-profile step and permission rules. Copilot
   has no equivalent per-profile hard step ceiling, and some child-session
   restrictions are prompt conventions when a client does not support the
