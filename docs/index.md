@@ -1,5 +1,7 @@
 # AgenticAle
 
+> Pronounced **agentic + Ale** (*uh-JEN-tik AH-leh*, with *Ale* as in *Alessio* — not *ale* like the beer).
+
 AgenticAle is a collection of portable coding workflows — skills for an AI
 coding assistant that work with GitHub Copilot, Codex, OpenCode, and Google
 Antigravity.

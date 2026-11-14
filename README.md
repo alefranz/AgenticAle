@@ -1,5 +1,7 @@
 # AgenticAle
 
+> Pronounced **agentic + Ale** (*uh-JEN-tik AH-leh*, with *Ale* as in *Alessio* — not *ale* like the beer).
+
 AgenticAle is a free, open-source collection of coding skills for AI assistants.
 Its everyday workflow coordinates implementation, independent review, and
 focused fixes. A durable workflow carries larger goals across multiple rounds
