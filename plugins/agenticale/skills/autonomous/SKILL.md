@@ -45,16 +45,17 @@ Interpret the complete arguments as:
   worker rounds.
 - Whenever the parsed goal text is empty — no arguments at all or a budget
   alone — RESUME the active handoff: continue the exact one `NEXT` action
-  recorded in it.
+  recorded in it. If no active handoff exists, report that a new run needs
+  goal text.
 - A supplied goal with an already-active handoff is a conflict: preserve the
   existing active handoff untouched and report the conflict to the user
   instead of overwriting it.
 - Start in **strict** mode unless the user explicitly requested standard mode.
 
 In round 0, follow the skill's setup rules: read the project's `AGENTS.md`
-when present, `docs/handoffs/active.md` when present, and the recent relevant
-git history. For a new goal, initialize the handoff before round 1. For a
-resume, continue the exact one `NEXT` action.
+and `.agenticale/handoffs/active.md` when present, plus recent relevant Git
+history. For a new goal, initialize the handoff before round 1. For a resume,
+continue the exact one `NEXT` action.
 
 ## Task dispatch and capability
 
@@ -179,21 +180,23 @@ Read-only exploration and consultation agents return reports without writing
 files. The coordinator persists their relevant evidence and next action before
 dispatching the next round; never require a read-only child to edit a handoff.
 
-Keep current operational state separate from completed audit detail:
+Resolve these paths from the project root used to start or resume the run.
+Create the handoff directories when first writing to them. Keep current
+operational state separate from completed audit detail:
 
 - `BACKLOG.md` is the compact operational board. It contains product
   decisions that still govern work, open blockers/nits as checkboxes, the
   current milestone's short status, exactly one first active next action,
   and pointers to archived slices. Keep it normally below about 150 lines.
-- `docs/handoffs/active.md` is the authoritative active-slice packet. It is
-  at most ~2 KB and contains `GOAL`, `ESTABLISHED`, `CURRENT STATE`,
+- `.agenticale/handoffs/active.md` is the authoritative active-slice packet.
+  It is at most ~2 KB and contains `GOAL`, `ESTABLISHED`, `CURRENT STATE`,
   `ACCEPTANCE`, and exactly one `NEXT` action. A reset also adds a compact
   `TRIED` section. Create it before the first round of a session if absent.
   A role's model selection, where the active binding exposes it (Task
   dispatch and capability), is an `ESTABLISHED` fact of the activation, not
   a new state file.
-- `docs/handoffs/archive/YYYY-MM.md` holds completed handoffs, review
-  verdicts, and session-close ledgers. Preserve the original detail and
+- `.agenticale/handoffs/archive/YYYY-MM.md` holds completed handoffs,
+  review verdicts, and session-close ledgers. Preserve the original detail and
   append records in chronological order; do not rewrite it into a lossy
   summary.
 
@@ -244,7 +247,7 @@ strengthen the persistence policy.
    policy. If no budget was given, choose one that fits the scope (default 6
    worker rounds; up to ~10 for large goals — strict-mode review rounds are
    cheap and are not counted against the worker budget). State all four.
-2. Read only what is needed to define round 1: `docs/handoffs/active.md`
+2. Read only what is needed to define round 1: `.agenticale/handoffs/active.md`
    (or, only while initializing it, the first active "Next slice" item in
    `BACKLOG.md`), `AGENTS.md` conventions when that file exists, and
    `git log --oneline -5` in
@@ -546,10 +549,11 @@ End a worker round and start a fresh subagent when the first of these occurs:
   because a productive build, test, or verification sequence used many tools.
 
 For a reset, the worker changes no unrelated code. It updates
-`docs/handoffs/active.md` with at most: `GOAL`, `ESTABLISHED` (facts with file/command evidence),
-`TRIED` (disproved hypotheses), `CURRENT STATE` (commits/files/tests), and
-`NEXT` (one action for a fresh agent). A discovery round has one question and
-a decision criterion; its conclusion becomes the next implementation round.
+`.agenticale/handoffs/active.md` with at most `GOAL`, `ESTABLISHED` (facts
+with file or command evidence), `TRIED` (disproved hypotheses),
+`CURRENT STATE` (commits/files/tests), and `NEXT` (one action for a fresh
+agent). A discovery round has one question and a decision criterion. Its
+conclusion becomes the next implementation round.
 
 Use known repository paths with `git -C {REPO}` where practical. Never hide a
 failed `cd` or verification with `2>/dev/null`; a navigation failure is a
@@ -825,7 +829,7 @@ usage and any granted extensions, the continuation prompt for an incomplete
 stop, and the exact next step. A fresh resume validates the handoff against
 the actual checkout and re-establishes missing context rather than trusting
 it. Update `BACKLOG.md` and
-`docs/handoffs/active.md` so they retain only current state, the carried
+`.agenticale/handoffs/active.md` so they retain only current state, the carried
 open items, and one exact next action; add an archive pointer for the closed
 session. Update any stale references in place where repository policy
 requires it. The printed report mirrors the saved archive paragraph and

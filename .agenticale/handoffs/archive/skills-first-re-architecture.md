@@ -1,8 +1,8 @@
-# Active handoff: skills-first re-architecture
+# Historical handoff: skills-first re-architecture
 
-This handoff tracks the skills-first re-architecture described in
-[skills-first-coding-plan.md](../skills-first-coding-plan.md). It is a durable
-status note, not a changelog.
+This record preserves the handoff from the
+[skills-first re-architecture](../../../docs/skills-first-coding-plan.md).
+Its state and next steps describe that branch at the time.
 
 ## Goal
 
@@ -59,7 +59,7 @@ wrappers.
 ## Review findings (R1-R15: addressed)
 
 All fifteen findings from
-[skills-first-implementation-review.md](../skills-first-implementation-review.md)
+[skills-first-implementation-review.md](../../../docs/skills-first-implementation-review.md)
 are addressed in this branch:
 
 - **R1** — the invalid-YAML `description` (unquoted `Explicit-only: invoke`)
@@ -95,7 +95,7 @@ publication checks pass; live client dispatch remains unverified.
 `docs/skills-first-coding-plan.md` remains an unchanged planning record.
 
 The follow-up branch review
-([skills-first-branch-review.md](../skills-first-branch-review.md)) added two
+([skills-first-branch-review.md](../../../docs/skills-first-branch-review.md)) added two
 safety regressions, both now fixed with focused fixtures:
 
 - **F11** — a refused installer update no longer rolls back through a linked

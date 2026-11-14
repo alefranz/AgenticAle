@@ -15,8 +15,8 @@ suites were performed. Runtime acceptance remains for the later manual pass.
 
 > **Status (post-review):** all fifteen findings (R1-R15) are addressed on this
 > branch; see "Review findings (R1-R15: addressed)" in
-> [handoffs/active.md](handoffs/active.md). This report is left as the
-> point-in-time snapshot it was taken from. Live runtime acceptance is still
+> [the archived handoff](../.agenticale/handoffs/archive/skills-first-re-architecture.md).
+> This report preserves the original review. Live runtime acceptance is still
 > pending the manual spike.
 
 ## What matches the plan
