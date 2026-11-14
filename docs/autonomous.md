@@ -75,7 +75,7 @@ by a fresh independent review; blocking findings are sent to a focused fix
 round before work advances. The coordinator keeps investigation-only work or
 explicitly low-risk mechanical tasks lighter only when a full review gate would
 not add useful value. The workflow records durable state in `BACKLOG.md` and
-`docs/handoffs/active.md` in the project being worked on.
+`.agenticale/handoffs/active.md` in the project being worked on.
 
 For a complex bounded goal, the coordinator may outline a few provisional,
 dependent outcomes and complete them in sequence. It reassesses the next slice
@@ -179,13 +179,13 @@ advances only one concrete slice at a time:
 
 - `BACKLOG.md` is the project-level board. It holds the current milestone,
   open items, decisions that still apply, and the first active `Next slice`.
-- `docs/handoffs/active.md` is the working memory for the current slice. It
+- `.agenticale/handoffs/active.md` is the working memory for the current slice. It
   records the goal, evidence, current state, acceptance checks, and exactly one
   `NEXT` action for a fresh agent.
 - Completed slice details are archived, while the backlog keeps a compact
   status and the next action. Unresolved findings become open backlog items.
 
-This means you can use the command in three ways:
+Use the command to start a goal or resume an active handoff.
 
 Start a new goal:
 
@@ -199,28 +199,14 @@ Continue work that was interrupted or stopped earlier:
 /autonomous
 ```
 
-That resumes the exact `NEXT` action in `docs/handoffs/active.md`. Use
+That resumes the exact `NEXT` action in `.agenticale/handoffs/active.md`. Use
 `/autonomous 3` when you want to resume with a three-worker-round budget
 instead of the default six.
 
-Start from a backlog without putting the goal in the command:
-
-```markdown
-# Project backlog
-
-## Current milestone
-
-Improve the reporting experience.
-
-## Next slice
-
-Add CSV export to the reports page and update its tests.
-```
-
-Save that as the project's `BACKLOG.md`, then run `/autonomous`. If there is no
-active handoff yet, the coordinator uses the first clear `Next slice` to create
-one. If an active handoff already exists, it takes precedence so unfinished
-work is continued instead of starting a different backlog item.
+To start from a prepared backlog, supply goal text that points to the milestone,
+such as `/autonomous Deliver the CSV export milestone in BACKLOG.md`. See
+[Prepare a backlog for Autonomous](skills/autonomous/index.md#prepare-a-backlog-for-autonomous)
+for an example and an instruction you can give a planning agent.
 
 ## Model routing across sessions
 

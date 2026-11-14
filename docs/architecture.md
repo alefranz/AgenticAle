@@ -80,10 +80,10 @@ state policy, and an unavailable configured source root is reported rather than
 silently replaced.
 
 `skills/autonomous/SKILL.md` adds durable backlog, handoff, archival, and
-continuation policies. The target project owns `BACKLOG.md` and
-`docs/handoffs/active.md`; this repository's files with those names are only its
-own development state. Everyday `work` does not resume those files or promise
-recovery after loss of the host session.
+continuation policies. The target project owns `BACKLOG.md` and the
+`.agenticale/handoffs/` directory for the active packet and monthly archive.
+This repository's handoff records describe its own development. Everyday
+`work` uses session state for task coordination.
 
 The flat model config is a flat per-role inventory: a role with no entry
 inherits the session model, and the packaged config is an inventory, not a

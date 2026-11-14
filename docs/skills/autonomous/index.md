@@ -38,10 +38,96 @@ activity, these updates let you follow the work without opening every subtask.
 
 You provide the goal, constraints, and any acceptance examples. The workflow
 records durable progress in the target project's `BACKLOG.md` and
-`docs/handoffs/active.md`, and returns the completed work, verification, and
-remaining limitations. By default changes stay uncommitted; commit, branch,
-push, and pull request actions are separate requests. An investigation-only
-goal returns findings and a next step.
+`.agenticale/handoffs/active.md`. It reports the completed work, verification,
+and remaining limitations. By default changes stay uncommitted. Commit,
+branch, push, and pull request actions are separate requests. An
+investigation-only goal returns findings and a next step.
+
+Completed handoffs and review records go in
+`.agenticale/handoffs/archive/YYYY-MM.md`. For runs that need to resume from
+a fresh clone, track `BACKLOG.md` and `.agenticale/handoffs/` in Git with the
+matching product changes or submodule pin. Authorize pushes explicitly to
+the intended remote.
+
+When upgrading from a version that used `docs/handoffs/`, move the active
+handoff and archive into `.agenticale/handoffs/` before resuming. Update
+relative links and project instructions that refer to the old paths.
+
+## Prepare a backlog for Autonomous
+
+For a new goal, you can give Autonomous the outcome, constraints, and
+acceptance checks directly. If you want to plan the work first, capture it in
+`BACKLOG.md` at the root of the project you want Autonomous to work on.
+
+- Describe the milestone in terms of what should work when it is complete
+  and how to verify it.
+- Record decisions and constraints that apply across slices, such as
+  compatibility requirements and which actions need your approval.
+- Put one actionable item under `Next slice`. Give it one observable outcome,
+  one check a worker can run, and a clear boundary for where the work stops.
+  If a technical unknown blocks implementation, make the first slice a
+  focused investigation with a question and a criterion for deciding what to
+  do next.
+- Keep the next few candidate slices in dependency order. The coordinator can
+  revise their order or scope as it learns more.
+
+```markdown
+# Project backlog
+
+## Current milestone
+
+Users can download a CSV from the Reports page. Verify that the downloaded
+file contains the same rows as the filtered report.
+
+## Decisions and constraints
+
+- Keep the current report filters and access rules.
+
+## Next slice
+
+- [ ] Add CSV output for the report endpoint. Verify with an endpoint test
+  that filtering and permissions match the existing report. End this slice
+  at the endpoint, before adding the Reports page download action.
+
+## Later slices
+
+- [ ] Connect the Reports page download action to the verified endpoint and
+  check the full download flow.
+```
+
+Start a new goal with explicit goal text that points to the milestone, for
+example `/autonomous Deliver the CSV export milestone in BACKLOG.md`. The
+coordinator creates `.agenticale/handoffs/active.md` and records the current slice
+and its next action. A new goal requires the project to have no active
+handoff. Invoke `/autonomous` without goal text to resume an existing
+handoff's recorded `NEXT` action.
+
+### Ask an AI agent to prepare the backlog
+
+Give the agent the project, the desired outcome, and any constraints you
+already know. You can add this instruction to your request.
+
+```text
+Prepare the project backlog for an Autonomous run. Read AGENTS.md if present,
+the existing BACKLOG.md and .agenticale/handoffs/active.md if present, and enough
+project source and tests to identify a verifiable first slice.
+
+In the project's root BACKLOG.md, record the milestone, its acceptance check,
+and decisions that carry across slices. Identify one Next slice with an
+observable outcome, a verification command or reproducible check, and an
+explicit stop boundary. Keep later slices short and ordered by dependency.
+If a technical unknown blocks the first implementation slice, define one
+investigation question and what evidence will settle it. Flag any product
+decision that needs my input.
+
+Preserve existing backlog entries and active work. If an active handoff
+already owns the next action, leave that action in place and show me where
+the proposed milestone fits. Return the suggested invocation for starting
+the milestone when the project is ready. End after planning, before
+implementation or invoking Autonomous.
+```
+
+## How a run proceeds
 
 Before round 1, the coordinator briefly assesses what the goal would touch —
 sources other actors can also mutate, side effects that would survive an

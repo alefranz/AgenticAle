@@ -1071,7 +1071,7 @@
                 <li>Reads next item from <code>BACKLOG.md</code>.</li>
                 <li>Executes implementation &amp; strict review.</li>
                 <li>Refines &amp; grooms remaining backlog items.</li>
-                <li>Writes 2-line ledger entry and exact <code>NEXT</code> state in <code>docs/handoffs/active.md</code>.</li>
+                <li>Writes 2-line ledger entry and exact <code>NEXT</code> state in <code>.agenticale/handoffs/active.md</code>.</li>
               </ul>
             </div>
 
@@ -1103,7 +1103,7 @@
           <ul>
             <li>Before we open up for questions, I want to spend 5 minutes on the most experimental part of the repo: <strong><code>/autonomous</code> mode</strong>.</li>
             <li>Think of <code>/autonomous</code> as asking: <em>"What happens if we take <code>/work</code>'s fresh subagent and strict review primitives, and attach them to a durable project backlog on disk?"</em></li>
-            <li>Instead of keeping state only in the chat session, <code>/autonomous</code> maintains <code>BACKLOG.md</code> and <code>docs/handoffs/active.md</code>. It picks a task, runs worker and strict review rounds, refines the backlog as it learns more about the codebase, and writes a durable checkpoint after every single round.</li>
+            <li>Instead of keeping state only in the chat session, <code>/autonomous</code> maintains <code>BACKLOG.md</code> and <code>.agenticale/handoffs/active.md</code>. It picks a task, runs worker and strict review rounds, refines the backlog as it learns more about the codebase, and writes a durable checkpoint after every single round.</li>
             <li>Two features make it especially fun for hobby projects:</li>
             <li>1. <strong>Subscription window awareness:</strong> If you hit a provider quota limit at 2 AM, it records the exact state and cooldown window in the handoff file so it can wait or resume later with zero lost work.</li>
             <li>2. <strong>Hybrid local/cloud configuration:</strong> You can point routine coding roles at local models while keeping a strong cloud model for the reviewer.</li>
