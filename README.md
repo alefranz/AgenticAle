@@ -138,8 +138,10 @@ on the other hosts. The details are in the
 ## Choose where the task finishes
 
 Work leaves changes ready for your review unless you ask it to prepare and open
-a pull request. Autonomous keeps a durable handoff in the target project;
-commit, branch, push, and pull request actions are separate requests. See the
+a pull request. Autonomous keeps a durable handoff in the target project and,
+by default, commits and pushes each completed task before the next one starts;
+explicit user or repository restrictions win, and branch, pull request, merge,
+and force-push actions remain separate requests. See the
 [skill guides](https://alefranz.github.io/AgenticAle/skills/work/).
 
 ## Advanced: long-running autonomous projects
@@ -148,10 +150,13 @@ Use [Autonomous](https://alefranz.github.io/AgenticAle/skills/autonomous/) for
 a goal that spans multiple rounds or sessions. A run has a worker-round
 ceiling — default 6, or the number you pass — and each genuine task its own
 allowance of 12 worker rounds; every exploration, implementation, and fix
-round counts against both, and the counters survive resumes. While a run
-works, you can steer it through a small human-owned `## Steering` section in
-the project's `BACKLOG.md`: pause and continue at safe checkpoints, or reorder
-the next ready-task selection.
+round counts against both, and the counters survive resumes. Goal text
+supplied while a run is active steers it: explicit new outcomes become
+backlog tasks and continuation instructions adjust the plan, without
+overwriting active work or resetting budgets and review gates. While a run
+works, you can also steer it through a small human-owned `## Steering`
+section in the project's `BACKLOG.md`: pause and continue at safe
+checkpoints, or reorder the next ready-task selection.
 
 ## Other included skills
 

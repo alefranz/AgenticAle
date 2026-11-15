@@ -52,15 +52,55 @@ Interpret the complete arguments as:
   persisted consumed counters carry over and are never reset, so a ceiling
   at or below the recorded consumption leaves the run budget-exhausted
   rather than silently refreshed.
-- A supplied goal with an already-active handoff is a conflict: preserve the
-  existing active handoff untouched and report the conflict to the user
-  instead of overwriting it.
+- A supplied goal with an already-active handoff is steering, not a conflict:
+  reconcile the invocation text with the existing backlog and durable state
+  without overwriting active work (see
+  [Invocation steering](#invocation-steering)).
 - Start in **strict** mode unless the user explicitly requested standard mode.
 
 In round 0, follow the skill's setup rules: read the project's `AGENTS.md`
 and `.agenticale/handoffs/active.md` when present, plus recent relevant Git
 history. For a new goal, initialize the handoff before round 1. For a resume,
-continue the exact one `NEXT` action.
+continue the exact one `NEXT` action. For a steering invocation, reconcile
+first (see [Invocation steering](#invocation-steering)), then continue.
+
+## Invocation steering
+
+Goal text supplied while a handoff is already active steers the run. It is
+user instruction for the coordinator, not a replacement goal: reconcile it
+against a fresh re-read of `BACKLOG.md` and `.agenticale/handoffs/active.md`
+before dispatching, and never overwrite active work to apply it.
+
+- **New work.** Explicit new outcomes in the text are decomposed into backlog
+  tasks like a round-0 plan: each genuinely new task enters the backlog with
+  its stable ID before any selection and receives its fresh allowance only at
+  first selection. When the decomposition needs source evidence, dispatch a
+  focused explore round; the main loop stays thin.
+- **Continuation steering.** Text that adjusts the existing goal — emphasis,
+  clarified acceptance, added constraints, or an explicit reordering of
+  upcoming work — updates the backlog's open entries and the active packet's
+  acceptance only where the user's text explicitly supports the change.
+  Selection changes apply at the next selection boundary under the normal
+  readiness rules; the active slice and any running round are never
+  interrupted.
+- **Preserved state.** Steering keeps the run identity, the run ceiling
+  (unless the invocation supplies an explicit numeric override), every
+  consumed counter, task allowance, fix/review counter, deferred packet, and
+  open review gate. It grants no allowance — only a named user grant does —
+  and bypasses no gate, dependency, or safety boundary.
+- **Destructive replacement.** An explicit, unambiguous request to discard or
+  replace named work is honoured only for what it names, preserving unrelated
+  tasks and audit material. An ambiguous destructive request — "start over"
+  or "replace the goal" without naming what is discarded — stops and asks the
+  user before any state is rewritten.
+
+The invocation text never goes into the human-owned `## Steering` section,
+which keeps exactly its two documented controls (see
+[Live steering](#live-steering-human-owned-backlog-section)). Record the
+reconciliation — added tasks, adjusted entries, preserved state, or the
+pending user decision — in the existing backlog and active handoff, then
+continue the recorded `NEXT` action unless the reconciled plan changes it at
+a selection boundary.
 
 ## Task dispatch and capability
 
@@ -181,8 +221,9 @@ Consequences for the coordinator:
 
 1. **The main loop is a coordinator, not a worker.** It does not implement.
    It reads just enough to define the next round, then delegates. The only
-   exceptions are coordination edits (e.g., one backlog checkbox) and
-   persisting read-only child reports into the required durable state.
+   exceptions are coordination edits (e.g., one backlog checkbox), persisting
+   read-only child reports into the required durable state, and the Git
+   actions of the [task persistence gate](#task-persistence-gate).
 2. **One child at a time, strictly sequential.** Round N+1 starts only after
    round N's report has been read. Never run rounds in parallel or in the
    background.
@@ -239,13 +280,21 @@ operational state separate from completed audit detail:
   with the task's final counters. Preserve the original detail and append
   records in chronological order; do not rewrite it into a lossy summary.
 
-After a slice has passed its required review gate (or a standard-mode slice
-is complete), move its detailed handoff and review record from the active
-packet into the monthly archive. Replace any detailed completed record in
+After a slice has passed its required review gate and any applicable
+deep review gate (or a standard-mode slice is complete and verified), the
+coordinator moves its detailed handoff and review record from the active
+packet into the monthly archive — reviewers and auditors record verdicts
+only and never archive. Replace any detailed completed record in
 `BACKLOG.md` with a one- or two-line result: date, outcome, relevant commit
-hashes or changed files, and an archive pointer. Carry every unresolved
-blocker or nit into the appropriate open checkbox in `BACKLOG.md` before archiving. Never
-delete audit material, and never archive an active or review-open slice.
+hashes or changed files, and an archive pointer. A completed task's result
+line also carries its confirmed push destination when the policy requires
+pushing; the task is marked completed only after the
+[task persistence gate](#task-persistence-gate), including its bounded state
+finalization, is satisfied. Carry every unresolved blocker or nit into the
+appropriate open checkbox in `BACKLOG.md` before archiving. Never delete
+audit material, never archive an active or review-open slice, and never treat
+a task as completed or select the next task while its required commit or push
+is outstanding or unverified.
 
 A deferred unfinished task is never archived as completed. When the active
 task switches — allowance exhaustion, a blocker, or steering priority at a
@@ -275,27 +324,140 @@ repository-specific handoff rules when they are stricter.
 Choose and record one persistence policy in round 0, then pass it verbatim to
 every child:
 
-- **Working tree (default):** do not commit or push. Leave verified changes in
-  the working tree and identify them with `git status` and `git diff` evidence.
-- **Commit:** allowed only when the user explicitly requested commits or the
-  active repository instructions require them. The workflow creates the
-  coherent commits for accepted slices itself; it does not leave commits for
-  the user to make. Commit changed repositories in dependency order and update
-  any outer-repository pins.
-- **Push:** allowed only when the user explicitly requested pushing. Repository
-  instructions or an inferred desire for persistence are not enough.
+- **Commit and push (default for a new run):** the invocation itself
+  authorizes committing and pushing each completed task. After a task passes
+  its required checks and review gates, the coordinator creates the coherent
+  task commits and completes an ordinary push before the next task starts
+  (see [Task persistence gate](#task-persistence-gate)).
+- **Commit:** the user explicitly restricts the run to commits, or repository
+  instructions require commits but do not authorize pushing. Coherent task
+  commits are still required before the next task; nothing is pushed.
+- **Working tree:** the user explicitly asks to leave changes uncommitted, or
+  repository instructions forbid commits. Leave verified changes in the
+  working tree and identify them with `git status` and `git diff` evidence.
 
-Review rounds follow the same policy for handoff-only changes. Reviewers write
-only the working-tree operational note; they never commit or push it. The
-coordinator (main loop) owns every commit or push of a reviewer's handoff-only
-note, applying the chosen policy itself, so the persisted state is coherent
-across slices. Later rounds refer to commit hashes when commits exist;
-otherwise they use the recorded baseline plus changed-file and diff evidence.
-Work on the already checked-out branch unless the user explicitly asks for a
-new branch or repository instructions require one; a request to commit does not
-imply creating a branch. Creating a branch, pushing, and opening a pull request
-are separate, explicit actions. Never change remotes, publish, or silently
-strengthen the persistence policy.
+Explicit user or repository restrictions win over the default: adopt and
+record the restricted policy with its basis, and follow it — never bypass a
+restriction to satisfy the default. A resume — empty or numeric — and a
+steering invocation keep the recorded policy; a working-tree or commit-only
+run never silently gains push rights. A handoff with no recorded policy
+predates the commit-and-push default and resumes as working tree. Only an
+explicit user request changes an active run's policy, recorded with its
+basis.
+
+The coordinator (main loop) owns every commit and push: worker, fix, review,
+and review-deep children leave their verified changes and operational notes
+in the working tree and never commit or push them. The coordinator applies
+the policy at the task persistence gate — product changes in coherent task
+commits, and the run's durable state in the gate's bounded state-only
+finalization — committing changed repositories in dependency order and
+updating any outer-repository pins, so the persisted state is coherent
+across tasks. Reviewers write only the working-tree operational note; the
+coordinator persists it under the same policy. Later rounds refer to commit
+hashes when commits exist; otherwise they use the recorded baseline plus
+changed-file and diff evidence. Work on the already checked-out branch unless
+the user explicitly asks for a new branch or repository instructions require
+one; a request to commit does not imply creating a branch. The policy
+authorizes ordinary task commits and pushes only: creating a branch, opening
+a pull request, merging, force-pushing, changing remotes, and publishing a
+release remain separate, explicit actions. Never silently strengthen the
+recorded policy.
+
+### Task persistence gate
+
+Slices and tasks are different units: a slice is one worker round's bounded
+outcome with its own review gate; a task is the backlog outcome, which may
+contain several slices. The gate applies once per completed task, under the
+active policy:
+
+1. **Required checks and reviews are complete.** Every slice of the task has
+   passed its required gate — the strict review gate, or standard mode's
+   normal verification — and every applicable deep review gate, periodic or
+   opportunistic, has closed. An unfinished or review-open task is never
+   persisted as completed.
+2. **Coherent task commits.** The coordinator stages only the task's accepted
+   product changes and creates coherent task commits — one per logical
+   change, not one per agent round. Unrelated staged, unstaged, and untracked
+   work, concurrent human edits, and secrets are preserved and never swept
+   into a task commit; overlapping edits that cannot be attributed to the
+   task safely stop and ask. An investigation-only task produces findings,
+   not product changes: it creates no artificial product commit. When its
+   findings change the durable state, the state finalization persists them
+   like any other state change; with truly nothing to persist, the gate is
+   satisfied by the recorded findings. The run's durable state is never
+   swept into product commits; it is persisted by the bounded state
+   finalization in step 4.
+3. **Confirmed ordinary push.** Under the commit-and-push policy the
+   coordinator pushes the task commits with ordinary Git semantics to the
+   resolved destination and verifies the push succeeded. Under commit-only or
+   working-tree policy this step does not apply; the recorded policy is never
+   bypassed.
+4. **Bounded state-only finalization.** Once the product persistence is
+   confirmed — the push under commit-and-push, the commits under commit-only,
+   the recorded diff evidence under working-tree — the coordinator performs
+   exactly one bounded finalization sequence:
+   - Write the completion record into the existing state files: the backlog
+     task result line carrying the product commit hashes and, when pushing
+     applies, the confirmed destination; the detailed record archived; the
+     active handoff updated with the confirmed persistence state and one
+     `NEXT` action. Each is a targeted edit on a fresh re-read.
+   - Under commit or commit-and-push policy, create exactly one state-only
+     finalization commit containing the run's changed durable state
+     (`BACKLOG.md`, `.agenticale/handoffs/`) — never product changes or
+     unrelated work — and, under commit-and-push, push it to the same
+     resolved destination and verify success. With no changed durable state,
+     no commit is created.
+   - The gate is satisfied only when this finalization is confirmed under
+     the policy; the next task is selected only after that. The sequence is
+     finite: the finalization commit's own hash and push confirmation are
+     never written back into the state files it commits — later records
+     reference them read-only from git history — so no record-your-own-hash
+     loop exists. The local acknowledgment that the gate is satisfied is a
+     read-only verification, not another state write.
+
+Record the persistence state as it advances — accepted, committed (product
+hashes), push pending or confirmed (destination and evidence) — in the active
+handoff and mirror it on the backlog task entry, each a targeted edit on a
+fresh re-read, persisted before the next step; the completion record replaces
+the mirror at finalization. A task whose required commit or push — product or
+finalization — is outstanding or unverified is never reported as completed,
+and the next task is never selected.
+
+**Push destination.** Resolve the destination before the run's first push and
+re-check it at every push: the checked-out branch's configured upstream
+(remote and branch), plus any destination named by repository instructions.
+Push only to that resolved upstream. Stop and ask the user before pushing
+when the destination is unsafe or unclear: the branch is `main`/`master` or
+otherwise protected by repository instructions or hosting rules, no upstream
+is configured, multiple remotes make the target ambiguous, or the outgoing
+commits include work outside the reviewed task scope. Never create a branch,
+change remotes, force-push, merge, or open a pull request to make a push
+succeed.
+
+**Failed, uncertain, or interrupted persistence.** A rejected, failed, or
+uncertain push — of the product commits or of the state finalization — never
+advances the run: record the exact persistence state — accepted task, commit
+hashes, destination, and the push evidence or error — in the active handoff
+and backlog, keep the task open, and stop with the continuation prompt. Do
+not select the next task, force-push, merge or rebase automatically, or retry
+blindly. A non-fast-forward rejection means the remote moved; preserving the
+state and asking is the recovery, not rewriting history.
+
+An interruption anywhere in the gate — after the product commits before
+their push, after the product push before the state finalization, after the
+finalization commit before its push, or after the finalization push before
+the local acknowledgment — is reconciled before any next-task work, on every
+resume: re-read the durable persistence state, inspect the actual local
+history and the remote read-only (fetch or ls-remote), and establish which
+steps already happened. A commit already on the remote — confirmed by
+ancestry or content, never assumed — is not duplicated or re-committed; a
+push that already succeeded is recorded, not blindly repeated. Resume the
+exact unfinished step first: push an existing unpushed product or
+finalization commit as-is, complete missing completion-record writes from
+the confirmed hashes and destination, and treat a confirmed finalization as
+satisfying the gate without any further write — the acknowledgment is
+read-only, so the next task starts without replaying work or adding commits.
+Mark the task completed only once the whole gate is confirmed satisfied.
 
 ## Run and task budgets
 
@@ -319,19 +481,20 @@ at least one effective round. Review, review-deep, and consult rounds do not
 consume either worker budget and keep their own unchanged caps.
 
 Only a genuinely new task receives a fresh task allowance. Decomposing a
-task, replanning it, resuming it, or recovering it from an interruption keeps
-the same task identity and the same consumed counters; none of them
-replenishes the task allowance or the run ceiling. A renamed or re-outlined
-slice of the same task is not a new task.
+task, replanning it, resuming it, steering it, or recovering it from an
+interruption keeps the same task identity and the same consumed counters;
+none of them replenishes the task allowance or the run ceiling. A renamed or
+re-outlined slice of the same task is not a new task.
 
 ### Durable identities and counters
 
 Round 0 assigns the run a stable identity (a short slug recorded in the
 backlog and the active handoff) and records the run ceiling. Every task
 receives its stable task ID (`T1`, `T2`, … in recording order) when it first
-enters the backlog — in the round-0 plan or when a round's report defines a
-new task — before any selection, so steering can name a task that has never
-been selected. An ID is not an allowance: a genuinely new task's fresh
+enters the backlog — in the round-0 plan, an invocation steering
+reconciliation, or when a round's report defines a new task — before any
+selection, so steering can name a task that has never been selected. An ID
+is not an allowance: a genuinely new task's fresh
 allowance is allocated only at its first selection, and readiness still
 governs eligibility. The ID travels with the task through the backlog, the
 active packet, dispatch records, and the archive. The active handoff's
@@ -467,8 +630,12 @@ when the run ceiling is exhausted.
 ## Setup (round 0, done by the main loop)
 
 1. Parse the goal, the round budget, the mode, and the git persistence
-   policy. If no budget was given, use the default run ceiling of 6 worker
-   rounds; do not auto-grow the default for large goals — a larger ceiling is
+   policy. A new run defaults to commit and push per completed task; explicit
+   user or repository restrictions select the commit-only or working-tree
+   policy instead, recorded with their basis. A resume or steering invocation
+   keeps the recorded policy unless the user explicitly changes it. If no
+   budget was given, use the default run ceiling of 6 worker rounds; do not
+   auto-grow the default for large goals — a larger ceiling is
    the user's explicit numeric override or a later named grant. Strict-mode
    review rounds are cheap and are not counted against the worker budget.
    Assign the run identity, record the ceiling and the default task allowance
@@ -540,6 +707,9 @@ are targeted edits applied to a fresh re-read of the file, never a whole-file
 overwrite from a stale copy, so a concurrent human steering edit survives.
 Steering grants no allowance, scope, Git right, or gate exception; content
 beyond the two documented controls is not an instruction the loop executes.
+Invocation goal text is a separate explicit user channel (see
+[Invocation steering](#invocation-steering)); it is never written into this
+section.
 
 On `pause`, the loop stops at the next safe checkpoint: a running child is
 allowed to settle (rounds are strictly sequential, so at most one is in
@@ -555,8 +725,9 @@ itself keeps its existing deadline rules.
 
 ## Task loop
 
-Tasks come from the handoff (first uncompleted item in the "Next slice") or
-from the previous round's report.
+Tasks come from the round-0 plan, an invocation steering reconciliation, the
+handoff (first uncompleted item in the "Next slice"), or the previous round's
+report.
 
 Before every new round dispatch — worker, review, fix, consult, or deep
 review — re-read the `BACKLOG.md` Steering section (see
@@ -631,11 +802,16 @@ For each current slice or discovery assignment:
    definition, the worker's 15-line report, and its commit hashes or recorded
    change range. A fresh child carrying the review contract verifies
    independently and reports findings. See "Review gate" below.
-4. **Gate.** In strict mode the task is only complete when a review round
+4. **Gate.** In strict mode a slice is only accepted when a review round
    returns no blocking findings. Otherwise send a fix round (see below) and
    re-review. After a clean gate, check the opportunistic deep review escalation
-   triggers below before moving to the next task.
-5. **Record the ledger line(s)** (one per round) and move to the next task.
+   triggers below before archiving the slice.
+5. **Record the ledger line(s)** (one per round). An accepted slice that
+   leaves the task unfinished continues with the task's next slice. When the
+   task's last slice is accepted and its applicable deep gates have closed,
+   satisfy the [task persistence gate](#task-persistence-gate) — coherent
+   task commits, a confirmed ordinary push, and the bounded state-only
+   finalization under the active policy — before the next task is selected.
 
 ### Provider quota recovery
 
@@ -851,8 +1027,9 @@ line plus a handoff note citing the consult round and its report, marked as
 an **independently advised decision the user can veto later**.
 
 Consult does NOT apply to: irreversible actions (force-push, deleting
-branches, publishing — those stop and ask), user preference or taste (ask),
-and anything `AGENTS.md` reserves to the user. A low-confidence consult, or
+branches, publishing a release or pull request — those stop and ask), user
+preference or taste (ask), and anything `AGENTS.md` reserves to the user. A
+low-confidence consult, or
 one that hedges despite its format, counts as no answer: ask the user.
 At most one consult per decision and two per session. Consult rounds do not
 consume the worker-round budget.
@@ -990,8 +1167,9 @@ context after a reset trigger.
 
 Before you finish you must:
 - verify your work ({BUILD/TEST COMMANDS});
-- follow the stated git persistence policy in every repo you changed, in
-  dependency order, then update applicable outer-repository pins;
+- leave your verified changes in the working tree in every repo you changed:
+  the coordinator owns every commit and push at the task persistence gate,
+  in dependency order, including applicable outer-repository pins;
 - update the handoff section so the next round starts from it.
 
 For a long-running assignment, persist small, verified progress checkpoints in
@@ -1043,10 +1221,18 @@ First read:
 
 Independently verify:
 1. Build/tests: run {BUILD/TEST COMMANDS} yourself.
-2. Persistence discipline: verify the stated policy. For working-tree mode,
-   inspect status and diffs; for commit mode, verify commits and cleanliness;
-   verify pushes only when the user explicitly requested them. Check that any
-   outer-repo submodule pins match committed dependency changes.
+2. Persistence discipline, at the phase of the supplied range: the task
+   persistence gate runs only after the reviews close, so at slice review
+   the task's changes are normally still uncommitted. Inspect status and
+   diffs; verify no child committed or pushed them, and that unrelated work
+   and secrets stay out of the task's changes. When the supplied range
+   already includes commits (a re-review after the gate), verify coherent
+   task commits and cleanliness, and verify a confirmed push to the resolved
+   destination only when the recorded persistence state says the push
+   already happened — never require a commit or push the gate has not
+   performed yet; the coordinator owns that final verification at the gate.
+   Check that any outer-repo submodule pins match committed dependency
+   changes.
 3. Scope: inspect the stated commit or diff range; changes match
    the task, nothing beyond it, no drive-by refactors. Do not turn this into
    a repository-wide architecture, upstream-parity, or origin audit
@@ -1057,12 +1243,13 @@ Independently verify:
 Append your verdict to the active handoff (doc-only change): one line per
    task round — verdict, plus any nits as backlog items. Write this note to
    the working tree only; you never commit or push it. The coordinator applies
-   the supplied Git persistence policy to the note itself. When the verdict
-   closes the slice, archive the completed record and leave the compact result
-   and carried-open items in `BACKLOG.md` in the working tree for the
-   coordinator to persist. The `## Steering` section of `BACKLOG.md` is
-   human-owned: never edit it; re-read the file immediately before your
-   targeted write and preserve any concurrent human change.
+   the supplied Git persistence policy to the note itself. You never archive
+   the slice or mark the task completed: the coordinator owns final
+   persistence verification and archival after the review and deep review
+   gates close and the task persistence gate is satisfied. The `## Steering`
+   section of `BACKLOG.md` is human-owned: never edit it; re-read the file
+   immediately before your targeted write and preserve any concurrent human
+   change.
 
 Your final response must be the report and nothing else, in exactly this
 format, under 20 lines total:
@@ -1092,16 +1279,20 @@ First read:
 
 Independently verify the supplied range only: cross-slice correctness and
 compatibility, integrated build/tests, compliance with the active git
-persistence policy, submodule pins, handoff/backlog consistency, and regressions
+persistence policy at the range's phase (the uncommitted working-tree result
+before the task persistence gate; coherent commits and confirmed pushes
+after it), submodule pins, handoff/backlog consistency, and regressions
 caused by the combined changes. Do not expand into a repository-wide
 archaeology audit.
 
 Append a concise audit verdict to the active handoff and promote every nit to
 a BACKLOG checkbox, writing both to the working tree only. You never commit
 or push these notes; the coordinator applies the active persistence policy to
-the handoff-doc changes itself. The `## Steering` section of `BACKLOG.md` is
-human-owned: never edit it; re-read the file immediately before your targeted
-write and preserve any concurrent human change.
+the handoff-doc changes itself. You never archive slices or mark tasks
+completed — final persistence verification and archival belong to the
+coordinator after the gates close. The `## Steering` section of `BACKLOG.md`
+is human-owned: never edit it; re-read the file immediately before your
+targeted write and preserve any concurrent human change.
 
 Your final response must be exactly:
 VERDICT: clean | blocking findings
@@ -1151,6 +1342,16 @@ Stop the loop and report to the user when any of these hit:
   blocked, and no other truly independent ready task can be safely selected
   while unfinished changes exist. Stop with the preserved state, the
   deferred resumable packets, and the continuation prompt.
+- **Persistence blocked** — a required commit or push — task product commits,
+  task state finalization, or session-close finalization — cannot be completed
+  safely: an unsafe or ambiguous push destination, a rejected or uncertain
+  push, or an explicit restriction conflicting with the requested delivery.
+  Preserve the exact persistence state, keep any open task open, and stop with
+  the continuation prompt; destination decisions ask the user. A resume
+  reconciles the actual local and remote state before retrying (see
+  [Task persistence gate](#task-persistence-gate)); a blocked session-close
+  finalization is the terminal local-only stop under **Persist before
+  printing** in Final report.
 - **Steering pause** — the human-owned `## Steering` section says `pause`.
   Stop at the safe checkpoint: let a running child settle, record its result
   and charge, preserve the exact `NEXT` and all counters, and report the
@@ -1172,10 +1373,10 @@ Stop the loop and report to the user when any of these hit:
   two fix cycles (three review passes) without a clean result, or work
   leaving docs/config-only/reversible scope — stop and ask.
 - **A decision or irreversible action is required** (force-push, deleting
-  branches, publishing, or anything `AGENTS.md` flags) — irreversible
-  actions and user preference stop and ask (consult does not apply);
-  reversible judgement decisions get one consult first (see Decision
-  consultation).
+  branches, publishing a release or pull request, or anything `AGENTS.md`
+  flags) — irreversible actions and user preference stop and ask (consult
+  does not apply); reversible judgement decisions get one consult first (see
+  Decision consultation).
 - **Two consecutive worker rounds with no net progress** — stop and
   summarize.
 
@@ -1196,7 +1397,7 @@ Stop the loop and report to the user when any of these hit:
 (core rule 3) — the printed report is not the record. Before giving the
 final report, the main loop writes the report's pertinent info to the repo
 handoff archive (a dated **session-close handoff paragraph** in the current
-monthly archive, following the active git persistence policy): the round ledger
+monthly archive): the round ledger
 (one line per round with change references and verdicts), the final verified
 state (build/test evidence, per-repo persistence state and pin match), any
 material change to a role's model selection reported on resume, the open
@@ -1209,8 +1410,37 @@ it. Update `BACKLOG.md` and
 `.agenticale/handoffs/active.md` so they retain only current state, the carried
 open items, and one exact next action; add an archive pointer for the closed
 session. Update any stale references in place where repository policy
-requires it. The printed report mirrors the saved archive paragraph and
-points at its path and commit hash when one exists. This is a coordination edit
+requires it. Then apply the same bounded state-only finalization as the task
+persistence gate: under commit or commit-and-push policy, one state-only
+commit of the session-close state changes — never product changes — pushed
+and confirmed under commit-and-push; under working-tree policy, the recorded
+diff evidence. The finalization commit's own hash is never written into the
+files it commits; the printed report mirrors the saved archive paragraph and
+points at its path and the commit hash read from git history when one
+exists. An interruption in the session-close finalization reconciles exactly
+like the task gate's: resume the exact unfinished step from the durable
+state and git evidence, never duplicating commits.
+
+**Blocked finalization: the terminal local-only stop.** The local records
+above come first and never wait on a commit or push. When the session-close
+finalization cannot be completed safely — an unsafe or ambiguous destination,
+a rejected, failed, or uncertain push, or an explicit restriction conflicting
+with the delivery — the task gate's failure rules apply unchanged: no blind
+retry, no force-push, merge, or rebase, no branch creation, and no automatic
+destination change. Record the exact persistence state — the local commit
+hashes when they exist, the destination, and the push evidence or error — in
+the session-close paragraph and the active handoff, mark the finalization
+deferred and unconfirmed, and stop with the continuation prompt. The stop is
+terminal: no further round or retry follows it in this run, and the backlog's
+one next action is the deferred finalization. The final report is printed
+from the saved local records and reports the finalization as deferred — never
+as completed; completion is recorded only once a resume confirms it. A resume
+reconciles the session-close finalization exactly like the task gate's:
+re-read the durable state, inspect the actual local history and the remote
+read-only, and resume the exact unfinished step — push the existing
+state-only commit as-is, or create it from the saved local records when none
+exists — never duplicating commits; a confirmed finalization closes the
+session's persistence without further writes. This is a coordination edit
 the main loop may make itself even though it normally does not edit files.
 
 ## Anti-patterns
@@ -1269,6 +1499,32 @@ the main loop may make itself even though it normally does not edit files.
 - Archiving a deferred unfinished task as completed, or dropping its
   resumable packet when switching the active task — deferred packets stay in
   the backlog with their identity, counters, and one `NEXT`.
+- Reporting goal text supplied during an active run as a conflict, or
+  overwriting the active handoff or backlog with it — reconcile it as
+  steering: add explicit new tasks, adjust continuation, preserve identities,
+  counters, and gates; an ambiguous destructive replacement asks the user.
+- Selecting the next task before the completed task's required commits and
+  push are confirmed, treating a task as completed while its push is
+  outstanding, or blindly duplicating commits after an uncertain push —
+  reconcile the actual local and remote state first.
+- Leaving the completion record uncommitted after the product push, or
+  writing a finalization commit's own hash back into the state it commits —
+  the gate ends with one bounded state-only finalization whose confirmation
+  is read-only, never a recursive record-your-own-hash loop.
+- Retrying a blocked session-close push in the same run, changing its
+  destination to make it succeed, or printing the close as finalized before
+  confirmation — a blocked close stops terminally with the local records
+  saved and the finalization deferred for a reconciling resume.
+- A reviewer requiring the gate's commits or confirmed push before the gate
+  has run, or a reviewer archiving the slice it closes — review inspects the
+  range at its current phase; final persistence verification and archival
+  belong to the coordinator after the gates close.
+- Letting a child commit or push product changes, or pushing to a
+  main/protected/ambiguous destination without asking — the coordinator owns
+  Git at the task persistence gate.
+- Silently upgrading a resumed working-tree or commit-only run to push
+  rights, or bypassing an explicit user or repository restriction to satisfy
+  the default policy.
 
 ## Model configuration (this installation)
 

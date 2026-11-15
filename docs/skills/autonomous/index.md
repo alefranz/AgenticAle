@@ -9,6 +9,7 @@ Use it for a multi-step project, such as:
 - `/autonomous Add CSV export, update its tests, and prepare the release`
 - `/autonomous 4 Migrate the report pipeline and verify the new behavior`
 - `/autonomous` to resume the active handoff
+- `/autonomous Also add PDF export` to steer an active run with new work
 
 The slash form is conceptual: use the invocation supported by your client, as
 described in [installation and client setup](../../setup.md). Autonomous starts
@@ -17,7 +18,13 @@ budget and the `--` delimiter — may appear in either order, with everything
 after the options as the goal text, possibly empty. An invocation with no
 goal text RESUMEs the active goal, preserving its persisted run ceiling and
 consumed counters; a new run with no budget uses the default run ceiling of
-6 worker rounds. The budget bounds the whole run; each genuine task
+6 worker rounds. Goal text supplied while a handoff is already active steers
+the run instead of conflicting with it: explicit new outcomes are decomposed
+into new backlog tasks, and continuation instructions adjust the existing
+plan at the next selection boundary — without overwriting active work or
+resetting identities, counters, budgets, or review gates. An ambiguous
+request to discard or replace the active goal asks you before anything is
+rewritten. The budget bounds the whole run; each genuine task
 within the run has its own allowance of 12 worker rounds, and every
 exploration, implementation, and fix round counts against both — the
 effective remaining budget is the smaller of the two. The session becomes the
@@ -67,15 +74,39 @@ when it enters the backlog, before selection — and its worker-round
 counters; a task deferred unfinished keeps a compact resumable
 packet in the backlog — with its findings, current state, and one next
 action — instead of being archived as completed. It reports the completed
-work, verification, and remaining limitations. By default changes stay
-uncommitted. Commit, branch, push, and pull request actions are separate
-requests. An investigation-only goal returns findings and a next step.
+work, verification, and remaining limitations. An investigation-only goal
+returns findings and a next step without manufacturing product commits.
+
+A new run commits and pushes each completed task by default: after the
+task's required checks and reviews — including applicable deep review
+gates — the coordinator makes coherent task commits and confirms an
+ordinary push before the next task starts. The completion record itself —
+result line, archived detail, updated handoff — is then persisted in one
+bounded state-only commit, pushed and confirmed under the same policy, so
+the pushed state is never left open and no endless chain of confirmation
+writes follows. Reviews run before this gate and inspect the uncommitted
+result; the coordinator owns final persistence verification and archival.
+Explicit user or repository restrictions win: a commit-only or working-tree
+run is recorded with its basis and followed, never bypassed. A resume keeps
+the recorded policy, so an existing working-tree or commit-only run never
+silently gains push rights. Pushes go only to the checked-out branch's
+resolved upstream; a main or protected branch, a missing upstream, or an
+ambiguous destination stops and asks. Branch creation, pull requests,
+merging, force-pushing, and remote changes remain separate explicit
+requests. A failed or uncertain push keeps the task open with its exact
+commit and destination state recorded and stops with the continuation
+prompt; a resume inspects the actual local and remote history before
+retrying the exact unfinished step, never duplicates commits or replays
+work, and never marks a task completed before its persistence is confirmed.
+Session-close state follows the same bounded finalization: its local records
+are saved first, and a blocked close stops with the finalization deferred
+and reported as unconfirmed — never completed — until a resume reconciles
+and confirms it.
 
 Completed handoffs and review records go in
 `.agenticale/handoffs/archive/YYYY-MM.md`. For runs that need to resume from
 a fresh clone, track `BACKLOG.md` and `.agenticale/handoffs/` in Git with the
-matching product changes or submodule pin. Authorize pushes explicitly to
-the intended remote.
+matching product changes or submodule pin.
 
 When upgrading from a version that used `docs/handoffs/`, move the active
 handoff and archive into `.agenticale/handoffs/` before resuming. Update
@@ -130,9 +161,10 @@ file contains the same rows as the filtered report.
 Start a new goal with explicit goal text that points to the milestone, for
 example `/autonomous Deliver the CSV export milestone in BACKLOG.md`. The
 coordinator creates `.agenticale/handoffs/active.md` and records the current slice
-and its next action. A new goal requires the project to have no active
-handoff. Invoke `/autonomous` without goal text to resume an existing
-handoff's recorded `NEXT` action.
+and its next action. With an active handoff, the same goal text steers the
+run — adding explicitly requested tasks or adjusting continuation — instead
+of starting a new one. Invoke `/autonomous` without goal text to resume an
+existing handoff's recorded `NEXT` action.
 
 ### Ask an AI agent to prepare the backlog
 
@@ -278,7 +310,9 @@ round — workers, reviews, fixes, and consults alike — and never edits it;
 its backlog writes are targeted edits on a fresh re-read, so your concurrent
 steering changes survive. Steering cannot grant budget, change scope,
 authorize Git actions, or bypass a review gate; those stay with the normal
-invocation and grant rules.
+invocation and grant rules. Goal text in an invocation is a separate
+explicit channel: it can add tasks or steer continuation under the
+reconciliation rules above, and it is never written into this section.
 
 For the detailed state, budget, review, and resume rules, read the
 [Autonomous skill source](https://github.com/alefranz/AgenticAle/blob/main/skills/autonomous/SKILL.md)

@@ -66,11 +66,15 @@ It is designed around a simple cost and quality strategy:
 - preserve the next action on disk, so an interrupted session does not lose the
   plan.
 
-Nothing is pushed automatically. Autonomous Mode leaves changes in the working
-tree by default. Say **commit** when you want it to create the coherent commits
-for accepted work; say **create a branch**, **push**, or **open a PR** when you
-want each of those separate actions. Otherwise it works on the currently
-checked-out branch.
+A new run commits and pushes each completed task by default: after the
+task's required checks and review gates pass, the coordinator makes coherent
+task commits and confirms an ordinary push before the next task starts. Say
+**commit only** or **leave changes uncommitted** to restrict the run —
+explicit user or repository restrictions win, are recorded with their basis,
+and are never bypassed; a resume keeps the recorded policy. Branch creation,
+opening a PR, merging, force-pushing, and changing remotes remain separate
+explicit requests. The workflow works on the currently checked-out branch
+and asks before pushing to a main, protected, or ambiguous destination.
 
 ## How the workflow works
 
@@ -179,6 +183,14 @@ ceiling; on a resume it changes the ceiling only — the persisted consumed
 counters carry over, so `/autonomous 3` after five consumed rounds leaves the
 run budget-exhausted rather than silently resetting the count.
 
+Goal text supplied while a handoff is active steers the run rather than
+conflicting with it: explicit new outcomes are decomposed into new backlog
+tasks, and continuation instructions adjust the existing plan at the next
+selection boundary. The run identity, consumed counters, budgets, and review
+gates are preserved, and the active work is never overwritten; an ambiguous
+request to discard or replace the active goal asks before rewriting state.
+The invocation text never enters the human-owned `## Steering` section.
+
 ## How planning and continuation work
 
 Autonomous Mode manages a small operational backlog for you, but it deliberately
@@ -187,7 +199,8 @@ advances only one concrete slice at a time:
 - `BACKLOG.md` is the project-level board. It holds the current milestone
   with the run identity, ceiling, and consumed counters (mirroring the
   active budget line), open items, decisions that still apply,
-  each task's stable ID and worker-round counters, the first active
+  each task's stable ID, worker-round counters, and persistence state
+  (commits and confirmed push), the first active
   `Next slice`, compact resumable packets for deferred unfinished tasks, and
   the human-owned `## Steering` section.
 - `.agenticale/handoffs/active.md` is the working memory for the current slice. It
@@ -346,9 +359,38 @@ is retained for investigation-only work or explicitly accepted mechanical work
 without an independent review. Accepted slices, open findings, and session
 closure remain durable under the existing handoff and archival policy.
 
-Working-tree persistence is the default. Ask for commits when desired. Branch
-creation, pushing, and opening a PR remain separate explicit requests in this
-advanced workflow; `/work --pr` provides the bundled everyday delivery endpoint.
+A new run defaults to commit and push per completed task. Slices and tasks
+are different units: each slice passes its own review gate, and the task's
+persistence gate runs once, after its required checks, reviews, and
+applicable deep gates close. Reviews are phase-aware: a slice reviewer
+inspects the uncommitted working-tree result and records its verdict, never
+requiring the gate's commits or push before the gate has run and never
+archiving; the coordinator owns final persistence verification and archival.
+The coordinator owns every commit and push — children leave verified changes
+in the working tree — stages only the task's accepted product changes
+(preserving unrelated work and secrets), makes coherent task commits, and
+confirms an ordinary push to the resolved upstream. It then runs one bounded
+state-only finalization: the completion record and archive are written into
+the existing state files, committed as a single state-only commit, and
+pushed and confirmed under the default policy. The finalization commit's own
+hash is never written into the state it commits, and the gate's local
+acknowledgment is read-only, so the sequence is finite — no recursive
+record-your-own-hash loop — and the task is marked completed and the next
+task selected only after the finalization is confirmed. An investigation-only
+task creates no artificial product commit, but changed durable findings are
+persisted by the same state finalization. Session-close state writes use the
+same bounded finalization: the local records are saved first, and a blocked
+close — unsafe destination, rejected or uncertain push — stops terminally
+with the finalization deferred and reported as unconfirmed, never completed.
+Explicit restrictions select a commit-only or working-tree policy instead;
+resumes keep the recorded policy. A failed,
+uncertain, or interrupted push preserves the exact persistence state and
+stops resumably; a resume reconciles the actual local and remote history —
+confirming ancestry or content — before retrying the exact unfinished step,
+never duplicating commits, replaying work, or completing a task prematurely.
+Branch creation and opening a PR remain separate explicit requests in this
+advanced workflow; `/work --pr` provides the bundled everyday delivery
+endpoint.
 
 The coordinator records read-only exploration and consultation reports on disk;
 read-only children never need edit permission to preserve their findings.
