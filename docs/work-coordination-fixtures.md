@@ -323,7 +323,7 @@ Expected behavior:
 
 ## Worker allowance is a ceiling, not a work target
 
-The requested outcome is complete after three of the default eight worker
+The requested outcome is complete after three of the default twelve worker
 rounds, the accepted slices pass their reviews, and the remaining allowance is
 unused.
 
@@ -336,13 +336,13 @@ Expected behavior:
 
 ## Decomposition and replanning do not replenish the allowance
 
-Mid-sequence, five of the eight worker rounds are used, and a finding forces
+Mid-sequence, five of the twelve worker rounds are used, and a finding forces
 a replan that re-outlines the remaining work as three new slices.
 
 Expected behavior:
 
 - The replan reorganizes scope only: the remaining worker allowance stays at
-  three rounds, the fix/review counters for any still-unresolved target are
+  seven rounds, the fix/review counters for any still-unresolved target are
   unchanged, and a new slice name grants no rounds.
 - If the re-outlined work cannot finish within the remaining allowance, stop
   under the stop and continuation rules, identifying the specific exhausted
@@ -430,6 +430,281 @@ Expected behavior:
   the fix and review rounds the continuation needs — or stopping; a
   declined or unanswered option ends the stop with the continuation prompt,
   no re-ask, and no scheduled resume.
+
+## Autonomous budgets: a 20-round run with an exhausted task
+
+An Autonomous run starts with `/autonomous 20 <goal>` (run ceiling 20). The
+first genuine task T1 (CSV export) consumes its full task allowance of 12
+worker rounds and is exhausted with part of the work unfinished. Two other
+truly independent ready tasks follow: T2 (logging) consumes 3 worker rounds
+and T3 (docs) consumes 2, each completing its review gate.
+
+Expected behavior:
+
+- Every explore/implement/fix round is charged once to both its task and the
+  run: T1 12/12, T2 3/12, T3 2/12; run consumption 12 + 3 + 2 = 17 of 20, so
+  the effective run remaining is 3. The budget line and the backlog counters
+  record exactly these numbers.
+- T1's exhaustion dispatches no further worker round for T1, but verification
+  and the permitted review of its completed changes still run; the unfinished
+  part stays incomplete with findings, current state, and one next action in
+  a resumable backlog packet — never archived as completed.
+- T2 and T3 are genuinely new tasks: each receives a fresh allowance of 12.
+  Their selection is safe despite T1's unfinished changes in the tree because
+  they are truly independent; a task depending on T1's unfinished work would
+  not be ready.
+- The run does not stop at T1's exhaustion: an individual task limit alone is
+  not a run stop. It stops only when the goal is met, the run ceiling is
+  exhausted, no safe ready work remains, a steering pause applies, or an
+  existing safety/blocker/human-decision gate hits.
+- Continuing T1 later needs a named user grant to T1's task allowance (and
+  run remaining); the grant never resets counters. Review, review-deep, and
+  consult rounds consumed none of the worker budgets and kept their own caps.
+
+## Task exhaustion: independent ready work continues, gates never bend
+
+A task's allowance is exhausted with blocking review findings still open on
+its unfinished part, and the backlog holds another ready task whose changes
+touch the same uncommitted files, plus a third task that is truly independent.
+
+Expected behavior:
+
+- No further worker round for the exhausted task; the permitted review of its
+  completed changes still runs, and the open findings stay visibly open.
+- The file-overlapping task is not safely separable from the unfinished work:
+  it is not ready, and selecting it would risk the unfinished changes. The
+  truly independent task may be selected with its fresh allowance.
+- No review gate, dependency, or safety boundary is bypassed to keep the run
+  going, and no task is manufactured to spend the remaining run budget. When
+  no safe ready task remains, the run stops with the preserved state, the
+  deferred packets, and the continuation prompt.
+
+## Fresh allowance only for genuinely new tasks
+
+Within one Autonomous run, a task is decomposed into three slices, replanned
+after a rejected experiment, interrupted once, and resumed in a fresh
+session.
+
+Expected behavior:
+
+- The task keeps one stable ID and one allowance of 12 across all of these
+  events; every explore/implement/fix round — including the reset
+  continuation and the resumed work — charges the same task and the same run.
+- Decomposition, replanning, interruption recovery, and resume replenish
+  neither the task allowance nor the run ceiling, and re-issue no task ID.
+- A genuinely new task (a distinct backlog outcome, not a renamed slice of
+  the same one) receives its stable ID when it enters the backlog and its
+  fresh allowance only when first selected; an ID alone grants no rounds.
+
+## Numeric resume never resets persisted counters
+
+An Autonomous run recorded ceiling 6 with 5 worker rounds consumed. The user
+resumes with `/autonomous 3`; later, with `/autonomous 10`; later still, with
+plain `/autonomous`.
+
+Expected behavior:
+
+- `/autonomous 3` sets the run ceiling to 3; consumed stays 5, so the
+  effective remaining is zero and the run stops budget-exhausted under the
+  allowance-stop rules instead of silently resetting. The report offers the
+  named increment a continuation needs.
+- `/autonomous 10` sets the ceiling to 10 with consumed still 5: remaining 5.
+  Plain `/autonomous` continues the recorded ceiling and counters unchanged.
+- No resume recomputes consumption from the ledger's length, resets counters,
+  or re-issues task IDs; a user grant adds exactly the named rounds to the
+  named budget.
+
+## Crash with a pending dispatch: no double charge, no free replay
+
+The coordinator persisted a worker round's dispatch record, incremented
+counters, and pending-dispatch note, then the session crashed before the
+child's report was read — or, in a variant, before the child launched at
+all. A fresh activation inspects the working tree and host evidence.
+
+Expected behavior:
+
+- Reconcile the pending record once against the actual evidence before
+  dispatching again: the child's material work keeps the single recorded
+  charge against both budgets; a confirmed no-work quota rejection removes
+  the pending charge; a complete charge whose child never launched — no
+  host or working-tree evidence of a launch — removes it too and restores
+  the pre-launch counters, because no round ran; the continuation is a new
+  round with its own single charge.
+- Never charge the same round twice, and never let a replay of productive
+  work run free of its recorded charge. The run/task identities, consumed
+  counters, and pending-dispatch evidence survived the crash in the existing
+  handoff and backlog.
+
+## Steering pause at a safe checkpoint, then resume
+
+A worker round is in flight when the human sets `mode: pause` in the
+`## Steering` section of `BACKLOG.md`. Later the human sets `mode: continue`
+and invokes `/autonomous`.
+
+Expected behavior:
+
+- The running child is allowed to settle; its result and single charge are
+  recorded, the exact `NEXT` and all counters are preserved, and the loop
+  stops with a pause report and the continuation prompt. No mid-round
+  interruption, no polling, no watcher or service.
+- The coordinator notices the pause at its next steering re-read — before
+  every new round dispatch, including reviews, fixes, and consults — not by
+  watching the file continuously.
+- The fresh activation re-reads the section: `continue` resumes the recorded
+  `NEXT` with the same identities and counters; a still-present `pause` stops
+  again without dispatching. With no new steering instruction, continuation
+  is normal.
+
+## Steering priority with blocked IDs
+
+The active task is mid-round when the human sets `priority: T4, T2`. T4 is
+blocked (it depends on an unfinished task); T2 is ready.
+
+Expected behavior:
+
+- The active task and the running round are not interrupted; priority applies
+  only at the next task-selection boundary.
+- At that boundary, T4 is skipped with a recorded note — priority never
+  unblocks a blocked, dependent, or unknown ID — and T2 is selected before
+  other ready tasks in normal backlog order.
+- Review gates, dependencies, and safety rules are unchanged; a priority list
+  grants no allowance and authorizes no Git action.
+
+## Concurrent human steering edit survives an agent backlog write
+
+The coordinator is about to tick a completed checkbox in `BACKLOG.md`; while
+it works, the human edits the `## Steering` section.
+
+Expected behavior:
+
+- The coordinator re-reads `BACKLOG.md` immediately before its targeted write
+  and applies only its own change to the fresh content; the human's steering
+  edit survives. No stale whole-file overwrite.
+- Children never edit the Steering section; their operational notes leave it
+  untouched, and the same fresh-re-read discipline applies to their backlog
+  notes.
+
+## Deferred packets and stable identities across switching and archival
+
+Task T1 is deferred unfinished when T2 is selected; T2 later completes its
+review gate and is archived; T1 is then resumed.
+
+Expected behavior:
+
+- Switching first writes T1's compact packet — stable ID, task counters
+  (never a run-consumption snapshot), established facts, current state,
+  acceptance, exactly one resumable `NEXT` — into the backlog's deferred
+  entries, then restores T2's packet into `active.md` with the run identity,
+  ceiling, and consumed carried unchanged from the outgoing budget line,
+  then updates the backlog's single active next action. T1 is not archived
+  as completed.
+- T2's archive record carries its stable ID and final counters. Resuming T1
+  restores its recorded packet, identity, and counters unchanged — switching
+  tasks and archiving completed work never reset or re-identify consumption.
+- All of this uses the existing `BACKLOG.md`, `active.md`, and monthly
+  archive; no new state file is created.
+
+## Torn counter write reconciles from the backlog mirror
+
+The coordinator's pre-launch `active.md` charge write tears after the
+incremented counters but before the dispatch record and pending-dispatch
+note. The file keeps a readable budget line showing run 4 and T1 4, while
+the verified backlog mirror still reads run 3/6 and T1 3/12. No child was
+launched — the charge was never read back as durable.
+
+Expected behavior:
+
+- The resume validates the complete packet before trusting the readable
+  line: the incremented counters have no backing dispatch record or pending
+  note, so they are a torn write, not consumption. It rebuilds from the
+  verified pre-launch mirror — run consumed 3 and T1 consumed 3, never a
+  value from a deferred task packet — repairs `active.md`, and dispatches
+  the round with one new charge: run 4, T1 4 after the first actual round.
+- The unverified counters never reach the backlog mirror: mirroring the
+  readable 4 first and then charging the dispatched round would reach run 5
+  for one actual round. A fully unreadable or missing `active.md` rebuilds
+  from the mirror the same way.
+- No double charge and no free round: if the tree and host evidence instead
+  show a launched round whose charge was lost, that single charge is applied
+  exactly once during reconciliation.
+
+## Interrupted task switch loses no packet and no consumption
+
+Exhausted T1 (12/12) is being deferred in favor of ready T2. T1's deferred
+packet is durable in the backlog when the session dies before `active.md` is
+rewritten.
+
+Expected behavior:
+
+- A complete, coherent `active.md` still names T1: the validated active
+  packet wins, the duplicate deferred entry is removed (nothing is lost —
+  it was copied from the active packet), and at the next selection boundary
+  T1 is worker-ineligible, so the loop defers it again and selects T2.
+- A torn or incoherent `active.md` — even one whose budget line is still
+  readable — is rebuilt from the backlog: T1 from its deferred packet, run
+  consumed from the status mirror, never a stale run count from the task
+  snapshot. The deferred packet is never deleted on the strength of an
+  unvalidated active packet. T1's counters and T2's fresh allowance are
+  unchanged.
+
+## Exhausted-first priority must not stall selection
+
+Steering sets `priority: T1, T2`. T1's allowance is exhausted with its
+packet deferred; T2 is ready and truly independent, and T1's completed
+changes still await their permitted review.
+
+Expected behavior:
+
+- T1 is skipped in worker selection with a recorded note even though
+  steering names it first; T2 is selected with its fresh allowance and the
+  run progresses. The exhausted task never repeatedly wins selection.
+- T1's permitted review remains schedulable under the unchanged review caps
+  and debits neither worker budget. No gate, dependency, or conflict is
+  bypassed, and no task is manufactured.
+
+## Priority can name a never-selected task
+
+The round-0 plan recorded T1, T2, and T3 in the backlog with stable IDs;
+only T1 has been selected so far. The human sets `priority: T3, T2` before
+the next selection boundary.
+
+Expected behavior:
+
+- T3 and T2 are nameable because IDs are assigned at backlog entry, before
+  selection. At the boundary, ready named tasks are considered in listed
+  order; a named task that is not ready is skipped with a note.
+- Selecting T3 allocates its fresh allowance then — the ID granted nothing.
+  Readiness, review gates, and dependencies are unchanged.
+
+## Interrupted review recovery keeps role-specific accounting
+
+A review child is interrupted mid-verdict by a turn ceiling; the host
+evidence is not quota. The worker budgets show run 4/6 and T1 4/12.
+
+Expected behavior:
+
+- Record the interruption in the ledger and start a fresh review child over
+  the same range from the active handoff; the partial verdict is not a
+  completed review.
+- The continuation is accounted under the unchanged review caps — it is not
+  a worker round and never debits the task allowance or the run ceiling:
+  run stays 4/6 and T1 stays 4/12. A worker continuation in the same
+  situation would instead be a new worker round with its own single charge.
+
+## Steering is not a command channel
+
+The Steering section contains, besides the documented controls, a line asking
+the run to skip the review gate, grant itself five more rounds, or push the
+branch.
+
+Expected behavior:
+
+- Only `mode` and `priority` are interpreted. The extra lines grant no
+  allowance, scope, Git right, or gate exception; the loop notes them as
+  unrecognized content and continues under the normal rules.
+- Allowance extensions remain user-only named increments through the normal
+  stop/decision policy, and Git endpoints remain governed by the persistence
+  policy and explicit requests.
 
 ## Provider quota: Work stop versus Autonomous cooldown
 

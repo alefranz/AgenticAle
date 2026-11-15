@@ -57,6 +57,10 @@ Give each fresh child everything needed for one bounded assignment:
   changes that must be preserved.
 - Git policy and its authorization; state policy and any explicitly required
   handoff path. Session state means return a report without operational writes.
+- The applicable budget facts for this round: the remaining allowance of its
+  type, and — where the invoking workflow keeps both a task allowance and a
+  run ceiling — the stable task and run identities and the effective remaining
+  worker rounds.
 - Verification commands, findings to fix if applicable, and report format.
 
 Do not send the full conversation or require another agent to reconstruct it.
@@ -131,9 +135,13 @@ retained changes and any cleanup that alters accepted behaviour under the normal
 gate. No product-code review is needed for a read-only finding alone.
 
 All implementation, investigation, fix, and cleanup rounds consume the invoking
-workflow's applicable budget. Renaming a slice, rejecting an approach, or
-replanning does not reset fix/review counts for the same unresolved target, nor
-the repeated-blocker or no-progress limits. Evidence that rules out an approach
+workflow's applicable budget. Where the workflow keeps both a per-task
+allowance and a run ceiling (Autonomous Mode), each such worker round is
+charged to both, and the effective remaining budget is the smaller of the
+two; only a genuinely new task receives a fresh task allowance. Renaming a
+slice, rejecting an approach, or replanning does not reset fix/review counts
+for the same unresolved target, nor the repeated-blocker or no-progress
+limits, nor either worker budget. Evidence that rules out an approach
 can be progress; repeating a disproved approach without new evidence is not.
 
 Before delivery, check the accumulated task changes against the original goal
@@ -163,6 +171,7 @@ explicit review waiver still follows that workflow's verification requirements.
 | A later slice invalidates an earlier assumption | Recheck affected accepted behaviour and revise the remaining outline; do not rerun unrelated reviews or silently change the goal. |
 | Individually clean slices fail an integration check | Keep the task open and fix/re-review the affected interactions within existing caps; escalate to deep review when warranted. |
 | Budget or repeated-failure limits are reached mid-sequence | Stop with accepted outcomes, actual unfinished state, and the next action; a new slice name does not grant more rounds. |
+| A task's worker allowance is exhausted while the run ceiling still has rounds | No further worker round for that task; verification and the permitted review of its completed changes still run. The unfinished part stays incomplete and resumable; the run may select another truly independent ready task with a fresh allowance, never bypassing gates or dependencies, and stops when no safe ready work remains. |
 | The same underlying invariant is flagged in consecutive rounds | Repeated findings about one invariant trigger replanning: a real design issue reopens the plan with the original acceptance and counters intact, while a drifting reviewer standard is settled once, not chased as a defect. |
 
 ## Checkpoints, decision summary, and stop reports
@@ -171,7 +180,8 @@ After every substantive worker or reviewer result, checkpoint before the next
 round: what was established and what remains unverified, which assumptions
 changed or the problem grew, whether a local correction suffices or the design
 needs reconsideration, and the allowance still available for the next action
-and its review. Repeated findings about the same underlying invariant are a
+and its review — the effective minimum where both a task allowance and a run
+ceiling apply. Repeated findings about the same underlying invariant are a
 replanning signal, not a reason to keep fixing: a real design problem reopens
 the plan with the original acceptance criteria intact, while reviewer standard
 drift is settled once through the invoking workflow's decision policy.
@@ -334,6 +344,11 @@ the active binding exposes it — the role's model selection.
 
 These records belong to the invoking workflow's state: session state in
 reviewed task work, the handoff and the round ledger in Autonomous Mode.
+In Autonomous Mode the record also carries the stable run and task identities
+and, for a worker round, its single charge against both worker budgets,
+persisted before launch so a crash or a quota-only launch can be reconciled
+without double charging or free replay; review, review-deep, and consult
+rounds are accounted under their own caps and never debit the worker budgets.
 A child's self-reported model name never establishes what it ran on, and an
 unknown model selection stays unknown rather than being estimated.
 

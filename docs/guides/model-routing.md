@@ -193,10 +193,11 @@ the Work workflow's worker-round **allowance**:
 ```
 
 The value is how many worker rounds are available to a Work task, not how
-many must run. The default is eight. The project file wins over the personal
+many must run. The default is twelve. The project file wins over the personal
 file. An invalid value (not a positive integer) is an actionable error naming
 the file and the value — it is never silently defaulted and never clamped.
-The setting is Work-specific: Autonomous Mode keeps its own budget behavior.
+The setting is Work-specific: Autonomous Mode keeps its own budget behavior
+(a run ceiling and a per-task allowance, neither set by this file).
 
 ## What changed from the old tier system
 
