@@ -587,7 +587,7 @@ Expected behavior:
 ## Deferred packets and stable identities across switching and archival
 
 Task T1 is deferred unfinished when T2 is selected; T2 later completes its
-review gate and is archived; T1 is then resumed.
+review and persistence gates and is archived; T1 is then resumed.
 
 Expected behavior:
 
@@ -675,6 +675,282 @@ Expected behavior:
   order; a named task that is not ready is skipped with a note.
 - Selecting T3 allocates its fresh allowance then — the ID granted nothing.
   Readiness, review gates, and dependencies are unchanged.
+
+## Goal text during an active run is steering, not a conflict
+
+An Autonomous run is active: T2 is mid-task with consumed counters and an
+open review gate, and T1's deferred packet sits in the backlog. The user
+invokes `/autonomous Also add PDF export next to the CSV export`.
+
+Expected behavior:
+
+- Reconcile the invocation against a fresh re-read of `BACKLOG.md` and
+  `active.md`; do not report a conflict and do not overwrite the active
+  handoff, the deferred packet, or any counter.
+- Decompose the explicit new outcome into backlog tasks: each genuinely new
+  task enters the backlog with its stable ID before selection and receives
+  its fresh allowance only at first selection. The run identity, ceiling,
+  consumed counters, T2's allowance and counters, and every open review gate
+  are preserved.
+- Continue the recorded `NEXT` action; the new tasks become selectable at
+  the next selection boundary under the normal readiness rules. The
+  reconciliation is recorded in the existing backlog and active handoff.
+- The invocation text is not written into the human-owned `## Steering`
+  section, which keeps exactly its two documented controls.
+
+## Continuation steering preserves identities, counters, and gates
+
+The same active run receives `/autonomous Focus on the migration tests
+first; the CSV polish can wait`, with ready tasks T2 (CSV polish) and T3
+(migration tests) and T4 mid-round.
+
+Expected behavior:
+
+- The explicit reordering applies at the next task-selection boundary among
+  ready tasks; the active slice and the running round are never interrupted.
+- Acceptance or constraint changes reach the backlog entries and the active
+  packet only where the user's text explicitly supports them. No task ID is
+  re-issued, no consumed counter, allowance, or fix/review counter resets,
+  and no gate is bypassed; steering grants no allowance.
+- A steering invocation keeps the recorded persistence policy: a
+  working-tree or commit-only run gains no push rights from it.
+
+## Ambiguous destructive replacement asks before rewriting state
+
+With an active handoff and deferred packets, the user invokes
+`/autonomous Start over with a cleaner approach`. A variant instead names
+exactly what to discard: "Discard T3 and its deferred packet; replace it
+with a schema-first approach".
+
+Expected behavior:
+
+- The ambiguous request stops and asks the user before any state is
+  rewritten: the active handoff, deferred packets, counters, and audit
+  material are preserved while asking.
+- The explicit, unambiguous variant is honoured only for what it names;
+  unrelated tasks, counters, and audit material survive, and discarded audit
+  detail is archived, never deleted.
+- Neither variant resets the run's consumed counters or re-issues IDs for
+  tasks that remain.
+
+## Slice review precedes the task persistence gate
+
+A strict-mode run under the commit-and-push policy finishes a slice; its
+changes are verified and sit uncommitted in the working tree. The
+independent reviewer is dispatched before the task persistence gate has run.
+
+Expected behavior:
+
+- The reviewer inspects the range at its current phase — the uncommitted
+  working-tree result — and records its verdict in the active handoff as a
+  working-tree note. It does not require task commits or a confirmed push
+  the gate has not performed yet, and it never commits, pushes, archives
+  the slice, or marks the task completed.
+- The coordinator owns final persistence verification at the task
+  persistence gate after the review and applicable deep review gates close,
+  and owns the archival of the completed record after the gate is satisfied.
+- A review whose supplied range already includes commits — for example a
+  re-review after the gate — verifies coherent task commits and cleanliness,
+  and verifies a confirmed push only when the recorded persistence state
+  says the push already happened.
+
+## Completed task: coherent commits and confirmed push before the next task
+
+A new run uses the default commit-and-push policy. Task T1 contains two
+accepted slices; the second triggered an opportunistic deep review, which
+returned clean. T2 is ready in the backlog.
+
+Expected behavior:
+
+- T1 completes only after its required checks, both slice review gates, and
+  the applicable deep gate have closed. The coordinator — not the workers —
+  then stages only T1's accepted product changes and creates coherent task
+  commits (one per logical change, not one per agent round).
+- The coordinator pushes with ordinary Git semantics to the resolved
+  upstream and verifies success. It then runs exactly one bounded state-only
+  finalization: the completion record — result line with the product commit
+  hashes and confirmed destination, archived detailed record, updated active
+  handoff — is written into the existing state files, committed as one
+  state-only commit (never product changes or unrelated work), and pushed
+  and confirmed to the same destination. The finalization commit's own hash
+  is never written back into the state it commits; later records read it
+  from git history.
+- T1 is marked completed and T2 selected only after the finalization is
+  confirmed — the local acknowledgment is a read-only verification, not
+  another state write, so no recursive record-your-own-hash loop exists.
+- The persistence state (accepted, committed, push pending/confirmed) is
+  durable in the active handoff and mirrored on the backlog task entry as it
+  advances, so an interruption at any step resumes exactly there.
+- Under a recorded commit-only policy the same gate requires the coherent
+  commits and the state-only finalization commit but no pushes; under
+  working-tree policy neither commits nor pushes — the recorded policy is
+  never bypassed.
+
+## Explicit restrictions win over the commit-and-push default
+
+A new run is invoked with "commit each task but do not push", and another
+run's repository instructions forbid pushing. A third invocation says
+"leave everything uncommitted".
+
+Expected behavior:
+
+- Each run adopts and records the restricted policy with its basis —
+  commit-only, commit-only, and working tree respectively — and follows it
+  at every task gate. The default never bypasses an explicit user or
+  repository restriction.
+- A later resume of any of these runs — empty, numeric, or steering — keeps
+  the recorded policy; push rights arrive only through an explicit user
+  request, recorded with its basis. A handoff with no recorded policy
+  predates the default and resumes as working tree.
+
+## Unsafe or ambiguous push destination stops before pushing
+
+A commit-and-push run reaches its first task gate while the checked-out
+branch is `main`; in variants, the branch has no configured upstream, two
+remotes make the target ambiguous, or repository instructions protect the
+destination branch.
+
+Expected behavior:
+
+- Resolve the destination from the branch's configured upstream and any
+  repository instruction before pushing; re-check it at every push.
+- Stop and ask the user before pushing in each variant; the task stays open
+  with its commits and exact persistence state preserved, and the stop
+  carries the continuation prompt.
+- Never create a branch, change remotes, force-push, merge, or open a pull
+  request to make the push succeed, and never redirect the push to a
+  different destination on the run's own initiative.
+
+## Failed or uncertain push preserves exact state
+
+The task's commits exist locally. The push is rejected non-fast-forward
+because the remote advanced; in variants it fails with a network error or
+returns an uncertain result.
+
+Expected behavior:
+
+- Record the exact persistence state — accepted task, commit hashes,
+  destination, and the push evidence or error — in the active handoff and
+  backlog. Keep the task open: it is not archived or reported as completed,
+  and the next task is not selected.
+- Stop with the continuation prompt. No force-push, no automatic merge or
+  rebase, no blind retry; a non-fast-forward rejection is resolved by
+  preserving state and asking, not by rewriting history.
+- A resume inspects the actual local history and the remote read-only before
+  retrying the exact unfinished persistence step.
+
+## Interruption between commit, push, and completion reconciles
+
+The session dies after the task commits were created but before the push;
+in variants, the push succeeded but the state finalization never ran; the
+finalization commit was created but never pushed; or the finalization push
+succeeded but the local acknowledgment never happened. A fresh activation
+resumes the run.
+
+Expected behavior:
+
+- Re-read the durable persistence state, then inspect the actual local
+  history and the remote (read-only fetch or ls-remote) to establish which
+  steps already happened before any next-task work.
+- Committed-but-unpushed: resume the push of the existing commits — never
+  re-commit or duplicate them. Pushed-but-unfinalized: verify the product
+  push, complete the completion-record writes from the confirmed hashes and
+  destination, then create and push the one state-only finalization commit.
+  Finalization-committed-but-unpushed: push that existing commit as-is,
+  never a second finalization commit for the same task.
+- Finalization-pushed-but-unacknowledged: confirm the finalization commit's
+  remote ancestry or content; the gate is satisfied without any further
+  write — the acknowledgment is read-only — and the next task is selected
+  without replaying work or adding commits.
+- A commit already on the remote is never duplicated, and the task is marked
+  completed only once the whole gate is confirmed satisfied. Identities and
+  counters are unchanged by the reconciliation.
+
+## Task commits preserve unrelated work and secrets
+
+At the task gate, the working tree also holds unrelated staged and unstaged
+edits, an untracked scratch file, and a locally modified credentials file;
+one source file mixes task edits with an unrelated human edit.
+
+Expected behavior:
+
+- Stage and commit only the task's accepted changes; the unrelated staged,
+  unstaged, and untracked work and the credentials file are preserved and
+  never swept into a task commit or a push.
+- Overlapping edits that cannot be attributed to the task safely stop and
+  ask before committing them.
+- Before pushing, inspect the outgoing commits against the reviewed scope;
+  work outside it resolves the publication scope first (ask), never pushes
+  silently.
+
+## Investigation-only task creates no artificial product commit
+
+A commit-and-push run's task is investigation-only: its explore rounds
+produce findings and a recommendation, with no product changes. In a
+variant, the findings were already fully recorded and nothing in the durable
+state changes.
+
+Expected behavior:
+
+- No artificial product commit is manufactured to satisfy the gate. The
+  findings are persisted in the durable state, and changed durable state is
+  not "nothing to persist": the same bounded state-only finalization commits
+  it and, under commit-and-push, pushes and confirms it, so the default
+  policy persists investigation findings exactly like any other state
+  change.
+- Only when truly nothing changed is there nothing to commit or push; the
+  gate is then satisfied by the recorded findings. Durable-state updates
+  follow the recorded policy like any other state write; they are never
+  product commits.
+
+## Session-close state uses the same bounded finalization
+
+A commit-and-push run reaches its final report after the last task's gate
+has closed. The session-close handoff paragraph, backlog status, and active
+handoff still need their final writes. In a variant, the session dies after
+the session-close state commit but before its push.
+
+Expected behavior:
+
+- The coordinator writes the session-close records into the existing state
+  files, then applies the same bounded finalization as the task gate: one
+  state-only commit of the session-close state changes — never product
+  changes — pushed and confirmed to the resolved destination. The printed
+  report mirrors the saved archive paragraph and points at its path and the
+  commit hash read from git history; the hash is never written into the
+  files the commit contains.
+- The interrupted variant reconciles exactly like the task gate: the resume
+  confirms the existing session-close commit from local history and the
+  remote read-only and pushes it as-is — no second commit, no rewritten
+  records — before any continuation work.
+- Under commit-only policy the session-close commit is created but not
+  pushed; under working-tree policy the records stay in the working tree
+  with diff evidence. No new state file is created for any of this.
+
+## Blocked session-close finalization stops local-only
+
+A commit-and-push run reaches session close after the last task's gate has
+closed, and the session-close records are written locally. In variants, the
+resolved destination is unsafe or ambiguous, the state-only commit's push is
+rejected non-fast-forward, or the push result is uncertain.
+
+Expected behavior:
+
+- The local records — session-close paragraph, backlog, active handoff — are
+  written first and never wait on the push. They carry the exact persistence
+  state: the local commit hash when one exists, the destination, and the push
+  evidence or error, with the finalization marked deferred and unconfirmed.
+- The run stops terminally with the continuation prompt: no blind retry, no
+  force-push, merge, or rebase, no branch creation, and no automatic
+  destination change. The printed report mirrors the saved local records and
+  reports the finalization as deferred — never as completed — and no
+  completion is recorded before confirmation.
+- A resume reconciles exactly like the task gate: re-read the durable state,
+  inspect the actual local history and the remote read-only, then resume the
+  exact unfinished step — push the existing state-only commit as-is, or
+  create it from the saved local records when none exists — never duplicating
+  commits. Only a confirmed finalization closes the session's persistence;
+  identities and counters are unchanged by the reconciliation.
 
 ## Interrupted review recovery keeps role-specific accounting
 

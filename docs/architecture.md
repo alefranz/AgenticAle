@@ -112,8 +112,27 @@ exhausted task is deferred unfinished and resumable, not a run stop, while
 truly independent ready tasks may still be selected. A human-owned
 `## Steering` section in `BACKLOG.md` provides deterministic pause/continue
 and ready-task priority controls, re-read before every round and preserved
-across agent writes. This repository's handoff records describe its own
-development. Everyday `work` uses session state for task coordination.
+across agent writes. Invocation goal text supplied during an active run is
+steering, not a conflict: the coordinator reconciles it with the backlog —
+decomposing explicit new outcomes into tasks and adjusting continuation —
+while preserving identities, counters, budgets, and review gates; an
+ambiguous destructive replacement asks the user, and the invocation text
+never enters the Steering section. A new run's default persistence policy
+commits and pushes each completed task: after its required checks, review
+gates, and applicable deep gates, the coordinator makes coherent task
+commits, confirms an ordinary push to the resolved upstream, and persists
+the completion record in one bounded state-only finalization commit —
+pushed and confirmed under the same policy, never recording its own hash —
+before the next task is selected. Reviews precede the gate and inspect the
+uncommitted result; the coordinator owns final persistence verification and
+archival. Explicit user or repository restrictions win,
+resumes keep the recorded policy, and failed or interrupted persistence is
+reconciled against the actual local and remote state before any next-task
+work. Session-close state uses the same bounded finalization; a blocked
+close saves the local records first and stops terminally with the
+finalization deferred, never reported as completed. This repository's
+handoff records describe its own development. Everyday `work` uses session
+state for task coordination.
 
 The flat model config is a flat per-role inventory: a role with no entry
 inherits the session model, and the packaged config is an inventory, not a
@@ -329,8 +348,10 @@ CLI, the VS Code extension, and Codex in the ChatGPT desktop app.
 The coordinator is intentionally thin: children receive compact packets and
 return reports. Autonomous Mode persists those reports to the target repository;
 everyday work keeps them in session context. Git operations follow the user's
-requested endpoint and applicable repository instructions, and default delivery
-is uncommitted.
+requested endpoint and applicable repository instructions: everyday work's
+default delivery is uncommitted, while a new Autonomous run defaults to
+coherent task commits and a confirmed ordinary push per completed task, with
+explicit restrictions winning and resumes keeping the recorded policy.
 
 Before implementation, the coordinator runs a brief material-risk assessment
 — which independently mutable sources the request would touch (local working
