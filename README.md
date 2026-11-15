@@ -145,7 +145,13 @@ commit, branch, push, and pull request actions are separate requests. See the
 ## Advanced: long-running autonomous projects
 
 Use [Autonomous](https://alefranz.github.io/AgenticAle/skills/autonomous/) for
-a goal that spans multiple rounds or sessions.
+a goal that spans multiple rounds or sessions. A run has a worker-round
+ceiling — default 6, or the number you pass — and each genuine task its own
+allowance of 12 worker rounds; every exploration, implementation, and fix
+round counts against both, and the counters survive resumes. While a run
+works, you can steer it through a small human-owned `## Steering` section in
+the project's `BACKLOG.md`: pause and continue at safe checkpoints, or reorder
+the next ready-task selection.
 
 ## Other included skills
 

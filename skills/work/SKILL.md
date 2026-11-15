@@ -326,7 +326,7 @@ range, accepted outcomes, and integration checks. A review that already covers
 that range and those checks need not be duplicated at delivery. Any combined
 review target has the same fix/review caps as a slice.
 
-The worker allowance defaults to eight worker rounds (explore, implement,
+The worker allowance defaults to twelve worker rounds (explore, implement,
 hard implementation, or fix), covering the whole task across exploration,
 implementation, and fixes. An explicit task-time instruction at invocation
 wins; otherwise a top-level `## Work` section in the preference file sets

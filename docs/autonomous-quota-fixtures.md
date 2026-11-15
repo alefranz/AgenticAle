@@ -16,7 +16,8 @@ Expected behavior:
   the exact remaining action, and a no-work quota-retry rejection count of
   zero in the existing active handoff. The initial quota failure is not a
   cooldown retry rejection, even when the child made partial material progress.
-- Count the productive worker round against the normal allowance because it
+- Count the productive worker round against the normal allowance — one
+  charge against both the task allowance and the run ceiling — because it
   made material progress. Do not count the quota event as another interruption,
   malformed-report correction, or task blocker.
 - After cooldown, start a fresh worker that inspects both changed and untracked
@@ -101,3 +102,42 @@ reports an authentication or billing suspension.
 Expected behavior: use the existing interruption, permission, authentication,
 or stop policy. Do not apply a 30-minute quota retry or alter the quota
 rejection counter.
+
+## Quota-only worker launch removes the pending charge
+
+Before launching a worker round, the coordinator persisted the dispatch
+record, the incremented task and run counters, and the pending-dispatch note.
+The host then returns an explicit quota rejection before any work begins, and
+the child is terminal.
+
+Expected behavior:
+
+- Remove the pending charge and restore both consumed counters: a pure
+  quota-blocked launch with no resumed work consumes no task allowance and no
+  run ceiling. Resolve the pending-dispatch note as quota-only; do not delete
+  the evidence without a trace.
+- Record the quota recovery state (evidence, retry time, no-work rejection
+  count) in the existing active handoff; the run and task identities and all
+  other counters survive unchanged.
+- After the deadline, the fresh child continues the recorded `NEXT`; its
+  productive round is charged once, normally, to both budgets. The quota-only
+  launch is not a malformed-report correction, a second interruption, or a
+  no-progress failure, and it does not erase genuine prior no-progress
+  evidence.
+
+## Quota interrupts a reviewer after partial progress
+
+The host reports `The usage limit has been reached` and confirms the review
+child is terminal after it inspected part of the range. The review round
+had not changed the worker counters.
+
+Expected behavior:
+
+- Account the productive review round under the review caps only: it never
+  debits the task allowance or the run ceiling, and the pending-dispatch
+  note resolves without touching the worker consumed counters.
+- Record the quota recovery state (role, evidence, retry time, no-work
+  rejection count) in the existing active handoff and honor the cooldown.
+- After the deadline, a fresh review child resumes over the same range; the
+  completed review still satisfies the ordinary gate. A quota-only review
+  launch with no resumed work would instead consume no review allowance.

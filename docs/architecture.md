@@ -101,8 +101,19 @@ silently replaced.
 `skills/autonomous/SKILL.md` adds durable backlog, handoff, archival, and
 continuation policies. The target project owns `BACKLOG.md` and the
 `.agenticale/handoffs/` directory for the active packet and monthly archive.
-This repository's handoff records describe its own development. Everyday
-`work` uses session state for task coordination.
+Two durable worker-round budgets bound a run: a run ceiling (default 6, or
+the invocation's numeric override) and a per-task allowance (default 12,
+independent of the Work preference). Every explore/implement/fix round is
+charged once to both — the effective remaining budget is the smaller — under
+stable run and task identities whose consumed counters and pending-dispatch
+evidence survive crashes, resumes, and quota-only launch rejections. A
+numeric resume changes the ceiling without resetting consumption; an
+exhausted task is deferred unfinished and resumable, not a run stop, while
+truly independent ready tasks may still be selected. A human-owned
+`## Steering` section in `BACKLOG.md` provides deterministic pause/continue
+and ready-task priority controls, re-read before every round and preserved
+across agent writes. This repository's handoff records describe its own
+development. Everyday `work` uses session state for task coordination.
 
 The flat model config is a flat per-role inventory: a role with no entry
 inherits the session model, and the packaged config is an inventory, not a
@@ -329,15 +340,19 @@ that would survive an interruption, concurrent humans, ownership-sensitive
 cleanup, and compatibility surfaces — and inspects only as much as the
 request's concrete uncertainties require. Everyday work may answer
 small questions with direct reads; Autonomous Mode keeps the main loop thin and
-sends needed source evidence to a focused explore round. When an allowance or
-the budget is exhausted, no further round of exhausted type is dispatched: the
-workflow reports the exhausted allowance, the completed and blocked state, and
-recent material progress, and recommends a bounded correction, a bounded
-replan, or a stop. Every incomplete stop carries a self-contained, copyable
-continuation prompt; everyday work keeps it in the session only, while
-Autonomous Mode persists it, with allowance usage and any granted extension,
-in the existing handoff so a resume or a renamed target cannot evade the
-unresolved-target caps. See the
+sends needed source evidence to a focused explore round. When the run ceiling
+or another allowance is exhausted, no further round of the exhausted type is
+dispatched: the workflow reports the exhausted allowance, the completed and
+blocked state, and recent material progress, and recommends a bounded
+correction, a bounded replan, or a stop. An exhausted task allowance in
+Autonomous Mode defers that task — verification and the permitted review of
+its completed changes still run, and another truly independent ready task
+may be selected with a fresh allowance — while a steering pause or the
+absence of safe ready work stops the run. Every incomplete stop carries a
+self-contained, copyable continuation prompt; everyday work keeps it in the
+session only, while Autonomous Mode persists it, with allowance usage and any
+granted extension, in the existing handoff so a resume or a renamed target
+cannot evade the unresolved-target caps. See the
 [work-coordination examples](https://github.com/alefranz/AgenticAle/blob/main/docs/work-coordination-fixtures.md)
 for the expected decisions.
 

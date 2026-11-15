@@ -15,8 +15,13 @@ described in [installation and client setup](../../setup.md). Autonomous starts
 only when explicitly invoked. Leading options — a positive-integer worker-round
 budget and the `--` delimiter — may appear in either order, with everything
 after the options as the goal text, possibly empty. An invocation with no
-goal text RESUMEs the active goal; with no budget, the default budget is
-used. The session becomes the coordinator and proceeds in sequential, bounded
+goal text RESUMEs the active goal, preserving its persisted run ceiling and
+consumed counters; a new run with no budget uses the default run ceiling of
+6 worker rounds. The budget bounds the whole run; each genuine task
+within the run has its own allowance of 12 worker rounds, and every
+exploration, implementation, and fix round counts against both — the
+effective remaining budget is the smaller of the two. The session becomes the
+coordinator and proceeds in sequential, bounded
 rounds. On OpenCode, when the installation configures a coordinator model,
 the `/autonomous` command entry — including a fresh resume — runs in the
 current session on the generated `agenticale/coordinator` profile from the
@@ -57,10 +62,14 @@ activity, these updates let you follow the work without opening every subtask.
 
 You provide the goal, constraints, and any acceptance examples. The workflow
 records durable progress in the target project's `BACKLOG.md` and
-`.agenticale/handoffs/active.md`. It reports the completed work, verification,
-and remaining limitations. By default changes stay uncommitted. Commit,
-branch, push, and pull request actions are separate requests. An
-investigation-only goal returns findings and a next step.
+`.agenticale/handoffs/active.md`. Each task carries a stable ID — assigned
+when it enters the backlog, before selection — and its worker-round
+counters; a task deferred unfinished keeps a compact resumable
+packet in the backlog — with its findings, current state, and one next
+action — instead of being archived as completed. It reports the completed
+work, verification, and remaining limitations. By default changes stay
+uncommitted. Commit, branch, push, and pull request actions are separate
+requests. An investigation-only goal returns findings and a next step.
 
 Completed handoffs and review records go in
 `.agenticale/handoffs/archive/YYYY-MM.md`. For runs that need to resume from
@@ -89,6 +98,10 @@ acceptance checks directly. If you want to plan the work first, capture it in
   do next.
 - Keep the next few candidate slices in dependency order. The coordinator can
   revise their order or scope as it learns more.
+- Optionally add a `## Steering` section (see
+  [Steer a running goal](#steer-a-running-goal)) to pause and continue the run
+  or reorder the next ready-task selection while it works. The section is
+  yours; the workflow reads it but never edits it.
 
 ```markdown
 # Project backlog
@@ -168,18 +181,49 @@ These summaries add tokens in exchange for an easier-to-follow account of a
 long task. The durable handoff preserves the state needed to resume; the visible
 updates help you understand how the work reached that state.
 
-When a budget or allowance is exhausted, the loop stops without another round
-of that type. The report says which allowance is exhausted, what is completed
-and what is blocked, and the recent material progress, and offers bounded
-choices — a bounded replan, one additional fix-and-review cycle, or a stop
-that preserves the current work — naming the rounds each choice consumes. A
-granted extension adds exactly the named worker, fix, and review rounds: it
-never resets counters and grants no extra scope, review, or Git rights. A
-consult can settle a reversible decision but cannot grant one, and declining
-or not answering ends the stop. Allowance usage and any granted extension are
-persisted in the active handoff, and the incomplete stop carries a
-copy-pasteable continuation prompt so a later activation can act on the
-grant. Repeated findings on the same invariant are classified as a real
+Two budgets bound the run. The **run ceiling** (default 6 for a new run, or
+the number you pass) limits worker rounds across the whole run; the coordinator never
+auto-grows it for a large goal. Each genuine task also has its own **task
+allowance** of 12 worker rounds. Every exploration, implementation, and fix
+round is charged to both, and the effective remaining budget is the smaller
+of the two; review, review-deep, and consult rounds keep their own separate
+caps. Only a genuinely new task gets a fresh allowance — decomposition,
+replanning, resume, and interruption recovery never replenish either budget.
+The run and task identities and the consumed counters are durable: they
+survive crashes, resumes, and quota outages, each round is charged exactly
+once, and a resume never resets them. The active handoff's budget line is
+the canonical counter record; the backlog mirrors it in a fixed write order,
+so a torn write or an interrupted task switch reconciles deterministically
+without double charging or restoring stale consumption. A numeric budget on
+a resume changes the run ceiling only: `/autonomous 3` after five consumed
+rounds leaves no worker rounds rather than silently refreshing the count.
+
+When the run ceiling is exhausted, the loop stops without another worker
+round. The report says what is completed and what is blocked, and the recent
+material progress, and offers bounded choices — a bounded replan, one
+additional fix-and-review cycle, or a stop that preserves the current work —
+naming the rounds each choice consumes. A granted extension adds exactly the
+named worker, fix, and review rounds to the named budget (run ceiling or task
+allowance): it never resets counters and grants no extra scope, review, or
+Git rights. A consult can settle a reversible decision but cannot grant one,
+and declining or not answering ends the stop. Allowance usage and any granted
+extension are persisted in the active handoff, and the incomplete stop
+carries a copy-pasteable continuation prompt so a later activation can act on
+the grant.
+
+One task's exhausted allowance is not a run stop. No further worker round
+runs for that task, but verification and the permitted review of its
+completed changes still run; the unfinished part stays incomplete and
+resumable in the backlog. The exhausted task is skipped in worker selection —
+even when steering names it first — so it cannot repeatedly win selection
+and stall the run, while its permitted review stays schedulable. The run may
+then select another truly independent ready task with a fresh allowance —
+even while unfinished changes exist — without ever bypassing review gates,
+dependencies, or safety boundaries, and without manufacturing tasks. When no
+safe ready work remains, the run stops with the preserved state and the
+continuation prompt.
+
+Repeated findings on the same invariant are classified as a real
 design issue — replanned with the original acceptance and counters intact —
 or as reviewer standard drift, settled once rather than chased. Provider
 quota exhaustion is separate: it follows the recovery policy below, not these
@@ -200,6 +244,41 @@ The coordinator may ask you to settle a meaningful behavior choice, provide
 missing information, or clarify an ambiguous pull request destination. If a
 round cannot proceed because of a permission or capability limit, it reports
 the blocker and the choice needed to continue.
+
+## Steer a running goal
+
+You can steer a run while it works, through one small human-owned section of
+the project's existing `BACKLOG.md` — no new file, and no general command
+channel:
+
+```markdown
+## Steering
+
+- mode: continue
+- priority: T3, T2
+```
+
+- `mode: pause` asks the run to stop at the next safe checkpoint: the
+  currently running child is allowed to finish its round, its result and
+  budget charge are recorded, and the exact next action and all counters are
+  preserved before the loop stops with a pause report. Nothing is interrupted
+  mid-round, and the workflow does not poll or run a watcher. Set
+  `mode: continue` (or remove the section) and invoke `/autonomous` again to
+  resume the recorded next action. With no new instruction, the run continues
+  normally.
+- `priority` is an optional comma-separated list of task IDs that reorders
+  only the next task selection among ready tasks. IDs are assigned when
+  tasks enter the backlog, so a recorded task that has never been selected
+  can be named. Priority never interrupts the active task, and it never
+  unblocks a blocked, dependent, unknown, or allowance-exhausted task —
+  such IDs are skipped with a note.
+
+The section belongs to you. The coordinator re-reads it before every new
+round — workers, reviews, fixes, and consults alike — and never edits it;
+its backlog writes are targeted edits on a fresh re-read, so your concurrent
+steering changes survive. Steering cannot grant budget, change scope,
+authorize Git actions, or bypass a review gate; those stay with the normal
+invocation and grant rules.
 
 For the detailed state, budget, review, and resume rules, read the
 [Autonomous skill source](https://github.com/alefranz/AgenticAle/blob/main/skills/autonomous/SKILL.md)

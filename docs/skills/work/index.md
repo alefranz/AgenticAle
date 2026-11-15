@@ -128,7 +128,7 @@ installation)" section documents the one optional preference file —
 [model configuration](../../guides/model-routing.md).
 
 The preference file's top-level `## Work` section can set Work's
-worker-round allowance (default eight); see
+worker-round allowance (default twelve); see
 [Work worker-round allowance](../../guides/model-routing.md#work-worker-round-allowance).
 
 ## How a change request moves through Work
@@ -202,7 +202,7 @@ including the interruption boundary around its external side effects — not
 internal method tests alone. Targeted checks bound each slice; full-suite and
 publishing checks belong to the integration boundary.
 
-Work gives each task a default allowance of eight worker rounds for
+Work gives each task a default allowance of twelve worker rounds for
 exploration, implementation, and fixes across the task. It is a ceiling, not a
 work target: Work finishes as soon as your requested outcome is complete, and
 leftover allowance is not spent on extra rounds. The allowance can be

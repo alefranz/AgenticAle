@@ -85,9 +85,9 @@ For a complex bounded goal, the coordinator may outline a few provisional,
 dependent outcomes and complete them in sequence. It reassesses the next slice
 after each result, including results from exploration or consultation. A failed
 experiment is evidence for revising the plan, but its changes must be reconciled
-before implementation advances. The task's worker budget, review limits, and
-stop conditions continue across replanning; the accumulated work still gets
-combined acceptance checks before delivery.
+before implementation advances. The task's allowance, the run ceiling, review
+limits, and stop conditions continue across replanning; the accumulated work
+still gets combined acceptance checks before delivery.
 
 If the host reports a provider usage quota, Autonomous Mode records the evidence,
 retry time, affected role, partial progress, and next action in the active
@@ -174,20 +174,30 @@ Use a small round budget when you want tighter control:
 ```
 
 When a handoff is active, `/autonomous` resumes the next action. The default
-resume budget is six worker rounds; `/autonomous 3` resumes with three.
+run ceiling for a new run is six worker rounds. A numeric budget sets the run
+ceiling; on a resume it changes the ceiling only — the persisted consumed
+counters carry over, so `/autonomous 3` after five consumed rounds leaves the
+run budget-exhausted rather than silently resetting the count.
 
 ## How planning and continuation work
 
 Autonomous Mode manages a small operational backlog for you, but it deliberately
 advances only one concrete slice at a time:
 
-- `BACKLOG.md` is the project-level board. It holds the current milestone,
-  open items, decisions that still apply, and the first active `Next slice`.
+- `BACKLOG.md` is the project-level board. It holds the current milestone
+  with the run identity, ceiling, and consumed counters (mirroring the
+  active budget line), open items, decisions that still apply,
+  each task's stable ID and worker-round counters, the first active
+  `Next slice`, compact resumable packets for deferred unfinished tasks, and
+  the human-owned `## Steering` section.
 - `.agenticale/handoffs/active.md` is the working memory for the current slice. It
-  records the goal, evidence, current state, acceptance checks, and exactly one
+  records the goal, evidence, current state (including the compact budget line
+  and any pending-dispatch note), acceptance checks, and exactly one
   `NEXT` action for a fresh agent.
-- Completed slice details are archived, while the backlog keeps a compact
-  status and the next action. Unresolved findings become open backlog items.
+- Completed slice details are archived under their stable task IDs with final
+  counters, while the backlog keeps a compact status and the next action.
+  Unresolved findings become open backlog items. A deferred unfinished task
+  keeps its resumable packet in the backlog and is never archived as completed.
 
 Use the command to start a goal or resume an active handoff.
 
@@ -204,13 +214,90 @@ Continue work that was interrupted or stopped earlier:
 ```
 
 That resumes the exact `NEXT` action in `.agenticale/handoffs/active.md`. Use
-`/autonomous 3` when you want to resume with a three-worker-round budget
-instead of the default six.
+`/autonomous 3` to set the run ceiling to three worker rounds; the persisted
+consumption carries over, so the remaining budget is the new ceiling minus
+what the run already used (never a silent reset).
 
 To start from a prepared backlog, supply goal text that points to the milestone,
 such as `/autonomous Deliver the CSV export milestone in BACKLOG.md`. See
 [Prepare a backlog for Autonomous](skills/autonomous/index.md#prepare-a-backlog-for-autonomous)
 for an example and an instruction you can give a planning agent.
+
+## Budgets: run ceiling and task allowance
+
+Every run has two durable worker-round budgets:
+
+- The **run ceiling** defaults to 6 worker rounds, or the positive integer
+  supplied at invocation. The coordinator never auto-grows the default for a
+  large goal; a larger ceiling is an explicit numeric override or a named
+  user grant.
+- Each genuine task has its own **task allowance** of 12 worker rounds,
+  independent of the run ceiling and of the Work preference file's `## Work`
+  allowance. Only a named user grant extends a specific task's allowance.
+
+Every explore, implement, and fix round is charged once to both the current
+task and the run; the effective remaining worker budget is the smaller of the
+two. Review, review-deep, and consult rounds keep their own caps and consume
+neither worker budget. Only a genuinely new task receives a fresh allowance:
+decomposition, replanning, resume, and interruption recovery keep the same
+task identity and consumed counters.
+
+Round 0 records a stable run identity; every task receives its stable ID
+(`T1`, `T2`, … in recording order) when it enters the backlog, before any
+selection, so steering can name never-selected tasks. The fresh allowance is
+allocated only at a genuinely new task's first selection. The ID travels
+through the backlog, the active packet, dispatch records, and the archive.
+The active handoff's budget line is the canonical record of run consumption
+and the active task's counters; the backlog mirrors it, and deferred packets
+carry task counters only — never a run-consumption snapshot. Charges are
+persisted to the handoff before launch, mirrored to the backlog in a fixed
+order, and reconciled against the actual evidence on resume: the complete
+packet is validated before its counters are trusted, and a torn or
+incoherent handoff is rebuilt from the verified backlog mirror — never the
+reverse — so a crash, a torn write, an interrupted task switch, or a
+quota-only launch rejection never double charges, replays productive work
+for free, or restores stale run consumption. A resume continues the
+persisted counters; a numeric resume override changes the ceiling only.
+
+An exhausted task allowance is not a run stop: no further worker round runs
+for that task, and the task is excluded from worker selection until a user
+grant extends its allowance — even when steering names it first — while
+verification and the permitted review of its completed changes still run
+and remain schedulable. The unfinished part stays incomplete with its
+findings, current state, and one next action preserved as a resumable
+backlog packet. The run may select another truly independent ready task with
+a fresh allowance — never bypassing review gates, dependencies, or safety,
+and never manufacturing tasks. The run stops for budget only when the run
+ceiling is exhausted, or when no safe ready work remains.
+
+## Live steering
+
+The human-owned `## Steering` section of `BACKLOG.md` is the run's small,
+documented steering surface — not a general command channel:
+
+```markdown
+## Steering
+
+- mode: continue
+- priority: T3, T2
+```
+
+`mode: pause` stops the loop at the next safe checkpoint: a running child
+settles first, its result and charge are recorded, and the exact `NEXT` and
+all counters are preserved before the pause report. `mode: continue` (or an
+absent section) is normal continuation; a fresh `/autonomous` activation
+re-reads the section and resumes the recorded `NEXT` unless the pause is
+still present. `priority` reorders only the next task selection among ready
+tasks — never the active task or a running round — and never unblocks a
+blocked, dependent, unknown, or allowance-exhausted ID. Tasks carry their
+IDs from backlog entry, so a recorded never-selected task can be named.
+
+The coordinator re-reads the section before every new round dispatch
+(workers, reviews, fixes, consults, deep reviews) and before every backlog
+write. Children never edit it. Agent backlog writes are targeted edits on a
+fresh re-read — never a stale whole-file overwrite — so concurrent human
+steering edits survive. There is no polling, watcher, or service. Steering
+grants no allowance, scope, Git right, or gate exception.
 
 ## Model routing across sessions
 
