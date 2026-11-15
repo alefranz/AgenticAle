@@ -123,14 +123,32 @@ gates, and applicable deep gates, the coordinator makes coherent task
 commits, confirms an ordinary push to the resolved upstream, and persists
 the completion record in one bounded state-only finalization commit —
 pushed and confirmed under the same policy, never recording its own hash —
-before the next task is selected. Reviews precede the gate and inspect the
-uncommitted result; the coordinator owns final persistence verification and
+before the next task is selected. The same policy governs the run's other
+persistence boundaries: a significant backlog reconciliation — added or
+removed tasks, rewritten acceptance, changed deferred packets — is persisted
+as an immediate state-only checkpoint commit before further dispatch, and a
+stop with attributable unfinished product changes checkpoints them as
+explicit WIP commits, pushed under the same policy, recording their
+verification/review status and exact continuation without completing the
+task or bypassing its gates. Routine ledger and counter writes create no
+checkpoint commits; the task gate reuses recorded WIP commits instead of
+duplicating them, and every review's range starts at or before the recorded
+pre-WIP base — preserved across resumes — so the WIP commits are inside the
+diff, never excluded by a resumed session boundary. Checkpoint
+pushes follow the same destination, scope, failure, and recovery rules as
+task pushes; checkpointing dispatches no workers and consumes no budget.
+Reviews precede the gate and inspect the result at its phase — the
+uncommitted working tree or recorded WIP checkpoint commits; the coordinator
+owns final persistence verification and
 archival. Explicit user or repository restrictions win,
 resumes keep the recorded policy, and failed or interrupted persistence is
 reconciled against the actual local and remote state before any next-task
-work. Session-close state uses the same bounded finalization; a blocked
-close saves the local records first and stops terminally with the
-finalization deferred, never reported as completed. This repository's
+work. Session-close state uses the same bounded finalization; blocked
+persistence at any boundary — including a failed or uncertain checkpoint
+push — goes directly to the terminal local-only close: the local records are
+saved first, no further commits or pushes follow (a descendant push would
+implicitly retry the uncertain one), and all further persistence is deferred
+to a reconciling resume, never reported as completed. This repository's
 handoff records describe its own development. Everyday `work` uses session
 state for task coordination.
 

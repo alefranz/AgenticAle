@@ -98,6 +98,22 @@ commit and destination state recorded and stops with the continuation
 prompt; a resume inspects the actual local and remote history before
 retrying the exact unfinished step, never duplicates commits or replays
 work, and never marks a task completed before its persistence is confirmed.
+Stopping preserves unfinished work too: when a run stops with attributable
+unfinished product changes — even review-open ones — the coordinator
+checkpoints them as explicit WIP commits under the same policy, recording
+their verification and review status and the exact continuation in the
+durable state. A WIP checkpoint never completes a task or bypasses its
+review gate; when the task later finishes, its gate reuses those commits, and
+every review's range starts at or before the recorded pre-WIP base —
+preserved across resumes — so the WIP commits are inside the diff. A
+significant backlog
+reconciliation — new or removed tasks, rewritten acceptance — is committed
+and pushed as a state-only checkpoint before further dispatch; routine
+counter and ledger writes are not checkpointed. Checkpoint pushes follow the
+same destination and safety rules as task pushes, and a failed or uncertain
+checkpoint push — like any blocked persistence — goes directly to the
+terminal local-only close: no further commits or pushes, all persistence
+deferred until a resume reconciles the actual local and remote state.
 Session-close state follows the same bounded finalization: its local records
 are saved first, and a blocked close stops with the finalization deferred
 and reported as unconfirmed — never completed — until a resume reconciles

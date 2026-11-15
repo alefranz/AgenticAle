@@ -140,8 +140,12 @@ on the other hosts. The details are in the
 Work leaves changes ready for your review unless you ask it to prepare and open
 a pull request. Autonomous keeps a durable handoff in the target project and,
 by default, commits and pushes each completed task before the next one starts;
-explicit user or repository restrictions win, and branch, pull request, merge,
-and force-push actions remain separate requests. See the
+when a run stops, attributable unfinished work is checkpointed as explicit WIP
+commits under the same policy, never as completed tasks; if persistence is
+blocked, the run stops local-only and defers that persistence to a reconciling
+resume. Explicit user or
+repository restrictions win, and branch, pull request, merge, and force-push
+actions remain separate requests. See the
 [skill guides](https://alefranz.github.io/AgenticAle/skills/work/).
 
 ## Advanced: long-running autonomous projects

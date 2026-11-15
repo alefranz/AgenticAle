@@ -753,6 +753,11 @@ Expected behavior:
   re-review after the gate — verifies coherent task commits and cleanliness,
   and verifies a confirmed push only when the recorded persistence state
   says the push already happened.
+- When the supplied range includes recorded WIP checkpoint commits from an
+  earlier stop, they are part of the task's changes: the supplied lower bound
+  precedes them (the recorded pre-WIP base), so the reviewer inspects them
+  inside the diff and treats their WIP identification as unfinished status —
+  never as completion, and never as a reason to skip the remaining gates.
 
 ## Completed task: coherent commits and confirmed push before the next task
 
@@ -820,6 +825,9 @@ Expected behavior:
 - Never create a branch, change remotes, force-push, merge, or open a pull
   request to make the push succeed, and never redirect the push to a
   different destination on the run's own initiative.
+- The stop goes directly to the terminal local-only close: no further
+  commits or pushes follow it in this run, and all further persistence waits
+  for a reconciling resume.
 
 ## Failed or uncertain push preserves exact state
 
@@ -836,6 +844,10 @@ Expected behavior:
 - Stop with the continuation prompt. No force-push, no automatic merge or
   rebase, no blind retry; a non-fast-forward rejection is resolved by
   preserving state and asking, not by rewriting history.
+- The stop goes directly to the terminal local-only close: no further
+  commits or pushes follow it in this run — no WIP checkpoint or
+  finalization push that would carry the uncertain commit as a descendant —
+  and all further persistence is deferred to the reconciling resume.
 - A resume inspects the actual local history and the remote read-only before
   retrying the exact unfinished persistence step.
 
@@ -951,6 +963,230 @@ Expected behavior:
   create it from the saved local records when none exists — never duplicating
   commits. Only a confirmed finalization closes the session's persistence;
   identities and counters are unchanged by the reconciliation.
+- The same local-only close applies when the run arrives at close with
+  persistence already blocked at an earlier boundary — a rejected, failed,
+  or uncertain task, WIP, or reconciliation checkpoint push, or a blocked
+  destination: the close creates no WIP or finalization commit and attempts
+  no push, and all further persistence is deferred to the reconciling resume.
+
+## Stop-boundary WIP checkpoint preserves review-open work
+
+A commit-and-push run stops — steering pause, exhausted run ceiling, or no
+safe ready work — while T2's current slice is implemented and verified but
+its review is still open, and the tree also holds attributable unfinished
+changes named by T1's deferred packet.
+
+Expected behavior:
+
+- Before the session-close records and finalization, the coordinator stages
+  only the unfinished product changes attributable to the run's tasks and
+  creates one WIP checkpoint commit per changed repository, identified with
+  a `WIP:` prefix naming the run and task IDs (for example
+  `WIP: csv-export T2 — slice 2, review open`). It pushes with ordinary Git
+  semantics to the resolved upstream and verifies success.
+- The session-close records carry, per task, the WIP commit hashes, the
+  verification and review status (what passed, what is still open), the
+  confirmed push destination, and exactly one resumable `NEXT`; the bounded
+  state-only finalization then commits and pushes those records. No
+  checkpoint hash is written into the files its own commit contains.
+- T2 stays open and review-open: nothing is archived as completed, no review
+  or persistence gate is bypassed, and the resume continues the recorded
+  `NEXT` with the ordinary gates still required.
+- The checkpoint dispatches no child and consumes no worker, review, or
+  consult budget; it never launches work beyond the caps that produced the
+  stop. With no attributable unfinished product changes, no WIP commit is
+  created.
+
+## WIP checkpoints respect restricted and legacy policies
+
+The same stop happens in a commit-only run, in a working-tree run, and in a
+legacy handoff with no recorded policy.
+
+Expected behavior:
+
+- Commit-only: the WIP checkpoint commits and the session-close state commit
+  are created, but nothing is pushed.
+- Working-tree and legacy: no checkpoint or state commit is created; the
+  unfinished changes stay in the working tree, identified by `git status`
+  and `git diff` evidence in the records. A legacy handoff resumes as
+  working tree and gains no commit or push rights from the checkpoint rules.
+- No variant marks a task completed or bypasses a restriction to satisfy the
+  default policy.
+
+## Significant reconciliation checkpoints state before further dispatch
+
+An active commit-and-push run receives `/autonomous Also add PDF export`;
+the reconciliation adds T4 and T5 and rewrites T3's acceptance. In a variant,
+the only writes between two rounds are a ledger line and the counter mirror.
+
+Expected behavior:
+
+- The reconciliation is significant — it adds task entries and rewrites open
+  acceptance — so after its targeted edits land, the coordinator creates
+  exactly one state-only checkpoint commit of the changed durable state and
+  pushes and confirms it to the resolved destination before dispatching any
+  further round. The checkpoint's own hash is never written back into the
+  state it commits.
+- The ledger-and-counter variant creates no checkpoint commit: routine
+  progress writes are not reconciliations, and per-write commits are not the
+  contract.
+- Under commit-only the checkpoint commit is created but not pushed; under
+  working-tree policy no commit is created and the diff evidence identifies
+  the reconciled state. The checkpoint dispatches no child and consumes no
+  budget; identities and consumed counters are unchanged.
+
+## Rejected reconciliation checkpoint push stops before dispatch
+
+The reconciliation's state-only checkpoint commit exists locally, but its
+push is rejected non-fast-forward; in variants the push fails with a network
+error, returns an uncertain result, or never runs because the destination is
+unsafe or ambiguous.
+
+Expected behavior:
+
+- No further round is dispatched. Record the exact persistence state — the
+  reconciliation, the local commit hash, the destination, and the push
+  evidence or error — keep every task open, and stop with the continuation
+  prompt. No blind retry, force-push, merge, rebase, or destination change.
+- The stop goes directly to the terminal local-only close: the close creates
+  no WIP checkpoint or finalization commit and attempts no push — a
+  descendant of the blocked checkpoint would implicitly retry it. The local
+  records carry the exact persistence state and, for any attributable
+  unfinished product changes, the diff evidence; all further persistence is
+  deferred, and the backlog's one next action is the deferred checkpoint
+  push.
+- A resume inspects the actual local history and the remote read-only, then
+  resumes the exact unfinished step — pushing the existing checkpoint commit
+  as-is, or recording an already-succeeded push — before any dispatch. The
+  checkpoint is never duplicated, and identities and consumed counters are
+  unchanged.
+
+## Uncertain reconciliation checkpoint push closes local-only
+
+An active commit-and-push run with review-open product changes in the tree
+receives a steering invocation that adds a task. The reconciliation's
+state-only checkpoint commit is created, and its push returns an uncertain
+result. The run must now stop and close the session.
+
+Expected behavior:
+
+- The uncertain push blocks the run before any further dispatch: the exact
+  persistence state — the reconciliation, the local checkpoint hash, the
+  destination, and the push evidence — is recorded, every task stays open,
+  and the stop goes directly to the terminal local-only close.
+- The close creates no new commits and attempts no pushes: no WIP checkpoint
+  commit for the review-open changes and no session-close finalization
+  commit. Pushing either would carry the uncertain checkpoint as a
+  descendant — an implicit retry of the blocked push. The unfinished changes
+  stay in the working tree, identified by `git status` and `git diff`
+  evidence in the local records, which mark all further persistence deferred
+  and unconfirmed.
+- The final report is printed from the saved local records with the exact
+  evidence and one next action — reconcile and complete the deferred
+  persistence — and reports nothing as completed or finalized. No further
+  round or retry follows in this run.
+- A resume reconciles the actual local history and the remote read-only
+  before any next work: it confirms whether the checkpoint push actually
+  succeeded, pushes the existing checkpoint commit as-is when it did not —
+  never duplicating it — then completes the deferred WIP checkpoint once
+  from the attributable changes the records name and the deferred
+  session-close finalization from the saved records. Identities and consumed
+  counters are unchanged; only then does the recorded work continue.
+
+## Task gate completes work already in WIP commits
+
+After the WIP stop above, a resume finishes T2: the remaining slice passes
+its review and deep gates. Part of T2's accepted changes already sits in the
+recorded WIP checkpoint commits.
+
+Expected behavior:
+
+- Every review of T2 uses a range whose lower bound is the recorded pre-WIP
+  base or earlier, so the WIP commits are inside the diff; the reviewer
+  inspects them as part of the task's changes and treats their WIP
+  identification as unfinished status, not completion.
+- At the task gate the coordinator verifies the recorded WIP commits'
+  attribution and coherence, never re-commits or duplicates their changes,
+  and commits only the remaining accepted working-tree delta as coherent
+  task commits. The push includes the WIP commits, and the completion record
+  references all product hashes — WIP and new — with the confirmed
+  destination.
+- The ordinary gate sequence is unchanged: reviews first, then the coherent
+  commits, confirmed push, and one bounded state-only finalization before
+  the next task is selected.
+
+## Review range keeps historical WIP across a resume
+
+A commit-and-push run stops with T2's verified slice review-open. The commit
+immediately before the checkpoint is B0; the coordinator creates the WIP
+checkpoint commit W1 on top of it, pushes it, and records B0 as T2's pre-WIP
+review base alongside the WIP hash. A fresh session resumes T2, a fix round
+adds more changes to the working tree, and the slice review — and later a
+deep review — is dispatched.
+
+Expected behavior:
+
+- At the checkpoint, the durable record carries the pre-WIP review base B0
+  per repository — the commit immediately before the task's first WIP
+  checkpoint commit — with the WIP hashes and push state; a deferred packet
+  carries the same boundary.
+- Every review of T2 after the resume uses a range whose lower bound is B0
+  or earlier, so W1 and the new working-tree delta are both inside the diff.
+  The resumed session's start boundary never replaces B0: a deep review
+  scoped "since the session start" would exclude the historical WIP, so the
+  recorded base is preserved and reused across resumes instead.
+- Work accepted before B0 is not re-reviewed. The reviewer treats W1's WIP
+  identification as unfinished status, never as completion or a satisfied
+  gate: the full WIP-plus-working-tree result is reviewed without
+  re-reviewing unrelated accepted work.
+
+## WIP push scope distinguishes authorized checkpoints from unrelated commits
+
+At a stop, the outgoing range to the resolved upstream contains the run's
+recorded WIP checkpoint commits and, in a variant, an unrelated commit made
+outside the run. The working tree also holds an unrelated human edit and a
+locally modified credentials file.
+
+Expected behavior:
+
+- The recorded WIP checkpoint commits are authorized outgoing scope even
+  though their task's review is open; the unrelated commit is not. The
+  variant stops and asks to resolve the publication scope before pushing —
+  never pushes silently, never rewrites or drops the unrelated commit.
+- The WIP commit stages only attributable unfinished product changes: the
+  unrelated human edit and the credentials file are preserved and never
+  swept in. Overlapping edits that cannot be attributed to a task safely
+  stop and ask, leaving the changes in the tree.
+- An unsafe or ambiguous destination stops and asks before any checkpoint
+  push, exactly like a task push; no branch creation, remote change, or
+  force-push makes it succeed. Like every persistence-blocked stop, it goes
+  directly to the terminal local-only close: no further commits or pushes
+  follow it in this run, and all further persistence waits for a reconciling
+  resume.
+
+## Interrupted WIP checkpoint reconciles without duplication
+
+The session dies after the WIP checkpoint commits were created but before
+their push; in variants, the WIP push succeeded but the session-close records
+were never written; the records were written and the state finalization
+commit created but never pushed; or the attributable changes were never
+committed at all.
+
+Expected behavior:
+
+- The resume re-reads the durable state and inspects the actual local history
+  and the remote read-only before any continuation work. Committed-but-
+  unpushed WIP or finalization commits are pushed as-is — never re-committed
+  or duplicated. Pushed-but-unrecorded: complete the record writes from the
+  confirmed hashes and destination, then run the one bounded state-only
+  finalization.
+- When the attributable changes were never committed, the resume creates the
+  WIP checkpoint once from the changes the durable state names; a checkpoint
+  already recorded and pushed is never repeated.
+- Identities and consumed counters are unchanged by the reconciliation, and
+  no task is marked completed by a checkpoint. A coordinator interrupted or
+  quota-exhausted before checkpointing promises no persistence; recovery
+  reconciles whatever durable state and Git evidence exist.
 
 ## Interrupted review recovery keeps role-specific accounting
 
