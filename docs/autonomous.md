@@ -379,15 +379,37 @@ record-your-own-hash loop — and the task is marked completed and the next
 task selected only after the finalization is confirmed. An investigation-only
 task creates no artificial product commit, but changed durable findings are
 persisted by the same state finalization. Session-close state writes use the
-same bounded finalization: the local records are saved first, and a blocked
-close — unsafe destination, rejected or uncertain push — stops terminally
-with the finalization deferred and reported as unconfirmed, never completed.
+same bounded finalization: the local records are saved first, and blocked
+persistence — an unsafe destination or a rejected or uncertain push at any
+boundary, including a checkpoint — goes directly to the terminal local-only
+close: no further commits or pushes, all further persistence deferred and
+reported as unconfirmed, never completed.
 Explicit restrictions select a commit-only or working-tree policy instead;
 resumes keep the recorded policy. A failed,
 uncertain, or interrupted push preserves the exact persistence state and
 stops resumably; a resume reconciles the actual local and remote history —
 confirming ancestry or content — before retrying the exact unfinished step,
 never duplicating commits, replaying work, or completing a task prematurely.
+The policy also governs the run's intermediate persistence boundaries. A
+significant reconciliation of the durable plan — added or removed tasks,
+rewritten acceptance, changed deferred packets — is persisted as one
+state-only checkpoint commit, pushed and confirmed before any further
+dispatch under the default policy; routine ledger and counter writes are
+never checkpointed. A stop with attributable unfinished product changes
+checkpoints them as explicit WIP commits (one per changed repository,
+`WIP:`-identified with the run and task IDs), pushed under the same policy,
+with the verification/review status and exact continuation recorded in the
+durable state. A WIP checkpoint never completes a task or bypasses its
+gates; the task gate later reuses the recorded WIP commits instead of
+duplicating them, and every review's range starts at or before the recorded
+pre-WIP base — preserved across resumes — so the WIP commits are inside the
+diff. Checkpoints
+are coordinator Git actions: they dispatch no children and consume no
+budget, follow the same destination, scope, failure, and recovery rules as
+task pushes — a blocked or uncertain checkpoint push goes directly to the
+terminal local-only close, with no further commits or pushes until a
+reconciling resume — and promise nothing when the coordinator itself is
+interrupted before reaching them.
 Branch creation and opening a PR remain separate explicit requests in this
 advanced workflow; `/work --pr` provides the bundled everyday delivery
 endpoint.

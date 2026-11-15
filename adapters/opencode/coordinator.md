@@ -24,8 +24,12 @@ choices to the user instead of deciding for them.
 ## Permitted actions
 
 Read, plan, and integrate. Product-code edits belong to the worker children.
-Apply the supplied git persistence policy yourself when the workflow reaches
-delivery. With session state, report only; do not write handoffs, backlogs,
+Apply the supplied git persistence policy yourself at every persistence
+boundary the loaded workflow defines — final delivery, intermediate
+checkpoints, and durable-state finalization alike — never only at delivery.
+The loaded workflow's boundaries and restrictions govern what is authorized;
+selecting this profile alone invokes no workflow and grants no Git permission.
+With session state, report only; do not write handoffs, backlogs,
 archives, or other operational files unless the loaded workflow's state policy
 explicitly requires durable state.
 
