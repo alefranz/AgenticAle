@@ -150,7 +150,7 @@ required, covers the interactions between slices, using a final ordinary review
 or deep review when prior reviews did not cover them. Choose deep review for
 substantial interactions or high-risk shared invariants, not simply because
 there are several steps. The invoking workflow's stricter deep review triggers
-and caps still apply. Clean slice verdicts alone do not establish completion of
+and limits still apply. Clean slice verdicts alone do not establish completion of
 the whole task; missing integration evidence or blocking findings keep it open.
 
 Keep the outline, evidence, rejected approaches, and next action in the invoking
@@ -169,7 +169,7 @@ explicit review waiver still follows that workflow's verification requirements.
 | Explore reveals two dependent changes, or consult recommends a staged approach | The coordinator adopts or adjusts the outline and assigns only the first slice; the read-only child does not implement it. |
 | A prototype disproves the chosen approach | Preserve the evidence, reconcile prototype changes, then revise the next assignment within remaining limits; do not declare the requested feature complete. |
 | A later slice invalidates an earlier assumption | Recheck affected accepted behaviour and revise the remaining outline; do not rerun unrelated reviews or silently change the goal. |
-| Individually clean slices fail an integration check | Keep the task open and fix/re-review the affected interactions within existing caps; escalate to deep review when warranted. |
+| Individually clean slices fail an integration check | Keep the task open and fix/re-review the affected interactions within the invoking workflow's remaining limits; escalate to deep review when warranted. |
 | Budget or repeated-failure limits are reached mid-sequence | Stop with accepted outcomes, actual unfinished state, and the next action; a new slice name does not grant more rounds. |
 | A task's worker allowance is exhausted while the run ceiling still has rounds | No further worker round for that task; verification and the permitted review of its completed changes still run. The unfinished part stays incomplete and resumable; the run may select another truly independent ready task with a fresh allowance, never bypassing gates or dependencies, and stops when no safe ready work remains. |
 | The same underlying invariant is flagged in consecutive rounds | Repeated findings about one invariant trigger replanning: a real design issue reopens the plan with the original acceptance and counters intact, while a drifting reviewer standard is settled once, not chased as a defect. |
@@ -243,7 +243,7 @@ trusting the prompt.
 Reviewed task work keeps the prompt in the stop report only; Autonomous Mode
 carries it in the durable handoff and records allowance usage and any granted
 extensions in the existing state, so a resume or a renamed target cannot evade
-the unresolved-target caps.
+the unresolved-target limits.
 
 ## Roles and reports
 
@@ -348,7 +348,7 @@ In Autonomous Mode the record also carries the stable run and task identities
 and, for a worker round, its single charge against both worker budgets,
 persisted before launch so a crash or a quota-only launch can be reconciled
 without double charging or free replay; review, review-deep, and consult
-rounds are accounted under their own caps and never debit the worker budgets.
+rounds are accounted under their own rules and never debit the worker budgets.
 A child's self-reported model name never establishes what it ran on, and an
 unknown model selection stays unknown rather than being estimated.
 
@@ -387,7 +387,13 @@ expand the assignment to repair unrelated issues.
 Send blocking findings to a fresh fix worker with the original acceptance
 criteria. Allow at most two fix cycles (three review passes) per task/slice.
 If blockers survive, follow the invoking workflow's stop/decision policy rather
-than repeatedly attempting the same fix.
+than repeatedly attempting the same fix. Autonomous Mode overrides this
+default narrowly: its productive fix continuation is bounded by the effective
+worker budget and its progress safeguards instead of these per-target cycle
+caps, with every review justified by changed evidence, a required integration
+gate, or bounded interrupted-review recovery (see the autonomous skill's
+[Fix continuation and review justification](../../autonomous/SKILL.md#fix-continuation-and-review-justification)).
+Work keeps the two-fix/three-review caps unchanged.
 
 A re-review closes the loop over the earlier report: it states each prior
 finding by ID as fixed, partially fixed, still open, or regressed, separates

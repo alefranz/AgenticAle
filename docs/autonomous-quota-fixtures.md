@@ -133,8 +133,8 @@ had not changed the worker counters.
 
 Expected behavior:
 
-- Account the productive review round under the review caps only: it never
-  debits the task allowance or the run ceiling, and the pending-dispatch
+- Account the productive review round under the review accounting only: it
+  never debits the task allowance or the run ceiling, and the pending-dispatch
   note resolves without touching the worker consumed counters.
 - Record the quota recovery state (role, evidence, retry time, no-work
   rejection count) in the existing active handoff and honor the cooldown.

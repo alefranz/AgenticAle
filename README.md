@@ -158,7 +158,13 @@ Use [Autonomous](https://alefranz.github.io/AgenticAle/skills/autonomous/) for
 a goal that spans multiple rounds or sessions. A run has a worker-round
 ceiling — default 6, or the number you pass — and each genuine task its own
 allowance of 12 worker rounds; every exploration, implementation, and fix
-round counts against both, and the counters survive resumes. Goal text
+round counts against both, and the counters survive resumes. While worker
+budget and real progress remain, productive fixes and independent re-review
+continue unattended — Autonomous does not ask you to authorize each extra fix
+cycle; the fix loop stops at exhausted budgets, repeated no-progress, or a
+guard breach, and the required review of the last allowed worker still runs.
+An exhausted task allowance defers that task, not the run, while another
+truly independent ready task can be selected safely. Goal text
 supplied while a run is active steers it: explicit new outcomes become
 backlog tasks and continuation instructions adjust the plan, without
 overwriting active work or resetting budgets and review gates. While a run
