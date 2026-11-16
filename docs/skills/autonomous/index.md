@@ -87,9 +87,33 @@ the pushed state is never left open and no endless chain of confirmation
 writes follows. Reviews run before this gate and inspect the uncommitted
 result; the coordinator owns final persistence verification and archival.
 Explicit user or repository restrictions win: a commit-only or working-tree
-run is recorded with its basis and followed, never bypassed. A resume keeps
-the recorded policy, so an existing working-tree or commit-only run never
-silently gains push rights. Pushes go only to the checked-out branch's
+run is recorded with its basis and followed, never bypassed. A restriction
+means an actual prohibition — you ask to leave changes uncommitted or not to
+push, or repository instructions forbid commits or pushes — cited concretely
+when the policy is recorded. A conditional guard such as "do not commit
+unless explicitly asked" is not a prohibition: invoking Autonomous is that
+explicit request, and it satisfies the guard for the run's authorized commits
+and pushes. Work's uncommitted default, the worker children's no-commit rule,
+and the coordinator role are not bases for a restricted policy. The run
+states the chosen policy and its basis visibly at start and on every fresh
+resume, and warns when the policy leaves accepted work uncommitted or
+unpushed. A resume keeps the recorded policy, so an existing working-tree or
+commit-only run never silently gains push rights; a legacy handoff with no
+recorded policy resumes as working tree with that warning, never silently
+upgraded. If you explicitly change an active run's policy to commit or
+commit-and-push, the change is recorded with its basis, and outstanding
+persistence is reconciled under the new policy before further dispatch.
+Completed tasks are re-evaluated against the new policy even when they
+were already finalized and archived under the old one: their accepted work
+may still be uncommitted or unpushed, and a gate satisfied under the old
+policy does not excuse it. Only the persistence is reopened — reviews,
+counters, the next action, and archived evidence stay unchanged; existing
+commits are pushed as-is rather than re-created, and each completion record
+is updated through the same bounded finalization. The order is fixed and
+finite, so reconciliation state already carried by a task finalization is
+never committed twice. Everything follows the ordinary destination and
+safety rules and never duplicates commits. Pushes go only to the
+checked-out branch's
 resolved upstream; a main or protected branch, a missing upstream, or an
 ambiguous destination stops and asks. Branch creation, pull requests,
 merging, force-pushing, and remote changes remain separate explicit

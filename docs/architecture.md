@@ -178,8 +178,21 @@ task pushes; checkpointing dispatches no workers and consumes no budget.
 Reviews precede the gate and inspect the result at its phase — the
 uncommitted working tree or recorded WIP checkpoint commits; the coordinator
 owns final persistence verification and
-archival. Explicit user or repository restrictions win,
-resumes keep the recorded policy, and failed or interrupted persistence is
+archival. The invocation itself is the explicit authorization that satisfies
+a conditional "do not commit unless explicitly asked" repository guard; only
+an actual user or repository prohibition selects a restricted policy, cited
+concretely — never Work's uncommitted default, the children's no-commit role
+boundary, or the coordinator role. The chosen policy and its basis are stated
+visibly at start and every fresh resume, with an explicit warning when
+accepted work stays uncommitted or unpushed; a legacy handoff with no recorded
+policy resumes as working tree with that warning. Explicit restrictions win,
+resumes keep the recorded policy, and an explicit user change to commit or
+commit-and-push reconciles outstanding persistence under the new policy
+before further dispatch: completed tasks are re-evaluated even when already
+finalized and archived under the former policy, reopening persistence only —
+reviews, counters, and archived evidence preserved, existing commits reused,
+and checkpoint state already carried by a task finalization never committed
+twice. Failed or interrupted persistence is
 reconciled against the actual local and remote state before any next-task
 work. Session-close state uses the same bounded finalization; blocked
 persistence at any boundary — including a failed or uncertain checkpoint
@@ -426,7 +439,10 @@ everyday work keeps them in session context. Git operations follow the user's
 requested endpoint and applicable repository instructions: everyday work's
 default delivery is uncommitted, while a new Autonomous run defaults to
 coherent task commits and a confirmed ordinary push per completed task, with
-explicit restrictions winning and resumes keeping the recorded policy.
+explicit restrictions winning and resumes keeping the recorded policy. A
+restricted Autonomous policy requires a concrete cited prohibition — a
+conditional "unless explicitly asked" guard is satisfied by the invocation,
+and another workflow's default or a role boundary is not a restriction.
 
 Before implementation, the coordinator runs a brief material-risk assessment
 — which independently mutable sources the request would touch (local working

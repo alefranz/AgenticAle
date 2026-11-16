@@ -411,8 +411,30 @@ persistence — an unsafe destination or a rejected or uncertain push at any
 boundary, including a checkpoint — goes directly to the terminal local-only
 close: no further commits or pushes, all further persistence deferred and
 reported as unconfirmed, never completed.
-Explicit restrictions select a commit-only or working-tree policy instead;
-resumes keep the recorded policy. A failed,
+Explicit restrictions select a commit-only or working-tree policy instead,
+recorded with a concretely cited basis: an actual user or repository
+prohibition, not a conditional "unless explicitly asked" guard (the
+invocation satisfies that condition), Work's uncommitted default, the
+children's no-commit role boundary, or the coordinator role. The policy and
+its basis are stated visibly at start and every fresh resume, with an
+explicit warning when accepted work stays uncommitted or unpushed; a legacy
+handoff with no recorded policy resumes as working tree with that warning,
+never silently upgraded. Resumes keep the recorded policy; an explicit user
+change to commit or commit-and-push is recorded with its basis and reconciles
+outstanding persistence under the new policy before further dispatch.
+Completed tasks are re-evaluated against the new policy — including tasks
+already finalized and archived under the former policy, whose gate
+satisfaction under that policy does not cover accepted work left
+uncommitted or unpushed under the new one. The reopening is persistence-only:
+reviews, counters, NEXT, and archived evidence are preserved, and the
+coordinator reconciles it without dispatching children or consuming budget.
+The order is fixed and finite: reopened tasks through the task persistence
+gate in completion order — reusing existing commits, pushing them as-is
+under commit-and-push, and updating the completion record through one
+bounded state-only finalization — then the reconciliation checkpoint only
+for state no finalization or earlier checkpoint already carried, then any
+remaining unpushed run commits pushed as-is. All under the ordinary
+destination, scope, and failure rules, never duplicating commits. A failed,
 uncertain, or interrupted push preserves the exact persistence state and
 stops resumably; a resume reconciles the actual local and remote history —
 confirming ancestry or content — before retrying the exact unfinished step,

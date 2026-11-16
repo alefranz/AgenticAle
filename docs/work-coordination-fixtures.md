@@ -981,6 +981,163 @@ Expected behavior:
   the recorded policy; push rights arrive only through an explicit user
   request, recorded with its basis. A handoff with no recorded policy
   predates the default and resumes as working tree.
+- Every start and fresh resume states the chosen policy and its basis
+  visibly, and warns when the policy leaves accepted work uncommitted or
+  unpushed: commit-only leaves commits unpushed; working-tree and legacy
+  leave accepted changes uncommitted and unpushed. The legacy resume is
+  never silently upgraded.
+
+## A conditional repository guard is satisfied by the invocation
+
+A repository's AGENTS.md says "do not stage, commit, push, or change
+remotes/branches unless explicitly asked". The user invokes
+`/autonomous Deliver the webhook milestone` with no git restriction, and no
+repository instruction forbids commits or pushes.
+
+Expected behavior:
+
+- The run adopts the default commit-and-push policy. The conditional guard
+  is not a prohibition: the explicit autonomous invocation is the request
+  that satisfies its condition for the run's authorized persistence
+  boundaries. The run does not select working-tree or commit-only policy
+  citing the guard.
+- The chosen policy and its basis are stated visibly at start and restated
+  on every fresh resume; no restricted-policy warning applies because the
+  default commits and pushes accepted work.
+- An explicit prohibition still wins: with the same guard, a user text
+  "leave everything uncommitted" or a repository instruction forbidding
+  pushes selects working-tree or commit-only respectively, recorded with
+  that concrete cited basis and the warning that accepted work stays
+  uncommitted or unpushed.
+
+## Work's default and role boundaries are not restricted-policy bases
+
+A new autonomous run's coordinator records working-tree policy, citing
+Work's uncommitted default, the worker children's no-commit rule, or its own
+coordinator role as the basis. No user or repository prohibition exists.
+
+Expected behavior:
+
+- None of these is a basis for a restricted policy: Work's default belongs
+  to a different workflow, the children's no-commit rule is a role boundary
+  (the coordinator owns every commit and push), and the coordinator role
+  imposes no restriction either. Without a concrete cited prohibition the
+  new-run default — commit and push — stands.
+- The coordinator corrects the policy record to commit-and-push with the
+  invocation as its authorization basis before dispatching, and states the
+  policy and basis visibly.
+
+## Clean review never completes an unpersisted task under commit-and-push
+
+A commit-and-push run's webhook task passes its slice review cleanly. The
+coordinator reports the task completed and the run successful while all
+accepted changes remain uncommitted and unpushed, citing the repository's
+conditional "do not commit unless explicitly asked" guard as the reason.
+
+Expected behavior:
+
+- Never a success under commit-and-push: the conditional guard is satisfied
+  by the invocation, not a restriction, and the task persistence gate —
+  coherent task commits, confirmed ordinary push, bounded state-only
+  finalization — is outstanding. The task stays open, the next task is not
+  selected, and the coordinator completes the gate before reporting
+  completion.
+- The same uncommitted outcome is legitimate only under a recorded
+  restricted policy with a concrete cited basis — working tree, or
+  commit-only for the unpushed part — reported with the policy's warning
+  that accepted work stays uncommitted or unpushed, or as a
+  persistence-blocked stop: an unsafe destination or a rejected or uncertain
+  push records the exact persistence state and reason, reports the
+  persistence as deferred — never completed — and stops local-only with the
+  continuation prompt.
+
+## Explicit policy upgrade reconciles outstanding persistence first
+
+An active working-tree run — the user originally asked to leave changes
+uncommitted — has T1 fully finalized under that policy: its review gates
+closed, its persistence gate satisfied with recorded diff evidence, the
+completion record written and the detailed record archived, and its
+accepted changes still in the working tree. A significant backlog
+reconciliation's targeted edits have also landed in the state files,
+uncommitted, with their diff evidence recorded. The user now invokes
+`/autonomous Commit and push each completed task, including the tasks
+already finished in this run`.
+
+Expected behavior:
+
+- The policy change is explicit user authorization: record commit-and-push
+  with the user request as its basis, and state the new policy and basis
+  visibly. The request explicitly covers the run's existing accepted work;
+  no retroactive permission is inferred beyond it. A resume or steering
+  text without that explicit request would keep working tree.
+- T1's gate was satisfied under the working-tree policy, but that never
+  satisfies the new policy: re-evaluate T1 against commit-and-push and
+  reopen its persistence only. Its closed reviews and verdicts, consumed
+  counters, recorded `NEXT`, and archived evidence stay unchanged — no
+  re-review, no rework, no new slice, no budget charge; the coordinator
+  reconciles it itself, dispatching no child.
+- Before any further dispatch, in the fixed finite order: T1 goes through
+  the task persistence gate under the new policy — coherent task commits
+  from its accepted working-tree changes, a confirmed ordinary push to the
+  resolved destination, and exactly one bounded state-only finalization
+  that updates the existing completion record (backlog result line,
+  archived record's persistence state, active handoff) with the confirmed
+  hashes and destination. That finalization commits the changed durable
+  state not yet committed, carrying the reconciliation's landed edits. The
+  significant reconciliation's checkpoint then creates no second commit —
+  its state is already carried by T1's finalization and is confirmed
+  read-only. In a variant with no task finalization carrying it, the
+  reconciliation receives exactly one state-only checkpoint commit, pushed
+  and confirmed.
+- The ordinary destination, scope, and failure rules apply unchanged: an
+  unsafe or ambiguous destination stops and asks, and a rejected or
+  uncertain push records the exact persistence state and stops local-only,
+  deferring the remaining reconciliation to a reconciling resume.
+- Reconcile the actual local and remote state first: commits already
+  confirmed on the remote are never duplicated or re-committed, identities
+  and consumed counters are unchanged, and only then does the recorded
+  `NEXT` action continue.
+
+## Policy upgrade from commit-only pushes finalized tasks as-is
+
+An active commit-only run — the user originally asked to commit but not
+push — has T1 fully finalized under that policy: coherent product commits
+and the state-only finalization commit exist locally, unpushed, and the
+completion record is archived with the product hashes and no destination.
+A significant reconciliation's state-only checkpoint commit and an open
+T2's WIP checkpoint commit also exist locally, unpushed. The user now
+invokes `/autonomous Switch to commit and push — push the completed tasks
+and the run's existing commits`.
+
+Expected behavior:
+
+- Record commit-and-push with the user request as its basis, stated
+  visibly. T1's former-policy gate satisfaction does not exempt it:
+  re-evaluated against the new policy, its product commits exist but its
+  push is outstanding, so its persistence is reopened — reviews, counters,
+  `NEXT`, and archived evidence unchanged, no re-review or rework, no
+  budget charge, and no child dispatched.
+- In the fixed finite order, T1's gate reuses the existing product commits
+  — verified for attribution and coherence, never re-committed — pushes
+  them as-is with ordinary Git semantics to the resolved destination, and
+  confirms success. Its bounded state-only finalization updates the
+  existing completion record with the confirmed destination, creates
+  exactly one state-only commit of that record delta, and pushes and
+  confirms it; the former finalization commit is never rewritten or
+  duplicated, and no finalization hash is written back into the state it
+  commits.
+- The reconciliation's existing checkpoint commit is reused, never
+  re-created: pushed as-is if still unpushed, or confirmed read-only when a
+  finalization push already carried it to the remote — never a second
+  checkpoint commit for the same state. Any remaining unpushed run commits
+  — T2's WIP checkpoint — are pushed as-is in dependency order and
+  confirmed; T2 stays open, its review and persistence gates unchanged.
+- The ordinary destination, scope, and failure rules apply unchanged: an
+  unsafe or ambiguous destination stops and asks; a rejected or uncertain
+  push records the exact state and stops local-only, deferring the
+  remaining reconciliation to a reconciling resume. Commits already
+  confirmed on the remote are never duplicated, identities and consumed
+  counters are unchanged, and only then does the recorded `NEXT` continue.
 
 ## Unsafe or ambiguous push destination stops before pushing
 
