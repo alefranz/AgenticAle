@@ -1,6 +1,6 @@
 {
   "runtime": "opencode",
-  "render": "For each worker profile, emit dist/opencode/agents/agenticale/<name>.md carrying the profile's `mode`, `steps`, and `permissions` frontmatter plus the matching neutral task-contract body copied from skills/work/references/tasks/<role>.md (implement, implement-easy, and implement-hard all use implement.md; consult and consult-hard both use consult.md). The model for that role is taken from the flat model config at build time (`adapters/opencode/models.json` by default, or the `--models` option): a listed role writes one `model:` line in `provider/model[#variant]` form into the rendered profile frontmatter, while an unlisted role omits the `model:` line so the profile inherits the session model. The seven base roles always render, one profile per role; the optional implement-easy and consult-hard profiles render only when the config lists them explicitly, so their harder/easier dispatch context is not silently dropped. When the config carries the top-level coordinator key, the build additionally emits the primary coordinator profile from the `coordinator` entry below (body copied from the adapter-owned coordinator.md) and binds the three command entries to it with `agent:` and `subagent: false`; without it, no coordinator profile is generated and the commands run in the caller session.",
+  "render": "For each worker profile, emit dist/opencode/agents/agenticale/<name>.md carrying the profile's `mode`, `steps`, and `permissions` frontmatter plus the matching neutral task-contract body copied from skills/work/references/tasks/<role>.md (implement, implement-easy, and implement-hard all use implement.md; consult and consult-hard both use consult.md). The model for that role is taken from the flat model config at build time (`adapters/opencode/models.json` by default, or the `--models` option): a listed role writes one `model:` line in `provider/model[#variant]` form into the rendered profile frontmatter, while an unlisted role omits the `model:` line so the profile inherits the session model. The seven base roles always render, one profile per role; the optional implement-easy and consult-hard profiles render only when the config lists them explicitly, so their harder/easier dispatch context is not silently dropped. When the config carries the top-level coordinator key, the build additionally emits the primary coordinator profile from the `coordinator` entry below (body copied from the adapter-owned coordinator.md) and binds the three workflow command entries to it with `agent:` and `subagent: false` (the `configure` command entry always stays a caller-session launcher); without it, no coordinator profile is generated and the commands run in the caller session.",
   "keyByRoute": {
     "explore": "explore",
     "implement": "implement",
@@ -141,6 +141,12 @@
       "name": "review",
       "source": "commands/review.md",
       "outputPath": "commands/review.md"
+    },
+    {
+      "name": "configure",
+      "source": "commands/configure.md",
+      "outputPath": "commands/configure.md",
+      "bindCoordinator": false
     }
   ],
   "skillDiscovery": {
@@ -152,7 +158,7 @@
         "frontmatter": {
           "slash": true,
           "opencode/autoinvoke": false,
-          "copilot/disable-model-invocation": true
+          "disable-model-invocation": true
         }
       },
       {
@@ -161,7 +167,7 @@
         "frontmatter": {
           "slash": true,
           "opencode/autoinvoke": false,
-          "copilot/disable-model-invocation": true
+          "disable-model-invocation": true
         }
       },
       {
@@ -170,7 +176,16 @@
         "frontmatter": {
           "slash": true,
           "opencode/autoinvoke": false,
-          "copilot/disable-model-invocation": true
+          "disable-model-invocation": true
+        }
+      },
+      {
+        "name": "configure",
+        "source": "skills/configure",
+        "frontmatter": {
+          "slash": true,
+          "opencode/autoinvoke": false,
+          "disable-model-invocation": true
         }
       }
     ]

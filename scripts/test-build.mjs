@@ -86,21 +86,39 @@ try {
   const standaloneRel = await listRelative(fixture.standaloneRoot);
   const openCodeRel = await listRelative(fixture.openCodeRoot);
 
-  check(pluginRel.length === 23, "plugin bundle has 23 files");
-  check(standaloneRel.length === 22, "standalone bundle has 22 files");
-  check(openCodeRel.length === 32, "OpenCode bundle has 32 files (7 profiles + 3 commands + 22 skills)");
+  check(pluginRel.length === 31, "plugin bundle has 31 files");
+  check(standaloneRel.length === 30, "standalone bundle has 30 files");
+  check(openCodeRel.length === 41, "OpenCode bundle has 41 files (7 profiles + 4 commands + 30 skills)");
 
   // No routing artifact ships in any output root (the flat model config is a
-  // build-time input only; nothing routing-shaped is materialized).
-  for (const [label, rel] of [["plugin", pluginRel], ["standalone", standaloneRel], ["opencode", openCodeRel]]) {
+  // build-time input only; nothing routing-shaped is materialized). The
+  // retired starter location stays banned; the current preferences starter
+  // ships only under configure/references/ (asserted positively below).
+  for (const [label, rel, prefix] of [["plugin", pluginRel, "skills/"], ["standalone", standaloneRel, ""], ["opencode", openCodeRel, "skills/"]]) {
     check(!rel.some((path) => path.endsWith("routing.json")), `${label} bundle ships no routing.json`);
-    check(!rel.some((path) => path.endsWith("preferences.example.md")), `${label} bundle ships no preferences.example.md`);
+    check(!rel.includes(`${prefix}work/references/preferences.example.md`), `${label} bundle ships no retired work/references/preferences.example.md`);
     check(!rel.some((path) => path.endsWith("scripts/routing.mjs")), `${label} bundle ships no routing.mjs`);
   }
 
-  // Plugin root: manifest + five skills.
+  // The preferences starter is authored once at the repository root and
+  // packaged verbatim into every output install-relative; the packaged
+  // configure SKILL.md link is repointed at that copy while the authored
+  // skill keeps the source-checkout link.
+  const authoredStarter = await readText(join(repository, "examples", "preferences.example.md"));
+  const authoredConfigure = await readText(join(repository, "skills", "configure", "SKILL.md"));
+  check(authoredConfigure.includes("[examples/preferences.example.md](../../examples/preferences.example.md)"), "authored configure skill keeps the source-checkout starter link");
+  for (const [label, root, prefix] of [["plugin", fixture.pluginRoot, "skills/"], ["standalone", fixture.standaloneRoot, ""], ["opencode", fixture.openCodeRoot, "skills/"]]) {
+    const starterPath = `${prefix}configure/references/preferences.example.md`;
+    check((await listRelative(root)).includes(starterPath), `${label} bundle ships the packaged preferences starter`);
+    check((await readText(join(root, starterPath))) === authoredStarter, `${label} packaged starter is verbatim the authored root starter`);
+    const configureSkill = await readText(join(root, `${prefix}configure`, "SKILL.md"));
+    check(configureSkill.includes("[preferences.example.md](references/preferences.example.md)"), `${label} configure skill links the starter install-relative`);
+    check(!configureSkill.includes("](../../examples/preferences.example.md)"), `${label} configure skill carries no source-checkout starter link`);
+  }
+
+  // Plugin root: manifest + six skills.
   check(pluginRel.includes("plugin.json"), "plugin bundle has plugin.json");
-  for (const name of ["work", "review", "autonomous", "pull-request-description", "source-code-lookup"]) {
+  for (const name of ["work", "review", "autonomous", "pull-request-description", "source-code-lookup", "configure"]) {
     check(pluginRel.includes(`skills/${name}/SKILL.md`), `plugin bundle ships ${name}/SKILL.md`);
   }
   check(pluginRel.includes("skills/work/scripts/session-stats.mjs"), "plugin bundle ships skills/work/scripts/session-stats.mjs");
@@ -109,9 +127,9 @@ try {
   check(typeof manifest.$schema === "string" && manifest.$schema.length > 0, "plugin manifest declares a schema");
   check(!pluginRel.some((path) => path.includes("/skills/work-mode/") || path.includes("/skills/autonomous-mode/")), "plugin bundle ships no retired skills");
 
-  // Standalone root: the five skill folders only, no agents/ or commands/.
+  // Standalone root: the six skill folders only, no agents/ or commands/.
   const standaloneTop = new Set(standaloneRel.map((path) => path.split("/")[0]));
-  check(JSON.stringify([...standaloneTop].sort()) === JSON.stringify(["autonomous", "pull-request-description", "review", "source-code-lookup", "work"]), "standalone bundle has exactly the five skill folders");
+  check(JSON.stringify([...standaloneTop].sort()) === JSON.stringify(["autonomous", "configure", "pull-request-description", "review", "source-code-lookup", "work"]), "standalone bundle has exactly the six skill folders");
   check(!standaloneRel.some((path) => ["agents", "commands"].includes(path.split("/")[0])), "standalone bundle has no top-level agents/ or commands/");
   check(standaloneRel.includes("work/scripts/session-stats.mjs"), "standalone bundle ships work/scripts/session-stats.mjs");
 
@@ -124,7 +142,7 @@ try {
   check(!openCodeRel.some((path) => path.endsWith("implement-easy.md") || path.endsWith("consult-hard.md")), "default OpenCode bundle has no optional worker profiles");
 
   // OpenCode command entries: thin launchers for the explicit-only skills.
-  check(openCodeRel.includes("commands/work.md") && openCodeRel.includes("commands/review.md") && openCodeRel.includes("commands/autonomous.md"), "OpenCode bundle has the three command entries");
+  check(openCodeRel.includes("commands/work.md") && openCodeRel.includes("commands/review.md") && openCodeRel.includes("commands/autonomous.md") && openCodeRel.includes("commands/configure.md"), "OpenCode bundle has the four command entries");
   check(openCodeRel.includes("skills/work/scripts/session-stats.mjs"), "OpenCode bundle ships skills/work/scripts/session-stats.mjs");
   const workCommand = await readText(join(fixture.openCodeRoot, "commands", "work.md"));
   check(workCommand.includes("`work`") && workCommand.includes("$ARGUMENTS"), "work command loads the work skill by exact ID and passes $ARGUMENTS");
@@ -132,7 +150,9 @@ try {
   check(reviewCommand.includes("`review`") && reviewCommand.includes("$ARGUMENTS"), "review command loads the review skill by exact ID and passes $ARGUMENTS");
   const autonomousCommand = await readText(join(fixture.openCodeRoot, "commands", "autonomous.md"));
   check(autonomousCommand.includes("`autonomous`") && autonomousCommand.includes("$ARGUMENTS"), "autonomous command loads the autonomous skill by exact ID and passes $ARGUMENTS");
-  for (const [name, text] of [["work", workCommand], ["review", reviewCommand], ["autonomous", autonomousCommand]]) {
+  const configureCommand = await readText(join(fixture.openCodeRoot, "commands", "configure.md"));
+  check(configureCommand.includes("`configure`") && configureCommand.includes("$ARGUMENTS"), "configure command loads the configure skill by exact ID and passes $ARGUMENTS");
+  for (const [name, text] of [["work", workCommand], ["review", reviewCommand], ["autonomous", autonomousCommand], ["configure", configureCommand]]) {
     check(!/^agent:/m.test(text) && !/^subagent:/m.test(text), `default ${name} command has no agent/subagent binding without a configured coordinator`);
   }
 
@@ -188,7 +208,7 @@ try {
   check(noModelState.coordinator === null, "--no-model build state records no coordinator");
   const noModelRel = await listRelative(noModel.openCodeRoot);
   check(!noModelRel.some((path) => path.endsWith("coordinator.md")), "--no-model bundle generates no coordinator profile");
-  for (const name of ["work", "review", "autonomous"]) {
+  for (const name of ["work", "review", "autonomous", "configure"]) {
     const text = await readText(join(noModel.openCodeRoot, "commands", `${name}.md`));
     check(!/^agent:/m.test(text) && !/^subagent:/m.test(text), `--no-model ${name} command stays a caller-session launcher`);
   }
@@ -226,13 +246,14 @@ try {
   const callerRel = await listRelative(callerFixture.openCodeRoot);
   check(!callerRel.some((path) => path.endsWith("coordinator.md") || path.endsWith("implement-easy.md") || path.endsWith("consult-hard.md")), "caller file: unlisted optional roles and the coordinator do not render");
 
-  // The exact example preset: 1 primary coordinator + 9 workers (35 files),
-  // exact model values, and commands bound to the coordinator in the current
-  // session with the skill load and $ARGUMENTS retained.
+  // The exact example preset: 1 primary coordinator + 9 workers (44 files),
+  // exact model values, and the workflow commands bound to the coordinator in
+  // the current session with the skill load and $ARGUMENTS retained; the
+  // configure command stays a caller-session launcher even with a coordinator.
   {
     const exampleFixture = await buildFixture("example-preset", ["--models", "example"]);
     const exampleRel = await listRelative(exampleFixture.openCodeRoot);
-    check(exampleRel.length === 35, "example preset OpenCode bundle has 35 files (10 profiles + 3 commands + 22 skills)");
+    check(exampleRel.length === 44, "example preset OpenCode bundle has 44 files (10 profiles + 4 commands + 30 skills)");
     const exampleProfiles = exampleRel.filter((path) => path.startsWith("agents/agenticale/")).map((path) => path.split("/").pop().replace(".md", ""));
     check(JSON.stringify(exampleProfiles.sort()) === JSON.stringify([...ALL_ROLES, "coordinator"].sort()), "example preset renders exactly 1 primary + 9 worker profiles");
     for (const role of ALL_ROLES) {
@@ -248,6 +269,9 @@ try {
       check(/^agent: agenticale\/coordinator$/m.test(text) && /^subagent: false$/m.test(text), `example preset: ${name} command binds agenticale/coordinator with subagent: false`);
       check(text.includes(`\`${name}\``) && text.includes("$ARGUMENTS"), `example preset: ${name} command keeps the exact skill load and $ARGUMENTS`);
     }
+    const exampleConfigureCommand = await readText(join(exampleFixture.openCodeRoot, "commands", "configure.md"));
+    check(!/^agent:/m.test(exampleConfigureCommand) && !/^subagent:/m.test(exampleConfigureCommand), "example preset: the configure command stays a caller-session launcher despite the configured coordinator");
+    check(exampleConfigureCommand.includes("`configure`") && exampleConfigureCommand.includes("$ARGUMENTS"), "example preset: configure command keeps the exact skill load and $ARGUMENTS");
     const exampleState = JSON.parse(await readText(exampleFixture.buildState));
     check(exampleState.coordinator !== null && exampleState.coordinator.model === EXAMPLE_ASSIGNMENTS.coordinator, "example preset build state records the coordinator assignment");
     check(exampleState.profiles.length === 9 && exampleState.profiles.every((p) => p.mode === "explicit"), "example preset build state records nine explicit worker profiles");

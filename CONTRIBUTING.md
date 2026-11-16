@@ -10,8 +10,9 @@ focused changes with clear verification are easiest to review.
   defer packaging and cross-client convergence when requested.
 - Keep the authored source of truth under the skills-first layout. The three
   workflow skills are `skills/work`, `skills/review`, and `skills/autonomous`;
-  the two supporting skills are `skills/pull-request-description` and
-  `skills/source-code-lookup`. The OpenCode adapter lives under
+  the three supporting skills are `skills/pull-request-description`,
+  `skills/source-code-lookup`, and the user-invoked `skills/configure` setup
+  skill. The OpenCode adapter lives under
   `adapters/opencode`, with the flat model config at
   `adapters/opencode/models.json`, the model-configuration fragment at
   `adapters/plugin/model-configuration.md`, and the shared module at
@@ -51,12 +52,14 @@ node scripts/check-plugin-version.mjs --base public/main
 git diff --check
 ```
 
-- `validate.mjs` checks the authored source of truth: 30 source-of-truth files
+- `validate.mjs` checks the authored source of truth: 39 source-of-truth files
   (including the flat model config at `adapters/opencode/models.json`, the
   model-configuration fragment at `adapters/plugin/model-configuration.md`,
-  the adapter-owned coordinator body, and the `session-stats.mjs` helper), 6
+  the adapter-owned coordinator body, the `session-stats.mjs` helper, the
+  configure skill's five discovery references, and the authored root
+  preferences starter at `examples/preferences.example.md`), 6
   capability-neutral task contracts, 9 OpenCode adapter worker profiles plus
-  the conditional coordinator entry, 3 OpenCode
+  the conditional coordinator entry, 4 OpenCode
   command templates, the absence of the retired layout, and sanitation.
 - `test-models.mjs` covers the flat model configuration
   (`scripts/model-config.mjs`) and its build/installer behavior: validation of
@@ -67,7 +70,8 @@ git diff --check
   the model-configuration fragment spliced into the plugin/standalone
   workflow skills (nine child keys, no coordinator assignment, no retired
   `deep-review` key, the combined `#variant` form and the legacy comma-effort
-  form), the absence of
+  form, metavariable-only examples, and the non-blocking no-file note), the
+  absence of
   any routing artifact in build output, and the installer's ownership
   semantics for generated profiles.
 - `test-session-stats.mjs` covers the work skill's session usage stats
@@ -78,7 +82,8 @@ git diff --check
   for the calling session, and skips cleanly when it is unavailable.
 - `test-installer.mjs` covers the OpenCode and standalone
   installers, including old copy, link, and generated-state (schema 5-6)
-  migration and per-role model
+  migration, pre-configure schema-7 and standalone five-skill reconciliation,
+  uninstall directory cleanup, and per-role model
   selection (`--models PATH|PRESET` or `--no-model`) rendered into the
   generated profiles, in isolated temporary directories.
 - `test-build.mjs` covers the three build output roots, per-role model

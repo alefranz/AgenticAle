@@ -1,0 +1,5 @@
+interface:
+  display_name: Configure
+  short_description: User-initiated setup of AgenticAle model routing and the Work worker-round allowance, with exact confirmation before any write
+policy:
+  allow_implicit_invocation: false

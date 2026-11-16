@@ -31,7 +31,9 @@ Antigravity.
 - [Autonomous](./skills/autonomous/index.md): durable work across multiple
   rounds and fresh sessions.
 - Supporting skills: [source code lookup](./skills/source-code-lookup/index.md)
-  and [pull request description](./skills/pull-request-description/index.md).
+  and [pull request description](./skills/pull-request-description/index.md),
+  plus the user-invoked [configure](./skills/configure/index.md) setup skill
+  for model routing and the Work worker-round allowance.
 
 **First step:** choose your client in the [setup guide](./setup.md), install,
 then run `/work <task>` with a concrete task. For focused help, see the

@@ -11,4 +11,5 @@ export const publishedPages = new Set([
   'skills/autonomous/index.md',
   'skills/source-code-lookup/index.md',
   'skills/pull-request-description/index.md',
+  'skills/configure/index.md',
 ])

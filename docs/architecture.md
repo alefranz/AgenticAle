@@ -3,8 +3,9 @@
 AgenticAle is a set of portable coding skills with per-role model
 configuration, distributed as one Agent Plugins 1.0 package. It carries
 everyday reviewed task work (`work`), standalone branch review (`review`),
-durable autonomous project work (`autonomous`), and two supporting skills
-(`source-code-lookup`, `pull-request-description`). Runtime specifics are kept
+durable autonomous project work (`autonomous`), and three supporting skills
+(`source-code-lookup`, `pull-request-description`, and the user-invoked
+`configure` setup skill). Runtime specifics are kept
 out of the skills, and the workflow never resolves a model at activation:
 Copilot, Codex, and Antigravity dispatch native children, and OpenCode gets a
 generated set of agent profiles carrying the per-role model (with its
@@ -13,7 +14,8 @@ optional primary coordinator profile when the config assigns one.
 
 Live runtime behavior is tracked in
 [runtime-compatibility.md](runtime-compatibility.md): most capabilities remain
-**not tested**, with one narrow recorded OpenCode `/work` routing pass.
+**not tested**, with one narrow recorded OpenCode `/work` routing pass and one
+narrow recorded OpenCode model-listing shape pass.
 
 ## The authored core
 
@@ -28,19 +30,20 @@ Four concerns are separated so each can change independently:
 | Runtime bindings | `skills/work/references/runtimes/<host>.md` (five: `copilot`, `copilot-local`, `codex`, `opencode`, `antigravity`) |
 | Outcome-evaluation protocol (opt-in) | `skills/work/references/outcome-evaluation.md` (Work only; loaded only when a task is invoked with `--outcome`) |
 
-The three workflow skills are explicit-only: each sets
-`copilot/disable-model-invocation: true` and `opencode/autoinvoke: false`, and
-the OpenAI metadata (`agents/openai.yaml`) disables implicit invocation.
+The three workflow skills and the `configure` setup skill are explicit-only:
+each sets `disable-model-invocation: true` and `opencode/autoinvoke: false`,
+and the OpenAI metadata (`agents/openai.yaml`) disables implicit invocation.
 The invoking session is the coordinator, and there is no `commands/` entry in
-the authored core (the OpenCode binding ships three thin command entries — see
+the authored core (the OpenCode binding ships four thin command entries — see
 the generated binding below). On OpenCode the flat config may optionally
 assign a `coordinator` session model: the build then generates one visible
-primary `agenticale/coordinator` profile and binds the command entries to it,
-so the workflow runs in the current session on that model from the first turn
-(including an autonomous resume). Without a configured coordinator the
-invoking session coordinates on its own model. The session owns its
-own model and effort, and it dispatches fresh children using the task-specific
-instructions; it never selects a model.
+primary `agenticale/coordinator` profile and binds the workflow command
+entries to it, so the workflow runs in the current session on that model from
+the first turn (including an autonomous resume); the `configure` command
+entry always stays a caller-session launcher. Without a configured
+coordinator the invoking session coordinates on its own model. The session
+owns its own model and effort, and it dispatches fresh children using the
+task-specific instructions; it never selects a model.
 
 The standalone review skill covers the current branch's net changes from the
 merge base to the current working-tree result — the committed branch review on
@@ -97,6 +100,21 @@ orchestration, and no new dispatch role.
 loaded in full when their task triggers apply. Lookup evidence uses the active
 state policy, and an unavailable configured source root is reported rather than
 silently replaced.
+
+`skills/configure/SKILL.md` is the user-initiated setup skill for model
+routing and the Work worker-round allowance: it detects the actual runtime
+surface, discovers capabilities through a degradation ladder (live native
+listing → user-supplied names → safe session-model inheritance), proposes
+exact preference-file content — or a flat `--models` JSON plus an installer
+rerun on OpenCode — and writes only on explicit confirmation of the exact
+path and content, re-reading the target before the write. Every proposed
+model name comes from live host evidence or the user; no packaged inventory
+of names ships. Its per-host discovery notes live in
+`skills/configure/references/discovery/` (unconfirmed capabilities stay
+marked unconfirmed), and the commented preferences starter is authored once
+at `examples/preferences.example.md`. Configure adds no scaffold command, no
+profile management, and no persistent state; the workflows never invoke it
+and never write preference files themselves.
 
 `skills/autonomous/SKILL.md` adds durable backlog, handoff, archival, and
 continuation policies. The target project owns `BACKLOG.md` and the
@@ -173,14 +191,16 @@ The authored source-of-truth layout is what `scripts/validate.mjs` asserts
 exists: the three workflow skills plus their `agents/openai.yaml`, the shared
 `rounds.md`, the `outcome-evaluation.md` outcome-protocol reference, the shared
 `session-stats.mjs` helper, the five runtime bindings, the six task contracts,
-the `adapters/opencode/` metadata (adapter, command templates, flat model
+the `adapters/opencode/` metadata (adapter, four command templates, flat model
 config, coordinator body, and README), the plugin preference fragment
-(`adapters/plugin/model-configuration.md`), and the two supporting skills, for
-30 source-of-truth files. The retired layout
-(`commands/`, `agents/autonomous/`, `skills/work-mode`, `skills/autonomous-mode`)
-and the retired routing paths (`ROUTING.md`, `routing.json`,
-`preferences.example.md`, and `scripts/routing.mjs` under `skills/work/`) must
-be absent.
+(`adapters/plugin/model-configuration.md`), and the three supporting skills —
+including `configure` with its `agents/openai.yaml` and five discovery
+references — plus the authored root preferences starter
+(`examples/preferences.example.md`), for 39 source-of-truth files. The retired
+layout (`commands/`, `agents/autonomous/`, `skills/work-mode`,
+`skills/autonomous-mode`) and the retired routing paths (`ROUTING.md`,
+`routing.json`, `preferences.example.md`, and `scripts/routing.mjs` under
+`skills/work/`) must be absent.
 
 ## Model configuration
 
@@ -195,12 +215,20 @@ model at activation. Two authored files own it:
   also a usable `--models` path.
 - `adapters/plugin/model-configuration.md` — the preference fragment the
   build appends as the final top-level section of the workflow skills in the
-  plugin and standalone outputs (not the OpenCode output, not the two
+  plugin and standalone outputs (not the OpenCode output, not the three
   non-workflow skills). It documents the one optional preference file the
   workflow reads at activation on per-spawn hosts: the nine child worker keys
   (no coordinator key — the host owns the session model), the combined
   `provider/model[#variant]` value form alongside the legacy comma-effort
-  form, and the optional routes' fallback semantics.
+  form, the optional routes' fallback semantics, metavariable-only examples,
+  and the one non-blocking no-file note pointing at the user-invoked
+  `configure` skill and its bundled starter.
+
+The preferences starter is authored once at `examples/preferences.example.md`
+and copied verbatim by the build into every output at
+`configure/references/preferences.example.md` (install-relative); the
+packaged configure skill's starter link is repointed at that copy, while the
+authored skill keeps the source-checkout link.
 
 The build never discovers user files, so generated packages remain
 reproducible; the installers never create, overwrite, migrate, or remove
@@ -235,7 +263,10 @@ fallback. The selected file is read once at activation and stays fixed for
 the activation. The same file may carry the top-level `## Work` section (the
 Work worker-round allowance), the only other supported section. Where a host
 cannot select a model per child, a role assignment has no effect; the
-workflow creates or modifies no configuration file.
+workflow creates or modifies no configuration file. The user-invoked
+`configure` skill is the guided setup path for this file (and for OpenCode's
+`--models` config); it writes only on explicit confirmation of the exact path
+and content.
 
 ## Generated OpenCode binding
 
@@ -260,18 +291,20 @@ variant rides on the model line; there is no separate effort field); a role
 with no entry omits the `model:` line so the profile inherits the session
 model.
 
-The binding also carries three command entries, `commands/work.md`,
-`commands/review.md`, and `commands/autonomous.md`, rendered from the
-adapter-owned templates in `adapters/opencode/commands/`. Each is a thin
-launcher that explicitly loads the matching skill by its exact ID and passes
-through `$ARGUMENTS`; they are the only way OpenCode V2 exposes `/work`,
-`/review`, and `/autonomous`, because OpenCode does not interpret the skills'
-`slash` portability field. When the config assigns the coordinator, each
-command additionally binds `agent: agenticale/coordinator` with
-`subagent: false`, running the workflow in the current session on the
-coordinator's model from the first turn; without it the commands stay
-caller-session launchers. The workflow rules stay in the skills; the commands
-carry none of them.
+The binding also carries four command entries, `commands/work.md`,
+`commands/review.md`, `commands/autonomous.md`, and `commands/configure.md`,
+rendered from the adapter-owned templates in `adapters/opencode/commands/`.
+Each is a thin launcher that explicitly loads the matching skill by its exact
+ID and passes through `$ARGUMENTS`; they are the only way OpenCode V2 exposes
+`/work`, `/review`, `/autonomous`, and `/configure`, because OpenCode does not
+interpret the skills' `slash` portability field. When the config assigns the
+coordinator, each workflow command additionally binds
+`agent: agenticale/coordinator` with `subagent: false`, running the workflow
+in the current session on the coordinator's model from the first turn;
+without it the commands stay caller-session launchers. The configure command
+declares `bindCoordinator: false` and always stays a caller-session launcher:
+setup is a user-owned conversation, not a workflow round. The workflow rules
+stay in the skills; the commands carry none of them.
 
 The adapter metadata lives at `adapters/opencode/` (`adapter.json`, the
 `commands/` templates, and `README.md`) and is the only machine-readable
@@ -306,7 +339,7 @@ unrelated base roles.
 
 ## Distribution
 
-One modern Agent Plugins 1.0 package carries the five public skills, their
+One modern Agent Plugins 1.0 package carries the six public skills, their
 task and reference resources, and optional OpenAI presentation metadata
 (`agents/openai.yaml`). Package identity: name `agenticale`, author
 "Ale Franz", MIT license, schema
@@ -330,9 +363,9 @@ three output roots beneath `--output` (default `dist`):
 
 | Output root | Contents |
 | --- | --- |
-| `<output>/plugin/agenticale` | Agent Plugins 1.0 package (23 files: `plugin.json` + the five skills and their resources, with the preference fragment appended to the workflow skills) |
-| `<output>/standalone/.agents/skills` | the five standalone skills (22 files), no plugin dependency, with the preference fragment appended to the workflow skills |
-| `<output>/opencode` | the seven base worker profiles (plus the optional `implement-easy`/`consult-hard` and `coordinator` profiles when configured), the same skills, and the three command entries (32 files by default, up to 35) |
+| `<output>/plugin/agenticale` | Agent Plugins 1.0 package (31 files: `plugin.json` + the six skills and their resources, with the preference fragment appended to the workflow skills) |
+| `<output>/standalone/.agents/skills` | the six standalone skills (30 files), no plugin dependency, with the preference fragment appended to the workflow skills |
+| `<output>/opencode` | the seven base worker profiles (plus the optional `implement-easy`/`consult-hard` and `coordinator` profiles when configured), the same skills, and the four command entries (41 files by default, up to 44) |
 
 The build writes `.agenticale-build.json` (schemaVersion 2) describing the
 package, the model config source, the no-model flag, and the rendered
@@ -349,15 +382,19 @@ reported; replacements are backed up.
 | --- | --- | --- |
 | `scripts/install-copilot.mjs` | the modern shared plugin, via `copilot plugin install` | managed by the Copilot plugin store |
 | `codex plugin marketplace add` + `codex plugin add` | the shared plugin from `.agents/plugins/marketplace.json` | managed by the Codex plugin store |
-| `scripts/install-standalone.mjs` | the five standalone skills to project scope (`<cwd>/.agents/skills`, default) or user scope (`~/.agents/skills`) | `.agenticale-standalone-install.json` (schema 1) |
-| `scripts/install.mjs` | the generated OpenCode output (skills + seven base worker profiles + optional profiles + three command entries) | `.autonomous-mode-install.json` (schema 7, 32-file inventory by default, up to 35) |
+| `scripts/install-standalone.mjs` | the six standalone skills to project scope (`<cwd>/.agents/skills`, default) or user scope (`~/.agents/skills`) | `.agenticale-standalone-install.json` (schema 1) |
+| `scripts/install.mjs` | the generated OpenCode output (skills + seven base worker profiles + optional profiles + four command entries) | `.autonomous-mode-install.json` (schema 7, 41-file inventory by default, up to 44) |
 
 The OpenCode installer is copy-only. It builds to a temporary root and copies the
 generated output into the OpenCode configuration directory; it does not link to
 the repository source. On install it migrates older copy installs (state schema
 1-4), older link installs (schema 1-4), and older generated installs (schema
 5-6, retiring the owned pre-rename `deep-review` profile) to the current
-generated copy layout.
+generated copy layout. Same-schema updates reconcile the historical complete
+skill sets: a pre-configure schema-7 state (five skills, three command
+entries) validates and gains the configure skill and command entry without
+`--replace`, and the standalone installer refreshes its pre-configure
+five-skill `sourceLayout` the same way.
 The standalone installer provides an alternative local skill install for Codex
 CLI, the VS Code extension, and Codex in the ChatGPT desktop app.
 

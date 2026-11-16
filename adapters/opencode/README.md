@@ -42,13 +42,14 @@ From this adapter plus the flat model config, the build emits:
   `mode: primary` agent with the normal ability to dispatch children (no
   `subagent` denial, no step ceiling) and the adapter-owned workflow-neutral
   body `adapters/opencode/coordinator.md`.
-- `dist/opencode/skills/` — the `work`, `review`, and `autonomous` skills copied
-  with their OpenCode discovery metadata (see §6).
-- `dist/opencode/commands/work.md`, `dist/opencode/commands/review.md`, and
-  `dist/opencode/commands/autonomous.md` — the three OpenCode command entries
+- `dist/opencode/skills/` — the six public skills copied with their discovery
+  metadata (see §6).
+- `dist/opencode/commands/work.md`, `dist/opencode/commands/review.md`,
+  `dist/opencode/commands/autonomous.md`, and
+  `dist/opencode/commands/configure.md` — the four OpenCode command entries
   copied from `adapters/opencode/commands/` (see §7). They are what make
-  `/work`, `/review`, and `/autonomous` available in the OpenCode TUI; OpenCode
-  does not interpret the skills' `slash` field.
+  `/work`, `/review`, `/autonomous`, and `/configure` available in the OpenCode
+  TUI; OpenCode does not interpret the skills' `slash` field.
 
 The build renders exactly the worker profiles named in `adapter.json` and
 **must not** invent any other. The seven base worker roles always render, one
@@ -139,28 +140,29 @@ matches `skills/work/references/runtimes/opencode.md`.
 
 ## 6. Skill discovery
 
-`skillDiscovery` in `adapter.json` records where the three skills land and
-their OpenCode discovery metadata so the build can copy the skills and apply
-the metadata:
+`skillDiscovery` in `adapter.json` records where the explicit-only skills land
+and their OpenCode discovery metadata so the build can copy the skills and
+apply the metadata:
 
 - `outputSkillsRoot`: `skills` — i.e. the skills land under
   `dist/opencode/skills/`.
-- Three skills, `work`, `review`, and `autonomous`, each copied from its
-  `skills/<name>` source with frontmatter:
+- Four explicit-only skills, `work`, `review`, `autonomous`, and `configure`,
+  each copied from its `skills/<name>` source with frontmatter:
   - `slash: true` — a portability field for the runtimes that expose skills as
     direct slash invocations (Copilot, Codex). OpenCode V2 accepts the field but
-    does **not** interpret it; on OpenCode the `/work`, `/review`, and
-    `/autonomous` surface comes from the command entries in §7.
+    does **not** interpret it; on OpenCode the `/work`, `/review`,
+    `/autonomous`, and `/configure` surface comes from the command entries in
+    §7.
   - `opencode/autoinvoke: false` — no automatic/implicit invocation by the model.
-  - `copilot/disable-model-invocation: true` — carried alongside for coexistence
-    with the other runtimes.
+  - `disable-model-invocation: true` — the same explicit-only flag the authored
+    skills carry, kept uniform across runtimes.
 
 Together this means the skills are **explicit, user-only** invocations: available
 for direct user invocation but never started by the model on its own.
 
 ## 7. Command entries
 
-`commands` in `adapter.json` declares the three OpenCode command templates the
+`commands` in `adapter.json` declares the four OpenCode command templates the
 build copies from `adapters/opencode/commands/` into `dist/opencode/commands/`:
 
 | Command | Source | Output |
@@ -168,22 +170,26 @@ build copies from `adapters/opencode/commands/` into `dist/opencode/commands/`:
 | `work` | `commands/work.md` | `commands/work.md` |
 | `review` | `commands/review.md` | `commands/review.md` |
 | `autonomous` | `commands/autonomous.md` | `commands/autonomous.md` |
+| `configure` | `commands/configure.md` | `commands/configure.md` |
 
 Each template is a thin launcher: frontmatter with a one-line description, and a
 body that explicitly loads the matching skill by its exact ID with the skill
 tool and passes through `$ARGUMENTS`. The workflow rules live in the skills,
 not here. These command files are the only way OpenCode V2 exposes `/work`,
-`/review`, and `/autonomous` in its TUI, because OpenCode does not interpret
-the skills' `slash` portability field. They are adapter-owned generated output, not the
-retired repo-root `commands/` layout.
+`/review`, `/autonomous`, and `/configure` in its TUI, because OpenCode does
+not interpret the skills' `slash` portability field. They are adapter-owned
+generated output, not the retired repo-root `commands/` layout.
 
 When the flat model config assigns the coordinator, the build additionally
 writes `agent: agenticale/coordinator` and `subagent: false` into each rendered
-command's frontmatter: the command then runs in the current session on the
-coordinator's configured model (OpenCode applies the selected command agent's
-model, and `subagent: false` forces the current session). The skill load and
-`$ARGUMENTS` body stay byte-identical. Without a configured coordinator (or
-under `--no-model`) the commands keep only their description frontmatter and
+workflow command's frontmatter: the command then runs in the current session
+on the coordinator's configured model (OpenCode applies the selected command
+agent's model, and `subagent: false` forces the current session). The skill
+load and `$ARGUMENTS` body stay byte-identical. The `configure` command
+declares `bindCoordinator: false`: setup is a user-owned conversation, not a
+workflow round, so it always stays a caller-session launcher even with a
+configured coordinator. Without a configured coordinator (or under
+`--no-model`) the commands keep only their description frontmatter and
 remain caller-session launchers.
 
 ## 8. Documentation-only pass

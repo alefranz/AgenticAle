@@ -2,7 +2,7 @@
 
 The normal automated checks do not make model requests. Use this checklist to
 verify plugin discovery with an isolated Copilot home before a release. The
-package is the modern shared skills package: five skills and no custom
+package is the modern shared skills package: six skills and no custom
 coordinator, no per-role agents, and no `commands/` entry. Skill invocation and
 per-role model selection are native to the Copilot host.
 
@@ -35,13 +35,14 @@ Expected observations:
   (schemaVersion 2);
 - installation succeeds without a model request;
 - `copilot plugin list --json` contains an enabled `agenticale` entry;
-- a new CLI session exposes the five skills (`work`, `review`, `autonomous`,
-  `source-code-lookup`, `pull-request-description`) in `/skills`, and the three
+- a new CLI session exposes the six skills (`work`, `review`, `autonomous`,
+  `source-code-lookup`, `pull-request-description`, `configure`) in `/skills`,
+  and the three
   public workflows as invocable skills with `/agenticale:work`,
   `/agenticale:review`, and `/agenticale:autonomous`. There is no `AgenticAle` /
   `AgenticAle Autonomous` coordinator picker and no `/agent` selection step;
 - the workflows do not appear in `/skills` as implicitly invokable entries; they
-  are explicit-only.
+  are explicit-only, as is the `configure` setup skill.
 
 In VS Code, record the client version and the work skill's autocomplete label.
 It may display `/agenticale work` even though the CLI uses `/agenticale:work`.

@@ -16,7 +16,7 @@ and navigation location.
 | `setup.md` | Canonical installation by client |
 | `guides/model-routing.md`, `guides/troubleshooting.md` | Focused help; legacy setup anchors link here |
 | `skills/work/index.md`, `skills/review/index.md`, `skills/autonomous/index.md` | User-facing workflow explanations |
-| `skills/source-code-lookup/index.md`, `skills/pull-request-description/index.md` | Supporting skill explanations |
+| `skills/source-code-lookup/index.md`, `skills/pull-request-description/index.md`, `skills/configure/index.md` | Supporting skill explanations |
 | `architecture.md`, `runtime-compatibility.md` | Canonical architecture and runtime status |
 | `site-maintenance.md` | This repository-only maintenance note; no longer published on the site |
 

@@ -37,11 +37,11 @@ const taskContracts = [
 
 const profileNames = ["consult", "consult-hard", "explore", "fix", "implement", "implement-easy", "implement-hard", "review", "review-deep"];
 const optionalProfileNames = new Set(["consult-hard", "implement-easy"]);
-const skillNames = ["work", "review", "autonomous", "pull-request-description", "source-code-lookup"];
+const skillNames = ["work", "review", "autonomous", "pull-request-description", "source-code-lookup", "configure"];
 const retiredSkillNames = ["work-mode", "autonomous-mode"];
-// The three adapter-owned OpenCode command templates (thin launchers for the
+// The four adapter-owned OpenCode command templates (thin launchers for the
 // explicit-only skills; OpenCode does not interpret the skills' `slash` field).
-const commandNames = ["autonomous", "review", "work"];
+const commandNames = ["autonomous", "configure", "review", "work"];
 
 // The NEW authored source-of-truth layout validate.mjs must assert exists.
 const requiredPaths = [
@@ -62,10 +62,19 @@ const requiredPaths = [
   "skills/autonomous/agents/openai.yaml",
   "skills/pull-request-description/SKILL.md",
   "skills/source-code-lookup/SKILL.md",
+  "skills/configure/SKILL.md",
+  "skills/configure/agents/openai.yaml",
+  "skills/configure/references/discovery/opencode.md",
+  "skills/configure/references/discovery/copilot.md",
+  "skills/configure/references/discovery/copilot-local.md",
+  "skills/configure/references/discovery/codex.md",
+  "skills/configure/references/discovery/antigravity.md",
+  "examples/preferences.example.md",
   "adapters/opencode/adapter.json",
   "adapters/opencode/coordinator.md",
   "adapters/opencode/README.md",
   "adapters/opencode/commands/autonomous.md",
+  "adapters/opencode/commands/configure.md",
   "adapters/opencode/commands/review.md",
   "adapters/opencode/commands/work.md",
   "adapters/opencode/models.json",
@@ -282,6 +291,34 @@ function validateSkillPullRequest() {
   }
 }
 
+// The configure support skill is explicit-only like the workflows: the user
+// invokes it (on OpenCode through the /configure command entry), never the
+// model. Its starter pointer must stay exactly one authored-root link: the
+// build repoints that marker at the packaged install-relative copy.
+function validateSkillConfigure() {
+  const path = "skills/configure/SKILL.md";
+  const { fields, metadata, body } = parseFrontmatter(path, readText(path));
+  requireExactKeys(path, fields, ["name", "description", "slash", "disable-model-invocation", "metadata"]);
+  if (fields.get("name") !== "configure") fail(path, "name must be 'configure'", "set name: configure");
+  if (!fields.get("description")) fail(path, "description must not be empty", "add the explicit-only setup description");
+  if (fields.get("slash") !== "true") fail(path, "slash must be true", "set slash: true");
+  if (fields.get("disable-model-invocation") !== "true") {
+    fail(path, "disable-model-invocation must be true (explicit-only)", "set disable-model-invocation: true");
+  }
+  requireMetadataFlags(path, metadata);
+  for (const host of ["opencode", "copilot", "copilot-local", "codex", "antigravity"]) {
+    if (!body.includes(`](references/discovery/${host}.md)`)) {
+      fail(path, `body must link the ${host} discovery reference`, "keep the per-host discovery links");
+    }
+  }
+  if (body.split("](../../examples/preferences.example.md)").length !== 2) {
+    fail(path, "body must carry exactly one authored starter link", "keep one ](../../examples/preferences.example.md) marker for the build to repoint");
+  }
+  if (!body.includes("Write only on explicit confirmation")) {
+    fail(path, "body must keep the exact-confirmation write rule", "restore the confirmation safety rule");
+  }
+}
+
 // The flat model configs: the packaged default (adapters/opencode/models.json)
 // plus every bundled examples/*.json preset. Each is loaded through the shared
 // flat-config loader so the exact schema the build and installers enforce is
@@ -441,6 +478,12 @@ function validateAdapter() {
       if (!command.outputPath.startsWith("commands/")) {
         fail(commandPath, "command output path must live under commands/", "write the entry under commands/ in the OpenCode output");
       }
+      if ("bindCoordinator" in command && typeof command.bindCoordinator !== "boolean") {
+        fail(commandPath, "bindCoordinator must be a boolean when present", "use bindCoordinator: false or omit it");
+      }
+      if (command.name === "configure" && command.bindCoordinator !== false) {
+        fail(commandPath, "the configure command must stay a caller-session launcher", "set bindCoordinator: false (setup is a user conversation, not a workflow round)");
+      }
     }
   }
   const adapterText = readText(path);
@@ -538,7 +581,7 @@ function validateBundleSurface() {
       fail(path, "required source-of-truth file is missing", "restore it from the skills-first layout");
     }
   }
-  for (const policy of ["skills/work/agents/openai.yaml", "skills/review/agents/openai.yaml", "skills/autonomous/agents/openai.yaml"]) {
+  for (const policy of ["skills/work/agents/openai.yaml", "skills/review/agents/openai.yaml", "skills/autonomous/agents/openai.yaml", "skills/configure/agents/openai.yaml"]) {
     if (existsSync(join(repositoryRoot, policy))) validateOpenaiPolicy(policy);
   }
   for (const path of retiredPaths) {
@@ -558,7 +601,7 @@ function validateBundleSurface() {
   }
 
   // Positive check on the committed shared package: it should contain plugin.json
-  // and the five skills, and none of the retired paths.
+  // and the six skills, and none of the retired paths.
   const packageRoot = "plugins/agenticale";
   if (existsSync(join(repositoryRoot, packageRoot))) {
     if (!existsSync(join(repositoryRoot, packageRoot, "plugin.json"))) {
@@ -588,11 +631,12 @@ function validateBundleSurface() {
       fail(`${packageRoot}/com.github.copilot`, "committed package must not ship a per-role Copilot directory", "remove the retired Copilot catalog");
     }
 
-    // The packaged resource: the session stats helper (model configuration is
-    // no longer a packaged file; it is rendered into the agent profiles at
-    // build/install time).
+    // The packaged resources: the session stats helper and the configure
+    // preferences starter (model configuration is no longer a packaged file;
+    // it is rendered into the agent profiles at build/install time).
     for (const extra of [
       "skills/work/scripts/session-stats.mjs",
+      "skills/configure/references/preferences.example.md",
     ]) {
       if (!existsSync(join(repositoryRoot, packageRoot, extra))) {
         fail(`${packageRoot}/${extra}`, "committed package is missing a packaged resource", "regenerate the plugin with node scripts/publish-default-plugin.mjs");
@@ -604,10 +648,12 @@ function validateBundleSurface() {
     }
     // Obsolete model-routing artifacts: the tiered routing layer was removed
     // with the model configuration simplification, so the package must not
-    // carry any of its files.
+    // carry any of its files. The retired starter location stays banned; the
+    // current starter ships only under skills/configure/references/.
     for (const obsolete of [
       "skills/work/references/routing.json",
       "skills/work/scripts/routing.mjs",
+      "skills/work/references/preferences.example.md",
     ]) {
       if (existsSync(join(repositoryRoot, packageRoot, obsolete))) {
         fail(`${packageRoot}/${obsolete}`, "committed package still carries an obsolete routing artifact", "regenerate the plugin with node scripts/publish-default-plugin.mjs");
@@ -755,6 +801,7 @@ validateSkillReview();
 validateSkillAutonomous();
 validateSkillSourceLookup();
 validateSkillPullRequest();
+validateSkillConfigure();
 await validateModelConfigs();
 validateAdapter();
 validateCommandTemplates();

@@ -2,20 +2,23 @@
 
 ## Invocation surface
 
-The installer ships three OpenCode command entries with the profiles and
-skills: `commands/work.md`, `commands/review.md`, and
-`commands/autonomous.md`. Each explicitly loads the matching skill by its exact
-ID and passes the command arguments through, so `/work`, `/review`, and
-`/autonomous` in the OpenCode TUI are the user-facing entry points.
-OpenCode does not interpret the skills' `slash` field; without the command
-entries the explicit-only skills have no invocation surface on this host. The
-session that receives a command entry is the coordinator. When the
-installation configures a coordinator, the command entries bind
-`agent: agenticale/coordinator` with `subagent: false`, so they run in the
+The installer ships four OpenCode command entries with the profiles and
+skills: `commands/work.md`, `commands/review.md`, `commands/autonomous.md`,
+and `commands/configure.md`. Each explicitly loads the matching skill by its
+exact ID and passes the command arguments through, so `/work`, `/review`,
+`/autonomous`, and `/configure` in the OpenCode TUI are the user-facing entry
+points. OpenCode does not interpret the skills' `slash` field; without the
+command entries the explicit-only skills have no invocation surface on this
+host. The session that receives a workflow command entry is the coordinator.
+When the installation configures a coordinator, the workflow command entries
+bind `agent: agenticale/coordinator` with `subagent: false`, so they run in the
 current session on the coordinator's configured model from the first turn —
 including a fresh `/autonomous` resume; without a configured coordinator
 (or under `--no-model`) they stay plain caller-session launchers. The
-installer never changes `default_agent` or `opencode.jsonc`.
+`configure` command entry declares `bindCoordinator: false` and always stays
+a caller-session launcher, even with a configured coordinator: setup is a
+user-owned conversation, not a workflow round. The installer never changes
+`default_agent` or `opencode.jsonc`.
 
 ## Surface and direct child dispatch
 

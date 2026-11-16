@@ -24,7 +24,10 @@ them.
 
 Read the [Work skill guide](./skills/work/index.md) for its process, examples,
 inputs, and outputs, and the [model configuration](./guides/model-routing.md) and
-[troubleshooting](./guides/troubleshooting.md) guides for focused help. For
-architecture and runtime support, use the canonical
+[troubleshooting](./guides/troubleshooting.md) guides for focused help. To
+route roles to specific models, the user-invoked
+[configure skill](./skills/configure/index.md) proposes the exact content
+with you before anything is written. For architecture and runtime support,
+use the canonical
 [architecture](./architecture.md) and
 [runtime compatibility](./runtime-compatibility.md) references.
