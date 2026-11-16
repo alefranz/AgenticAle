@@ -37,7 +37,10 @@ const stateVersion = 7;
 // optional `implement-easy`/`consult-hard` worker profiles and the optional
 // `coordinator` profile, so schema-5 and schema-6 generated states are
 // migrated like the older schemas: reconciliation retires the owned
-// `deep-review` profile (a modified one is preserved and reported).
+// `deep-review` profile (a modified one is preserved and reported). The
+// configure skill and its command entry joined the walked inventory within
+// schema 7; a pre-configure schema-7 state legally carries the five-skill
+// set, and reconciliation adds the configure files on the next install.
 const legacyGeneratedSchemas = new Map([
   [5, new Set(["consult", "deep-review", "explore", "fix", "implement", "review"])],
   [6, new Set(["consult", "deep-review", "explore", "fix", "implement", "implement-hard", "review"])],
@@ -53,13 +56,17 @@ const generatedRoots = ["agents", "commands", "skills"];
 // optional profiles it emits only when the model config lists them.
 const profileNames = new Set(["consult", "explore", "fix", "implement", "implement-hard", "review", "review-deep"]);
 const optionalProfileNames = new Set(["consult-hard", "coordinator", "implement-easy"]);
-// The three command entries the current build emits (thin launchers for the
-// explicit-only skills; OpenCode does not interpret the skills' `slash` field).
-const commandNames = new Set(["autonomous", "review", "work"]);
-// The five public skills the current build installs, and the four public skills
-// the pre-review release installed. A pre-review schema-6 state legally carries
-// exactly the four, and migration adds the review skill's files.
-const skillNames = new Set(["work", "review", "autonomous", "pull-request-description", "source-code-lookup"]);
+// The three command entries the workflow skills use, plus the configure
+// support skill's entry (thin launchers for the explicit-only skills;
+// OpenCode does not interpret the skills' `slash` field).
+const commandNames = new Set(["autonomous", "configure", "review", "work"]);
+// The six public skills the current build installs. Two historical complete
+// sets stay legal so older states validate and migrate: the pre-configure
+// five (schema-7 states written before the configure skill joined the walked
+// inventory) and the pre-review four. Migration adds the missing skills'
+// files; a partial mix is rejected.
+const skillNames = new Set(["work", "review", "autonomous", "pull-request-description", "source-code-lookup", "configure"]);
+const preConfigureSkillNames = new Set(["work", "review", "autonomous", "pull-request-description", "source-code-lookup"]);
 const legacySkillNames = new Set(["work", "autonomous", "pull-request-description", "source-code-lookup"]);
 
 // Retired (old install) path inventories, kept so older states (schema 1-4) can
@@ -251,7 +258,7 @@ function resolveSourceRoot(value) {
 // Build the OpenCode bundle into a TEMP root and return the copy entries for
 // every generated file. This installs generated output, never authored source:
 // the build renders the worker profiles (plus the coordinator when configured)
-// and copies the five public skills, and we walk the produced tree so the
+// and copies the six public skills, and we walk the produced tree so the
 // inventory always matches what the build made. File contents are read into
 // memory before the temp root is removed.
 async function buildOpenCodeEntries(options) {
@@ -439,16 +446,16 @@ function safeStatePath(path) {
 
 // The generated-output installs (schemas 5-7) have a dynamic file set because
 // the skill files are walked from the build. They are still fully constrained:
-// only the rendered profiles plus only the five public skill directories, all
+// only the rendered profiles plus only the six public skill directories, all
 // as regular files with a digest. Schema 7 requires the seven base worker
 // profiles and accepts any subset of the three optional profiles; the legacy
 // schemas require their exact historical profile sets. The skill set must be
-// exactly the current five skills or exactly the four skills of the pre-review
-// release: migration adds the review skill's files, and a partial mix is
-// rejected. Entries under commands/ must be one of the three known command
-// entries, but a pre-command state (older release installs) legally lacks
-// them: migration adds the entries, so validation only checks shape, not
-// presence.
+// exactly one of the complete historical sets — the current six skills, the
+// pre-configure five, or the pre-review four: migration adds the missing
+// skills' files, and a partial mix is rejected. Entries under commands/ must
+// be one of the four known command entries, but a pre-command state (older
+// release installs) legally lacks them: migration adds the entries, so
+// validation only checks shape, not presence.
 function validateGeneratedEntries(entries, statePath, requiredProfiles, optionalProfiles = new Set()) {
   if (!Array.isArray(entries) || entries.length === 0) {
     throw new Error(`Install state does not contain the generated entry set: ${statePath}. Move it aside and retry.`);
@@ -498,8 +505,9 @@ function validateGeneratedEntries(entries, statePath, requiredProfiles, optional
     }
   }
   const sortedSkillSet = [...skills].sort().join(",");
-  if (sortedSkillSet !== [...skillNames].sort().join(",") && sortedSkillSet !== [...legacySkillNames].sort().join(",")) {
-    throw new Error(`Install state does not contain a complete generated skill set (exactly the current five or the pre-review four skills): ${statePath}. Move it aside and retry.`);
+  const completeSkillSets = [skillNames, preConfigureSkillNames, legacySkillNames].map((set) => [...set].sort().join(","));
+  if (!completeSkillSets.includes(sortedSkillSet)) {
+    throw new Error(`Install state does not contain a complete generated skill set (exactly the current six, the pre-configure five, or the pre-review four skills): ${statePath}. Move it aside and retry.`);
   }
 }
 
@@ -770,7 +778,7 @@ async function installBundle(options) {
   if (duplicate) {
     console.log(`  notice: another AgenticAle install appears present (${duplicate}).`);
     console.log("    This installer owns the generated OpenCode bundle; the plugin/standalone installers own their own copies.");
-    console.log("    Installing both can duplicate the five skills. Pick one source of truth and uninstall the other if that is not intended.");
+    console.log("    Installing both can duplicate the six skills. Pick one source of truth and uninstall the other if that is not intended.");
   }
   for (const { path } of migration.removes) console.log(`  migrate-remove: ${path}`);
   for (const { path, inNew } of migration.preserved) {
@@ -983,6 +991,10 @@ async function removeEmptyPackageDirectories(target) {
     "skills/autonomous",
     "skills/pull-request-description",
     "skills/source-code-lookup",
+    "skills/configure/references/discovery",
+    "skills/configure/references",
+    "skills/configure/agents",
+    "skills/configure",
     // Retired (schema 1-4 and pre-rename generated) layout, leaf-first.
     "skills/work-mode/references",
     "skills/work-mode",

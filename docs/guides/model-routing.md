@@ -38,6 +38,33 @@ How a role gets its model depends on the host:
   role, and the role's model can come from one optional preference file you
   can edit at any time.
 
+## Getting started: the configure skill
+
+The user-invoked [`configure`](../skills/configure/index.md) skill is the
+guided path to a working configuration: on OpenCode invoke `/configure`, on
+the other hosts use your client's explicit skill invocation. It is
+explicit-only — it never starts on its own and never runs inside a workflow
+round. It detects the actual host surface, discovers what your account
+exposes (a live model listing where the host confirms one; otherwise it asks
+you for names), proposes the exact content with you, and writes only after
+you confirm the exact target path and content. Every proposed name comes from
+live host evidence or from you; role mappings are labelled proposals to tune,
+not verified rankings.
+
+You can also configure by hand from the bundled starter,
+[`examples/preferences.example.md`](https://github.com/alefranz/AgenticAle/blob/main/examples/preferences.example.md):
+a copy-pasteable preference file with all nine roles documented, every
+assignment commented, and the optional routes unlisted. Installed copies ship
+it inside the configure skill (`configure/references/preferences.example.md`),
+so it is reachable without a source checkout. Replace each placeholder with a
+real model name your host exposes, then uncomment the lines you want.
+
+On OpenCode, configure proposes a flat `--models` JSON plus a separately
+confirmed installer rerun instead of preference-file role lines (below). The
+preference file's `## Work` worker-round allowance is editable through
+configure on every host, and a Work-only allowance edit needs no model
+discovery.
+
 ## OpenCode: models are set at install time
 
 The installer bakes the model configuration into the generated agent
@@ -72,7 +99,9 @@ When it is present, the build generates one visible primary
 `/autonomous` command entries to it (`agent: agenticale/coordinator`,
 `subagent: false`): the command then runs in the current session on the
 coordinator's configured model from the first turn — including a fresh
-`/autonomous` resume. Without a configured coordinator (or under
+`/autonomous` resume. The `/configure` command entry always stays a
+caller-session launcher, even with a configured coordinator: setup is a user
+conversation, not a workflow round. Without a configured coordinator (or under
 `--no-model`) the commands stay caller-session launchers: the session you
 invoke them in coordinates on its own model. The installer never changes
 `default_agent` or `opencode.jsonc`, and the coordinator is OpenCode-only —
@@ -141,23 +170,28 @@ section. It documents one optional Markdown preference file:
 - `<project-root>/.agenticale/preferences.md` for one repository, or
   `~/.agenticale/preferences.md` for all repositories; a project file wins
   when both are present. A missing file is normal — it means no
-  customization.
+  customization. When the default lookup finds no file, the workflow adds one
+  non-blocking note that every role inherits the session model, pointing at
+  the `configure` skill and its bundled starter; a missing named `--profile`
+  file remains an error.
 
 The format is a list of direct role assignments, one per line. Each line is
 either one combined `provider/model[#variant]` value, or the earlier
-comma-effort form — both are accepted, and existing files keep working:
+comma-effort form — both are accepted, and existing files keep working. The
+`<...>` tokens below are placeholders, not usable assignments: replace them
+with real names from your host's live listing (or ones you know your account
+exposes) before use — the [`configure`](../skills/configure/index.md) skill
+can discover the names with you:
 
 ```markdown
-- review: openai/gpt-6.1-sol#xhigh
-- review-deep: openai/gpt-6.1-sol, xhigh
+- review: <provider/model#variant>
+- review-deep: <provider/model>, <effort>
 ```
 
 - `<role>` is one of the nine worker keys above; a role that is not listed
   uses the host default (the session model). There is no coordinator key:
-  the host owns the session model, and the preference file never changes it.
-  Where a Sol-class model is available on your account, a medium variant
-  (for example `openai/gpt-6.1-sol#medium`) is a reasonable session default
-  to select in the host itself.
+  the host owns the session model, and the preference file never changes it —
+  select the session model in the host itself.
 - The `#variant` suffix is optional where the host supports it; on hosts
   with separate model and effort fields, the variant is passed as the effort
   selection. The legacy forms `- <role>: <model>` (no effort) and
@@ -197,7 +231,10 @@ many must run. The default is twelve. The project file wins over the personal
 file. An invalid value (not a positive integer) is an actionable error naming
 the file and the value — it is never silently defaulted and never clamped.
 The setting is Work-specific: Autonomous Mode keeps its own budget behavior
-(a run ceiling and a per-task allowance, neither set by this file).
+(a run ceiling and a per-task allowance, neither set by this file). The
+[`configure`](../skills/configure/index.md) skill edits this section on every
+host — including OpenCode, where it is the only preference-file section that
+applies — and a Work-only allowance edit needs no model discovery.
 
 ## What changed from the old tier system
 

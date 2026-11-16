@@ -14,7 +14,7 @@ not invoke its workflow.
 | Durable autonomous workflow | `skills/autonomous/SKILL.md` |
 | Shared rounds, task packets, review and fix rules | `skills/work/references/rounds.md` |
 | Specialist behavior | `skills/work/references/tasks/*.md` |
-| Supporting capabilities | `skills/source-code-lookup/SKILL.md`, `skills/pull-request-description/SKILL.md` |
+| Supporting capabilities | `skills/source-code-lookup/SKILL.md`, `skills/pull-request-description/SKILL.md`, `skills/configure/SKILL.md` (with `references/discovery/`), `examples/preferences.example.md` |
 | Flat model config and shared validation | `adapters/opencode/models.json`, `scripts/model-config.mjs` |
 | Plugin preference file (fragment) | `adapters/plugin/model-configuration.md` |
 

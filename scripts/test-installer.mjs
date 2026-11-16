@@ -167,6 +167,9 @@ async function makeGeneratedFixture(target, schema, profiles, skillFiles, namesp
   return entries;
 }
 
+// Historical complete skill sets for generated-state fixtures: the pre-review
+// four (no review skill) and the pre-configure five (review present, configure
+// absent). Both must validate and migrate; the current install carries six.
 const fourSkills = [
   "skills/work/SKILL.md",
   "skills/autonomous/SKILL.md",
@@ -174,6 +177,7 @@ const fourSkills = [
   "skills/source-code-lookup/SKILL.md",
 ];
 const fiveSkills = [...fourSkills, "skills/review/SKILL.md"];
+const sixSkills = [...fiveSkills, "skills/configure/SKILL.md"];
 
 try {
   // ---------------------------------------------------------------------
@@ -202,24 +206,29 @@ try {
     check(state.schema === STATE_VERSION, "install fresh: state schema 7");
     check(state.mode === "copy", "install fresh: state mode copy");
     check(state.package === PACKAGE, "install fresh: state package");
-    check(state.entries.length === 32, "install fresh: 32 entries");
+    check(state.entries.length === 41, "install fresh: 41 entries");
     const profiles = state.entries.filter((e) => e.path.startsWith("agents/agenticale/"));
     check(profiles.length === 7, "install fresh: 7 generated profiles");
     check(state.entries.some((e) => e.path === "agents/agenticale/implement-hard.md"), "install fresh: implements implement-hard.md profile");
     check(state.entries.some((e) => e.path === "agents/agenticale/review-deep.md"), "install fresh: implements the renamed review-deep.md profile");
     check(!state.entries.some((e) => e.path === "agents/agenticale/deep-review.md"), "install fresh: no retired deep-review.md profile");
     check(!state.entries.some((e) => OPTIONAL_PROFILES.some((name) => e.path === `agents/agenticale/${name}.md`)), "install fresh: no optional profiles under --no-model");
-    check(state.entries.some((e) => e.path === "commands/work.md") && state.entries.some((e) => e.path === "commands/review.md") && state.entries.some((e) => e.path === "commands/autonomous.md"), "install fresh: three command entries in state");
+    check(state.entries.some((e) => e.path === "commands/work.md") && state.entries.some((e) => e.path === "commands/review.md") && state.entries.some((e) => e.path === "commands/autonomous.md") && state.entries.some((e) => e.path === "commands/configure.md"), "install fresh: four command entries in state");
     const files = (await relFiles(t)).filter((f) => f !== STATE);
-    check(files.length === 32, "install fresh: 32 files on disk");
+    check(files.length === 41, "install fresh: 41 files on disk");
     const workCommand = await readFile(join(t, "commands", "work.md"), "utf8");
     check(workCommand.includes("`work`") && workCommand.includes("$ARGUMENTS"), "install fresh: work command loads the skill by exact ID");
     const reviewCommand = await readFile(join(t, "commands", "review.md"), "utf8");
     check(reviewCommand.includes("`review`") && reviewCommand.includes("$ARGUMENTS"), "install fresh: review command loads the skill by exact ID");
     const autonomousCommand = await readFile(join(t, "commands", "autonomous.md"), "utf8");
     check(autonomousCommand.includes("`autonomous`") && autonomousCommand.includes("$ARGUMENTS"), "install fresh: autonomous command loads the skill by exact ID");
+    const configureCommand = await readFile(join(t, "commands", "configure.md"), "utf8");
+    check(configureCommand.includes("`configure`") && configureCommand.includes("$ARGUMENTS"), "install fresh: configure command loads the skill by exact ID");
     const srcLookup = await readFile(join(t, "skills", "source-code-lookup", "SKILL.md"), "utf8");
     check(srcLookup.includes('Source root: "~/dev"'), "install fresh: source root default marker");
+    const configureSkill = await readFile(join(t, "skills", "configure", "SKILL.md"), "utf8");
+    check(configureSkill.includes("[preferences.example.md](references/preferences.example.md)"), "install fresh: configure skill links the packaged starter install-relative");
+    check((await readFile(join(t, "skills", "configure", "references", "preferences.example.md"), "utf8")) === (await readFile(join(repo, "examples", "preferences.example.md"), "utf8")), "install fresh: packaged starter is verbatim the authored root starter");
     check(!(await exists(join(t, "skills", "work", "references", "routing.json"))), "install fresh: materializes no work/references/routing.json");
     check(!(await exists(join(t, "skills", "work", "references", "preferences.example.md"))), "install fresh: materializes no work/references/preferences.example.md");
     check(!(await exists(join(t, "skills", "work", "scripts", "routing.mjs"))), "install fresh: materializes no work/scripts/routing.mjs");
@@ -349,6 +358,7 @@ try {
     check((await readFile(dest, "utf8")) === "USER-EDITED\n", "uninstall: modified file preserved");
     check(!(await exists(join(t, STATE))), "uninstall: state removed");
     check(!(await exists(join(t, "skills", "source-code-lookup", "SKILL.md"))), "uninstall: owned file removed");
+    check(!(await exists(join(t, "skills", "configure"))), "uninstall: the configure skill directory is removed (references, discovery, agents)");
   }
   {
     // Non-overlap: target == repo and target inside repo are both rejected pre-write.
@@ -371,7 +381,7 @@ try {
       ["schema 7 link mode", (s) => { s.mode = "link"; }, `Schema ${STATE_VERSION} install state must be a copy install:`],
       ["path outside bundle", (s) => { s.entries.push({ path: "commands/extra.md", kind: "file", digest: digest(Buffer.from("x")) }); }, "Install state has a generated path outside the bundle:"],
       ["unexpected profile", (s) => { s.entries = s.entries.filter((e) => e.path !== "agents/agenticale/consult.md"); s.entries.push({ path: "agents/agenticale/implhard.md", kind: "file", digest: digest(Buffer.from("x")) }); s.entries.push({ path: "agents/agenticale/consult.md", kind: "file", digest: digest(Buffer.from("y")) }); }, "Install state has an unexpected generated profile:"],
-      ["partial skill mix", (s) => { s.entries = s.entries.filter((e) => !e.path.startsWith("skills/autonomous/")); }, "Install state does not contain a complete generated skill set (exactly the current five or the pre-review four skills):"],
+      ["partial skill mix", (s) => { s.entries = s.entries.filter((e) => !e.path.startsWith("skills/autonomous/")); }, "Install state does not contain a complete generated skill set (exactly the current six, the pre-configure five, or the pre-review four skills):"],
     ];
     for (const [label, mutate, expect] of cases) {
       const s = JSON.parse(JSON.stringify(base));
@@ -403,7 +413,7 @@ try {
     check(r.out.includes("preserve-modified: commands/autonomous.md"), `migration copy schema ${schema}: modified command entry reported`);
     const state = await readState(t);
     check(state.schema === STATE_VERSION, `migration copy schema ${schema}: advanced to schema ${STATE_VERSION}`);
-    check(state.entries.length === 32, `migration copy schema ${schema}: 32 entries`);
+    check(state.entries.length === 41, `migration copy schema ${schema}: 41 entries`);
     check(r.out.includes("backup created:"), `migration copy schema ${schema}: replaced command entry backed up`);
     check((await readFile(modPath, "utf8")).includes("$ARGUMENTS"), `migration copy schema ${schema}: commands/autonomous.md now carries the generated entry`);
     check((await readFile(join(t, "commands", "work.md"), "utf8")).includes("$ARGUMENTS"), `migration copy schema ${schema}: commands/work.md now carries the generated entry`);
@@ -420,7 +430,7 @@ try {
     check(r.out.includes(`  migrating from schema ${LEGACY_GENERATED_SCHEMA} copy install`), "migration generated schema 5: migrating message");
     const state = await readState(t);
     check(state.schema === STATE_VERSION, "migration generated schema 5: advanced to schema 7");
-    check(state.entries.length === 32, "migration generated schema 5: 32 entries");
+    check(state.entries.length === 41, "migration generated schema 5: 41 entries");
     check(await exists(join(t, "agents", "agenticale", "implement-hard.md")), "migration generated schema 5: implement-hard profile now present");
     check(state.entries.some((e) => e.path === "agents/agenticale/implement-hard.md"), "migration generated schema 5: implement-hard in state");
     check(r.out.includes("migrate-remove: agents/agenticale/deep-review.md"), "migration generated schema 5: the owned deep-review profile is retired");
@@ -431,7 +441,7 @@ try {
   {
     // Historical schema 6 from the current release (seven profiles with the
     // pre-rename deep-review, five skills, no command entries) migrates by
-    // retiring deep-review, adding review-deep, and adding the three command
+    // retiring deep-review, adding review-deep, and adding the four command
     // entries; the legacy state must validate, not be rejected as incomplete.
     const t = join(scratch, "b-gen6-nocommands");
     await mkdir(t, { recursive: true });
@@ -442,7 +452,7 @@ try {
     check(!r.out.includes("Already up to date"), "migration current-release schema 6: reconciles instead of reporting up-to-date");
     const state2 = await readState(t);
     check(state2.schema === STATE_VERSION, "migration current-release schema 6: advanced to schema 7");
-    check(state2.entries.length === 32, "migration current-release schema 6: 32 entries");
+    check(state2.entries.length === 41, "migration current-release schema 6: 41 entries");
     check(r.out.includes("migrate-remove: agents/agenticale/deep-review.md"), "migration current-release schema 6: deep-review retired");
     check(state2.entries.some((e) => e.path === "agents/agenticale/review-deep.md"), "migration current-release schema 6: review-deep added");
     check((await readFile(join(t, "commands", "autonomous.md"), "utf8")).includes("$ARGUMENTS"), "migration current-release schema 6: command entries added");
@@ -462,11 +472,34 @@ try {
     check(!r.out.includes("Already up to date"), "migration pre-review schema 6: reconciles instead of reporting up-to-date");
     const state2 = await readState(t);
     check(state2.schema === STATE_VERSION, "migration pre-review schema 6: advanced to schema 7");
-    check(state2.entries.length === 32, "migration pre-review schema 6: 32 entries");
+    check(state2.entries.length === 41, "migration pre-review schema 6: 41 entries");
     check(state2.entries.some((e) => e.path === "skills/review/SKILL.md"), "migration pre-review schema 6: the review skill is added");
     check((await readFile(join(t, "commands", "review.md"), "utf8")).includes("$ARGUMENTS"), "migration pre-review schema 6: the review command entry is added");
     check(r.out.includes("migrate-remove: agents/agenticale/deep-review.md"), "migration pre-review schema 6: deep-review retired");
     check(state2.entries.some((e) => e.path === "agents/agenticale/review-deep.md"), "migration pre-review schema 6: review-deep added");
+  }
+  {
+    // Pre-configure schema 7 (seven base profiles, five skills, three command
+    // entries — the inventory written before the configure skill joined the
+    // walked build): a same-schema update adds the configure skill's files and
+    // the configure command entry without --replace; the historical state must
+    // validate, not be rejected as incomplete.
+    const t = join(scratch, "b-gen7-preconfigure");
+    await mkdir(t, { recursive: true });
+    await makeGeneratedFixture(t, STATE_VERSION, PROFILES, fiveSkills, "agenticale", ["commands/work.md", "commands/review.md", "commands/autonomous.md"]);
+    const r = run("install.mjs", ["install", "--target", t, "--no-model"]);
+    check(r.exit === 0, "migration pre-configure schema 7: exits 0 without --replace");
+    check(!r.out.includes("Already up to date"), "migration pre-configure schema 7: reconciles instead of reporting up-to-date");
+    const state = await readState(t);
+    check(state.schema === STATE_VERSION, "migration pre-configure schema 7: stays schema 7");
+    check(state.entries.length === 41, "migration pre-configure schema 7: 41 entries");
+    check(state.entries.some((e) => e.path === "skills/configure/SKILL.md"), "migration pre-configure schema 7: the configure skill is added");
+    check(state.entries.some((e) => e.path === "commands/configure.md"), "migration pre-configure schema 7: the configure command entry is added");
+    const configureCommand = await readFile(join(t, "commands", "configure.md"), "utf8");
+    check(configureCommand.includes("`configure`") && configureCommand.includes("$ARGUMENTS"), "migration pre-configure schema 7: the configure command loads the skill by exact ID");
+    check(!/^agent:/m.test(configureCommand) && !/^subagent:/m.test(configureCommand), "migration pre-configure schema 7: the configure command stays a caller-session launcher");
+    check(await exists(join(t, "skills", "configure", "references", "preferences.example.md")), "migration pre-configure schema 7: the packaged starter is added");
+    check((await readFile(join(t, "skills", "configure", "SKILL.md"), "utf8")).includes("[preferences.example.md](references/preferences.example.md)"), "migration pre-configure schema 7: the configure skill links the packaged starter install-relative");
   }
   {
     // Schema-6 rename reinstall: an owned, UNMODIFIED deep-review profile is
@@ -487,7 +520,7 @@ try {
     check(backedUp.length === 1, "schema 6 rename: the backup carries the retired deep-review profile");
     check((await readFile(join(backups, backedUp[0]), "utf8")) === oldContent, "schema 6 rename: the backup preserves the old profile content");
     const state = await readState(t);
-    check(state.schema === STATE_VERSION && state.entries.length === 32, "schema 6 rename: schema 7 with 32 entries");
+    check(state.schema === STATE_VERSION && state.entries.length === 41, "schema 6 rename: schema 7 with 41 entries");
     check(!state.entries.some((e) => e.path === "agents/agenticale/deep-review.md"), "schema 6 rename: deep-review no longer in state");
     check(state.entries.some((e) => e.path === "agents/agenticale/review-deep.md"), "schema 6 rename: review-deep in state");
   }
@@ -509,7 +542,7 @@ try {
     check((await readFile(old, "utf8")) === "USER-EDITED-DEEP-REVIEW\n", "schema 6 rename modified: the user edit is left in place");
     check(await exists(join(t, "agents", "agenticale", "review-deep.md")), "schema 6 rename modified: the renamed review-deep profile is installed");
     const state = await readState(t);
-    check(state.schema === STATE_VERSION && state.entries.length === 32, "schema 6 rename modified: schema 7 with 32 entries");
+    check(state.schema === STATE_VERSION && state.entries.length === 41, "schema 6 rename modified: schema 7 with 41 entries");
     check(!state.entries.some((e) => e.path === "agents/agenticale/deep-review.md"), "schema 6 rename modified: the preserved file is no longer owned state");
     // A fresh fixture under an explicit --replace: the same preservation rule
     // applies (the modified retired file is not a new-inventory collision).
@@ -566,7 +599,7 @@ try {
     check(r.out.includes("  migrating from schema 4 link install"), "migration link schema 4: migrating message");
     check(r.out.includes("  converted: the previous link install was converted to a copy install of the generated bundle."), "migration link schema 4: converted message");
     const state = await readState(t);
-    check(state.schema === STATE_VERSION && state.mode === "copy" && state.entries.length === 32, "migration link schema 4: now schema 7 copy 32 entries");
+    check(state.schema === STATE_VERSION && state.mode === "copy" && state.entries.length === 41, "migration link schema 4: now schema 7 copy 41 entries");
     check((await readFile(join(t, "commands", "work.md"), "utf8")).includes("$ARGUMENTS"), "migration link schema 4: command links replaced by the generated files");
   }
   // Build the link inventory for a schema (the validator requires the exact
@@ -602,7 +635,7 @@ try {
     check(r.out.includes(`  migrating from schema ${schema} link install`), `migration link schema ${schema}: migrating message`);
     check(r.out.includes("  converted: the previous link install was converted to a copy install of the generated bundle."), `migration link schema ${schema}: converted message`);
     const state = await readState(t);
-    check(state.schema === STATE_VERSION && state.mode === "copy" && state.entries.length === 32, `migration link schema ${schema}: now schema 7 copy 32 entries`);
+    check(state.schema === STATE_VERSION && state.mode === "copy" && state.entries.length === 41, `migration link schema ${schema}: now schema 7 copy 41 entries`);
   }
   {
     // R6 + physical boundary: the stored retired profile link (agents/autonomous)
@@ -631,7 +664,7 @@ try {
     check((await readFile(otherTarget, "utf8")) === "other\n", "R6 link repoint: repointed link's target content untouched");
     check(!(await exists(join(t, "agents", "autonomous", "consult.md"))), "R6 link repoint: no profile copies written through the old path");
     const state = await readState(t);
-    check(state.schema === STATE_VERSION && state.mode === "copy" && state.entries.length === 32, "R6 link repoint: converted to schema 7 copy 32 entries");
+    check(state.schema === STATE_VERSION && state.mode === "copy" && state.entries.length === 41, "R6 link repoint: converted to schema 7 copy 41 entries");
     check(await exists(join(t, "agents", "agenticale", "consult.md")), "R6 link repoint: new profiles installed under the renamed namespace");
   }
   {
@@ -656,7 +689,7 @@ try {
     check(r.out.includes("preserve-modified: agents/autonomous"), "R6 link→dir: replaced-by-directory preserved");
     check((await readFile(kept, "utf8")) === "USER-KEPT\n", "R6 link→dir: pre-existing bytes in the preserved directory are not deleted");
     const state = await readState(t);
-    check(state.schema === STATE_VERSION && state.mode === "copy" && state.entries.length === 32, "R6 link→dir: converted to schema 7 copy 32 entries");
+    check(state.schema === STATE_VERSION && state.mode === "copy" && state.entries.length === 41, "R6 link→dir: converted to schema 7 copy 41 entries");
     check(await exists(join(t, "agents", "agenticale", "consult.md")), "R6 link→dir: new profiles installed under the renamed namespace");
     check(!(await exists(join(t, "agents", "autonomous", "consult.md"))), "R6 link→dir: no profile copies written into the preserved directory");
   }
@@ -704,7 +737,7 @@ try {
     check(r.out.includes("create: agents/agenticale/review.md"), "namespace rename: the new profile paths are installed");
     check(r.out.includes("create: agents/agenticale/review-deep.md"), "namespace rename: the renamed review-deep profile is installed");
     const state = await readState(t);
-    check(state.schema === STATE_VERSION && state.entries.length === 32, "namespace rename: 32 entries in the refreshed state");
+    check(state.schema === STATE_VERSION && state.entries.length === 41, "namespace rename: 41 entries in the refreshed state");
     check(state.entries.every((e) => !e.path.startsWith("agents/autonomous/")), "namespace rename: no old-namespace entries remain in state");
     check(state.entries.some((e) => e.path === "agents/agenticale/implement-hard.md"), "namespace rename: the new implement-hard profile is in state");
     check(await exists(join(t, "agents", "agenticale", "implement-hard.md")), "namespace rename: the new implement-hard profile is on disk");
@@ -725,7 +758,7 @@ try {
     check(r.out.includes("create: agents/agenticale/implement-hard.md"), "namespace rename schema 5: the added implement-hard profile is created");
     check(r.out.includes("create: agents/agenticale/review-deep.md"), "namespace rename schema 5: the renamed review-deep profile is created");
     const state = await readState(t);
-    check(state.schema === STATE_VERSION && state.entries.length === 32, "namespace rename schema 5: 32 entries in the refreshed state");
+    check(state.schema === STATE_VERSION && state.entries.length === 41, "namespace rename schema 5: 41 entries in the refreshed state");
     check(state.entries.every((e) => !e.path.startsWith("agents/autonomous/")), "namespace rename schema 5: no old-namespace entries remain in state");
     check(await exists(join(t, "agents", "agenticale", "implement-hard.md")), "namespace rename schema 5: the new implement-hard profile is on disk");
     check(!(await exists(join(t, "agents", "autonomous", "review.md"))), "namespace rename schema 5: the old profile files are removed");
@@ -852,10 +885,10 @@ try {
     const state = await readStandaloneState(t);
     check(state.schema === 1, "standalone fresh: schema 1");
     check(state.scope === "project", "standalone fresh: scope project");
-    check(state.sourceLayout === "autonomous,pull-request-description,review,source-code-lookup,work", "standalone fresh: sourceLayout string");
-    check(state.entries.length === 22, "standalone fresh: 22 entries");
+    check(state.sourceLayout === "autonomous,configure,pull-request-description,review,source-code-lookup,work", "standalone fresh: sourceLayout string");
+    check(state.entries.length === 30, "standalone fresh: 30 entries");
     const files = (await relFiles(t)).filter((f) => f !== STANDALONE_STATE);
-    check(files.length === 22, "standalone fresh: 22 files on disk");
+    check(files.length === 30, "standalone fresh: 30 files on disk");
     check(!files.some((f) => f.startsWith("agents/")), "standalone fresh: no agents/");
     check(!files.some((f) => f.startsWith("commands/")), "standalone fresh: no commands/");
     check(!(await exists(join(t, "work", "references", "routing.json"))), "standalone fresh: materializes no work/references/routing.json");
@@ -868,9 +901,9 @@ try {
     check(before === await readFile(join(t, STANDALONE_STATE), "utf8"), "standalone idempotent: state unchanged");
   }
   {
-    // Pre-review schema-1 state (the four skills, no review): an update adds
-    // the review skill's files; the legacy state must validate, not be
-    // rejected as incomplete.
+    // Pre-review schema-1 state (the four skills, no review and no configure):
+    // an update adds the review and configure skills' files; the legacy state
+    // must validate, not be rejected as incomplete.
     const t = join(scratch, "c-pre-review");
     const fresh = run("install-standalone.mjs", ["install", "--target", t, "--no-model"]);
     check(fresh.exit === 0, "standalone pre-review migration: setup fresh exits 0");
@@ -878,21 +911,49 @@ try {
     const legacy = {
       ...state,
       sourceLayout: "autonomous,pull-request-description,source-code-lookup,work",
-      entries: state.entries.filter((e) => !e.path.startsWith("review/")),
+      entries: state.entries.filter((e) => !e.path.startsWith("review/") && !e.path.startsWith("configure/")),
     };
     await writeFile(join(t, STANDALONE_STATE), JSON.stringify(legacy, null, 2));
     await rm(join(t, "review"), { recursive: true });
+    await rm(join(t, "configure"), { recursive: true });
     const r = run("install-standalone.mjs", ["install", "--target", t, "--no-model"]);
     check(r.exit === 0, "standalone pre-review migration: exits 0 without --replace");
     check(!r.out.includes("Already up to date"), "standalone pre-review migration: reconciles instead of reporting up-to-date");
     const state2 = await readStandaloneState(t);
-    check(state2.entries.length === 22, "standalone pre-review migration: 22 entries");
-    check(state2.sourceLayout === "autonomous,pull-request-description,review,source-code-lookup,work", "standalone pre-review migration: the review skill is in the source layout");
+    check(state2.entries.length === 30, "standalone pre-review migration: 30 entries");
+    check(state2.sourceLayout === "autonomous,configure,pull-request-description,review,source-code-lookup,work", "standalone pre-review migration: the review skill is in the source layout");
     check(state2.entries.some((e) => e.path === "review/SKILL.md"), "standalone pre-review migration: the review skill is added");
+    check(state2.entries.some((e) => e.path === "configure/SKILL.md"), "standalone pre-review migration: the configure skill is added");
   }
   {
-    // A state carrying a partial skill mix — neither the current five nor the
-    // pre-review four skills — is rejected before anything is written.
+    // Pre-configure schema-1 state (the five skills, no configure): an update
+    // adds the configure skill's files and refreshes sourceLayout without
+    // --replace; the historical state must validate, not be rejected as
+    // incomplete.
+    const t = join(scratch, "c-pre-configure");
+    const fresh = run("install-standalone.mjs", ["install", "--target", t, "--no-model"]);
+    check(fresh.exit === 0, "standalone pre-configure migration: setup fresh exits 0");
+    const state = JSON.parse(await readFile(join(t, STANDALONE_STATE), "utf8"));
+    const legacy = {
+      ...state,
+      sourceLayout: "autonomous,pull-request-description,review,source-code-lookup,work",
+      entries: state.entries.filter((e) => !e.path.startsWith("configure/")),
+    };
+    await writeFile(join(t, STANDALONE_STATE), JSON.stringify(legacy, null, 2));
+    await rm(join(t, "configure"), { recursive: true });
+    const r = run("install-standalone.mjs", ["install", "--target", t, "--no-model"]);
+    check(r.exit === 0, "standalone pre-configure migration: exits 0 without --replace");
+    check(!r.out.includes("Already up to date"), "standalone pre-configure migration: reconciles instead of reporting up-to-date");
+    const state2 = await readStandaloneState(t);
+    check(state2.entries.length === 30, "standalone pre-configure migration: 30 entries");
+    check(state2.sourceLayout === "autonomous,configure,pull-request-description,review,source-code-lookup,work", "standalone pre-configure migration: the configure skill is in the source layout");
+    check(state2.entries.some((e) => e.path === "configure/SKILL.md"), "standalone pre-configure migration: the configure skill is added");
+    check(await exists(join(t, "configure", "references", "preferences.example.md")), "standalone pre-configure migration: the packaged starter is added");
+  }
+  {
+    // A state carrying a partial skill mix — none of the complete historical
+    // sets (current six, pre-configure five, pre-review four) — is rejected
+    // before anything is written.
     const t = join(scratch, "c-partial-mix");
     const fresh = run("install-standalone.mjs", ["install", "--target", t, "--no-model"]);
     check(fresh.exit === 0, "standalone partial mix: setup fresh exits 0");
@@ -900,7 +961,7 @@ try {
     const partial = { ...state, entries: state.entries.filter((e) => !e.path.startsWith("autonomous/")) };
     await writeFile(join(t, STANDALONE_STATE), JSON.stringify(partial, null, 2));
     const r = run("install-standalone.mjs", ["install", "--target", t, "--no-model"]);
-    check(r.exit === 1 && r.err.includes("Install state does not contain a complete generated skill set (exactly the current five or the pre-review four skills):"), "standalone partial skill mix rejected");
+    check(r.exit === 1 && r.err.includes("Install state does not contain a complete generated skill set (exactly the current six, the pre-configure five, or the pre-review four skills):"), "standalone partial skill mix rejected");
   }
   {
     // Collision ± --replace.
@@ -935,6 +996,7 @@ try {
     check((await readFile(dest, "utf8")) === "USER-EDITED\n", "standalone uninstall: modified preserved");
     check(!(await exists(join(t, STANDALONE_STATE))), "standalone uninstall: state removed");
     check(!(await exists(join(t, "source-code-lookup", "SKILL.md"))), "standalone uninstall: owned removed");
+    check(!(await exists(join(t, "configure"))), "standalone uninstall: the configure skill directory is removed (references, discovery, agents)");
   }
   {
     // Non-overlap: target == repo rejected pre-write.
@@ -1411,7 +1473,8 @@ try {
   // ---------------------------------------------------------------------
   // G. Coordinator and optional worker profiles: the example preset installs
   //    one visible primary coordinator plus nine workers and binds the three
-  //    commands to it in the current session; a --no-model reinstall retires
+  //    workflow commands to it in the current session (the configure command
+  //    stays a caller-session launcher); a --no-model reinstall retires
   //    the owned coordinator/optional profiles and restores the caller-session
   //    commands; an omitted optional worker stays absent while the ordinary
   //    routes remain.
@@ -1423,11 +1486,11 @@ try {
     check(r.out.includes("Installation complete."), "example install: Installation complete");
     const state = await readState(t);
     check(state.schema === STATE_VERSION, "example install: state schema 7");
-    check(state.entries.length === 35, "example install: 35 entries (10 profiles + 3 commands + 22 skills)");
+    check(state.entries.length === 44, "example install: 44 entries (10 profiles + 4 commands + 30 skills)");
     const profiles = state.entries.filter((e) => e.path.startsWith("agents/agenticale/")).map((e) => e.path.split("/").pop().replace(/\.md$/, ""));
     check(JSON.stringify(profiles.sort()) === JSON.stringify([...PROFILES, ...OPTIONAL_PROFILES].sort()), "example install: one primary coordinator plus nine worker profiles");
     const files = (await relFiles(t)).filter((f) => f !== STATE && !f.startsWith(".autonomous-mode-backups/"));
-    check(files.length === 35, "example install: 35 files on disk");
+    check(files.length === 44, "example install: 44 files on disk");
 
     // Every configured role renders its exact provider/model#variant line.
     const example = JSON.parse(await readFile(join(repo, "examples", "example.json"), "utf8"));
@@ -1446,14 +1509,18 @@ try {
       check(text.includes("mode: subagent"), `example install: ${name} is a child subagent`);
     }
 
-    // The three commands bind the coordinator in the current session while
-    // keeping the exact skill load and forwarding all $ARGUMENTS.
+    // The three workflow commands bind the coordinator in the current session
+    // while keeping the exact skill load and forwarding all $ARGUMENTS; the
+    // configure command stays a caller-session launcher.
     for (const name of ["work", "review", "autonomous"]) {
       const text = await readFile(join(t, "commands", `${name}.md`), "utf8");
       check(/^agent: agenticale\/coordinator$/m.test(text), `example install: ${name} command binds agent: agenticale/coordinator`);
       check(/^subagent: false$/m.test(text), `example install: ${name} command forces the current session (subagent: false)`);
       check(text.includes(`\`${name}\``) && text.includes("$ARGUMENTS"), `example install: ${name} command keeps the exact skill load and $ARGUMENTS`);
     }
+    const exampleConfigure = await readFile(join(t, "commands", "configure.md"), "utf8");
+    check(!/^agent:/m.test(exampleConfigure) && !/^subagent:/m.test(exampleConfigure), "example install: the configure command stays a caller-session launcher despite the configured coordinator");
+    check(exampleConfigure.includes("`configure`") && exampleConfigure.includes("$ARGUMENTS"), "example install: configure command keeps the exact skill load and $ARGUMENTS");
 
     // Reinstall with --no-model: the owned coordinator and optional worker
     // profiles are retired under a backup, and the commands are restored to
@@ -1471,13 +1538,13 @@ try {
     const backedUpCoordinator = (await relFiles(backups)).filter((p) => p.endsWith("agents/agenticale/coordinator.md"));
     check(backedUpCoordinator.length === 1, "example --no-model reinstall: the backup carries the retired coordinator");
     const state2 = await readState(t);
-    check(state2.schema === STATE_VERSION && state2.entries.length === 32, "example --no-model reinstall: schema 7 with the 32-entry base inventory");
+    check(state2.schema === STATE_VERSION && state2.entries.length === 41, "example --no-model reinstall: schema 7 with the 41-entry base inventory");
     check(!state2.entries.some((e) => OPTIONAL_PROFILES.some((name) => e.path === `agents/agenticale/${name}.md`)), "example --no-model reinstall: no optional profiles remain in state");
     for (const name of PROFILES) {
       const text = await readFile(join(t, "agents", "agenticale", `${name}.md`), "utf8");
       check(!/^model:/m.test(text) && !/^reasoningEffort:/m.test(text), `example --no-model reinstall: ${name} inherits (no model line)`);
     }
-    for (const name of ["work", "review", "autonomous"]) {
+    for (const name of ["work", "review", "autonomous", "configure"]) {
       const text = await readFile(join(t, "commands", `${name}.md`), "utf8");
       check(!/^agent:/m.test(text) && !/^subagent:/m.test(text), `example --no-model reinstall: ${name} command is restored to a caller-session launcher`);
       check(text.includes(`\`${name}\``) && text.includes("$ARGUMENTS"), `example --no-model reinstall: ${name} command keeps the exact skill load and $ARGUMENTS`);
@@ -1507,8 +1574,10 @@ try {
       const text = await readFile(join(t, "commands", `${name}.md`), "utf8");
       check(/^agent: agenticale\/coordinator$/m.test(text) && /^subagent: false$/m.test(text), `omitted optional: ${name} command binds the coordinator in the current session`);
     }
+    const omittedConfigure = await readFile(join(t, "commands", "configure.md"), "utf8");
+    check(!/^agent:/m.test(omittedConfigure) && !/^subagent:/m.test(omittedConfigure), "omitted optional: the configure command stays a caller-session launcher");
     const state = await readState(t);
-    check(state.schema === STATE_VERSION && state.entries.length === 33, "omitted optional: 33 entries (8 profiles + 3 commands + 22 skills)");
+    check(state.schema === STATE_VERSION && state.entries.length === 42, "omitted optional: 42 entries (8 profiles + 4 commands + 30 skills)");
 
     // Listing one optional worker on a later update adds exactly that
     // profile; the other omitted optional stays absent.
@@ -1521,7 +1590,7 @@ try {
     check(easy.includes("model: acme/easy#low"), "omitted optional update: implement-easy renders its combined model line");
     check(!(await exists(join(t, "agents", "agenticale", "consult-hard.md"))), "omitted optional update: the still-omitted consult-hard profile stays absent");
     const state2 = await readState(t);
-    check(state2.entries.length === 34, "omitted optional update: 34 entries (9 profiles + 3 commands + 22 skills)");
+    check(state2.entries.length === 43, "omitted optional update: 43 entries (9 profiles + 4 commands + 30 skills)");
   }
 
   // ---------------------------------------------------------------------

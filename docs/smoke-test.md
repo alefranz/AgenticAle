@@ -3,8 +3,9 @@
 Use this checklist before a release. It maps to the skills-first layout: the
 generated OpenCode binding is the seven base worker profiles (plus the
 optional `implement-easy`/`consult-hard` workers and the optional primary
-`coordinator` profile when the model config lists them), the five skills, and
-the three command entries; the three public workflows are invoked explicitly.
+`coordinator` profile when the model config lists them), the six skills, and
+the four command entries; the three public workflows and the `configure`
+setup skill are invoked explicitly.
 Every write goes to a newly created temporary directory; do not substitute a
 real OpenCode profile path.
 
@@ -108,15 +109,18 @@ rm -rf "$smoke_root"
   profile appears only when the config assigns the top-level `coordinator`
   key; with `--no-model` none of the three is generated. With `--no-model`,
   each profile omits a `model:` line and inherits the session model;
-- the installed `work/SKILL.md`, `review/SKILL.md`, and `autonomous/SKILL.md`
+- the installed `work/SKILL.md`, `review/SKILL.md`, `autonomous/SKILL.md`, and
+  `configure/SKILL.md`
   set `slash: true` and `metadata.opencode/autoinvoke: false`; the installed
-  `commands/work.md`, `commands/review.md`, and `commands/autonomous.md` load
+  `commands/work.md`, `commands/review.md`, `commands/autonomous.md`, and
+  `commands/configure.md` load
   their skills by exact ID and pass through `$ARGUMENTS`, and OpenCode's
-  command list exposes `/work`, `/review`, and `/autonomous`; the workflow
+  command list exposes `/work`, `/review`, `/autonomous`, and `/configure`;
+  the workflow
   skills' shared-round links resolve to the installed
   `skills/work/references/rounds.md`;
-- the install state is `.autonomous-mode-install.json` (schema 7; a 32-file
-  inventory by default, up to 35 files when the config lists both optional
+- the install state is `.autonomous-mode-install.json` (schema 7; a 41-file
+  inventory by default, up to 44 files when the config lists both optional
   workers and the coordinator); the installed `work/references/` carries the shared
   `rounds.md`, the runtime bindings, the task contracts, and the
   `outcome-evaluation.md` reference, and `work/scripts/` carries the

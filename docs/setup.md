@@ -14,13 +14,16 @@ The package exposes three public workflows, all explicit-only skills:
   net changes up to the working-tree result;
 - `/autonomous [budget] [goal]` for a durable, multi-round project.
 
-The other two skills, `source-code-lookup` and `pull-request-description`, are
-supporting and are loaded by the workflows when their tasks arise. The session
+The other three skills are supporting: `source-code-lookup` and
+`pull-request-description` are loaded by the workflows when their tasks
+arise, and `configure` is the user-invoked setup skill for model routing and
+the Work worker-round allowance (`/configure` on OpenCode). The session
 you invoke a skill in is the coordinator. On OpenCode you may optionally
 configure a coordinator model at install time: the `/work`, `/review`, and
 `/autonomous` command entries then run in the current session on the generated
 `agenticale/coordinator` profile from the first turn; without it they stay
-caller-session launchers. There is no `commands/` entry in the authored core.
+caller-session launchers. The `/configure` command entry always stays a
+caller-session launcher. There is no `commands/` entry in the authored core.
 
 ## Install: choose your client
 
@@ -91,9 +94,9 @@ copilot plugin uninstall agenticale
 
 ### Codex plugin (CLI, VS Code extension, and ChatGPT desktop app)
 
-The published `plugins/agenticale` package contains all five skills, including
-`agents/openai.yaml` metadata for the `work`, `review`, and `autonomous`
-workflows. The
+The published `plugins/agenticale` package contains all six skills, including
+`agents/openai.yaml` metadata for the `work`, `review`, `autonomous`, and
+`configure` skills. The
 repository also contains a Codex marketplace at
 `.agents/plugins/marketplace.json`. Install it with the Codex CLI:
 
@@ -119,7 +122,7 @@ commands](https://learn.chatgpt.com/docs/developer-commands#codex-plugin).
 
 ### Alternative: standalone Codex skills
 
-Installs the five skill folders directly under a `.agents/skills` directory.
+Installs the six skill folders directly under a `.agents/skills` directory.
 Codex CLI, the official VS Code extension, and Codex mode in the ChatGPT
 desktop app can discover these standalone skills. The installer requires no
 native agent or plugin.
@@ -164,14 +167,15 @@ invocation details.
 
 ### OpenCode V2 (generated profiles)
 
-Installs the *generated* OpenCode binding: the five skills, the seven base
+Installs the *generated* OpenCode binding: the six skills, the seven base
 worker profiles under `agents/agenticale/` (plus the optional
 `implement-easy`/`consult-hard` worker profiles and the optional primary
-`coordinator` profile when your model config lists them), and the three
-command entries `commands/work.md`, `commands/review.md`, and
-`commands/autonomous.md` that expose `/work`, `/review`, and `/autonomous` in
-the OpenCode TUI. It copies into the OpenCode configuration
-directory and does not link to the repository source. The default target is
+`coordinator` profile when your model config lists them), and the four
+command entries `commands/work.md`, `commands/review.md`,
+`commands/autonomous.md`, and `commands/configure.md` that expose `/work`,
+`/review`, `/autonomous`, and `/configure` in the OpenCode TUI. It copies into
+the OpenCode configuration directory and does not link to the repository
+source. The default target is
 `$XDG_CONFIG_HOME/opencode` when set, otherwise `~/.config/opencode`.
 
 Quick start without a checkout, POSIX (Linux, macOS, WSL):
@@ -270,9 +274,11 @@ This installer is copy-only: it no longer offers a link mode. On install it
 migrates older copy installs (state schema 1-4), older link installs
 (schema 1-4), and older generated installs (schema 5-6, including the
 pre-rename `deep-review` profile) to the current generated copy layout
-(state `.autonomous-mode-install.json`, schema 7, a 32-file inventory by
-default and up to 35 files when the config lists both optional workers and
-the coordinator). The manifest is also the workflow's read-only evidence
+(state `.autonomous-mode-install.json`, schema 7, a 41-file inventory by
+default and up to 44 files when the config lists both optional workers and
+the coordinator). A pre-configure schema-7 state (five skills, three command
+entries) validates and gains the configure skill and command entry on the
+next install. The manifest is also the workflow's read-only evidence
 for configured-route intent: its current inventory distinguishes an optional
 route omitted at install time from a configured profile that later went
 missing, even when a preserved modified file is left behind (see the
@@ -317,7 +323,7 @@ Expected output:
 Installed plugins:
 - agenticale (enabled, <version>)
     Source:     antigravity
-    Components: 5 skills
+    Components: 6 skills
 ```
 
 To update after pulling new changes in your local clone, rerun the install
@@ -445,7 +451,8 @@ invocation, model-configuration, and OpenCode permission issues.
 
 - Live runtime support per client is recorded in
   [runtime-compatibility.md](runtime-compatibility.md). Most capabilities
-  remain **not tested**; one narrow OpenCode `/work` routing pass is recorded
+  remain **not tested**; one narrow OpenCode `/work` routing pass and one
+  narrow model-listing shape pass are recorded
   there. Do not treat the inspected client versions as verified.
 - OpenCode enforces the generated per-profile step and permission rules. Copilot
   has no equivalent per-profile hard step ceiling, and some child-session

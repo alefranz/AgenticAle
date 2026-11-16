@@ -43,9 +43,10 @@ and [contributing](https://github.com/alefranz/AgenticAle/blob/main/CONTRIBUTING
 ## Start here
 
 Choose the client setup in the [installation guide](https://alefranz.github.io/AgenticAle/setup.html).
-The five skills are `work`, `review`, `autonomous`, `source-code-lookup`, and
-`pull-request-description`. The three workflow skills are explicit-only; the
-supporting skills are loaded when their tasks call for them.
+The six skills are `work`, `review`, `autonomous`, `source-code-lookup`,
+`pull-request-description`, and `configure`. The three workflow skills and
+`configure` are explicit-only; the other supporting skills are loaded when
+their tasks call for them.
 
 ### GitHub Copilot (App, CLI, and VS Code)
 
@@ -132,7 +133,10 @@ recovery, while Autonomous applies its own cooldown and handoff policy.
 
 Each worker role gets its own model — seven base roles plus two optional
 routes — set at install time on OpenCode, or in one optional preference file
-on the other hosts. The details are in the
+on the other hosts. The user-invoked
+[configure skill](https://alefranz.github.io/AgenticAle/skills/configure/)
+(`/configure` on OpenCode) discovers what your host exposes and proposes the
+exact content before anything is written. The details are in the
 [model configuration guide](https://alefranz.github.io/AgenticAle/guides/model-routing.html).
 
 ## Choose where the task finishes
@@ -166,7 +170,10 @@ checkpoints, or reorder the next ready-task selection.
 
 The supporting [source code lookup](https://alefranz.github.io/AgenticAle/skills/source-code-lookup/)
 and [pull request description](https://alefranz.github.io/AgenticAle/skills/pull-request-description/)
-guides explain when each skill is loaded and what it returns.
+guides explain when each skill is loaded and what it returns. The
+[configure guide](https://alefranz.github.io/AgenticAle/skills/configure/)
+covers the user-invoked setup skill for model routing and the Work
+worker-round allowance.
 
 ## Customize or contribute
 

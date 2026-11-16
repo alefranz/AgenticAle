@@ -19,7 +19,7 @@ const buildStateName = ".agenticale-build.json";
 
 // The authored fragment appended as the final top-level section of the
 // workflow skills in the plugin and standalone outputs (not the opencode
-// output, not the two non-workflow skills).
+// output, not the three non-workflow skills).
 const modelConfigFragmentPath = join(repositoryRoot, "adapters", "plugin", "model-configuration.md");
 const workflowSkillNames = ["work", "review", "autonomous"];
 
@@ -30,13 +30,22 @@ const CURRENT_BUILD_STATE_VERSION = 2;
 // The schema-1 baseline build owned the retired copilot package output.
 const LEGACY_OUTPUT_ROOTS = ["opencode", "copilot/agenticale"];
 
-// The five public skills that ship in every output root.
-const SKILL_NAMES = ["work", "review", "autonomous", "pull-request-description", "source-code-lookup"];
+// The six public skills that ship in every output root.
+const SKILL_NAMES = ["work", "review", "autonomous", "pull-request-description", "source-code-lookup", "configure"];
+
+// The preferences starter is authored once at the repository root and copied
+// verbatim into every output at configure/references/preferences.example.md
+// (derived output, never a hand-edited source duplicate). The packaged
+// configure SKILL.md link is repointed at that install-relative copy; the
+// authored link keeps resolving in the source checkout.
+const starterSourcePath = join(repositoryRoot, "examples", "preferences.example.md");
+const starterAuthoredLink = "[examples/preferences.example.md](../../examples/preferences.example.md)";
+const starterPackagedLink = "[preferences.example.md](references/preferences.example.md)";
 
 export const pluginManifest = {
   $schema: "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   name: "agenticale",
-  version: "0.27.0",
+  version: "0.28.0",
   description: "Reviewed coding tasks with focused specialist agents, optional PR delivery, and durable autonomous project work.",
   author: { name: "Ale Franz" },
   homepage: "https://github.com/alefranz/AgenticAle",
@@ -184,7 +193,7 @@ function renderSourceRoot(text, sourceRoot) {
   return text.replace(marker, `Source root: ${JSON.stringify(sourceRoot)}`);
 }
 
-// Copy the five public skills into a skills root. When modelConfigSection is
+// Copy the six public skills into a skills root. When modelConfigSection is
 // given (the plugin and standalone outputs only), the authored
 // model-configuration fragment is appended as the final top-level section of
 // the work, review, and autonomous SKILL.md copies.
@@ -192,6 +201,15 @@ async function populateSkillsRoot(skillsRoot, sourceRoot, modelConfigSection) {
   for (const name of SKILL_NAMES) {
     await copyDirTree(join(repositoryRoot, "skills", name), join(skillsRoot, name));
   }
+  // Package the preferences starter install-relative and repoint the
+  // configure skill's starter link at the packaged copy.
+  await writeText(join(skillsRoot, "configure", "references", "preferences.example.md"), await readFile(starterSourcePath, "utf8"));
+  const configureSkillPath = join(skillsRoot, "configure", "SKILL.md");
+  const configureText = await readFile(configureSkillPath, "utf8");
+  if (configureText.split(starterAuthoredLink).length !== 2) {
+    throw new Error("Configure starter link marker is missing or ambiguous.");
+  }
+  await writeText(configureSkillPath, configureText.replace(starterAuthoredLink, starterPackagedLink));
   if (sourceRoot !== null) {
     const lookupPath = join(skillsRoot, "source-code-lookup", "SKILL.md");
     const rendered = renderSourceRoot(await readFile(lookupPath, "utf8"), sourceRoot);
@@ -209,11 +227,14 @@ async function populateSkillsRoot(skillsRoot, sourceRoot, modelConfigSection) {
 // Copies the adapter-owned command templates (thin launchers that load the
 // explicit-only skills by exact ID) into the OpenCode output. OpenCode V2 does
 // not interpret the skills' `slash` portability field, so the /work, /review,
-// and /autonomous entries must be installed command files. When the config
-// assigns a session coordinator, each command additionally binds the
-// generated coordinator agent (`agent:`) and forces the current session
-// (`subagent: false`); the skill load and $ARGUMENTS body stay untouched.
-// Without a coordinator the commands remain plain caller-session launchers.
+// /autonomous, and /configure entries must be installed command files. When
+// the config assigns a session coordinator, each workflow command additionally
+// binds the generated coordinator agent (`agent:`) and forces the current
+// session (`subagent: false`); the skill load and $ARGUMENTS body stay
+// untouched. The configure command declares `bindCoordinator: false`: setup is
+// a user-owned conversation, not a workflow round, so it always stays a
+// caller-session launcher. Without a coordinator the commands remain plain
+// caller-session launchers.
 async function populateCommandEntries(openCodeRoot, adapter, coordinatorAssignment) {
   const adapterDirectory = join(repositoryRoot, "adapters", "opencode");
   let coordinatorAgentId = null;
@@ -236,7 +257,7 @@ async function populateCommandEntries(openCodeRoot, adapter, coordinatorAssignme
       throw new Error(`OpenCode command output path must live under commands/: ${command.outputPath}`);
     }
     let text = (await readFile(source, "utf8")).replace(/\r\n?/g, "\n");
-    if (coordinatorAgentId !== null) {
+    if (coordinatorAgentId !== null && command.bindCoordinator !== false) {
       const lines = text.split("\n");
       const close = lines[0] === "---" ? lines.indexOf("---", 1) : -1;
       if (close < 0) throw new Error(`OpenCode command template must carry frontmatter: ${command.source}`);

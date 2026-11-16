@@ -9,8 +9,9 @@
 // build state's modelsSource, the model-configuration fragment spliced into
 // the plugin/standalone workflow skills (verbatim, with its content contract:
 // nine child keys, no coordinator assignment, no retired deep-review key,
-// combined #variant and legacy comma-effort forms, optional-route fallback),
-// the absence of any routing artifact
+// combined #variant and legacy comma-effort forms, metavariable-only examples
+// that are not usable assignments, the non-blocking no-file note, and the
+// optional-route fallback), the absence of any routing artifact
 // in build output, the installer's ownership semantics for generated
 // profiles, and the configured-route intent lookup contract (the OpenCode
 // binding's install-relative ownership-manifest procedure plus the workflow
@@ -21,7 +22,7 @@ import { tmpdir } from "node:os";
 import { join, relative, resolve, sep } from "node:path";
 import { spawnSync } from "node:child_process";
 import assert from "node:assert/strict";
-import { loadModelConfig } from "./model-config.mjs";
+import { loadModelConfig, parseModelValue } from "./model-config.mjs";
 
 const repository = resolve(import.meta.dirname, "..");
 const build = join(repository, "scripts", "build.mjs");
@@ -94,7 +95,10 @@ async function expectConfigError(value, label, patterns) {
 // The preference fragment's content contract: exactly the nine child worker
 // keys (no coordinator assignment), no retired deep-review key, the combined
 // provider/model[#variant] form, the legacy comma-effort form kept so existing
-// preference files keep working, and the optional routes' base-route fallback.
+// preference files keep working, the optional routes' base-route fallback,
+// metavariable-only examples (no concrete prescriptive model names, and the
+// placeholder example values are not usable assignments), and the one-line
+// non-blocking no-file note bound to the default lookup.
 function checkFragmentContent(label, text) {
   const keyList = text.match(/nine child worker keys:([\s\S]*?)\./);
   check(keyList !== null, `fragment content: ${label} lists the nine child worker keys`);
@@ -106,8 +110,37 @@ function checkFragmentContent(label, text) {
   check(text.includes("`low`, `medium`, `high`, `xhigh`, `max`"), `fragment content: ${label} documents the variant set`);
   check(text.includes("- <role>: <model>, <effort>"), `fragment content: ${label} keeps the legacy comma-effort form`);
   check(text.includes("- <role>: <model>"), `fragment content: ${label} keeps the plain model form`);
-  check(text.includes("- review: openai/gpt-6.1-sol, xhigh"), `fragment content: ${label} example shows the legacy comma-effort form`);
+  check(text.includes("- review: <provider/model#variant>"), `fragment content: ${label} example shows the combined form with metavariables`);
+  check(text.includes("- review-deep: <provider/model>, <effort>"), `fragment content: ${label} example shows the legacy comma-effort form with metavariables`);
   check(text.includes("are optional routes") && text.includes("base route"), `fragment content: ${label} documents the optional routes' base-route fallback`);
+
+  // Examples are metavariables only: no concrete prescriptive model name or
+  // session-model recommendation ships in the fragment, and the placeholder
+  // example values are not usable assignments (the shared loader rejects
+  // them; the prose says they must be replaced before use).
+  const fragmentSection = text.slice(text.indexOf("## Model configuration (this installation)"));
+  check(!/openai\/|anthropic\/|google\/gemini|gpt-\d|claude-|gemini-/i.test(fragmentSection), `fragment content: ${label} carries no concrete model names`);
+  check(!/Sol-class|session default to select/i.test(fragmentSection), `fragment content: ${label} carries no prescriptive session-model recommendation`);
+  check(fragmentSection.includes("placeholders, not usable assignments"), `fragment content: ${label} marks the example placeholders as not usable assignments`);
+  let placeholderRejected = false;
+  try {
+    parseModelValue("<provider/model#variant>", "review");
+  } catch {
+    placeholderRejected = true;
+  }
+  check(placeholderRejected, "fragment content: the combined placeholder example value is rejected by the shared model-value parser");
+
+  // The proactive no-file note: one non-blocking line through the existing
+  // default lookup only, describing the inheritance policy and pointing at
+  // configure and the packaged starter; no extra reads; the named-profile
+  // missing-file error stays an error.
+  check(fragmentSection.includes("one non-blocking note"), `fragment content: ${label} carries the one-line non-blocking no-file note`);
+  check(fragmentSection.includes("every role inherits the session model"), `fragment content: ${label} no-file note describes the inheritance policy`);
+  check(fragmentSection.includes("user-invoked `configure` skill"), `fragment content: ${label} no-file note points at the user-invoked configure skill`);
+  check(fragmentSection.includes("](../configure/references/preferences.example.md)"), `fragment content: ${label} no-file note links the packaged starter install-relative`);
+  check(fragmentSection.includes("reads nothing extra"), `fragment content: ${label} no-file note adds no extra reads`);
+  check(fragmentSection.includes("a missing named `--profile` file remains an error"), `fragment content: ${label} keeps the missing named-profile error`);
+  check(fragmentSection.includes("A missing selected file is a concise, actionable error"), `fragment content: ${label} keeps the named-profile error contract`);
 }
 
 const BASE_ROLES = ["explore", "implement", "implement-hard", "fix", "review", "review-deep", "consult"];
@@ -299,10 +332,21 @@ try {
 
     // Without a configured coordinator the commands stay caller-session
     // launchers: description-only frontmatter, exact skill load, $ARGUMENTS.
-    for (const name of ["work", "review", "autonomous"]) {
+    for (const name of ["work", "review", "autonomous", "configure"]) {
       const text = await readText(join(fixture.openCodeRoot, "commands", `${name}.md`));
       check(!/^agent:/m.test(text) && !/^subagent:/m.test(text), `default build: ${name} command has no agent/subagent binding`);
       check(text.includes(`\`${name}\``) && text.includes("$ARGUMENTS"), `default build: ${name} command keeps the exact skill load and $ARGUMENTS`);
+    }
+
+    // The packaged configure skill reaches the starter install-relative in
+    // every output; the authored skill keeps the source-checkout link.
+    const authoredConfigure = await readText(join(repository, "skills", "configure", "SKILL.md"));
+    check(authoredConfigure.includes("[examples/preferences.example.md](../../examples/preferences.example.md)"), "authored configure skill keeps the source-checkout starter link");
+    for (const [label, root] of [["plugin", join(fixture.pluginRoot, "skills")], ["standalone", fixture.standaloneRoot], ["opencode", join(fixture.openCodeRoot, "skills")]]) {
+      const packaged = await readText(join(root, "configure", "SKILL.md"));
+      check(packaged.includes("[preferences.example.md](references/preferences.example.md)"), `${label} configure skill links the packaged starter install-relative`);
+      check(!packaged.includes("](../../examples/preferences.example.md)"), `${label} configure skill carries no source-checkout starter link`);
+      check(await readText(join(root, "configure", "references", "preferences.example.md")) === await readText(join(repository, "examples", "preferences.example.md")), `${label} packaged starter is verbatim the authored root starter`);
     }
 
     // Fragment splicing: the authored fragment is the final top-level section
@@ -331,21 +375,26 @@ try {
       ["opencode work", join(fixture.openCodeRoot, "skills", "work", "SKILL.md")],
       ["opencode review", join(fixture.openCodeRoot, "skills", "review", "SKILL.md")],
       ["opencode autonomous", join(fixture.openCodeRoot, "skills", "autonomous", "SKILL.md")],
+      ["opencode configure", join(fixture.openCodeRoot, "skills", "configure", "SKILL.md")],
       ["plugin pull-request-description", join(fixture.pluginRoot, "skills", "pull-request-description", "SKILL.md")],
       ["plugin source-code-lookup", join(fixture.pluginRoot, "skills", "source-code-lookup", "SKILL.md")],
+      ["plugin configure", join(fixture.pluginRoot, "skills", "configure", "SKILL.md")],
       ["standalone pull-request-description", join(fixture.standaloneRoot, "pull-request-description", "SKILL.md")],
       ["standalone source-code-lookup", join(fixture.standaloneRoot, "source-code-lookup", "SKILL.md")],
+      ["standalone configure", join(fixture.standaloneRoot, "configure", "SKILL.md")],
     ];
     for (const [label, path] of fragmentAbsence) {
       const text = await readText(path);
       check(!text.includes(title), `fragment: ${label} does not carry the fragment`);
     }
 
-    // No routing artifact ships anywhere in any build output.
-    for (const [label, root] of [["plugin", fixture.pluginRoot], ["standalone", fixture.standaloneRoot], ["opencode", fixture.openCodeRoot]]) {
+    // No routing artifact ships anywhere in any build output. The retired
+    // starter location stays banned; the current starter ships only under
+    // configure/references/ (asserted positively above).
+    for (const [label, root, prefix] of [["plugin", fixture.pluginRoot, "skills/"], ["standalone", fixture.standaloneRoot, ""], ["opencode", fixture.openCodeRoot, "skills/"]]) {
       const rel = await listRelative(root);
       check(!rel.some((p) => p === "work/references/routing.json" || p.endsWith("/routing.json")), `${label} bundle ships no routing.json`);
-      check(!rel.some((p) => p.endsWith("preferences.example.md")), `${label} bundle ships no preferences.example.md`);
+      check(!rel.includes(`${prefix}work/references/preferences.example.md`), `${label} bundle ships no retired work/references/preferences.example.md`);
       check(!rel.some((p) => p.endsWith("scripts/routing.mjs")), `${label} bundle ships no routing.mjs`);
     }
   }
@@ -392,8 +441,10 @@ try {
     const reviewDeep = await readText(join(example.openCodeRoot, "agents", "agenticale", "review-deep.md"));
     check(stripFrontmatter(reviewDeep).trim() === reviewDeepContract.trim(), "example build: review-deep body is verbatim the renamed review-deep contract");
 
-    // With a configured coordinator every command binds it in the current
-    // session while keeping the exact skill load and $ARGUMENTS.
+    // With a configured coordinator every workflow command binds it in the
+    // current session while keeping the exact skill load and $ARGUMENTS; the
+    // configure command stays a caller-session launcher (setup is not a
+    // workflow round).
     for (const name of ["work", "review", "autonomous"]) {
       const text = await readText(join(example.openCodeRoot, "commands", `${name}.md`));
       check(/^agent: agenticale\/coordinator$/m.test(text), `example build: ${name} command binds agent: agenticale/coordinator`);
@@ -402,6 +453,9 @@ try {
       const template = (await readText(join(repository, "adapters", "opencode", "commands", `${name}.md`))).replace(/\r\n?/g, "\n");
       check(stripFrontmatter(text) === stripFrontmatter(template), `example build: ${name} command body is byte-identical to the template body`);
     }
+    const exampleConfigure = await readText(join(example.openCodeRoot, "commands", "configure.md"));
+    check(!/^agent:/m.test(exampleConfigure) && !/^subagent:/m.test(exampleConfigure), "example build: the configure command stays a caller-session launcher despite the configured coordinator");
+    check(exampleConfigure.includes("`configure`") && exampleConfigure.includes("$ARGUMENTS"), "example build: configure command keeps the exact skill load and $ARGUMENTS");
   }
   {
     // --no-model: every role inherits; no profile carries a model line and
@@ -418,7 +472,7 @@ try {
       const text = await readText(join(noModel.openCodeRoot, "agents", "agenticale", `${role}.md`));
       check(!/^model:/m.test(text) && !/^reasoningEffort:/m.test(text), `--no-model build: ${role} profile has no model/effort lines`);
     }
-    for (const name of ["work", "review", "autonomous"]) {
+    for (const name of ["work", "review", "autonomous", "configure"]) {
       const text = await readText(join(noModel.openCodeRoot, "commands", `${name}.md`));
       check(!/^agent:/m.test(text) && !/^subagent:/m.test(text), `--no-model build: ${name} command has no agent/subagent binding`);
     }
@@ -449,7 +503,7 @@ try {
     check(!/^model:/m.test(consult) && !/^reasoningEffort:/m.test(consult), "caller build: an unlisted role inherits (no model line)");
     const agentsRel = await listRelative(join(caller.openCodeRoot, "agents", "agenticale"));
     check(JSON.stringify(agentsRel) === JSON.stringify(BASE_ROLES.map((role) => `${role}.md`).sort()), "caller build: unlisted optional roles and the coordinator do not render");
-    for (const name of ["work", "review", "autonomous"]) {
+    for (const name of ["work", "review", "autonomous", "configure"]) {
       const text = await readText(join(caller.openCodeRoot, "commands", `${name}.md`));
       check(!/^agent:/m.test(text) && !/^subagent:/m.test(text), `caller build: ${name} command stays a caller-session launcher without a coordinator`);
     }
@@ -471,6 +525,8 @@ try {
       const text = await readText(join(caller.openCodeRoot, "commands", `${name}.md`));
       check(/^agent: agenticale\/coordinator$/m.test(text) && /^subagent: false$/m.test(text), `coordinator-only build: ${name} command binds the coordinator in the current session`);
     }
+    const coordOnlyConfigure = await readText(join(caller.openCodeRoot, "commands", "configure.md"));
+    check(!/^agent:/m.test(coordOnlyConfigure) && !/^subagent:/m.test(coordOnlyConfigure), "coordinator-only build: the configure command stays a caller-session launcher");
   }
   {
     // Regression: the packaged default must resolve against the repository
