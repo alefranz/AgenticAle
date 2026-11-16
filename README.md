@@ -143,8 +143,12 @@ exact content before anything is written. The details are in the
 
 Work leaves changes ready for your review unless you ask it to prepare and open
 a pull request. Autonomous keeps a durable handoff in the target project and,
-by default, commits and pushes each completed task before the next one starts;
-when a run stops, attributable unfinished work is checkpointed as explicit WIP
+by default, commits and pushes each completed task before the next one starts.
+The invocation itself is the explicit authorization, so a conditional "do not
+commit unless asked" repository guard is satisfied, not a restriction: only an
+actual prohibition selects a restricted policy, cited concretely, and the run
+states its policy and warns when accepted work stays uncommitted or unpushed.
+When a run stops, attributable unfinished work is checkpointed as explicit WIP
 commits under the same policy, never as completed tasks; if persistence is
 blocked, the run stops local-only and defers that persistence to a reconciling
 resume. Explicit user or

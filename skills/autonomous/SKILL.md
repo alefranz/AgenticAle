@@ -348,12 +348,74 @@ every child:
 
 Explicit user or repository restrictions win over the default: adopt and
 record the restricted policy with its basis, and follow it — never bypass a
-restriction to satisfy the default. A resume — empty or numeric — and a
-steering invocation keep the recorded policy; a working-tree or commit-only
-run never silently gains push rights. A handoff with no recorded policy
-predates the commit-and-push default and resumes as working tree. Only an
-explicit user request changes an active run's policy, recorded with its
-basis.
+restriction to satisfy the default. A restriction is an actual prohibition
+or limit — the user asks to leave changes uncommitted or not to push, or
+repository instructions forbid commits or pushes — cited concretely (the
+user text or the instruction) when the policy is recorded. A conditional
+guard such as "do not commit or push unless explicitly asked/authorized" is
+not a prohibition: the explicit autonomous invocation is that request, and
+it satisfies the guard's condition for the run's authorized persistence
+boundaries under the chosen policy. Neither Work's uncommitted default (a
+different workflow), nor the children's no-commit rule (a role boundary —
+the coordinator owns Git), nor the coordinator role itself is a basis for a
+restricted policy; without a concrete cited prohibition the new-run default
+stands.
+
+State the chosen policy and its basis visibly at the start of a run and on
+every fresh resume, and warn explicitly when the policy leaves accepted work
+uncommitted or unpushed: commit-only leaves every commit unpushed;
+working-tree leaves accepted changes uncommitted and unpushed. A resume —
+empty or numeric — and a steering invocation keep the recorded policy; a
+working-tree or commit-only run never silently gains push rights. A handoff
+with no recorded policy predates the commit-and-push default and resumes as
+working tree, stated with that warning — never silently upgraded.
+
+Only an explicit user request changes an active run's policy, recorded with
+its basis. When the user changes the active policy to commit or
+commit-and-push, reconcile outstanding persistence under the new policy
+before any further dispatch. Re-evaluate the active run's completed tasks
+against the new policy, not the former one: a task finalized under
+working-tree or commit-only policy satisfied its gate under that policy,
+but its accepted product work can remain unpersisted under the new one —
+accepted changes still uncommitted, or local commits never pushed. Reopen
+every such task, including tasks whose completion record is already
+finalized and archived; a former-policy finalization never satisfies the
+new-policy gate. A task whose accepted work is already fully persisted
+under the new policy's scope is left untouched.
+
+The reopening is persistence-only: closed reviews and verdicts, consumed
+counters, the recorded `NEXT`, and archived evidence stay unchanged — no
+re-review, no rework, no new slice. The coordinator reconciles it itself,
+dispatching no child and consuming no budget, under the ordinary
+destination, scope, and failure rules, in a fixed, finite order. First,
+each reopened task goes through the
+[task persistence gate](#task-persistence-gate) in completion order:
+existing product and recorded WIP checkpoint commits are verified and
+reused, never re-committed; only the missing persistence is created —
+coherent task commits for accepted working-tree changes, the confirmed
+ordinary push under commit-and-push, and exactly one bounded state-only
+finalization updating the existing completion record (backlog result line,
+archived record's persistence state, active handoff) with the confirmed
+hashes and destination. Then a significant reconciliation not yet persisted
+under the new policy receives its
+[reconciliation checkpoint](#reconciliation-checkpoints): an existing
+checkpoint commit is reused — pushed as-is under commit-and-push, never
+re-created. Each gate's finalization commits the changed durable state not
+yet committed, so it carries the landed edits of an earlier uncommitted
+reconciliation; the checkpoint creates a commit only for reconciliation
+state no finalization or earlier checkpoint already carried, and confirms
+already-persisted state read-only — never a second commit for the same
+state. Finally, under commit-and-push, any remaining unpushed run commits
+— such as WIP checkpoints of open or deferred tasks — are pushed as-is in
+dependency order and confirmed. Throughout, reconcile the actual local and
+remote state: a commit already confirmed on the remote is never duplicated
+or re-committed, and a confirmed push is recorded, not repeated. A
+rejected, failed, or uncertain push follows the same failure rules: record
+the exact persistence state, stop local-only, and defer the remaining
+reconciliation to a reconciling resume. The policy authorizes Git at the
+run's defined persistence boundaries — completed tasks, stop-boundary WIP
+checkpoints, significant reconciliation checkpoints, and bounded state
+finalization — not a commit for every edit, slice, or round.
 
 The coordinator (main loop) owns every commit and push: worker, fix, review,
 and review-deep children leave their verified changes and operational notes
@@ -380,7 +442,9 @@ recorded policy.
 Slices and tasks are different units: a slice is one worker round's bounded
 outcome with its own review gate; a task is the backlog outcome, which may
 contain several slices. The gate applies once per completed task, under the
-active policy:
+active policy; an explicit policy upgrade re-evaluates it for completed
+tasks whose accepted work is unpersisted under the new policy (see
+[Git persistence between handoffs](#git-persistence-between-handoffs)):
 
 1. **Required checks and reviews are complete.** Every slice of the task has
    passed its required gate — the strict review gate, or standard mode's
@@ -773,16 +837,22 @@ when the run ceiling is exhausted.
 ## Setup (round 0, done by the main loop)
 
 1. Parse the goal, the round budget, the mode, and the git persistence
-   policy. A new run defaults to commit and push per completed task; explicit
-   user or repository restrictions select the commit-only or working-tree
-   policy instead, recorded with their basis. A resume or steering invocation
-   keeps the recorded policy unless the user explicitly changes it. If no
-   budget was given, use the default run ceiling of 6 worker rounds; do not
-   auto-grow the default for large goals — a larger ceiling is
-   the user's explicit numeric override or a later named grant. Strict-mode
-   review rounds are cheap and are not counted against the worker budget.
-   Assign the run identity, record the ceiling and the default task allowance
-   of 12, and state all four parsed choices.
+   policy. A new run defaults to commit and push per completed task; only an
+   explicit user or repository prohibition selects the commit-only or
+   working-tree policy instead, recorded with its concretely cited basis — a
+   conditional "unless explicitly asked" guard is satisfied by the
+   invocation, not a restriction (see
+   [Git persistence between handoffs](#git-persistence-between-handoffs)).
+   A resume or steering invocation keeps the recorded policy unless the user
+   explicitly changes it; a legacy handoff with no recorded policy resumes as
+   working tree. If no budget was given, use the default run ceiling of 6
+   worker rounds; do not auto-grow the default for large goals — a larger
+   ceiling is the user's explicit numeric override or a later named grant.
+   Strict-mode review rounds are cheap and are not counted against the worker
+   budget. Assign the run identity, record the ceiling and the default task
+   allowance of 12, and state all four parsed choices, the persistence
+   policy's basis, and — when the policy leaves accepted work uncommitted or
+   unpushed — the explicit warning.
 2. Read only what is needed to define round 1: `.agenticale/handoffs/active.md`
    (or, only while initializing it, the first active "Next slice" item in
    `BACKLOG.md`), the `## Steering` section of `BACKLOG.md` when present,
@@ -1650,7 +1720,10 @@ Stop the loop and report to the user when any of these hit:
 - What was achieved, with evidence (changed files or commit hashes, test
   results, review verdicts).
 - Where the work now stands (handoff state, including any material change to
-  a role's model selection reported on resume) and the exact next step.
+  a role's model selection reported on resume) and the exact next step. Under
+  a restricted policy, state that accepted work remains unpushed
+  (commit-only) or uncommitted and unpushed (working tree), per the recorded
+  policy and its basis.
 - Open blockers or decisions needed.
 - For an incomplete stop, the continuation prompt: outcome and blockers with
   evidence, what actually exists (files, branches, commits) and what to
@@ -1829,4 +1902,22 @@ the main loop may make itself even though it normally does not edit files.
   Git at every persistence boundary.
 - Silently upgrading a resumed working-tree or commit-only run to push
   rights, or bypassing an explicit user or repository restriction to satisfy
-  the default policy.
+  the default policy — and resuming a legacy working-tree handoff without
+  stating the policy and warning that accepted work stays uncommitted and
+  unpushed.
+- Reading a conditional repository guard ("do not commit unless explicitly
+  asked") as an absolute prohibition, or citing Work's uncommitted default,
+  the children's no-commit rule, or the coordinator role as the basis for a
+  restricted policy — the invocation satisfies the conditional guard; a
+  restricted policy needs a concrete cited prohibition.
+- Reporting a task or run as successfully completed under commit-and-push
+  while its accepted changes are uncommitted or unpushed — that outcome is
+  valid only under a recorded restricted policy, with its warning, or as a
+  persistence-blocked stop that reports the exact deferred state and reason.
+- Changing the active policy to commit or commit-and-push on the user's
+  explicit request and dispatching the next round before the outstanding
+  completed-task and significant-reconciliation persistence is reconciled
+  under the new policy — a task finalized and archived under the former
+  policy is still re-evaluated, its former-policy gate satisfaction does
+  not exempt its unpersisted accepted work, and the reconciliation reopens
+  persistence only: no re-review, no counter reset, no duplicated commits.
