@@ -316,8 +316,8 @@ slice's changes are in the tree.
 Expected behavior:
 
 - Do not dispatch another worker round.
-- Run the permitted review of the last allowed worker; the review cap is
-  separate from the worker allowance.
+- Run the permitted review of the last allowed worker; the review accounting
+  is separate from the worker allowance.
 - If more work is then required, stop with the exhausted allowance, the
   completed and blocked state, and the recent material progress.
 
@@ -350,8 +350,8 @@ Expected behavior:
 
 ## Structured stop with an interaction tool available
 
-A slice has used both fix cycles with blocking findings still open, and the
-host offers an interaction tool.
+In reviewed task work, a slice has used both fix cycles with blocking findings
+still open, and the host offers an interaction tool.
 
 Expected behavior:
 
@@ -397,15 +397,17 @@ Expected behavior:
 
 ## Exhausted fix and review allowances: a consult cannot grant another fix
 
-Strict mode. A slice has used both fix cycles, the third review pass still
-carries blocking findings, and a consult on the surviving findings
+Reviewed task work. A slice has used both fix cycles, the third review pass
+still carries blocking findings, and a consult on the surviving findings
 recommends a specific repair.
 
 Expected behavior:
 
-- Do not dispatch a third fix cycle or a further review pass: the shared
-  two fix cycles and three review passes gate every dispatch, and a
-  consult's recommendation is a second opinion, not an allowance.
+- Do not dispatch a third fix cycle or a further review pass: Work's two fix
+  cycles and three review passes gate every dispatch, and a consult's
+  recommendation is a second opinion, not an allowance. (Autonomous Mode is
+  different: its fix continuation is bounded by the effective worker budget,
+  not these per-target cycle caps — see the continuation fixtures below.)
 - Report the exhausted fix and review allowances with the completed and
   blocked state and the recent material progress, and offer the
   situation-appropriate choices — a bounded replan, one additional bounded
@@ -430,6 +432,177 @@ Expected behavior:
   the fix and review rounds the continuation needs — or stopping; a
   declined or unanswered option ends the stop with the continuation prompt,
   no re-ask, and no scheduled resume.
+
+## Autonomous productive continuation beyond the legacy cycle defaults
+
+Strict-mode Autonomous run. Target T1/R2-001 has already used more than two
+fix rounds and three review passes; the latest fix made real, verified
+progress and the newest review still reports one blocking finding. The
+effective worker budget shows three rounds remaining (the smaller of the
+task's remaining allowance and the run's remaining ceiling), the work is
+reversible under the recorded persistence policy, and no progress safeguard
+or explicit user limit has fired.
+
+Expected behavior:
+
+- Continue unattended: dispatch the next fix round and then an independent
+  re-review of the changed delta. Do not stop to ask the user to "authorize
+  one more bounded cycle", add a fix cycle and a review pass, or confirm an
+  available deep re-audit — the legacy two-fix/three-review and two-re-audit
+  defaults are not authorization gates in Autonomous Mode.
+- Charge the fix exactly once against BOTH durable budgets before launch
+  (run and task counters each increment by one); the re-review debits neither
+  worker budget and is justified by the changed fix evidence.
+- Keep the target's fix/review counters as durable evidence — the historical
+  counts above the legacy defaults are retained, never reset or re-identified
+  to make the target look fresh.
+- The same situation in reviewed task work stops at the two-fix cap instead:
+  Work's per-slice caps are unchanged (see the Work fixtures above).
+
+## Autonomous deep findings continue beyond the legacy re-audit cap
+
+A periodic or escalated deep review of an Autonomous target returns blocking
+findings after two re-audits have already run this session. The effective
+worker budget still covers another fix, each prior fix made real progress,
+and the envelope holds. In a variant, the slice needed two fix rounds before
+its ordinary review passed.
+
+Expected behavior:
+
+- Each blocking finding receives a dedicated fix round charged once to both
+  worker budgets; judgmental findings are followed by a fresh deep review
+  scoped to the fix delta and the invariants it touched, and mechanical-only
+  rounds close by local verification. The re-audit continues past the legacy
+  two-per-target cap while fixes stay productive — no authorization prompt,
+  and no unjustified re-audit of unchanged evidence.
+- The two-fix struggle trigger fires the opportunistic escalation check as
+  soon as the slice has needed at least two fix rounds, whether or not a
+  later pass eventually passed; the session still runs at most one
+  opportunistic escalation unless the user explicitly directs another, and
+  the periodic triggers are unchanged.
+- The worker budget gates the next fix, not the re-review: the required deep
+  re-review of the last allowed judgmental fix still dispatches when zero
+  effective worker rounds remain. When a blocking verdict survives that
+  re-review with no effective worker round left for another fix — or a
+  progress safeguard fires — an exhausted run ceiling stops the run under
+  the stop conditions with the named increment a continuation needs; an
+  exhausted task allowance alone defers the target incomplete and
+  review-open, and the run continues with another truly independent ready
+  task when one can be selected safely. A consult cannot grant budget.
+
+## Autonomous budget exhaustion: the required review still runs, blockers prevent completion
+
+An Autonomous target's last effective worker round is spent on a fix. The
+fix's changes are verified and in the tree; the strict review gate has not
+yet run for them. In a variant, the last allowed worker round is a
+judgmental fix to a deep-review finding, due its fresh deep re-review.
+
+Expected behavior:
+
+- Dispatch no further worker round for the target: the effective worker
+  budget is exhausted. The required review of the last allowed worker still
+  runs under the review accounting — review rounds debit neither worker
+  budget. In the variant, the required deep re-review dispatches with zero
+  effective worker rounds left: the budgets gate fix dispatch, not review,
+  and the re-review is never skipped for lack of fix budget.
+- A clean review lets the slice proceed to its remaining gates; blocking
+  findings keep the target incomplete and review-open — blockers prevent
+  completion, and no automatic extra fix cycle runs.
+- When the run ceiling is exhausted, stop the run under the allowance-stop
+  rules, reporting the exhausted budget, the completed and blocked state,
+  and the recent material progress, and offer the named worker increment a
+  continuation needs (a fix is a worker round); a consult cannot grant it.
+- An exhausted task allowance alone defers only that task: the target stays
+  incomplete and review-open with its resumable packet and open findings, a
+  truly independent ready task may be selected with its fresh allowance, and
+  the run stops for budget only when the run ceiling is exhausted or no safe
+  ready work remains. No review gate, dependency, or safety boundary is
+  bypassed to keep the run going.
+
+## Autonomous no-progress stop despite remaining budget
+
+An Autonomous target has effective worker rounds remaining, but two
+consecutive fix rounds made no net progress on the surviving blocking
+finding; in a variant, the same task reports the same blocker two rounds in
+a row.
+
+Expected behavior:
+
+- Stop under the unchanged progress safeguards — two consecutive no-progress
+  worker rounds, or the same blocker twice — even though budget remains.
+  Remaining budget is not a reason to keep fixing a wall.
+- A consult may recommend a materially different path, but that path still
+  consumes the worker allowance and a consult cannot grant one; otherwise do
+  not burn rounds on a wall only the user can decide. Repeated findings on a
+  genuinely unmet invariant still reopen the plan with the original
+  acceptance and counters intact, and reviewer standard drift is still
+  settled once, not chased.
+
+## Autonomous explicit user limits and legacy caps on resume
+
+An Autonomous handoff records an explicit user limit ("at most three fix
+rounds for T2") alongside its counters. In a variant, the handoff was
+recorded under the legacy default caps with two fixes and three review
+passes already used, and the user resumes with plain `/autonomous` while
+effective worker rounds remain and fixes are productive.
+
+Expected behavior:
+
+- The explicit user limit stays binding: reaching it stops the loop under the
+  stop/decision policy with the named increment a continuation needs; only a
+  user grant extends it, and the grant never resets counters.
+- The legacy default caps do not re-gate the resumed run: with budget,
+  progress, and permissions intact, the resume continues the fix → review
+  loop unattended past the recorded two-fix/three-review counts. The
+  historical counters persist as evidence — a resume, replan, rename, or
+  interruption recovery resets or re-identifies nothing, and no new state
+  file is created.
+- A numeric resume still changes the run ceiling only; persisted consumption
+  carries over, and an explicit user review limit, where recorded, is
+  extended only by the review rounds a named grant names.
+
+## Autonomous review-only loops over unchanged evidence are prohibited
+
+An Autonomous target's latest review returned blocking findings, but no fix
+has changed the diff since; in a variant, a mechanical fix closed by its
+deterministic check; in another, a review child was interrupted mid-verdict;
+and in another, the periodic deep-review gate fires over a range whose
+slices already passed their per-slice reviews.
+
+Expected behavior:
+
+- No unjustified re-review of unchanged evidence: a review round needs
+  changed slice or fix evidence, a required integration gate (periodic or
+  opportunistic deep review), or bounded interrupted-review recovery over
+  the same range. Dispatching another review just to spend availability, or
+  looping review-only rounds hoping for a different verdict, is prohibited
+  even while review rounds remain dispatchable.
+- The mechanical fix closes by the coordinator's deterministic check without
+  another full review. The interrupted review is replaced by one fresh
+  review child over the same range under the review accounting — not a
+  worker round, and not a reason to re-review accepted work.
+- The periodic gate's deep review over the already-reviewed range is
+  justified as a required integration gate — a justified same-range review,
+  not an autonomy-envelope guard breach. A further deep re-audit with no fix
+  delta, no gate trigger, and no interrupted review to recover is
+  unjustified and prohibited.
+
+## Work keeps the shared cycle caps: the same third-fix situation
+
+Reviewed task work. A slice has used two fix cycles and three review passes
+with a blocking finding still open, while several worker rounds of the
+task's allowance remain unused.
+
+Expected behavior:
+
+- Stop at the per-slice cap: Work allows at most two fix cycles and three
+  review passes per slice or combined-review target, regardless of remaining
+  worker allowance. Report the exhausted fix/review allowance and offer the
+  named increments; do not continue unattended past the cap.
+- The Autonomous continuation policy above changes nothing here: Work's
+  caps, its one-consultation-per-task allowance, and its stop/continuation
+  rules are unchanged, and the shared round contract's two-fix default still
+  binds Work.
 
 ## Autonomous budgets: a 20-round run with an exhausted task
 
@@ -459,7 +632,8 @@ Expected behavior:
   existing safety/blocker/human-decision gate hits.
 - Continuing T1 later needs a named user grant to T1's task allowance (and
   run remaining); the grant never resets counters. Review, review-deep, and
-  consult rounds consumed none of the worker budgets and kept their own caps.
+  consult rounds consumed none of the worker budgets and kept their own
+  accounting.
 
 ## Task exhaustion: independent ready work continues, gates never bend
 
@@ -658,7 +832,7 @@ Expected behavior:
 - T1 is skipped in worker selection with a recorded note even though
   steering names it first; T2 is selected with its fresh allowance and the
   run progresses. The exhausted task never repeatedly wins selection.
-- T1's permitted review remains schedulable under the unchanged review caps
+- T1's permitted review remains schedulable under the unchanged review rules
   and debits neither worker budget. No gate, dependency, or conflict is
   bypassed, and no task is manufactured.
 
@@ -1198,7 +1372,7 @@ Expected behavior:
 - Record the interruption in the ledger and start a fresh review child over
   the same range from the active handoff; the partial verdict is not a
   completed review.
-- The continuation is accounted under the unchanged review caps — it is not
+- The continuation is accounted under the unchanged review rules — it is not
   a worker round and never debits the task allowance or the run ceiling:
   run stays 4/6 and T1 stays 4/12. A worker continuation in the same
   situation would instead be a new worker round with its own single charge.

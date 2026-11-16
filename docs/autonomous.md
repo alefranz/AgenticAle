@@ -41,7 +41,8 @@ long-running chat.
 
 The agent that writes a change does not mark its own work. A fresh agent
 reviews the result, and blocking findings go through a focused fix and review
-loop up to a configured limit. Each accepted round leaves a durable handoff so
+loop bounded by the run's worker budgets and progress safeguards — not a
+fixed per-target cycle count. Each accepted round leaves a durable handoff so
 another agent or a later session can continue without reconstructing the plan
 from chat history.
 
@@ -250,10 +251,36 @@ Every run has two durable worker-round budgets:
 
 Every explore, implement, and fix round is charged once to both the current
 task and the run; the effective remaining worker budget is the smaller of the
-two. Review, review-deep, and consult rounds keep their own caps and consume
-neither worker budget. Only a genuinely new task receives a fresh allowance:
-decomposition, replanning, resume, and interruption recovery keep the same
-task identity and consumed counters.
+two. Review, review-deep, and consult rounds keep their own accounting and
+consume neither worker budget. Only a genuinely new task receives a fresh
+allowance: decomposition, replanning, resume, and interruption recovery keep
+the same task identity and consumed counters.
+
+Productive fix continuation is bounded by that effective worker budget, not
+by the shared default two fix cycles (three review passes) or two deep
+re-audits per target. While at least one effective worker round remains, the
+latest fix made real progress, and the autonomy envelope holds, the
+coordinator continues the fix → verify → re-review loop unattended — no
+repeated prompts to authorize one more target cycle. Every review needs
+changed slice or fix evidence, a required integration gate, or bounded
+interrupted-review recovery; review-only loops over unchanged evidence are
+prohibited. Fix and review counters persist as per-target evidence across
+resumes, replans, and renames, with no reset or re-identification; counts
+recorded under the legacy default caps are retained as evidence but never
+re-gate a resumed run, while an explicit user limit recorded in the durable
+state stays binding. The no-progress, same-blocker, and repeated-interruption
+safeguards and the invariant-replanning rules stop the loop regardless of
+remaining budget. When the budget is exhausted, no further fix runs, but the
+required review of the last allowed worker — including the deep re-review of
+a last allowed judgmental fix — still runs at zero worker rounds: the budgets
+gate fix dispatch, not review. Surviving blockers keep the target incomplete
+and review-open; an exhausted run ceiling stops the run with the named
+increment a continuation needs, while an exhausted task allowance alone
+defers the target and the run continues with another truly independent ready
+task when one can be selected safely. Consults remain capped at one per
+decision and two per session and cannot grant worker budget; the session
+still runs at most one opportunistic deep review escalation, and its struggle
+trigger fires at two or more fix rounds on a slice.
 
 Round 0 records a stable run identity; every task receives its stable ID
 (`T1`, `T2`, … in recording order) when it enters the backlog, before any

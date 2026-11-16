@@ -251,13 +251,14 @@ round. The report says what is completed and what is blocked, and the recent
 material progress, and offers bounded choices — a bounded replan, one
 additional fix-and-review cycle, or a stop that preserves the current work —
 naming the rounds each choice consumes. A granted extension adds exactly the
-named worker, fix, and review rounds to the named budget (run ceiling or task
-allowance): it never resets counters and grants no extra scope, review, or
-Git rights. A consult can settle a reversible decision but cannot grant one,
-and declining or not answering ends the stop. Allowance usage and any granted
-extension are persisted in the active handoff, and the incomplete stop
-carries a copy-pasteable continuation prompt so a later activation can act on
-the grant.
+named rounds — worker rounds (fix rounds are worker rounds) to the named
+budget (run ceiling or task allowance), and review rounds only against an
+explicit user review limit: it never resets counters and grants no extra
+scope, review, or Git rights. A consult can settle a reversible decision but
+cannot grant one, and declining or not answering ends the stop. Allowance
+usage and any granted extension are persisted in the active handoff, and the
+incomplete stop carries a copy-pasteable continuation prompt so a later
+activation can act on the grant.
 
 One task's exhausted allowance is not a run stop. No further worker round
 runs for that task, but verification and the permitted review of its
@@ -270,6 +271,37 @@ even while unfinished changes exist — without ever bypassing review gates,
 dependencies, or safety boundaries, and without manufacturing tasks. When no
 safe ready work remains, the run stops with the preserved state and the
 continuation prompt.
+
+Productive fixes continue unattended while budget and progress allow.
+Autonomous does not gate the fix → review loop at a fixed per-target cycle
+count: each further fix is a worker round charged once to both budgets, and
+the loop continues — including beyond two fixes or three review passes on one
+target — while at least one effective worker round remains, the latest fix
+made real progress, and no safeguard or explicit user limit has fired. It
+does not repeatedly ask you to authorize one more cycle. Every review must be
+justified by changed slice or fix evidence, a required integration gate, or
+bounded interrupted-review recovery; a review-only loop over unchanged
+evidence is prohibited. Fix and review counters persist as evidence across
+resumes, replans, and renames — nothing resets or re-identifies them — and
+explicit limits you recorded stay binding; legacy default cycle caps never
+re-gate a resumed run.
+
+Deep-review re-audits likewise follow productive fixes instead of a fixed
+per-target cap. The worker budget gates the next fix, not the review: the
+required deep re-review of the last allowed judgmental fix still runs when
+zero worker rounds remain. The session still runs at most one opportunistic
+escalation — triggered when a slice touches a high-risk surface, needs at
+least two fix rounds, or you explicitly ask for one — and the periodic
+integration triggers are unchanged. Consults stay capped at one per decision
+and two per session and can never grant worker budget. When the worker budget
+is exhausted, fixes stop but the required review of the last allowed worker
+still runs; surviving blockers keep the target incomplete and review-open.
+An exhausted run ceiling stops the run and offers the named increment a
+continuation needs; an exhausted task allowance alone defers that task while
+the run continues with another truly independent ready task when one can be
+selected safely. The no-progress, same-blocker, and repeated-interruption
+safeguards, invariant replanning, and the scope, irreversible-action,
+user-preference, Git, persistence, and steering limits all still apply.
 
 Repeated findings on the same invariant are classified as a real
 design issue — replanned with the original acceptance and counters intact —

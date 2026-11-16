@@ -616,7 +616,12 @@ task and the run. Exploration that defines a task belongs to that task's
 allowance. The effective remaining worker budget is the smaller of the task's
 remaining allowance and the run's remaining ceiling; a worker dispatch needs
 at least one effective round. Review, review-deep, and consult rounds do not
-consume either worker budget and keep their own unchanged caps.
+consume either worker budget. Consult rounds keep their unchanged caps — one
+per decision, two per session. Review and review-deep rounds keep their own
+accounting and are bounded by the review-justification rules, not a fixed
+per-target pass count; the shared two-fix/three-review and two-re-audit
+defaults are not authorization gates in this workflow (see
+[Fix continuation and review justification](#fix-continuation-and-review-justification)).
 
 Only a genuinely new task receives a fresh task allowance. Decomposing a
 task, replanning it, resuming it, steering it, or recovering it from an
@@ -751,7 +756,7 @@ When a task's allowance is exhausted, dispatch no further worker round for
 that task and exclude it from worker selection until a user grant extends
 its allowance, so an exhausted deferred task cannot repeatedly win
 selection. Verification and the permitted review of its completed changes
-still run under the unchanged review caps and remain schedulable; an
+still run under the unchanged review rules and remain schedulable; an
 unfinished task is still not reviewed as if complete. Whatever remains
 unfinished stays incomplete:
 record the findings, the current state, and exactly one next action, and keep
@@ -886,7 +891,7 @@ requires worker eligibility: at least one effective worker round remains for
 the task under both its allowance and the run ceiling. An allowance-exhausted
 task is not worker-ready and is skipped with a recorded note even when
 steering names it first, while the permitted review of its completed changes
-remains schedulable under the review caps. Selecting a genuinely new task
+remains schedulable under the review rules. Selecting a genuinely new task
 allocates its fresh allowance (its stable ID was assigned when it entered the
 backlog); returning to a deferred task restores its recorded packet,
 identity, and counters. Example: steering lists exhausted T1 before ready,
@@ -1018,7 +1023,7 @@ only even if the host created a child session before returning the rejection.
 Reconcile the pending-dispatch record accordingly, by role: a productive
 worker round (explore, implement, fix) keeps its single recorded charge
 against the task allowance and the run ceiling; a productive review,
-review-deep, or consult round is accounted under its own caps and never
+review-deep, or consult round is accounted under its own rules and never
 debits either worker budget; a confirmed quota-only launch removes its
 pending charge and leaves both worker consumed counters unchanged. The run
 and task identities, the consumed counters, and the pending-dispatch
@@ -1039,7 +1044,7 @@ partial progress.
 Quota waits and quota-only launch failures do not count as two consecutive task
 blockers. When a resumed child makes material progress, charge that productive
 round against its normal allowance — the worker budgets for a worker role,
-the role's own caps for review, review-deep, or consult. All normal worker,
+the role's own accounting for review, review-deep, or consult. All normal worker,
 fix, review, consultation, budget, and stop limits otherwise remain in force.
 
 ### Interrupted-round recovery
@@ -1056,11 +1061,11 @@ automatic retry loop. The dispatched round's recorded charge stands, and the
 continuation is accounted by role: a fresh worker continuation (explore,
 implement, fix) is a new worker round with its own single charge against the
 same task and run; a fresh review, review-deep, or consult continuation stays
-under that role's own caps and never debits either worker budget. Neither the
+under that role's own accounting and never debits either worker budget. Neither the
 interruption nor the reset replenishes any budget or re-issues the task
 identity. For example, a review child interrupted mid-verdict is replaced by
 a fresh review child over the same range: the continuation is a review round
-under the unchanged review caps, not a worker round, and the run and task
+under the unchanged review rules, not a worker round, and the run and task
 consumed worker counters stay unchanged. If the same task is interrupted
 twice without a material decision or persisted outcome, stop and report it as
 blocked.
@@ -1099,12 +1104,27 @@ the range — and the recorded boundary is reused across resumes. It must
 independently run the relevant
 integrated verification and inspect the whole supplied range. It appends an
 audit verdict to the active handoff and follows the active persistence policy.
-Blocking findings each receive a dedicated fix round; judgmental
-findings are followed by a fresh deep review scoped to the fix delta and the
-invariants it touched, while mechanical-only rounds close by local
-verification (see the Review gate's finding-class rules). Cap deep review
-re-audits at two per audit target per session; on a further blocking
-verdict, stop and ask the user. Promote every non-blocking nit to a
+Blocking findings each receive a dedicated fix round — a worker round charged
+once to both budgets. Judgmental findings are followed by a fresh deep review
+scoped to the fix delta and the invariants it touched, while mechanical-only
+rounds close by local verification (see the Review gate's finding-class
+rules). Re-audits are not capped at a fixed per-target count: each follows a
+productive fix and runs under the same review-justification rules (see
+[Fix continuation and review justification](#fix-continuation-and-review-justification)).
+The worker budget gates the next fix, not the review: the required deep
+re-review of the last allowed judgmental fix still runs when zero effective
+worker rounds remain. For example, the run's last worker round is a
+judgmental fix to a deep finding: its fresh deep re-review dispatches under
+the review accounting with both worker budgets at zero, and a blocking
+verdict surviving it is handled by the exhaustion rules — the re-review is
+never skipped for lack of fix budget. When a blocking verdict survives the
+re-review with no effective worker round left for another fix — or a
+progress safeguard fires — follow the stop conditions (an exhausted run
+ceiling stops the run; an exhausted task allowance defers the target)
+instead of asking the user to authorize another cycle. An unjustified
+re-audit of unchanged evidence is prohibited; a required integration gate
+or bounded interrupted-review recovery may justify a same-range review, but
+a review-only loop may not. Promote every non-blocking nit to a
 `BACKLOG.md` checkbox before closing the audit.
 
 ## Opportunistic deep review escalation
@@ -1118,19 +1138,30 @@ over that slice's commit or diff range when any of these is true:
   concurrency/async/cancellation/timing behaviour, the cross-repository
   contract surface, subtle shared-state behaviour, or security-relevant code
   paths (this includes every hard implementation slice);
-- the slice needed two fix rounds (its review passed only on the third
-  pass) — a struggle signal that worker and reviewer share a blind
-  spot; or
+- the slice needed at least two fix rounds — a struggle signal that worker
+  and reviewer share a blind spot, whether or not a later review pass
+  eventually passed; or
 - the user explicitly asks for a deep review on this slice.
 
 Use the deep review prompt template with a single-slice audit range.
-Blocking findings each receive a dedicated fix round; judgmental
-findings are followed by a fresh escalated review scoped to the fix delta,
-while mechanical-only rounds close by local verification (see the Review
-gate's finding-class rules). Cap deep review re-audits at two per target per
-session, on top of the one escalation; on a further blocking verdict, stop
-and ask the user. Escalation rounds do not consume the worker-round budget
-and are recorded in the ledger as
+Blocking findings each receive a dedicated fix round — a worker round charged
+once to both budgets. Judgmental findings are followed by a fresh escalated
+review scoped to the fix delta, while mechanical-only rounds close by local
+verification (see the Review gate's finding-class rules). Re-audits follow
+productive fixes under the same review-justification rules (see
+[Fix continuation and review justification](#fix-continuation-and-review-justification));
+there is no fixed per-target re-audit cap on top of the one escalation. The
+worker budget gates the next fix, not the review: the required escalated
+re-review of the last allowed judgmental fix still runs at zero effective
+worker rounds, exactly as in the periodic gate's zero-budget example. When a
+blocking verdict survives the re-review with no effective worker round left
+for another fix — or a progress safeguard fires — follow the stop conditions
+(an exhausted run ceiling stops the run; an exhausted task allowance defers
+the target) instead of asking the user to authorize another cycle. An
+unjustified re-audit of unchanged evidence is prohibited; a required
+integration gate or bounded interrupted-review recovery may justify a
+same-range review, but a review-only loop may not. Escalation rounds do not
+consume the worker-round budget and are recorded in the ledger as
 `R<N>: review-deep clean|findings — escalated slice`.
 
 Budget guard: run at most one opportunistic escalation per session. If a
@@ -1145,7 +1176,7 @@ This skill runs unattended, so the escape hatch for a decision the loop
 cannot settle is not a question to the user: it is one foreground round with
 the consult contract — an independent second opinion. When a stop condition
 below would end in "ask the user a question" about a reversible judgement
-decision (a blocked task, a third review pass with surviving findings, a
+decision (a blocked task, surviving blocking findings after a fix, a
 standard-setting question, or any decision the handoff cannot settle), the
 main loop may run one consult round instead of asking. A consult is also
 warranted before the loop commits to a clear, direct, complex choice — a
@@ -1178,10 +1209,13 @@ consume the worker-round budget.
 
 A consult settles a reversible technical or design decision within the
 allowances that remain; adopting its recommendation never starts a round the
-caps do not cover. The shared two fix cycles and three review passes gate the
-fix → review loop, and both worker budgets (task allowance and run ceiling)
-gate worker dispatch only: review, review-deep, and consult rounds keep their
-own caps and stay dispatchable after worker-budget exhaustion, including the
+caps do not cover. In this workflow the fix → review loop is gated by the
+effective worker budget and the progress safeguards — each fix is a worker
+round charged to both budgets — not by the shared two-fix/three-review
+default (see
+[Fix continuation and review justification](#fix-continuation-and-review-justification)).
+Review, review-deep, and consult rounds keep their own accounting and stay
+dispatchable after worker-budget exhaustion when justified, including the
 permitted review of an exhausted task's completed changes. A consult cannot
 grant an allowance or justify a correction beyond those caps, and extending
 an allowance is a user-only decision that is never delegated to a consult.
@@ -1223,7 +1257,8 @@ blocker to report, not noise to suppress.
 ## Review gate
 
 Apply the shared round contract's independent review, finding classification,
-re-review closure, and two-fix-cycle limit. In strict mode every
+and re-review closure. Its default two-fix-cycle limit is overridden here by
+the budget-bounded fix continuation below. In strict mode every
 implementation slice must pass that gate before work advances. A re-review
 reports each prior finding by ID as fixed, partially fixed, still open, or
 regressed; when the acceptance involves recovery or interruption behaviour,
@@ -1238,6 +1273,64 @@ otherwise preserve it in the backlog without expanding the current task.
 Mechanical findings close after the coordinator runs their sufficient acceptance
 check; judgmental findings require independent re-review of the fix and affected
 invariants. Consultation and the autonomy envelope below govern stuck decisions.
+
+### Fix continuation and review justification
+
+The shared contract's default caps — two fix cycles (three review passes) per
+target, and two deep re-audits per target — are not authorization gates in
+this workflow. Productive fix continuation is bounded by the effective worker
+budget instead:
+
+- **Budget-bounded continuation.** Every fix round is a worker round, charged
+  exactly once against BOTH the task allowance and the run ceiling before
+  launch. While at least one effective worker round remains, the latest fix
+  made real progress, and the autonomy envelope below holds, the coordinator
+  continues the fix → verify → re-review loop unattended — including beyond
+  two fixes or three review passes on one target. It never asks the user to
+  authorize one more target cycle, fix cycle, or review pass while those
+  conditions hold.
+- **Review justification.** Every review round — ordinary or deep — must be
+  justified by changed slice or fix evidence (a diff the previous review has
+  not seen), a required integration gate (the periodic or opportunistic deep
+  review triggers), or bounded interrupted-review recovery over the same
+  range. A review-only loop over unchanged evidence is prohibited: no
+  unjustified re-review, and no manufactured review to spend availability.
+- **Durable counters, no loopholes.** Fix and review counters stay durable
+  per-target evidence. They survive resumes, replans, renames, and
+  interruption recovery unchanged; nothing resets or re-identifies them.
+  Counts recorded under the legacy default caps are retained as evidence,
+  but those legacy defaults never re-gate a resumed run. An explicit user
+  limit recorded in the durable state — a user-set cap or the boundary of a
+  named grant — remains binding and stops the loop when reached.
+- **Safeguards unchanged.** The progress safeguards stop the loop regardless
+  of remaining budget: two consecutive worker rounds with no net progress,
+  the same task blocked two rounds in a row, the repeated-interruption limit,
+  and the repeated-invariant replanning and standard-drift rules below.
+  Scope, irreversible-action, user-preference, Git, persistence, and steering
+  limits are unchanged.
+- **Exhaustion.** When the effective worker budget is exhausted, dispatch no
+  further fix round for the target. The required review of the last allowed
+  worker — including the deep re-review of a last allowed judgmental fix —
+  still runs under the review accounting even with zero worker rounds left:
+  the budgets gate fix dispatch, not review. If blocking findings survive it,
+  the target stays incomplete and review-open — blockers prevent completion.
+  An exhausted run ceiling stops the run under the allowance-stop rules,
+  offering the named worker increment a continuation needs instead of an
+  automatic extra cycle. An exhausted task allowance alone defers the target
+  with its resumable packet and open findings, and the run continues with
+  another truly independent ready task when one can be selected safely —
+  never bypassing a review gate, dependency, or safety boundary (see
+  [Task exhaustion is not a run stop](#task-exhaustion-is-not-a-run-stop)).
+
+**Boundary examples.** Justified same-range reviews: the periodic deep gate
+auditing a range whose slices already passed their per-slice reviews (a
+required integration gate, not an unchanged-evidence repeat); a fresh review
+child over the same range after the previous review child was interrupted
+mid-verdict (bounded recovery, within the repeated-interruption limit).
+Unjustified: re-running a per-slice review over an unchanged diff to spend
+review availability, or another deep re-audit with no fix delta, no gate
+trigger, and no interrupted review to recover — a review-only loop is
+prohibited even while review rounds remain dispatchable.
 
 **Repeated findings on the same invariant.** First classify what the
 repeated finding actually is. If the invariant is genuinely unmet — an
@@ -1260,22 +1353,27 @@ resets counters or weakens scope.
 **Autonomy envelope.** The coordinator continues the fix → verify →
 re-review loop without asking the user while all of these hold: the work
 stays docs/config-only or is reversible under the active persistence policy;
-the session's deep review work stays within one opportunistic escalation plus
-two re-audits plus two consults; the shared gate's two fix cycles (three
-review passes) per target remain available; and no irreversible action is
-required. Both worker budgets (task allowance and run ceiling) gate worker
-dispatch only, not every dispatch: an exhausted task allowance defers that
-task, not the run — the permitted review of its completed changes and another
-truly independent ready task stay inside the envelope (see
+the session's deep review work stays within one opportunistic escalation,
+with every re-audit justified by a productive fix delta, a required
+integration gate, or bounded interrupted-review recovery; consults stay
+within two per session; the effective worker budget covers the next fix and
+no progress safeguard or explicit user limit has fired; and no irreversible
+action is required. Both worker budgets (task
+allowance and run ceiling) gate worker dispatch only, not every dispatch: an
+exhausted task allowance defers that task, not the run — the permitted review
+of its completed changes and another truly independent ready task stay inside
+the envelope (see
 [Task exhaustion is not a run stop](#task-exhaustion-is-not-a-run-stop)) —
 and an exhausted run ceiling stops worker dispatch while the permitted
-review of completed changes still runs under the unchanged review caps. A
+review of completed changes still runs under the unchanged review rules. A
 consult may settle a reversible design or standard-setting question (see
 Decision consultation) but never grants an allowance or authorizes work
 beyond a cap — only the user can, through a named increment. Breach any
 guard, or reach an irreversible action — stop and ask. Asking is for guard
 breaches, irreversible actions, and what a consult could not settle — not
-for routine continuation inside the envelope.
+for routine continuation inside the envelope, including fix continuation
+beyond the legacy per-target cycle defaults while budget, progress, and
+permissions allow.
 
 ## Worker prompt template
 
@@ -1459,25 +1557,26 @@ Stop the loop and report to the user when any of these hit:
   Verify with one cheap command, then give the final report.
 - **Run ceiling exhausted** — do not dispatch another worker round;
   verification and the permitted review of completed changes still run
-  under the unchanged review caps. Report
+  under the unchanged review rules. Report
   the exhausted run ceiling, what remains, what is completed and what is
   blocked, and the recent material progress. Where the host offers an
   interaction tool, offer the situation-appropriate choices — a bounded
   replan (child rounds of a replan consume allowances), one additional
   bounded fix-and-review cycle, or a stop that preserves the current work —
-  and name the worker, fix, and review increments each choice consumes;
+  and name the worker and review increments each choice consumes;
   without one, state the same options in the stop report. Persist the
   allowance usage and any user-granted extension in the active handoff —
   the existing state, no new tracking system — so a resume or a renamed
-  target cannot evade the unresolved-target caps. A user grant is a named
-  increment: it adds exactly the worker, fix, and review rounds it names to
-  the named budget (run ceiling or task allowance), never resets counters,
-  and grants no scope, review, or Git rights beyond what it names; a consult
-  cannot grant any of these increments (see Decision consultation). A
-  declined or unanswered option ends the stop: do not ask again, do not
-  schedule a resume, and leave the work in its preserved state. Give the
-  final report with the continuation prompt; the handoff must make the next
-  step explicit so work can resume.
+  target cannot evade the unresolved-target limits. A user grant is a named
+  increment: it adds exactly the rounds it names — worker rounds (fix rounds
+  are worker rounds) to the named budget (run ceiling or task allowance),
+  and review rounds only against an explicit user review limit — never
+  resets counters, and grants no scope, review, or Git rights beyond what it
+  names; a consult cannot grant any of these increments (see Decision
+  consultation). A declined or unanswered option ends the stop: do not ask
+  again, do not schedule a resume, and leave the work in its preserved state.
+  Give the final report with the continuation prompt; the handoff must make
+  the next step explicit so work can resume.
 - **Task allowance exhausted** — not a run stop by itself. Dispatch no
   further worker round for that task; verification and the permitted review
   of its completed changes still run. Keep the unfinished part incomplete
@@ -1511,17 +1610,32 @@ Stop the loop and report to the user when any of these hit:
   a materially different path, but that path still consumes the worker
   allowance and a consult cannot grant one — otherwise do not burn rounds on
   a wall that only the user can decide.
-- **[strict] Three review passes with blocking findings** — stop; one
-  consult on the surviving findings may settle which are genuine defects and
-  which are standard drift (see Repeated findings on the same invariant), and
-  a hedged consult counts as no answer: ask the user. Either way, the
-  consult authorizes no further fix cycle or review pass — the user alone
-  grants those as named increments. Report the exhaustion with the
-  continuation prompt so a resume can act on the grant.
-- **Autonomy-envelope guard breach** — deep review work beyond one
-  escalation plus two re-audits, a target that has reached the shared gate's
-  two fix cycles (three review passes) without a clean result, or work
-  leaving docs/config-only/reversible scope — stop and ask.
+- **[strict] Blocking findings survive with no worker budget for another
+  fix** — the last permitted review still reports blocking findings and the
+  effective worker budget is exhausted. When the run ceiling is exhausted,
+  stop the run; one consult on the surviving findings may settle which are
+  genuine defects and which are standard drift (see Repeated findings on the
+  same invariant), and a hedged consult counts as no answer: ask the user.
+  Either way, the consult authorizes no further fix round or review pass —
+  the user alone grants those as named increments. Report the exhausted
+  budget with the continuation prompt so a resume can act on the grant.
+  When only the task allowance is exhausted, the target stays incomplete and
+  review-open: defer it with its resumable packet and open findings, and
+  select another truly independent ready task when one can be selected
+  safely; the run stops only under **No safe ready work** or another run
+  stop — never by bypassing a review gate, dependency, or safety boundary
+  (see [Task exhaustion is not a run stop](#task-exhaustion-is-not-a-run-stop)).
+  While an effective worker round remains and fixes make real progress, this
+  stop never fires: continue the loop unattended instead (see
+  [Fix continuation and review justification](#fix-continuation-and-review-justification)).
+- **Autonomy-envelope guard breach** — a second opportunistic escalation in
+  one session without an explicit user request, a review or re-audit over
+  unchanged evidence with no review justification (changed evidence, a
+  required integration gate, or bounded interrupted-review recovery justify
+  a same-range review — see
+  [Fix continuation and review justification](#fix-continuation-and-review-justification)),
+  an explicit user limit reached, or work leaving docs/config-only/reversible
+  scope — stop and ask.
 - **A decision or irreversible action is required** (force-push, deleting
   branches, publishing a release or pull request, or anything `AGENTS.md`
   flags) — irreversible actions and user preference stop and ask (consult
@@ -1642,6 +1756,13 @@ the main loop may make itself even though it normally does not edit files.
 - Asking the user for routine continuation inside the autonomy envelope —
   asks are for guard breaches, irreversible actions, and what a consult
   could not settle.
+- Asking the user to authorize one more fix or review cycle while the
+  effective worker budget, real progress, and the envelope still permit
+  continuation — the legacy per-target cycle defaults (two fixes/three
+  reviews, two re-audits) are not authorization gates in this workflow.
+- Re-reviewing unchanged evidence to spend review availability — every
+  review needs a changed diff, a required integration gate, or bounded
+  interrupted-review recovery; a review-only loop is prohibited.
 - Asking the user a question one consult round could settle — an unattended
   session gets its second opinion before it gets the user's; the consult is
   the escape hatch, capped at two per session.

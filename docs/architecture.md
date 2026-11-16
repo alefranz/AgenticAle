@@ -76,7 +76,10 @@ remain in workflow state; the coordinator surfaces them when they affect a
 decision or the user asks. This keeps the main conversation understandable even when a
 host collapses child activity, without relying on any particular host layout.
 The contract also defines review-closure rules for re-reviews and the
-self-contained continuation prompt that every incomplete stop carries.
+self-contained continuation prompt that every incomplete stop carries. Its
+review/fix gate allows at most two fix cycles (three review passes) per
+target by default; Work keeps that cap, while Autonomous Mode overrides it
+narrowly with budget-bounded fix continuation (below).
 The six task contracts are capability-neutral: they carry only the role's
 instructions, with no host-specific protocol. `implement`, `implement-easy`,
 and `implement-hard` share the same `implement` contract, and `consult` and
@@ -127,7 +130,24 @@ stable run and task identities whose consumed counters and pending-dispatch
 evidence survive crashes, resumes, and quota-only launch rejections. A
 numeric resume changes the ceiling without resetting consumption; an
 exhausted task is deferred unfinished and resumable, not a run stop, while
-truly independent ready tasks may still be selected. A human-owned
+truly independent ready tasks may still be selected. Productive fix
+continuation is bounded by the effective worker budget rather than the shared
+default two fix cycles (three review passes) or two deep re-audits per target:
+each further fix is charged once to both budgets, every review needs changed
+evidence, a required integration gate, or bounded interrupted-review recovery,
+and the loop continues unattended while budget, progress, and the autonomy
+envelope allow — no repeated cycle-authorization prompts, and no review-only
+loops over unchanged evidence. The budgets gate fix dispatch, not review: the
+required review of the last allowed fix — including a deep re-review — runs
+at zero worker budget, and surviving blockers keep an exhausted task
+incomplete and review-open, deferred rather than stopping the run while
+truly independent ready work remains. Historical fix/review counters persist as
+evidence without reset or re-identification on resume or rename; the legacy
+default caps never re-gate a resumed run, while explicit user limits stay
+binding. The no-progress, same-blocker, and repeated-interruption safeguards,
+the one-opportunistic-escalation-per-session guard (struggle trigger: at least
+two fix rounds), and the consult caps are unchanged; Work keeps the shared
+two-fix/three-review caps. A human-owned
 `## Steering` section in `BACKLOG.md` provides deterministic pause/continue
 and ready-task priority controls, re-read before every round and preserved
 across agent writes. Invocation goal text supplied during an active run is
