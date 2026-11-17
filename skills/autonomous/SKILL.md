@@ -248,14 +248,49 @@ pointer when a decision needs it.
 **Legacy state compatibility.** A run may carry the legacy layout:
 `.agenticale/handoffs/active.md` as the active packet and a human-owned `## Steering`
 section in `BACKLOG.md`. On resume, when the new snapshot is absent and a legacy packet
-exists, make the one-time transition: validate the legacy packet, carry its identities,
-consumed counters, allowances in force, fix/review counters, open gates, and recorded
-persistence policy exactly into the new compact snapshot — no reset, no re-derivation —
-and continue under this contract. The legacy file itself is historical material: never
-auto-edited, migrated away, or deleted. When both packets exist, a valid new snapshot
-wins and the legacy packet stays untouched. A torn or missing packet — new or legacy —
-follows the reconcile event's recover-or-stop rule. Legacy steering compatibility and
-precedence are defined under [Live steering](#live-steering).
+exists, first establish from the backlog and Git whether this run already migrated or
+closed: compact result records or a run-close record under the same run identity in the
+backlog, or the run's state-only commits carrying `.agenticale/active.md` in git history
+(a bounded `git log -- .agenticale/active.md`), show the new contract already ran. The
+preserved legacy packet is history, not current evidence — its counters stopped being
+current at the transition, so a later loss of the new snapshot never restores them.
+
+**Reconcile close persistence before classifying closure.** Durable completion records
+alone never close a snapshot-absent run. The final close's completion, cleanup, and
+record-resolution steps are persistence boundaries like any other: an interruption in
+them reconciles first — on every resume, before the closure classification — under the
+bounded persistence sequence's interruption rules and the final close's cutpoints (see
+Consolidated final close), never as an after-the-fact exception to a closure report. The
+reconciliation never re-imports the legacy packet, never recreates a legitimately deleted
+snapshot, and changes no identities or counters. Then classify:
+
+- **Already closed** — the run-close record and every task's confirmed result record are
+  durable under the policy, and the close's full persistence is verified — the completion
+  and bounded cleanup confirmed under the policy, any deferred failure records resolved,
+  and no outstanding close commit or push: report the confirmed closure from those
+  records; never re-import the legacy packet or restart the run. A new run needs new goal
+  text.
+- **Already migrated, run still open** — never re-import the legacy packet. The missing
+  new snapshot follows the reconcile event's recover-or-stop rule: rebuild from the last
+  committed new-snapshot state plus verified host and working-tree evidence of the rounds
+  since, applying each charge exactly once, or stop naming the gap.
+- **No migration or closure trace** — make the one-time transition: validate the legacy
+  packet, carry its identities, consumed counters, allowances in force, fix/review
+  counters, open gates, and recorded persistence policy exactly into the new compact
+  snapshot — no reset, no re-derivation — persist the transition under the active policy
+  as a bounded state-only checkpoint before further dispatch (recorded diff evidence
+  under working-tree policy), so any later resume can recognize the migration, then run
+  the reconcile event and continue under this contract.
+
+The legacy file itself is historical material: never auto-edited, migrated away, or
+deleted. The legacy backlog's consumed-counter mirrors and milestone status are
+superseded by the snapshot's budget line — never authoritative again and no longer
+maintained; later targeted writes follow the compact board format above, preserving the
+human-owned `## Steering` section, deferred packets, result records, and historical
+pointers. When both packets exist, a valid new snapshot wins and the legacy
+packet stays untouched. A torn or missing packet — new or legacy — follows the reconcile
+event's recover-or-stop rule. Legacy steering compatibility and precedence are defined
+under [Live steering](#live-steering).
 
 ## Git persistence policy
 
@@ -347,9 +382,10 @@ commit for every edit, slice, or round.
 
 ### The bounded persistence sequence
 
-Every state-only persistence boundary — a task gate finalization, a reconciliation
-checkpoint, the stop close, and the final close — ends with this one bounded sequence,
-defined here once; the boundary sections name it instead of restating it.
+Every state-only persistence boundary — a task gate finalization, a reconciliation or
+legacy-transition checkpoint, the stop close, the final close, and its bounded cleanup —
+ends with this one bounded sequence, defined here once; the boundary sections name it
+instead of restating it.
 
 1. Write the boundary's record into the existing state files, each a targeted edit on a
    fresh re-read, read back to confirm it landed.
@@ -369,8 +405,10 @@ and the remote read-only (fetch or ls-remote), and establish which steps already
 A commit already on the remote — confirmed by ancestry or content, never assumed — is not
 duplicated or re-committed; a push that already succeeded is recorded, not blindly
 repeated. Resume the exact unfinished step first: push an existing unpushed commit as-is,
-complete missing record writes from the confirmed hashes and destination, and treat a
-confirmed finalization as satisfying the boundary without any further write. Identities
+then complete missing record writes from the confirmed hashes and destination — changed
+durable state not yet committed rides in exactly one bounded state-only commit under the
+policy, never while an earlier push is unconfirmed. A finalization already confirmed with
+no outstanding record writes satisfies the boundary without any further write. Identities
 and consumed counters are unchanged by every persistence reconciliation.
 
 **Failed, uncertain, or blocked persistence is terminal for the run.** A rejected, failed,
@@ -475,22 +513,54 @@ commit or push — product or finalization — is outstanding or unverified is n
 as completed, and the next task is never selected.
 
 **Consolidated final close.** When the task whose gate just closed is the run's last
-remaining task and the goal is met, the same finalization also carries the run-close record
-and the snapshot cleanup below — one bounded state-only commit, not a separate task
-finalization followed by a session-close commit. A run that stops incomplete keeps the
-snapshot as its resume state; the stop close persists the stop records without deleting it.
+remaining task and the goal is met, the same finalization also carries the run-close
+record — one bounded state-only completion commit, not a separate task finalization
+followed by a session-close commit. The snapshot is not deleted in this commit: it stays,
+updated with the confirmed product persistence and one `NEXT` naming the close's exact
+unfinished step, as the recovery checkpoint until the completion commit's final required
+persistence is verified under the policy — the confirmed push under commit-and-push, the
+commit under commit-only, the recorded diff evidence under working-tree. A run that stops
+incomplete keeps the snapshot as its resume state; the stop close persists the stop
+records without deleting it.
 
-**Snapshot cleanup.** The snapshot is removed only after verified successful final
-persistence of a completed run: its remaining content is folded into the backlog's result
-records, and the deletion rides in the run's one final state-only commit, confirmed under
-the policy. The deleted snapshot stays recoverable from git history; a failed or uncertain
-final push leaves the local commit and its history untouched under the terminal local-only
-rules, and a reconciling resume pushes the existing commit as-is — the cleanup is never
-lost and never repeated. Under working-tree policy no commit exists: fold the content into
-the backlog results, read them back, and only then remove the snapshot, recording both
-changes as diff evidence. Never delete the snapshot while any task is unfinished or any
-required persistence is unconfirmed, and never as a standalone cleanup step before the
-final records are durable.
+**Snapshot cleanup.** Only after that verification, and only for a completed run: fold
+the snapshot's remaining content into the backlog's result records, read them back, then
+remove the snapshot. Under commit or commit-and-push the fold and deletion ride in one
+bounded state-only cleanup commit, created only after the completion commit is confirmed
+— never while its push is uncertain, when the cleanup would carry it as a descendant —
+and pushed and confirmed under commit-and-push. Under working-tree policy no commit
+exists: record both changes as diff evidence. The deleted snapshot stays recoverable from
+git history. Never delete the snapshot while any task is unfinished or any required
+persistence is unconfirmed.
+
+The close's entry and resume cutpoints follow the bounded sequence's interruption and
+failure rules, in this fixed order:
+
+1. Records written, completion commit missing: an interruption resumes the one completion
+   commit; a blocked destination stops before it, with the failure records in the
+   still-present snapshot and backlog.
+2. Completion commit exists, push unconfirmed: a rejected, failed, or uncertain push
+   stops terminally with the failure records in the still-present snapshot and backlog;
+   no cleanup commit is created in this run. A reconciling resume pushes the existing
+   completion commit as-is — never re-creates it — and confirms it.
+3. Completion persistence confirmed, cleanup outstanding: the resume runs the cleanup
+   above — no second completion commit, no rewritten completion records. After a blocked
+   completion push, the deferred failure records are resolved to the confirmed hashes and
+   destination, and the resolution rides in the one cleanup commit with the fold and
+   deletion.
+4. Cleanup commit exists, its push rejected, failed, or uncertain: the snapshot is
+   already legitimately gone; the terminal failure records go to the backlog alone —
+   never recreate the snapshot — and no further commit or push follows in this run. A
+   reconciling resume pushes the existing cleanup commit as-is; once confirmed, the
+   deferred records are resolved to the confirmed destination and ride in exactly one
+   bounded state-only resolution commit, pushed and confirmed under the policy. Its own
+   hash is never written back.
+
+The safe count: a successful close is exactly two state-only commits — completion, then
+cleanup — each confirmed before the next step begins. Each failed or interrupted push
+adds at most one bounded record-resolution commit on a later resume, created only after
+the prior push is confirmed: never a descendant of an uncertain push in the same run,
+never a duplicate commit, never a record-your-own-hash write.
 
 **Push destination.** Resolve the destination before the run's first push and re-check it
 at every push: the checked-out branch's configured upstream (remote and branch), plus any
@@ -528,13 +598,16 @@ and outgoing-scope rules above apply unchanged.
 At the stop close the checkpoint comes first — unless persistence is already blocked, in
 which case the close creates no commits and attempts no pushes: create the WIP commits and
 push them under the policy, then write the stop records, then apply the bounded persistence
-sequence to them. The durable record — in the snapshot and on the backlog task entries —
-carries, per task, the WIP commit hashes, the pre-WIP review base (the commit immediately
-before the task's first WIP checkpoint commit in each repository), the verification and
-review status (what passed, what is still open), the push state (confirmed destination, or
-deferred with its evidence), the consumed counters, and exactly one resumable `NEXT`. A WIP
-commit contains only product changes; the state records reference its hashes read from Git
-history.
+sequence to them. The durable record carries, per task, the WIP commit hashes, the pre-WIP
+review base (the commit immediately before the task's first WIP checkpoint commit in each
+repository), the verification and review status (what passed, what is still open), the push
+state (confirmed destination, or deferred with its evidence), and exactly one resumable
+`NEXT`. This compact per-task evidence lives on the backlog task entries and, as recovery
+needs it, in the snapshot. Consumed counters are not part of that per-task record: the
+active task's and the run's consumption stay once in the snapshot's budget line, and a
+deferred task's own counters stay in its deferred packet — the backlog never mirrors them.
+A WIP commit contains only product changes; the state records reference its hashes read
+from Git history.
 
 The pre-WIP review base is preserved across resumes and reused: every review of a
 checkpointed task — slice review, re-review, or deep review — uses a range whose lower
@@ -1023,11 +1096,12 @@ Do not claim an automatic wakeup or invent scheduler support. Runtime bindings d
 promise a common wait or wakeup capability, so report it as unavailable unless the active
 host exposes it.
 
-Before resuming, inspect the actual working tree, including untracked files and partial
-edits. The fresh child validates the snapshot against that state and continues from its one
-`NEXT` action; it must not reset files, discard work, or reimplement the whole assignment
-based only on the interrupted report. If the snapshot is missing or stale, the coordinator
-may repair it from verified tree and tool evidence without dispatching another child.
+Before resuming, the coordinator inspects the actual working tree, including untracked files
+and partial edits, validates the snapshot against that state, and repairs any missing or
+stale part from verified tree and tool evidence before dispatch — without delegating the
+repair to a child. The fresh child re-checks the snapshot read-only, reports any discrepancy
+in its report, and continues from its one `NEXT` action; it must not reset files, discard
+work, or reimplement the whole assignment based only on the interrupted report.
 Preserve role policy: a reviewer stays read-only, and Git actions remain governed by the
 existing authorization rules. Completed changes still require the ordinary verification and
 review gates.
@@ -1064,10 +1138,15 @@ worker, fix, review, consultation, budget, and stop limits otherwise remain in f
 If the host ends a child before it produces a valid report (e.g. a turn/step ceiling or an
 interruption), do not treat the task as complete or count a forced summary as a completed
 task. Record the interruption in the snapshot (for example `R4: work progress — interrupted;
-fresh handoff required`), start a fresh child of the same role from the snapshot plus the
-interrupted child's final summary, and require it to first validate or repair the compact
-state before doing one concrete `NEXT` action. This is a normal reset, not a malformed-report
-correction and not an automatic retry loop. Account the interrupted round and its
+fresh handoff required`). Before dispatching, the coordinator alone validates the compact
+state against the actual working tree and host evidence and repairs any missing or stale part
+under the reconcile event, persisting the repair; it never delegates that validation or
+repair to a child. Then start a fresh child of the same role from the repaired snapshot plus
+the interrupted child's final summary. The child re-checks the state read-only, reports any
+discrepancy or repair fact in its report without writing operational state, and does one
+concrete `NEXT` action; an interrupted reviewer stays read-only and never edits state or
+product code. This is a normal reset, not a malformed-report correction and not an automatic
+retry loop. Account the interrupted round and its
 continuation under the state protocol's settle and charge events: the recorded charge stands
 for material work, and the fresh continuation is a new round with its own single charge
 (worker roles) or under the role's own accounting (review, review-deep, consult). Neither
@@ -1535,7 +1614,8 @@ Stop the loop and report to the user when any of these hit:
 
 ## Final report (main loop, ≤ 15 lines)
 
-- The round outcomes, one compact line per round.
+- A compact summary of the round outcomes and verdicts, drawn from the saved task evidence
+  (not a durable per-round ledger).
 - What was achieved, with evidence (changed files or commit hashes, test results, review
   verdicts).
 - Where the work now stands (state, including any material change to a role's model selection
@@ -1555,20 +1635,26 @@ no pushes — the close first applies the
 [stop-boundary WIP checkpoint](#stop-boundary-wip-checkpoints) under the active policy, so the
 records below carry the actual WIP hashes and push state; the local records never wait on a
 WIP push that cannot complete safely. Before giving the final report, the main loop writes
-the report's pertinent info to the durable state: the round outcomes (one compact line per
-round with change references and verdicts), the final verified state (build/test evidence,
+the report's pertinent info to the durable state as compact task evidence, not a round
+journal: settled round outcomes fold into the backlog task's bounded result/progress note
+(change references and verdicts), alongside the final verified state (build/test evidence,
 per-repo persistence state and pin match), any material change to a role's model selection
-reported on resume, the open nits already tracked as checkboxes, the allowance usage (run and
-task identities, ceilings and allowances in force, consumed counters, the completed-task
-count against its limit) and any granted or evidence-backed progress extensions, the
-continuation prompt for an incomplete stop, and the exact next step. A fresh resume validates
+reported on resume, the open nits already tracked as checkboxes, the continuation prompt for
+an incomplete stop, and the exact next step. Consumption stays once in the snapshot's budget
+line — run and task identities, ceilings and allowances in force, consumed counters, the
+completed-task count derived from the confirmed result records, and any granted or
+evidence-backed progress extensions — never duplicated as a separate tally or a per-round
+ledger. No stop or close requires a full round ledger; host logs and git history are optional
+diagnostics, not a default archive. A fresh resume validates
 the state against the actual checkout and re-establishes missing context rather than trusting
 it. Update `BACKLOG.md` and the snapshot so they retain only current state, the carried open
 items, and one exact next action. Then apply the bounded persistence sequence to the close
 records: one state-only commit of the close state changes — never product changes — pushed
 and confirmed under commit-and-push; under working-tree policy, the recorded diff evidence.
 When the run is complete (goal met), this is the consolidated final close: the same commit
-carries the last task's completion record, the run-close record, and the snapshot cleanup.
+carries the last task's completion record and the run-close record, keeping the snapshot as
+the recovery checkpoint; the bounded snapshot cleanup follows only after that commit's
+persistence is confirmed (see Consolidated final close).
 The printed report mirrors the saved records and points at the commit hash read from git
 history when one exists. An interruption in the close finalization reconciles exactly like
 the task gate's: resume the exact unfinished step from the durable state and git evidence,
@@ -1587,19 +1673,25 @@ pushes — no WIP checkpoint commit and no finalization commit — because any d
 would carry the uncertain commit and implicitly retry it; the attributable unfinished changes
 stay in the working tree, identified by diff evidence in the records. Record the exact
 persistence state — the local commit hashes when they exist, the destination, and the push
-evidence or error — in the snapshot and backlog, mark the blocked persistence deferred and
-unconfirmed, and stop with the continuation prompt. The stop is terminal: no further round or
+evidence or error — in the snapshot and backlog, or in the backlog alone when the verified
+final-close cleanup already removed the snapshot (never recreate it), mark the blocked
+persistence deferred and unconfirmed, and stop with the continuation prompt. The stop is terminal: no further round or
 retry follows it in this run, and the backlog's one next action is the deferred persistence.
 The final report is printed from the saved local records and reports the persistence as
-deferred — never as completed; completion is recorded only once a resume confirms it. A resume
-reconciles exactly like the task gate's, before any next work: re-read the durable state,
-inspect the actual local history and the remote read-only, and resume the exact unfinished
-steps in order — push the existing blocked commit as-is, then complete any deferred checkpoint
-or finalization from the saved local records, creating a commit only when none exists — never
-duplicating commits; a confirmed finalization closes the session's persistence without further
-writes. If the blocked commit is the final close that deleted the snapshot, the snapshot stays
-recoverable from that commit's history until the push is confirmed. This is a coordination
-edit the main loop may make itself even though it normally does not edit files.
+deferred — never as completed; completion is recorded only once a resume confirms it. A
+resume reconciles exactly like the task gate's, before any next work: re-read the durable
+state, inspect the actual local history and the remote read-only, and resume the exact
+unfinished steps in order — push the existing blocked commit as-is, creating it from the
+saved local records only when none exists, never duplicating commits. After the push is
+confirmed, resolve the deferred failure records to the confirmed hashes and destination
+and complete any remaining close step; the changed durable state not yet committed rides
+in exactly one bounded state-only commit, pushed and confirmed under the policy — never
+while an earlier push is still unconfirmed. A boundary already confirmed with no
+outstanding record writes needs no further write. If the blocked commit is the final-close
+cleanup commit, the snapshot was already removed after verified completion persistence: it
+stays recoverable from git history, the failure records live in the backlog alone, and the
+resume never recreates the snapshot. This is a coordination edit the main loop may make
+itself even though it normally does not edit files.
 
 ## Anti-patterns
 
@@ -1609,16 +1701,22 @@ edit the main loop may make itself even though it normally does not edit files.
   has no memory of previous rounds.
 - Parallel or background subagents; a worker reviewing its own work, or a reviewer fixing
   code — the roles never blur; fixes are always a worker round.
-- A child writing the backlog, snapshot, steering file, or any operational file — the
-  coordinator is the only state writer; children return reports (including reset evidence)
-  and the coordinator persists them.
-- Treating the snapshot as a journal or growing a full round ledger in it — it is a compact
-  checkpoint; settled results fold into backlog task results.
+- A child writing the backlog, snapshot, steering file, or any operational file — or being
+  asked to validate or repair the compact state before its `NEXT` action: the coordinator is
+  the only state writer and repairs state itself before dispatch; children return reports
+  (including reset evidence and read-only discrepancy facts) and the coordinator persists them.
+- Treating the snapshot as a journal, growing a full round ledger in it, or requiring a
+  per-round ledger at stop or close — it is a compact checkpoint; settled results fold into
+  bounded backlog task evidence, and host logs/git history are optional diagnostics, not a
+  default archive.
 - Mirroring the active task's or run's consumed counters into the backlog — the snapshot is
   the single counter authority; duplicate counters drift.
 - Trusting a readable budget line from a torn write, or guessing/resetting consumption when
   the snapshot is missing or torn — validate the whole packet, then rebuild only from
   verified prior Git/host evidence, or stop.
+- Re-importing the preserved legacy packet after the run already migrated or closed — its
+  counters are history; recognize the migration or closure from backlog/Git, then recover
+  current evidence or stop.
 - Charging a settled round twice on resume, or letting a crashed dispatch's productive work
   replay free — reconcile the pending-dispatch record once against the actual evidence.
 - Treating nits as blocking (infinite fix loops), ignoring blocking findings to save a round,
@@ -1657,9 +1755,14 @@ edit the main loop may make itself even though it normally does not edit files.
 - Creating a monthly archive or session-close archive paragraph by default, or
   rewriting/deleting historical material — completed results live in the backlog; historical
   material stays untouched.
-- Deleting the snapshot before the run's final persistence is verified, or as a standalone
-  cleanup step — the deletion rides in the confirmed final state commit and stays recoverable
-  from git history across a failed or uncertain push.
+- Deleting the snapshot before the completed run's final persistence is verified, or inside
+  the completion commit whose push is still unconfirmed — it stays as the recovery
+  checkpoint until that confirmation, and the deletion rides in the bounded cleanup commit
+  that follows, recoverable from git history. Recreating a deleted snapshot to hold terminal
+  failure records — after verified cleanup, failure records go to the backlog alone.
+- Reporting a snapshot-absent run as closed on durable completion records alone while the
+  cleanup or record-resolution persistence is still outstanding — reconcile the close's
+  full persistence first, then classify closure; never skip the unpushed cleanup commit.
 - Archiving a deferred unfinished task as completed, or dropping its resumable packet when
   switching the active task — deferred packets stay in the backlog with their identity,
   counters, and one `NEXT`.
