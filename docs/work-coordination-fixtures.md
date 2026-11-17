@@ -1031,9 +1031,13 @@ Expected behavior:
 
 - Every resume selects the exact unfinished step above — not a replay of
   confirmed work, not a duplicated commit, charge, or completion record.
-  Identities and consumed counters are unchanged by the reconciliation, and
-  the completed-task count increments exactly once, when the gate is first
-  confirmed.
+  Identities are unchanged, and consumed counters change only through the
+  protocol's documented repairs and refunds: a torn charge write is rebuilt
+  from the verified backlog mirror, and a confirmed quota-only or
+  never-launched dispatch removes its pending charge. A productive round
+  keeps its single charge, and persistence reconciliation changes no
+  counters. The completed-task count increments exactly once, when the gate
+  is first confirmed.
 - The detailed cases are the surrounding fixtures: torn counter write,
   interrupted mirror, interrupted switch, crash with a pending dispatch,
   the quota-only launch in the quota examples, and interruption between
@@ -1838,9 +1842,12 @@ Expected behavior:
 - Only `mode` and `priority` are interpreted. The extra lines grant no
   allowance, scope, Git right, or gate exception; the loop notes them as
   unrecognized content and continues under the normal rules.
-- Allowance extensions remain user-only named increments through the normal
-  stop/decision policy, and Git endpoints remain governed by the persistence
-  policy and explicit requests.
+- Steering grants no extension. Evidence-backed extensions of the default
+  task allowance within the progress ceiling still follow the shared
+  contract automatically; any extension beyond an explicit cap, the progress
+  ceiling, the run ceiling, or the completed-task limit remains a user-only
+  named increment through the normal stop/decision policy. Git endpoints
+  remain governed by the persistence policy and explicit requests.
 
 ## Provider quota: Work stop versus Autonomous cooldown
 
@@ -2263,8 +2270,10 @@ Expected behavior:
   is met, stop and report the baseline and final measurements, method and noise,
   the acceptance criteria and that they were met, the attempts made, the review
   result, and remaining limitations.
-- Reuse the existing worker rounds, review gate, fix/review caps, and
-  stop/continuation machinery; introduce no new orchestration or parallelism.
+- Reuse the existing worker rounds, review gate, worker-round allowance with
+  its evidence-based progress extension and any exact explicit user limit,
+  and stop/continuation machinery; introduce no new orchestration or
+  parallelism.
 
 ## A candidate that fails the acceptance criteria
 
@@ -2310,13 +2319,19 @@ Expected behavior:
 - Do not complete the task and do not report it as done: the metric being met is
   "outcome achieved," but the task is complete only when correctness is also
   verified.
-- Send the blocking findings through the existing fix and re-review rules within
-  the existing caps; the review gate is unchanged by the protocol. After any
-  outcome-affecting fix, re-measure the repaired candidate and re-compare it
-  against the original baseline before the outcome can count as achieved.
-- Report the state accurately — outcome achieved, correctness not yet verified —
-  and stop under the normal stop/continuation rules if the fix/review caps are
-  exhausted.
+- Send the blocking findings through the existing fix and re-review rules:
+  fix continuation is bounded by the worker-round allowance, its
+  evidence-based progress extension, and any exact explicit user limit — not
+  a fixed per-target fix/review cycle count — and each re-review needs
+  changed fix evidence or another valid justification. The review gate is
+  unchanged by the protocol. After any outcome-affecting fix, re-measure the
+  repaired candidate and re-compare it against the original baseline before
+  the outcome can count as achieved.
+- Report the state accurately — outcome achieved, correctness not yet verified.
+  Worker-allowance exhaustion gates fix dispatch, not review: the required
+  review of the last allowed fix still runs at zero worker budget. Stop under
+  the normal stop/continuation rules when the allowance or an explicit user
+  limit is exhausted and blocking findings keep correctness unverified.
 
 ## Exhaustion of the existing iteration budget
 

@@ -160,13 +160,19 @@ actions remain separate requests. See the
 
 Use [Autonomous](https://alefranz.github.io/AgenticAle/skills/autonomous/) for
 a goal that spans multiple rounds or sessions. A run has a worker-round
-ceiling — default 6, or the number you pass — and each genuine task its own
-allowance of 12 worker rounds; every exploration, implementation, and fix
-round counts against both, and the counters survive resumes. While worker
-budget and real progress remain, productive fixes and independent re-review
-continue unattended — Autonomous does not ask you to authorize each extra fix
-cycle; the fix loop stops at exhausted budgets, repeated no-progress, or a
-guard breach, and the required review of the last allowed worker still runs.
+ceiling — default 240, a generous emergency safety limit rather than a work
+target, or the number you pass — and each genuine task its own allowance of
+12 worker rounds that extends automatically on verified progress up to a
+hard ceiling of 24; an explicit budget is an exact cap that never
+auto-extends. Every exploration, implementation, and fix round counts
+against both budgets, and the counters survive resumes. A separate
+completed-task limit (default 20) counts only tasks whose checks, reviews,
+and persistence are fully confirmed. While worker budget and real progress
+remain, productive fixes and independent re-review continue unattended —
+Autonomous does not ask you to authorize each extra fix cycle; the fix loop
+stops at exhausted budgets, repeated no-progress, or a guard breach, and the
+required review of the last allowed worker still runs. Reaching a limit with
+eligible work remaining is an incomplete safety stop, never a completed run.
 An exhausted task allowance defers that task, not the run, while another
 truly independent ready task can be selected safely. Goal text
 supplied while a run is active steers it: explicit new outcomes become

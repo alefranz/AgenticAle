@@ -18,16 +18,20 @@ budget and the `--` delimiter — may appear in either order, with everything
 after the options as the goal text, possibly empty. An invocation with no
 goal text RESUMEs the active goal, preserving its persisted run ceiling and
 consumed counters; a new run with no budget uses the default run ceiling of
-6 worker rounds. Goal text supplied while a handoff is already active steers
+240 worker rounds — a generous emergency safety limit, not a work target.
+Goal text supplied while a handoff is already active steers
 the run instead of conflicting with it: explicit new outcomes are decomposed
 into new backlog tasks, and continuation instructions adjust the existing
 plan at the next selection boundary — without overwriting active work or
 resetting identities, counters, budgets, or review gates. An ambiguous
 request to discard or replace the active goal asks you before anything is
 rewritten. The budget bounds the whole run; each genuine task
-within the run has its own allowance of 12 worker rounds, and every
+within the run has its own allowance of 12 worker rounds with a
+progress-based hard ceiling of 24, and every
 exploration, implementation, and fix round counts against both — the
-effective remaining budget is the smaller of the two. The session becomes the
+effective remaining budget is the smaller of the two. A separate
+completed-task limit (default 20) bounds how many tasks one run may finish.
+The session becomes the
 coordinator and proceeds in sequential, bounded
 rounds. On OpenCode, when the installation configures a coordinator model,
 the `/autonomous` command entry — including a fresh resume — runs in the
@@ -86,6 +90,11 @@ bounded state-only commit, pushed and confirmed under the same policy, so
 the pushed state is never left open and no endless chain of confirmation
 writes follows. Reviews run before this gate and inspect the uncommitted
 result; the coordinator owns final persistence verification and archival.
+Each task moves through explicit lifecycle states — review-open, accepted,
+persistence-pending, complete, or unfinished (deferred, blocked, exhausted) —
+and only a confirmed complete gate allows the next task's selection and
+counts the task, exactly once, toward the completed-task limit; a clean
+review alone never completes a task.
 Explicit user or repository restrictions win: a commit-only or working-tree
 run is recorded with its basis and followed, never bypassed. A restriction
 means an actual prohibition — you ask to leave changes uncommitted or not to
@@ -131,7 +140,8 @@ review gate; when the task later finishes, its gate reuses those commits, and
 every review's range starts at or before the recorded pre-WIP base —
 preserved across resumes — so the WIP commits are inside the diff. A
 significant backlog
-reconciliation — new or removed tasks, rewritten acceptance — is committed
+reconciliation — new or removed tasks, rewritten acceptance, reordered
+upcoming tasks, or changed deferred packets — is committed
 and pushed as a state-only checkpoint before further dispatch; routine
 counter and ledger writes are not checkpointed. Checkpoint pushes follow the
 same destination and safety rules as task pushes, and a failed or uncertain
@@ -253,36 +263,59 @@ These summaries add tokens in exchange for an easier-to-follow account of a
 long task. The durable handoff preserves the state needed to resume; the visible
 updates help you understand how the work reached that state.
 
-Two budgets bound the run. The **run ceiling** (default 6 for a new run, or
-the number you pass) limits worker rounds across the whole run; the coordinator never
-auto-grows it for a large goal. Each genuine task also has its own **task
-allowance** of 12 worker rounds. Every exploration, implementation, and fix
-round is charged to both, and the effective remaining budget is the smaller
-of the two; review, review-deep, and consult rounds keep their own separate
-caps. Only a genuinely new task gets a fresh allowance — decomposition,
-replanning, resume, and interruption recovery never replenish either budget.
+Two worker-round budgets and a completed-task limit bound the run. The
+**run ceiling** (default 240 for a new run — an emergency safety limit, not a
+work target — or the number you pass) limits worker rounds across the whole
+run; the coordinator never auto-grows it, and an explicit ceiling is exact.
+Each genuine task also has its own **task allowance** of 12 worker rounds
+with a progress-based hard ceiling of 24: when the allowance is reached with
+verified progress evidence — passing acceptance checks, a confirmed fix, a
+resolved blocker, or a material new finding — the coordinator records a
+bounded extension up to that ceiling and continues automatically, without a
+permission ask and never on code churn. An explicit user task limit or the
+boundary of a named grant is an exact cap that never auto-extends. Every
+exploration, implementation, and fix round is charged to both budgets, and
+the effective remaining budget is the smaller of the two; review,
+review-deep, and consult rounds consume neither budget: consults keep their
+own caps, while review and review-deep rounds keep separate accounting under
+the review-justification rules below, with no fixed per-target pass count;
+an explicit user limit remains binding. Only a genuinely new task gets a
+fresh allowance — decomposition, replanning,
+resume, and interruption recovery never replenish either budget or erase a
+recorded extension. The **completed-task limit** (default 20) counts a task
+only after its full persistence gate is confirmed — checks, reviews,
+commits, push, and the bounded state finalization; deferred, blocked,
+exhausted, and review-open tasks never count, and the limit never auto-grows.
+
 The run and task identities and the consumed counters are durable: they
 survive crashes, resumes, and quota outages, each round is charged exactly
-once, and a resume never resets them. The active handoff's budget line is
-the canonical counter record; the backlog mirrors it in a fixed write order,
-so a torn write or an interrupted task switch reconciles deterministically
-without double charging or restoring stale consumption. A numeric budget on
-a resume changes the run ceiling only: `/autonomous 3` after five consumed
-rounds leaves no worker rounds rather than silently refreshing the count.
+once, and a resume never resets them. One consolidated state protocol owns
+the bookkeeping — charge before launch, settle when a round ends, switch at
+a selection boundary, reconcile at every launch and resume, and finalize at
+each persistence boundary. The active handoff's budget line is the canonical
+counter record; the backlog mirrors it in a fixed write order, and a resume
+validates the whole packet before trusting any counter, so a torn write or
+an interrupted task switch reconciles without double charging or restoring
+stale consumption. A numeric budget on a resume changes the run ceiling
+only: `/autonomous 3` after five consumed rounds leaves no worker rounds
+rather than silently refreshing the count.
 
-When the run ceiling is exhausted, the loop stops without another worker
-round. The report says what is completed and what is blocked, and the recent
-material progress, and offers bounded choices — a bounded replan, one
-additional fix-and-review cycle, or a stop that preserves the current work —
-naming the rounds each choice consumes. A granted extension adds exactly the
-named rounds — worker rounds (fix rounds are worker rounds) to the named
-budget (run ceiling or task allowance), and review rounds only against an
-explicit user review limit: it never resets counters and grants no extra
-scope, review, or Git rights. A consult can settle a reversible decision but
-cannot grant one, and declining or not answering ends the stop. Allowance
-usage and any granted extension are persisted in the active handoff, and the
-incomplete stop carries a copy-pasteable continuation prompt so a later
-activation can act on the grant.
+When the run ceiling or the completed-task limit is exhausted while eligible
+backlog work remains, the loop makes an INCOMPLETE safety stop — never a
+completed run — without another worker round. The report says what is
+completed and what is blocked, and the recent verified progress, and offers
+bounded choices — a bounded replan, one additional fix-and-review cycle, or a
+stop that preserves the current work — naming the rounds each choice
+consumes. A granted extension adds exactly the named rounds — worker rounds
+(fix rounds are worker rounds) to the named budget (run ceiling or task
+allowance), and review rounds only against an explicit user review limit: it
+never resets counters and grants no extra scope, review, or Git rights. A
+consult can settle a reversible decision but cannot grant one, and declining
+or not answering ends the stop. Allowance usage and any granted extension
+are persisted in the active handoff, and the incomplete stop carries a
+copy-pasteable continuation prompt so a later activation can act on the
+grant. A run with blocked or exhausted tasks is explicitly incomplete even
+when no eligible work remains; only a fully completed goal completes a run.
 
 One task's exhausted allowance is not a run stop. No further worker round
 runs for that task, but verification and the permitted review of its
