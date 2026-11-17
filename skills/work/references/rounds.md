@@ -537,7 +537,11 @@ policy rather than treating each new preference as another defect.
 
 The coordinator checks the final diff/state and a relevant acceptance result
 before reporting completion. An accepted change requires the necessary checks
-and no unresolved blocking findings; disclose limits of the evidence.
+and no unresolved blocking findings; disclose limits of the evidence. A clean
+review is acceptance evidence, not completion: the task completes only under
+the invoking workflow's delivery rules — Autonomous Mode's task persistence
+gate, or reviewed task work's delivery and Git policy, which may legitimately
+leave the accepted changes uncommitted.
 
 A standalone review invoked directly (outside the work and autonomous
 workflows) returns the findings report to the user and does not enter this

@@ -84,7 +84,9 @@ before dispatching, and never overwrite active work to apply it.
   acceptance only where the user's text explicitly supports the change.
   Selection changes apply at the next selection boundary under the normal
   readiness rules; the active slice and any running round are never
-  interrupted.
+  interrupted. A reorder that changes the durable plan is a significant
+  reconciliation, checkpointed before further dispatch (see
+  [Reconciliation checkpoints](#reconciliation-checkpoints)).
 - **Preserved state.** Steering keeps the run identity, the run ceiling
   (unless the invocation supplies an explicit numeric override), every
   consumed counter, task allowance in force (including recorded progress
@@ -442,13 +444,62 @@ a pull request, merging, force-pushing, changing remotes, and publishing a
 release remain separate, explicit actions. Never silently strengthen the
 recorded policy.
 
+### Task lifecycle states
+
+Once selected, a task is in exactly one lifecycle state. The state — not a
+worker's report or a clean review — governs next-task selection and
+completion accounting:
+
+| State | Entry condition | Next-task selection | Completed-task count |
+| --- | --- | --- | --- |
+| review-open | Work in progress; a required slice review, fix loop, or applicable deep gate is still open. | Never — the task stays active. | Never |
+| accepted | Every required check, review gate, and applicable deep gate has closed; the persistence gate has not yet run. | Never — the gate runs first. | Never |
+| persistence-pending | The gate is underway: a required product commit, its push, or the bounded state finalization is outstanding or unconfirmed. | Never — finish or reconcile the gate first. | Never |
+| complete | The whole persistence gate is confirmed under the active policy, including the bounded state finalization. | Allowed at the next selection boundary. | Counts exactly once |
+| deferred / blocked / exhausted | Unfinished, with a resumable packet or open findings preserved in the backlog. | Only via documented deferral: another truly independent ready task may be selected safely. | Never |
+
+The invariants tying the states to selection and accounting:
+
+- A clean review closes a slice gate, never the task: review-open → accepted
+  still leaves the persistence gate outstanding. An accepted or
+  persistence-pending task is never reported completed, archived as
+  completed, or counted, and the next task is never selected while its
+  required commit or push is outstanding or unverified.
+- The only paths to a selection boundary are a confirmed complete gate and a
+  documented deferral or block of the active task — the outgoing packet
+  durable in the backlog before `active.md` is overwritten. A deferral is
+  never a completion bypass: the unfinished task stays incomplete and
+  uncounted, and an exhausted task's permitted review of its completed
+  changes remains schedulable under the unchanged review rules.
+- The completed-task count is derived from the backlog's confirmed
+  completion records — one count per task whose gate is confirmed — never a
+  separate tally. Reconciling an already-confirmed gate on resume adds no
+  second count; a persistence-only reopen under a policy upgrade
+  (complete → persistence-pending) never double-counts the task when its
+  gate re-closes.
+- State transitions reconcile from actual Git evidence and are replay-safe:
+  a step already confirmed is recorded, not repeated — no duplicate commits
+  and no record-your-own-hash loop. After a rejected, failed, or uncertain
+  push, no descendant commit or push follows in this run: the terminal
+  local-only close defers all further persistence to a reconciling resume.
+  An interruption in any state resumes the exact unfinished step before any
+  next-task work, under the gate's interruption and failure rules below.
+- A WIP checkpoint changes no lifecycle state: a review-open or deferred
+  task stays unfinished and uncounted. A run completes only when every
+  backlog task is complete; a limit stop with eligible work remaining, or
+  any blocked, exhausted, or otherwise unfinished task, is an incomplete
+  stop — never a completed run.
+
 ### Task persistence gate
 
 Slices and tasks are different units: a slice is one worker round's bounded
 outcome with its own review gate; a task is the backlog outcome, which may
-contain several slices. The gate applies once per completed task, under the
-active policy; an explicit policy upgrade re-evaluates it for completed
-tasks whose accepted work is unpersisted under the new policy (see
+contain several slices. The gate carries the task from accepted through
+persistence-pending to complete (see
+[Task lifecycle states](#task-lifecycle-states)). The gate applies once per
+completed task, under the active policy; an explicit policy upgrade
+re-evaluates it for completed tasks whose accepted work is unpersisted
+under the new policy (see
 [Git persistence between handoffs](#git-persistence-between-handoffs)):
 
 1. **Required checks and reviews are complete.** Every slice of the task has
@@ -632,11 +683,17 @@ durable state and Git evidence exist, exactly like an interrupted gate.
 A significant reconciliation of the durable plan is persisted immediately,
 before any further dispatch. A reconciliation is significant when it changes
 the plan rather than recording progress: it adds or removes a backlog task
-entry, rewrites an open task's acceptance or scope, changes a deferred
-packet, or replaces the basis of the active next action — as an invocation
-steering reconciliation or a material replan can. Routine state writes —
-ledger lines, counter charges and mirrors, dispatch records, and
-persistence-state mirrors — are never reconciliation checkpoints.
+entry, rewrites an open task's acceptance or scope, reorders upcoming
+backlog tasks, changes a deferred packet, or replaces the basis of the
+active next action — as an invocation steering reconciliation or a material
+replan can. A significant reorder is a plan change even when no task's text
+changes, and is checkpointed like any other significant reconciliation.
+Routine state writes — ledger lines, counter charges and mirrors, dispatch
+records, and persistence-state mirrors — are never reconciliation
+checkpoints. The human-owned `priority` control is a selection hint, not a
+plan rewrite: it reorders only the next selection among ready tasks and
+creates no durable plan change by itself, so it needs no checkpoint; a
+steering invocation that rewrites the backlog's task order does.
 
 After the reconciliation's targeted edits land in the existing state files,
 the coordinator creates exactly one state-only checkpoint commit of the
@@ -1002,8 +1059,10 @@ progress evidence justifies continuation, record the bounded extension first
 (shared contract), then dispatch under the new allowance.
 
 Task selection happens only at a selection boundary — the current task
-completed, deferred, or blocked — never mid-task. The run processes eligible
-backlog tasks until the backlog is drained or a safety limit is reached: at
+complete through its persistence gate, or documented as deferred or blocked
+(see [Task lifecycle states](#task-lifecycle-states)) — never mid-task. The
+run processes eligible backlog tasks until the backlog is drained or a
+safety limit is reached: at
 each boundary where a task has just completed, check the completed-task count
 against its limit before selecting further work. Apply the steering priority
 among ready tasks, then the normal backlog order. A ready task is one whose
@@ -1989,7 +2048,8 @@ the main loop may make itself even though it normally does not edit files.
 - Committing every ledger line or counter mirror as a reconciliation
   checkpoint, or dispatching the next round before a significant
   reconciliation's state checkpoint is confirmed — checkpoints persist
-  significant plan changes, not routine progress writes.
+  significant plan changes, including a significant reorder of upcoming
+  work, not routine progress writes or a bare `priority` selection hint.
 - Sweeping secrets, unrelated work, or concurrent human edits into a WIP
   commit, or pushing a checkpoint whose outgoing range carries unrelated or
   unreviewed unauthorized commits — the task gate's scope and safety rules

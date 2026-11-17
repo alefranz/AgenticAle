@@ -539,8 +539,10 @@ Expected behavior:
   completion records: T20 does not count until its persistence gate —
   including the state finalization — is fully satisfied, and deferred,
   blocked, exhausted, review-open, and WIP-checkpointed tasks never count.
-- When T20's gate closes, the count reaches 20. With eligible backlog work
-  remaining, the run makes an INCOMPLETE safety stop: report the limit, the
+- When T20's gate closes, the count reaches 20 — exactly once; a later
+  resume reconciling the same confirmed finalization adds no second count.
+  With eligible backlog work remaining, the run makes an INCOMPLETE safety
+  stop: report the limit, the
   completed and remaining tasks, and the continuation prompt, offering the
   named increment (a raised limit) or a stop that preserves the current
   work. The limit never auto-grows.
@@ -1041,6 +1043,9 @@ Expected behavior:
 
 - The explicit reordering applies at the next task-selection boundary among
   ready tasks; the active slice and the running round are never interrupted.
+- The reorder changes the durable plan, so it is a significant
+  reconciliation: its state-only checkpoint is pushed and confirmed before
+  any further dispatch, after the active T4 round settles undisturbed.
 - Acceptance or constraint changes reach the backlog entries and the active
   packet only where the user's text explicitly supports them. No task ID is
   re-issued, no consumed counter, allowance, or fix/review counter resets,
@@ -1091,6 +1096,40 @@ Expected behavior:
   precedes them (the recorded pre-WIP base), so the reviewer inspects them
   inside the diff and treats their WIP identification as unfinished status —
   never as completion, and never as a reason to skip the remaining gates.
+
+## Task lifecycle states gate selection and completion accounting
+
+A strict commit-and-push run works T1 while ready T2 waits in the backlog.
+T1's slice is implemented and verified, and its independent review is still
+open. Later variants reach: every T1 check, review gate, and applicable deep
+gate closed with no product commit yet (accepted); the product commits
+created and pushed but the bounded state finalization unconfirmed
+(persistence-pending); and the whole gate confirmed (complete). The backlog
+also holds deferred unfinished T3 and blocked T4.
+
+Expected behavior:
+
+- review-open: T1 stays active; no next task is selected and T1 is not
+  counted. The fix → review loop continues under the unchanged budget and
+  progress rules.
+- accepted: the clean reviews closed slice gates, not the task. The
+  coordinator runs the task persistence gate before any selection; T1 is
+  not reported completed, not archived, and not counted.
+- persistence-pending: an outstanding or unconfirmed commit, push, or state
+  finalization keeps T1 open and uncounted, and T2 is not selected. An
+  interruption here resumes the exact unfinished step from the actual Git
+  evidence — never a duplicate commit, a record-your-own-hash write, or a
+  descendant push after an uncertain one.
+- complete: only now is T1 marked completed, counted exactly once from its
+  confirmed completion record, and T2 selectable at the selection boundary.
+- Deferred T3 and blocked T4 never count as completed. Selecting another
+  truly independent ready task while they are unfinished is a documented
+  deferral — the outgoing packet durable in the backlog first — never a
+  completion bypass; their unfinished parts stay incomplete and resumable.
+- A policy upgrade that reopens T1's persistence only moves it from complete
+  back to persistence-pending with reviews and counters unchanged; when the
+  gate re-closes, the existing completion record is updated and T1 is never
+  counted twice.
 
 ## Completed task: coherent commits and confirmed push before the next task
 
@@ -1338,16 +1377,22 @@ Expected behavior:
   commits or pushes follow it in this run — no WIP checkpoint or
   finalization push that would carry the uncertain commit as a descendant —
   and all further persistence is deferred to the reconciling resume.
-- A resume inspects the actual local history and the remote read-only before
-  retrying the exact unfinished persistence step.
+- The user resumes with plain `/autonomous`: the resume inspects the actual
+  local history and the remote read-only before any next-task work,
+  establishes whether the uncertain push landed, and resumes the exact
+  unfinished step — pushing the existing commits as-is when they are not on
+  the remote, never re-committing them. While the push is unresolved, no
+  descendant commit or push follows it. The task stays incomplete and
+  uncounted, and no next task is selected, until the whole gate is confirmed
+  satisfied.
 
 ## Interruption between commit, push, and completion reconciles
 
 The session dies after the task commits were created but before the push;
 in variants, the push succeeded but the state finalization never ran; the
 finalization commit was created but never pushed; or the finalization push
-succeeded but the local acknowledgment never happened. A fresh activation
-resumes the run.
+succeeded but the local acknowledgment never happened. The user resumes
+with plain `/autonomous`.
 
 Expected behavior:
 
@@ -1367,6 +1412,10 @@ Expected behavior:
 - A commit already on the remote is never duplicated, and the task is marked
   completed only once the whole gate is confirmed satisfied. Identities and
   counters are unchanged by the reconciliation.
+- The reconciliation is replay-safe and the accounting increments once: the
+  completed-task count rises by exactly one when the task's gate is first
+  confirmed, and a later resume that re-confirms the same finalization adds
+  no second count, no second completion record, and no duplicate commit.
 
 ## Task commits preserve unrelated work and secrets
 
@@ -1524,6 +1573,34 @@ Expected behavior:
   working-tree policy no commit is created and the diff evidence identifies
   the reconciled state. The checkpoint dispatches no child and consumes no
   budget; identities and consumed counters are unchanged.
+
+## Significant reorder checkpoints; routine writes and priority hints do not
+
+An active commit-and-push run receives `/autonomous Do the migration tests
+before the CSV polish, and the docs task last`; the reconciliation reorders
+the upcoming backlog tasks. In one variant the only writes between two
+rounds are a ledger line and the counter mirror; in another the human sets
+`priority: T3, T2` in the Steering section while the backlog's task order is
+untouched.
+
+Expected behavior:
+
+- The reorder changes the durable plan rather than recording progress — a
+  significant reconciliation even though no task's acceptance text changes.
+  After its targeted edits land, the coordinator creates exactly one
+  state-only checkpoint commit, pushes and confirms it to the resolved
+  destination before dispatching any further round, and never writes the
+  checkpoint's own hash back into the state it commits.
+- The reorder applies at the next selection boundary under the normal
+  readiness rules; the active slice and any running round are never
+  interrupted, and no allowance, gate, or counter changes.
+- The ledger-and-counter variant creates no checkpoint commit: routine
+  progress writes are not reconciliations, and per-write commits are not the
+  contract.
+- The bare `priority` hint reorders only the next selection among ready
+  tasks: it rewrites no backlog entry, creates no durable plan change, and
+  needs no checkpoint commit. It is a selection control, not a plan
+  reconciliation.
 
 ## Rejected reconciliation checkpoint push stops before dispatch
 

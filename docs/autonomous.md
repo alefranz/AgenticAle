@@ -446,6 +446,19 @@ persistence — an unsafe destination or a rejected or uncertain push at any
 boundary, including a checkpoint — goes directly to the terminal local-only
 close: no further commits or pushes, all further persistence deferred and
 reported as unconfirmed, never completed.
+
+Every task is in exactly one lifecycle state — review-open, accepted,
+persistence-pending, complete, or unfinished (deferred, blocked, or
+exhausted) — and the state governs selection and accounting: only a
+confirmed complete gate permits the next task's selection and counts the
+task, exactly once, toward the completed-task limit; a clean review alone
+never completes a task. Deferring or blocking the active task opens a
+selection boundary only as a documented deferral with a resumable packet —
+never a completion bypass — and a WIP checkpoint changes no state.
+Reconciliation is replay-safe from the actual local and remote Git
+evidence: confirmed steps are recorded, not repeated, and an uncertain push
+blocks every descendant persistence until a reconciling resume.
+
 Explicit restrictions select a commit-only or working-tree policy instead,
 recorded with a concretely cited basis: an actual user or repository
 prohibition, not a conditional "unless explicitly asked" guard (the
@@ -476,10 +489,13 @@ confirming ancestry or content — before retrying the exact unfinished step,
 never duplicating commits, replaying work, or completing a task prematurely.
 The policy also governs the run's intermediate persistence boundaries. A
 significant reconciliation of the durable plan — added or removed tasks,
-rewritten acceptance, changed deferred packets — is persisted as one
-state-only checkpoint commit, pushed and confirmed before any further
-dispatch under the default policy; routine ledger and counter writes are
-never checkpointed. A stop with attributable unfinished product changes
+rewritten acceptance, reordered upcoming tasks, changed deferred packets —
+is persisted as one state-only checkpoint commit, pushed and confirmed
+before any further dispatch under the default policy; a significant reorder
+is a plan change even when no task's text changes. Routine ledger and
+counter writes are never checkpointed, and a bare human `priority` hint
+rewrites no plan and needs no checkpoint. A stop with attributable
+unfinished product changes
 checkpoints them as explicit WIP commits (one per changed repository,
 `WIP:`-identified with the run and task IDs), pushed under the same policy,
 with the verification/review status and exact continuation recorded in the
