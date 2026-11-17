@@ -128,7 +128,8 @@ installation)" section documents the one optional preference file —
 [model configuration](../../guides/model-routing.md).
 
 The preference file's top-level `## Work` section can set Work's
-worker-round allowance (default twelve); see
+worker-round allowance (default twelve; an explicit entry is an exact cap
+that never auto-extends); see
 [Work worker-round allowance](../../guides/model-routing.md#work-worker-round-allowance).
 
 ## How a change request moves through Work
@@ -203,27 +204,44 @@ internal method tests alone. Targeted checks bound each slice; full-suite and
 publishing checks belong to the integration boundary.
 
 Work gives each task a default allowance of twelve worker rounds for
-exploration, implementation, and fixes across the task. It is a ceiling, not a
-work target: Work finishes as soon as your requested outcome is complete, and
-leftover allowance is not spent on extra rounds. The allowance can be
-overridden by the `## Work` section of the preference file
-([Work worker-round allowance](../../guides/model-routing.md#work-worker-round-allowance));
-like the default, the override changes only what is available, never what is
-required. Splitting or replanning the
-plan never replenishes it, and when a limit will constrain the next useful
-step, Work says so briefly.
+exploration, implementation, and fixes across the task. It is available
+budget, not a work target: Work finishes as soon as your requested outcome is
+complete, and leftover allowance is not spent on extra rounds. When the
+default allowance is reached with verified progress — passing acceptance
+checks, a confirmed fix, a resolved blocker, or a material new finding — it
+extends automatically in recorded increments up to a hard ceiling of
+twenty-four, without a permission ask; code churn never earns an extension.
+An explicit allowance — set at invocation or through the `## Work` section of
+the preference file
+([Work worker-round allowance](../../guides/model-routing.md#work-worker-round-allowance))
+— is an exact cap that never auto-extends, whatever its size. Either way the
+allowance changes only what is available, never what is required. Splitting
+or replanning the plan never replenishes it or its recorded extensions, and
+when a limit will constrain the next useful step, Work says so briefly.
 
-Work allows at most two fix cycles and three review passes per slice or
-combined-review target. When a limit is reached with blockers remaining, Work
-stops without another round of that type and reports which allowance is
-exhausted, what is completed and what is blocked, and the recent material
-progress. It recommends a bounded correction, a bounded replan, or a stop that
-preserves the current work; where your host offers choices, it offers the
-situation-appropriate ones, such as one additional fix-and-review cycle. A
-granted extension adds exactly the named rounds — it never resets counters and
-grants no extra scope, review, or Git rights — and declining or not answering
-ends the stop. The stop report carries a copy-pasteable continuation prompt so
-a fresh session can pick up where it left off.
+Productive fixes continue without a fixed per-target cycle count: while
+worker budget remains, the latest fix made verified progress, and no
+safeguard has fired, Work continues the fix → verify → re-review loop without
+asking you to authorize another cycle. Two consecutive worker rounds with no
+verified progress stop the loop regardless of remaining budget, as does a
+repeated blocker. Every review must be justified by changed evidence, a
+required integration gate, or bounded interrupted-review recovery — a
+review-only loop over unchanged evidence is prohibited. The worker budget
+gates fixes, not review: the required independent review of the last allowed
+fix still runs at zero worker budget, and surviving blockers keep the work
+incomplete and review-open.
+
+When the allowance in force is exhausted — at the progress ceiling or an
+exact explicit cap — Work stops without another worker round and reports
+which allowance is exhausted, what is completed and what is blocked, and the
+recent verified progress. It recommends a bounded correction, a bounded
+replan, or a stop that preserves the current work; where your host offers
+choices, it offers the situation-appropriate ones, such as one additional
+fix-and-review cycle. A granted extension adds exactly the named rounds — it
+never resets counters and grants no extra scope, review, or Git rights — and
+declining or not answering ends the stop. The stop report carries a
+copy-pasteable continuation prompt so a fresh session can pick up where it
+left off.
 
 Repeated findings on the same invariant are classified before another round:
 a genuinely unmet invariant is a real design issue — the plan is reopened with

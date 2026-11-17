@@ -58,9 +58,10 @@ Give each fresh child everything needed for one bounded assignment:
 - Git policy and its authorization; state policy and any explicitly required
   handoff path. Session state means return a report without operational writes.
 - The applicable budget facts for this round: the remaining allowance of its
-  type, and — where the invoking workflow keeps both a task allowance and a
-  run ceiling — the stable task and run identities and the effective remaining
-  worker rounds.
+  type, including any recorded progress extension and the progress ceiling
+  where the workflow keeps one, and — where the invoking workflow keeps both a
+  task allowance and a run ceiling — the stable task and run identities and the
+  effective remaining worker rounds.
 - Verification commands, findings to fix if applicable, and report format.
 
 Do not send the full conversation or require another agent to reconstruct it.
@@ -265,6 +266,127 @@ or the next action is no longer concrete. Return evidence and a next action for
 a fresh agent, saving them on disk only when the supplied state policy requires
 it. Productive implementation and verification need not reset on a tool count.
 
+## Progress-aware budgets and continuation
+
+Both workflows bound worker dispatch by this same progress-aware contract.
+The invoking workflow supplies the numbers, the state storage, and any
+run-level limits; the rules below bind reviewed task work and Autonomous Mode
+identically.
+
+### Verified progress evidence
+
+Progress is verified, not claimed. A worker round made progress only when the
+coordinator can point to evidence of one of these:
+
+- **Passing acceptance** — the slice's or task's relevant acceptance checks
+  pass on the round's actual changes, verified by the coordinator or an
+  independent review, not merely reported by the worker.
+- **Verified correction** — a fix resolves a prior blocking finding and the
+  resolution is confirmed by its targeted check or the independent re-review.
+- **Resolved blocker** — a previously blocking uncertainty or decision is
+  settled with evidence: a passing reproduction, an explore finding that
+  removes the unknown, or a consult recommendation adopted and recorded.
+- **Material new finding** — an explore or consult round establishes a fact
+  that materially changes the plan: a confirmed root cause, a disproved
+  approach with evidence, or a contract boundary later work depends on.
+
+Code churn is not progress: edits that do not move acceptance, repeated
+reformatting or re-renaming, re-running a disproved approach without new
+evidence, and review-only loops over unchanged evidence establish nothing. A
+round whose only output is unverified claims or still-failing checks is
+unproductive. Evidence that rules out an approach can be progress; repeating
+the same failure without new evidence is not.
+
+### Normal allowance, progress ceiling, and auto-continuation
+
+Each task starts with a normal worker-round allowance — default twelve in
+both workflows — and a progress-based hard ceiling, default twenty-four.
+Worker rounds (explore, implement, hard implementation, and fix) consume the
+allowance; review, review-deep, and consult rounds keep their own accounting.
+
+While the allowance in force covers the next round, dispatch is normal. When
+it is reached and the task is unfinished, the coordinator may continue only
+through a recorded extension: the allowance grows by a bounded increment
+backed by verified progress evidence established since the allowance was last
+set or extended, and never beyond the progress ceiling. The extension and its
+evidence are recorded in the invoking workflow's existing state before the
+next worker dispatch — session state in reviewed task work, the durable
+handoff and backlog in Autonomous Mode. Without such evidence the allowance
+is exhausted: stop the task's worker dispatch under the stop rules. Continuation
+is automatic while the evidence, the budget, and the safeguards allow it; the
+coordinator does not ask the user to authorize each extended round.
+
+An explicit user cap is exact and never auto-grows: an allowance set by a
+task-time instruction, a preference entry, or the boundary of a named user
+grant does not auto-extend, whatever its size. Auto-continuation applies only
+to the workflow's default allowance, and the progress ceiling bounds
+auto-continuation only — an explicit user allowance or grant may name any
+positive size. A user grant adds exactly the named rounds and never resets
+counters.
+
+An extension never resets consumed counters, the per-target fix/review
+evidence, or the stall and blocker safeguards. Decomposition, replanning,
+renaming, resume, and interruption recovery keep the same allowance in force
+and the same consumption; a replay of productive work keeps its recorded
+charge.
+
+### Stall safeguards
+
+Two consecutive worker rounds with no verified progress stop the task's
+worker dispatch regardless of remaining budget or ceiling; the same blocker
+two rounds in a row and the invoking workflow's repeated-interruption limit
+stop it the same way. Remaining budget is not a reason to keep fixing a wall.
+A consult may recommend a materially different path, but that path still
+consumes the worker allowance and a consult cannot grant one. Repeated
+findings about a genuinely unmet invariant reopen the plan with the original
+acceptance and counters intact; reviewer standard drift is settled once, not
+chased. Quota-only waits and launch rejections are not no-progress rounds
+under the invoking workflow's quota rules.
+
+### Fix continuation and review justification
+
+Per-target productive fix/review cycle counts are not authorization gates.
+Fix continuation is bounded by the effective worker budget, verified progress
+evidence, and the stall safeguards instead: while budget remains, the latest
+fix made verified progress, and no safeguard or explicit user limit has
+fired, continue the fix → verify → re-review loop without asking the user to
+authorize another cycle — a fourth or later productive fix within budget
+needs no permission ask. Every review round, ordinary or deep, must be
+justified by changed slice or fix evidence (a diff the previous review has
+not seen), a required integration gate, or bounded interrupted-review
+recovery over the same range; a review-only loop over unchanged evidence is
+prohibited. The invoking workflow's consultation caps and trigger-based
+deep-review limits are unchanged.
+
+The worker budget gates fix dispatch, not review: when the allowance in force
+is exhausted — at the progress ceiling or an exact explicit cap — dispatch no
+further worker round, but the required independent review of the last allowed
+fix, including a deep re-review, still runs at zero worker budget. Blocking
+findings that survive it keep the target incomplete and review-open; follow
+the invoking workflow's stop/decision policy rather than attempting another
+fix or asking to authorize one more cycle.
+
+### Incomplete safety stops
+
+A limit reached while eligible work remains is an INCOMPLETE safety stop,
+never a successful completion: report the exhausted limit, the completed and
+blocked state, the recent verified progress, and the continuation prompt the
+stop rules require. Blocked or budget-exhausted tasks are explicitly
+incomplete even when no eligible work remains — a stop that leaves unfinished
+tasks is an incomplete stop, not a completed run. Only satisfied acceptance
+and closed gates complete a task; only a fully completed goal completes a
+run.
+
+### Acceptance examples
+
+| Situation | Expected coordination |
+| --- | --- |
+| The twelfth worker round finishes productive work and the task is unfinished | Record the verified evidence, extend the allowance within the progress ceiling, and dispatch round thirteen without a permission ask. |
+| The allowance is reached and the last rounds were churn — edits with failing or unverified acceptance | No extension: stop the task's worker dispatch incomplete; two consecutive unproductive rounds fire the stall stop even earlier. |
+| An explicit user allowance of eight rounds is reached with verified progress | Stop at eight: the explicit cap is exact and does not auto-extend; offer the named increment a continuation needs. |
+| The twenty-fourth worker round is a fix and the progress ceiling is reached | No further worker round; the fix's required independent review still runs at zero worker budget, and surviving blockers keep the target incomplete. |
+| A run-level safety limit is reached while eligible backlog work remains | INCOMPLETE safety stop with the continuation prompt — never reported as a completed run. |
+
 ## Routing policy
 
 Both workflows select routes by the same rules. Routes are opt-in only
@@ -385,15 +507,15 @@ and do not block. Distinguish pre-existing issues from task regressions; do not
 expand the assignment to repair unrelated issues.
 
 Send blocking findings to a fresh fix worker with the original acceptance
-criteria. Allow at most two fix cycles (three review passes) per task/slice.
-If blockers survive, follow the invoking workflow's stop/decision policy rather
-than repeatedly attempting the same fix. Autonomous Mode overrides this
-default narrowly: its productive fix continuation is bounded by the effective
-worker budget and its progress safeguards instead of these per-target cycle
-caps, with every review justified by changed evidence, a required integration
-gate, or bounded interrupted-review recovery (see the autonomous skill's
-[Fix continuation and review justification](../../autonomous/SKILL.md#fix-continuation-and-review-justification)).
-Work keeps the two-fix/three-review caps unchanged.
+criteria. Fix continuation follows the shared
+[progress-aware contract](#progress-aware-budgets-and-continuation): the
+effective worker budget, verified progress evidence, and the stall safeguards
+bound it — not an arbitrary per-target fix/review cycle count — and every
+review must be justified by changed evidence, a required integration gate, or
+bounded interrupted-review recovery. The required independent review of the
+last allowed fix still runs at zero worker budget. If blockers survive it,
+follow the invoking workflow's stop/decision policy rather than repeatedly
+attempting the same fix; the target stays incomplete and review-open.
 
 A re-review closes the loop over the earlier report: it states each prior
 finding by ID as fixed, partially fixed, still open, or regressed, separates
@@ -415,10 +537,14 @@ policy rather than treating each new preference as another defect.
 
 The coordinator checks the final diff/state and a relevant acceptance result
 before reporting completion. An accepted change requires the necessary checks
-and no unresolved blocking findings; disclose limits of the evidence.
+and no unresolved blocking findings; disclose limits of the evidence. A clean
+review is acceptance evidence, not completion: the task completes only under
+the invoking workflow's delivery rules — Autonomous Mode's task persistence
+gate, or reviewed task work's delivery and Git policy, which may legitimately
+leave the accepted changes uncommitted.
 
 A standalone review invoked directly (outside the work and autonomous
 workflows) returns the findings report to the user and does not enter this
-gate's fix loop: no fix round is dispatched from its findings, and the cycle
-caps do not apply to it. This gate governs the work and autonomous dispatches,
-which keep their existing review and fix policies.
+gate's fix loop: no fix round is dispatched from its findings, and the
+fix-continuation rules do not apply to it. This gate governs the work and
+autonomous dispatches, which keep their existing review and fix policies.

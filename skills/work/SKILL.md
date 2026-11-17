@@ -199,7 +199,7 @@ any other round.
 
 The review enters the normal Work loop: applicable blocking findings go
 through the existing fix and re-review rules, with verification of the fixes
-and independent re-review within the existing caps. A clean verdict must not
+and independent re-review under the shared progress-aware continuation rules. A clean verdict must not
 manufacture implementation work. The user's delivery instructions in the task
 text are honored as written, including conditional ones: an instruction to
 commit, push, and create or update a pull request only when the review finds
@@ -324,11 +324,16 @@ Prefer an audit at the combined-result boundary, or earlier when later work
 would depend on an uncertain contract. Supply the exact accumulated change
 range, accepted outcomes, and integration checks. A review that already covers
 that range and those checks need not be duplicated at delivery. Any combined
-review target has the same fix/review caps as a slice.
+review target follows the same progress-aware continuation rules as a slice.
 
 The worker allowance defaults to twelve worker rounds (explore, implement,
 hard implementation, or fix), covering the whole task across exploration,
-implementation, and fixes. An explicit task-time instruction at invocation
+implementation, and fixes, under the shared
+[progress-aware contract](references/rounds.md#progress-aware-budgets-and-continuation):
+its progress-based hard ceiling is twenty-four, and when the normal allowance
+is reached with verified progress evidence, the allowance extends in recorded
+increments up to that ceiling — automatically, without a permission ask, and
+never on code churn. An explicit task-time instruction at invocation
 wins; otherwise a top-level `## Work` section in the preference file sets
 it through the one documented entry, `- worker rounds: N` (a positive
 integer), read from the SAME file the installation's selection uses: the
@@ -338,27 +343,35 @@ winning when both are present — or `preferences.NAME.md` at those same
 locations when a profile is selected at activation; one lookup, no merging.
 An invalid value is an actionable error naming its source and the value,
 never silently defaulted or clamped. The allowance's source is the installed
-default, a preference file, or the invocation. The override changes only the available worker
-rounds — never how many must run, the consultation allowance, the per-slice
-fix/review caps, the progress safeguards, scope, or permissions; it is
+default, a preference file, or the invocation. An explicit invocation or
+preference allowance is an exact cap: it never auto-extends, whatever its
+size; auto-continuation applies only to the default allowance. The override
+changes only the available worker rounds — never how many must run, the
+consultation allowance, the progress safeguards, scope, or permissions; it is
 Work-specific — Autonomous Mode keeps its own budget rules. The allowance is
 what is available, not what is required: Work finishes as soon as the
 requested outcome is complete. Do not dispatch rounds to use up a remaining allowance
-or manufacture work to spend it. Allow at most two fix cycles per slice, three review passes per slice, and
-one consultation per task; a `--consult` invocation consumes that allowance for
-its initial task-framing consultation. Review calls do not consume the worker
-budget but are bounded by these caps.
+or manufacture work to spend it. Allow one consultation per task; a
+`--consult` invocation consumes that allowance for its initial task-framing
+consultation. Review calls do not consume the worker budget; every review
+must be justified by changed evidence, a required integration gate, or
+bounded interrupted-review recovery, and productive fix continuation is
+bounded by the worker budget, verified progress, and the stall safeguards —
+not a per-slice fix/review cycle count.
 Budget across the whole sequence, leaving room for fixes and integration work;
-decomposition or replanning does not replenish the allowance. Reassess the
-remaining scope against the remaining allowance at each slice boundary.
-Caps prevent dispatching another round of that type beyond its allowance;
+decomposition or replanning does not replenish the allowance or reset its
+recorded extensions. Reassess the remaining scope against the remaining
+allowance at each slice boundary.
+The allowance in force — the extended default, the progress ceiling, or an
+exact explicit cap — prevents dispatching another worker round beyond it;
 verification and the permitted review of the last allowed worker still run.
 If more work is then required, stop under the stop and continuation rules
 below. Also stop when the same blocker recurs or two consecutive workers make
-no material progress. Do not quietly replenish the allowance or return
+no verified progress. Do not quietly replenish the allowance or return
 incomplete work as finished. When a limit will constrain the next useful
 action, say so in the progress narration; a stop report names the specific
-exhausted allowance — worker-round, fix, review, or consultation.
+exhausted allowance — worker-round or consultation — and any explicit user
+limit that bound the task.
 
 If a child is interrupted, inspect its actual changes and verification state.
 Start a fresh child with the last known facts and one next action; do not infer
@@ -398,9 +411,11 @@ Use its progress narration guidance for each substantive dispatch. Keep routine
 dispatch records and counters in session state and the continuation prompt in
 the stop report; Work writes no operational files for these.
 
-When an allowance is exhausted, do not dispatch another round of that type.
+When the allowance in force is exhausted — after any evidence-backed
+auto-continuation, at the progress ceiling, or at an exact explicit cap — do
+not dispatch another worker round.
 Stop and report which allowance is exhausted and what remains, what is
-completed and what is blocked, and the recent material progress. Recommend,
+completed and what is blocked, and the recent verified progress. Recommend,
 from the evidence, a bounded correction within the remaining allowances, a
 replan — also bounded, since a replan that needs child rounds consumes those
 allowances — or a stop. Where the host offers an interaction tool, offer the
@@ -408,9 +423,11 @@ situation-appropriate choices, for example "Replan before continuing",
 "Continue for one additional fix-and-review cycle", or "Stop and preserve
 current work"; without one, state the same options in the stop report.
 
-A user grant is a specific increment: it adds the named allowance, including
-the worker, fix, or review rounds the grant covers. It never resets existing
-counters and grants no scope, review, or Git rights beyond what it names; a
+A user grant is a specific increment: it adds the named allowance — worker
+rounds (a fix is a worker round), or review rounds against an explicit user
+review limit. The resulting boundary is an exact cap that does not
+auto-extend. A grant never resets existing counters and grants no scope,
+review, or Git rights beyond what it names; a
 replan requested through it stays bounded the same way. A declined or
 unanswered option ends the stop: do not ask again, do not schedule a resume,
 and leave the work in its preserved state. Provider quota exhaustion stops

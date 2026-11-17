@@ -227,11 +227,16 @@ the Work workflow's worker-round **allowance**:
 ```
 
 The value is how many worker rounds are available to a Work task, not how
-many must run. The default is twelve. The project file wins over the personal
+many must run. The default is twelve; with no explicit entry, the default
+allowance extends automatically on verified progress evidence up to a hard
+ceiling of twenty-four. An explicit entry here — like an explicit
+invocation-time allowance — is an exact cap that never auto-extends, whatever
+its size. The project file wins over the personal
 file. An invalid value (not a positive integer) is an actionable error naming
 the file and the value — it is never silently defaulted and never clamped.
 The setting is Work-specific: Autonomous Mode keeps its own budget behavior
-(a run ceiling and a per-task allowance, neither set by this file). The
+(a run ceiling and a per-task allowance with its own progress ceiling,
+neither set by this file). The
 [`configure`](../skills/configure/index.md) skill edits this section on every
 host — including OpenCode, where it is the only preference-file section that
 applies — and a Work-only allowance edit needs no model discovery.

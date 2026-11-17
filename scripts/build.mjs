@@ -45,7 +45,7 @@ const starterPackagedLink = "[preferences.example.md](references/preferences.exa
 export const pluginManifest = {
   $schema: "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   name: "agenticale",
-  version: "0.29.1",
+  version: "0.30.0",
   description: "Reviewed coding tasks with focused specialist agents, optional PR delivery, and durable autonomous project work.",
   author: { name: "Ale Franz" },
   homepage: "https://github.com/alefranz/AgenticAle",

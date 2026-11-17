@@ -5,10 +5,10 @@ only when a task is invoked with the `--outcome` option. It carries the
 Lever-derived methodology — a pre-registered objective, a reproducible
 measurement, explicit acceptance criteria, noise awareness, and evidence-based
 iteration — as an instruction-level protocol. It is not a new orchestration: it
-reuses Work's existing worker rounds, independent review gate, fix/review caps,
-stop/continuation machinery, and worker-round allowance. It introduces no
-generic verdict script, no metric framework, no parallel candidate execution,
-and no new dispatch role.
+reuses Work's existing worker rounds, independent review gate, progress-aware
+fix/review continuation rules, stop/continuation machinery, and worker-round
+allowance. It introduces no generic verdict script, no metric framework, no
+parallel candidate execution, and no new dispatch role.
 
 ## When it applies
 
@@ -84,8 +84,8 @@ rounds and gates:
 8. **Record the outcome** as accepted, rejected, or inconclusive, with the
    measurements and the rationale.
 9. **Continue only when justified** and within the existing execution limits —
-   the worker-round allowance, the fix/review caps, and the pre-registered stop
-   conditions.
+   the worker-round allowance in force, the shared progress-aware continuation
+   rules, and the pre-registered stop conditions.
 10. **Complete** the task only when both the outcome criteria and the existing
     correctness gates (the acceptance checks and the independent review) are
     satisfied.
@@ -93,9 +93,9 @@ rounds and gates:
 The independent review gate is separate from the measurement and is unchanged
 by the protocol. A candidate that clears the acceptance criteria but carries
 blocking review findings goes through the existing fix and re-review loop
-within the existing caps; after any outcome-affecting fix it is re-measured and
-re-compared against the original pinned baseline before it can count as
-achieving the outcome.
+under the shared progress-aware continuation rules; after any
+outcome-affecting fix it is re-measured and re-compared against the original
+pinned baseline before it can count as achieving the outcome.
 
 ## No generic verdict script
 

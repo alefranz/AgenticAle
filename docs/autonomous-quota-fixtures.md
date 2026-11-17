@@ -3,6 +3,8 @@
 These examples are acceptance cases for interpreting the provider-quota rules
 in the [Autonomous skill](../skills/autonomous/SKILL.md#provider-quota-recovery).
 They describe expected coordinator behavior; they are not live host tests.
+Charge retention and removal follow the skill's
+[state protocol](../skills/autonomous/SKILL.md#state-protocol) settle event.
 
 ## Quota interrupts a worker after partial progress
 
@@ -56,9 +58,9 @@ Expected behavior:
   8 at t0+240 minutes. Thus the eighth retry is allowed four hours after the
   initial failure under the default cooldown; its rejection stops automatic
   retrying with count eight.
-- Do not spend worker, fix, review, or consultation allowances on quota-only
-  launches or waits, and do not count those events toward the two-blocker or
-  no-progress stop rules.
+- Do not spend worker, review, or consultation allowances on quota-only
+  launches or waits (a fix is a worker round), and do not count those events
+  toward the two-blocker or no-progress stop rules.
 - After eight no-work cooldown retry rejections, stop with the exact retry
   action recorded as resumable state. Reset this count only after a resumed
   child makes material progress, and charge that productive round against its
@@ -112,10 +114,11 @@ the child is terminal.
 
 Expected behavior:
 
-- Remove the pending charge and restore both consumed counters: a pure
-  quota-blocked launch with no resumed work consumes no task allowance and no
-  run ceiling. Resolve the pending-dispatch note as quota-only; do not delete
-  the evidence without a trace.
+- Remove the pending charge and restore both consumed counters (the settle
+  event's quota-only outcome): a pure quota-blocked launch with no resumed
+  work consumes no task allowance and no run ceiling. Resolve the
+  pending-dispatch note as quota-only; do not delete the evidence without a
+  trace.
 - Record the quota recovery state (evidence, retry time, no-work rejection
   count) in the existing active handoff; the run and task identities and all
   other counters survive unchanged.

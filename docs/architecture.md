@@ -77,9 +77,22 @@ decision or the user asks. This keeps the main conversation understandable even 
 host collapses child activity, without relying on any particular host layout.
 The contract also defines review-closure rules for re-reviews and the
 self-contained continuation prompt that every incomplete stop carries. Its
-review/fix gate allows at most two fix cycles (three review passes) per
-target by default; Work keeps that cap, while Autonomous Mode overrides it
-narrowly with budget-bounded fix continuation (below).
+progress-aware budget contract binds both workflows identically: each task
+starts with a normal worker-round allowance (default twelve) and a
+progress-based hard ceiling (default twenty-four); reaching the allowance
+with verified progress evidence — passing acceptance, a verified correction,
+a resolved blocker, or a material new finding — extends it automatically in
+recorded increments up to the ceiling, never on code churn, while an explicit
+invocation, preference, or grant allowance is an exact cap that never
+auto-extends. Two consecutive unproductive worker rounds, a repeated blocker,
+or the repeated-interruption limit stop dispatch regardless of remaining
+budget. Per-target fix/review cycle counts are not authorization gates:
+productive fix continuation is bounded by the effective worker budget,
+verified progress, and the stall safeguards, every review needs changed
+evidence, a required integration gate, or bounded interrupted-review
+recovery, and the required review of the last allowed fix still runs at zero
+worker budget. A limit reached with eligible work remaining is an incomplete
+safety stop, never a successful completion.
 The six task contracts are capability-neutral: they carry only the role's
 instructions, with no host-specific protocol. `implement`, `implement-easy`,
 and `implement-hard` share the same `implement` contract, and `consult` and
@@ -122,17 +135,27 @@ and never write preference files themselves.
 `skills/autonomous/SKILL.md` adds durable backlog, handoff, archival, and
 continuation policies. The target project owns `BACKLOG.md` and the
 `.agenticale/handoffs/` directory for the active packet and monthly archive.
-Two durable worker-round budgets bound a run: a run ceiling (default 6, or
-the invocation's numeric override) and a per-task allowance (default 12,
-independent of the Work preference). Every explore/implement/fix round is
-charged once to both — the effective remaining budget is the smaller — under
-stable run and task identities whose consumed counters and pending-dispatch
-evidence survive crashes, resumes, and quota-only launch rejections. A
-numeric resume changes the ceiling without resetting consumption; an
-exhausted task is deferred unfinished and resumable, not a run stop, while
-truly independent ready tasks may still be selected. Productive fix
-continuation is bounded by the effective worker budget rather than the shared
-default two fix cycles (three review passes) or two deep re-audits per target:
+Two durable worker-round budgets and a separate completed-task limit bound a
+run: a run ceiling (default 240 — a generous emergency safety limit, not a
+work target — or the invocation's numeric override), a per-task allowance
+(default 12, independent of the Work preference) with the shared
+progress-based hard ceiling of 24, and a completed-task limit (default 20).
+The default task allowance extends automatically in recorded, evidence-backed
+increments up to its progress ceiling; an explicit ceiling, user task limit,
+or grant boundary is an exact cap that never auto-extends, and the
+completed-task limit never auto-grows. Every explore/implement/fix round is
+charged once to both worker budgets — the effective remaining budget is the
+smaller — under stable run and task identities whose consumed counters and
+pending-dispatch evidence survive crashes, resumes, and quota-only launch
+rejections. A numeric resume changes the ceiling without resetting
+consumption; an exhausted task is deferred unfinished and resumable, not a
+run stop, while truly independent ready tasks may still be selected. A task
+counts toward the completed-task limit only after its full persistence gate
+is confirmed, and reaching the run ceiling or the completed-task limit with
+eligible work remaining is an INCOMPLETE safety stop, never a completed run.
+Productive fix continuation follows the shared progress-aware contract rather
+than per-target cycle counts (the historical two-fix/three-review and
+two-re-audit defaults are not authorization gates in either workflow):
 each further fix is charged once to both budgets, every review needs changed
 evidence, a required integration gate, or bounded interrupted-review recovery,
 and the loop continues unattended while budget, progress, and the autonomy
@@ -146,8 +169,7 @@ evidence without reset or re-identification on resume or rename; the legacy
 default caps never re-gate a resumed run, while explicit user limits stay
 binding. The no-progress, same-blocker, and repeated-interruption safeguards,
 the one-opportunistic-escalation-per-session guard (struggle trigger: at least
-two fix rounds), and the consult caps are unchanged; Work keeps the shared
-two-fix/three-review caps. A human-owned
+two fix rounds), and the consult caps are unchanged. A human-owned
 `## Steering` section in `BACKLOG.md` provides deterministic pause/continue
 and ready-task priority controls, re-read before every round and preserved
 across agent writes. Invocation goal text supplied during an active run is
@@ -161,11 +183,28 @@ gates, and applicable deep gates, the coordinator makes coherent task
 commits, confirms an ordinary push to the resolved upstream, and persists
 the completion record in one bounded state-only finalization commit —
 pushed and confirmed under the same policy, never recording its own hash —
-before the next task is selected. The same policy governs the run's other
+before the next task is selected. Each task is in exactly one lifecycle
+state — review-open, accepted, persistence-pending, complete, or unfinished
+(deferred, blocked, exhausted) — and the state, not a worker report or a
+clean review, governs selection and accounting: only a confirmed complete
+gate permits the next selection and counts the task exactly once. Counter
+and state-transition bookkeeping is consolidated in one instruction-level
+state protocol — five events (charge, settle, switch, reconcile, finalize)
+over the two existing state files, with a single counter authority (the
+active budget line canonical, the backlog mirroring it), targeted writes on
+fresh re-reads with read-back, and validation of the whole packet before any
+counter is trusted. It adds no state file, helper script, or runtime
+capability; the fixed write order and replay-safe reconciliation are what
+keep the bookkeeping consistent across crashes, torn writes, and interrupted
+switches. The same policy governs the run's other
 persistence boundaries: a significant backlog reconciliation — added or
-removed tasks, rewritten acceptance, changed deferred packets — is persisted
-as an immediate state-only checkpoint commit before further dispatch, and a
-stop with attributable unfinished product changes checkpoints them as
+removed tasks, rewritten acceptance, reordered upcoming tasks, changed
+deferred packets, or a replaced basis of the active next action — is persisted
+as an immediate state-only checkpoint commit before further dispatch; a
+significant reorder is a plan change even when no task's text changes, while
+a bare human `priority` hint is only a selection hint and needs no
+checkpoint. A stop with attributable unfinished product changes checkpoints
+them as
 explicit WIP commits, pushed under the same policy, recording their
 verification/review status and exact continuation without completing the
 task or bypassing its gates. Routine ledger and counter writes create no
@@ -453,18 +492,22 @@ cleanup, and compatibility surfaces — and inspects only as much as the
 request's concrete uncertainties require. Everyday work may answer
 small questions with direct reads; Autonomous Mode keeps the main loop thin and
 sends needed source evidence to a focused explore round. When the run ceiling
-or another allowance is exhausted, no further round of the exhausted type is
-dispatched: the workflow reports the exhausted allowance, the completed and
-blocked state, and recent material progress, and recommends a bounded
-correction, a bounded replan, or a stop. An exhausted task allowance in
-Autonomous Mode defers that task — verification and the permitted review of
-its completed changes still run, and another truly independent ready task
-may be selected with a fresh allowance — while a steering pause or the
-absence of safe ready work stops the run. Every incomplete stop carries a
-self-contained, copyable continuation prompt; everyday work keeps it in the
-session only, while Autonomous Mode persists it, with allowance usage and any
-granted extension, in the existing handoff so a resume or a renamed target
-cannot evade the unresolved-target caps. See the
+or another allowance is exhausted, no further worker round is dispatched, but
+the required review of the last allowed worker still runs at zero worker
+budget: the workflow reports the exhausted allowance, the completed and
+blocked state, and recent verified progress, and recommends a bounded
+correction, a bounded replan, or a stop. A limit reached with eligible work
+remaining — and any stop leaving blocked or exhausted tasks — is an
+INCOMPLETE safety stop, never a successful completion. An exhausted task
+allowance in Autonomous Mode defers that task — verification and the
+permitted review of its completed changes still run, and another truly
+independent ready task may be selected with a fresh allowance — while a
+steering pause or the absence of safe ready work stops the run. Every
+incomplete stop carries a self-contained, copyable continuation prompt;
+everyday work keeps it in the session only, while Autonomous Mode persists
+it, with allowance usage and any granted or evidence-backed progress
+extension, in the existing handoff so a resume or a renamed target cannot
+evade the unresolved-target limits. See the
 [work-coordination examples](https://github.com/alefranz/AgenticAle/blob/main/docs/work-coordination-fixtures.md)
 for the expected decisions.
 
