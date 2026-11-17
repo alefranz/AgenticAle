@@ -1,12 +1,15 @@
 # Autonomous recovery simplification
 
 Run `simplify-recovery`; strict; commit and push (explicit user request).
-Run workers 2/240; completed tasks 0/20. Branch `simplify-autonomous-recovery`.
+Run workers 6/240; completed tasks 1/20 upon finalization confirmation. Branch `simplify-autonomous-recovery`.
 Operational state for this run follows the loaded workflow, not its proposed replacement.
 
 ## Tasks
-- [ ] T1 Simplify authored autonomous state, ownership, recovery and steering contracts with acceptance fixtures. Allowance 12 (progress ceiling 24), consumed 2. Incomplete: R2 quota interruption after material edits. WIP `61232f6`, pushed origin/simplify-autonomous-recovery; pre-WIP review base `c67cf6c`. Fixtures/checks/reviews outstanding.
+- [x] T1 2026-11-17: compact snapshot/steering/coordinator ownership and recovery fixtures. Workers6/12; commits `61232f6`, `8abbf46` pushed origin/simplify-autonomous-recovery; R8/R11 clean. Details `.agenticale/handoffs/archive/2026-11.md`. Completion subject to this bounded finalization confirmation.
 - [ ] T2 Integrate affected documentation, distributed plugin and validation; depends on T1. Allowance allocated at selection.
 
 ## Next slice
-T1: after 2026-11-17T20:18:07Z, reconcile checkout and continue partial rewrite on implement-hard; finish matching fixtures, then independent review including WIP range c67cf6c..HEAD and working tree.
+Confirm T1 finalization then select T2 integration; include shared round-contract ledger terminology.
+
+## Open nits
+- [ ] R11-N1: docs/work-coordination-fixtures.md stop/resume example: distinguish exhausted-ceiling variant from 7/240 and require human pause release before continuation (T2).
