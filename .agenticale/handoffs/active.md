@@ -8,12 +8,12 @@ OpenCode binding; requested profiles: explore local-llama/qwen3.8-27b#medium; im
 User grants increased run limit; selected 240 emergency ceiling; task default 12 with authorized extension up to 24. Stats requested.
 
 # CURRENT STATE
-Run progress-aware-workflows ceiling=240 consumed=3; task=T1 allowance=12 consumed=3.
-T1 product 538ec74 pushed to origin/feat/progress-aware-workflows, confirmed ls-remote. R4/R5 clean; source checks pass. Detailed R1-R5 ledger/evidence archived .agenticale/handoffs/archive/2026-11.md. First opportunistic escalation used.
-State-only finalization pending confirmation; no next task selected until confirmed. T2/T3/T4 incomplete; T4 public docs/version/generation/full verification deferred.
+Run progress-aware-workflows ceiling=240 consumed=4; task=T2 allowance=12 consumed=1.
+T1 product 538ec74 + finalization 9309e68 confirmed origin/feat/progress-aware-workflows; gate closed read-only. R1-R5 ledger archived .agenticale/handoffs/archive/2026-11.md. First opportunistic escalation used.
+T2 product4964701 push confirmed origin/feat/progress-aware-workflows. R6/R7 details archived .agenticale/handoffs/archive/2026-11.md; clean review/source checks, no live runtime assurance. State finalization pending read-only confirmation. T3/T4 incomplete; public docs/version/regen/full checks deferred.
 
 # ACCEPTANCE
 Work bounded 12 normal/24 progress ceiling; Autonomous 20 completed-item limit and 240 emergency workers; evidence-based continuation and 2-round stall detection. Explicit completion and persistence invariants; consolidated recovery protocol; tests/docs/generated artifacts coherent. Full CONTRIBUTING checks and plugin-version check before draft PR.
 
 # NEXT
-Confirm T1 state finalization read-only, then select T2 lifecycle consolidation.
+Confirm T2 state finalization, then select T3. Hard-slice escalation deferred to periodic integration gate.
