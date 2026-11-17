@@ -186,11 +186,13 @@ OpenCode (below); it is the only preference-file section that applies there.
 
 The top-level `## Work` section carries one documented entry:
 `- worker rounds: N`, a positive integer. The default is twelve when the
-entry is absent. The allowance is what is available to a Work task, not
-what must run; it never changes the consultation allowance, the per-slice
-fix/review caps, scope, or permissions. It is Work-specific: Autonomous
-Mode keeps its own run ceiling and per-task allowance, untouched by this
-file.
+entry is absent; the default allowance auto-extends on verified progress
+evidence up to the progress-based hard ceiling of twenty-four. An explicit
+entry is an exact cap: it never auto-extends, whatever its size. The
+allowance is what is available to a Work task, not what must run; it never
+changes the consultation allowance, the progress safeguards, scope, or
+permissions. It is Work-specific: Autonomous Mode keeps its own run ceiling
+and per-task allowance, untouched by this file.
 
 A Work-only request — the user asks only to set or change the worker-round
 allowance — needs no model evidence: no listing, no user-supplied model

@@ -41,9 +41,11 @@ Interpret the complete arguments as:
 
 - Leading option: an optional positive-integer worker-round budget. `--` is
   an explicit option delimiter; everything after the option is the goal text,
-  possibly empty. With no budget, the goal uses the default run ceiling of 6
-  worker rounds. The budget sets the run ceiling for the whole run; each
-  genuine task keeps its own default allowance of 12 worker rounds (see
+  possibly empty. With no budget, the goal uses the default run ceiling of 240
+  worker rounds — a generous emergency safety limit, not a work target. The
+  budget sets the run ceiling for the whole run; each
+  genuine task keeps its own default allowance of 12 worker rounds with the
+  shared progress-based ceiling of 24 (see
   [Run and task budgets](#run-and-task-budgets)).
 - Whenever the parsed goal text is empty — no arguments at all or a budget
   alone — RESUME the active handoff: continue the exact one `NEXT` action
@@ -85,7 +87,8 @@ before dispatching, and never overwrite active work to apply it.
   interrupted.
 - **Preserved state.** Steering keeps the run identity, the run ceiling
   (unless the invocation supplies an explicit numeric override), every
-  consumed counter, task allowance, fix/review counter, deferred packet, and
+  consumed counter, task allowance in force (including recorded progress
+  extensions), fix/review counter, deferred packet, and
   open review gate. It grants no allowance — only a named user grant does —
   and bypasses no gate, dependency, or safety boundary.
 - **Destructive replacement.** An explicit, unambiguous request to discard or
@@ -262,8 +265,9 @@ operational state separate from completed audit detail:
 
 - `BACKLOG.md` is the compact operational board. It contains product
   decisions that still govern work, open blockers/nits as checkboxes, the
-  current milestone's short status with the run identity, ceiling, and
-  consumed worker rounds (mirroring the active budget line), each task
+  current milestone's short status with the run identity, ceiling,
+  consumed worker rounds, and the completed-task count against its limit
+  (mirroring the active budget line), each task
   entry's stable ID and worker-round counters, exactly one first active
   next action, compact resumable packets for deferred unfinished tasks, the
   human-owned `## Steering` section (see [Live steering](#live-steering-human-owned-backlog-section)),
@@ -272,8 +276,9 @@ operational state separate from completed audit detail:
   It is at most ~2 KB and contains `GOAL`, `ESTABLISHED`, `CURRENT STATE`,
   `ACCEPTANCE`, and exactly one `NEXT` action. A reset also adds a compact
   `TRIED` section. `CURRENT STATE` carries the compact budget line — run
-  identity, ceiling, and consumed worker rounds; active task ID, allowance,
-  and consumed worker rounds — next to the ledger, plus a pending-dispatch
+  identity, ceiling, and consumed worker rounds; active task ID, allowance
+  in force (including any recorded progress extension), and consumed worker
+  rounds — next to the ledger, plus a pending-dispatch
   note while a charged child is in flight (see
   [Run and task budgets](#run-and-task-budgets)). Create it before the first
   round of a session if absent. A role's model selection, where the active
@@ -617,7 +622,7 @@ state, never duplicating commits.
 
 The checkpoint is a coordinator Git action at a stop the coordinator actually
 reaches: it dispatches no child and consumes no worker, review, or consult
-budget, and it never launches work beyond the caps that produced the stop.
+budget, and it never launches work beyond the limits that produced the stop.
 When the coordinator itself is interrupted or quota-exhausted before
 checkpointing, no persistence is promised — recovery reconciles whatever
 durable state and Git evidence exist, exactly like an interrupted gate.
@@ -663,40 +668,62 @@ counters unchanged.
 
 ## Run and task budgets
 
-Two worker-round budgets bound every run, and both are durable:
+Two durable worker-round budgets bound every run, and a separate
+completed-task limit bounds how many tasks one run may finish:
 
-- **Run ceiling** — the whole run's worker-round budget: the default 6, or
-  the positive integer supplied at invocation. It changes only by the user's
-  explicit numeric override or a named grant; the coordinator never
-  auto-grows the default for a large goal.
+- **Run ceiling** — the whole run's worker-round budget: the default 240, or
+  the positive integer supplied at invocation. The default is a generous
+  emergency safety limit, not a work target: the run processes eligible
+  backlog tasks until the backlog is drained or a safety limit is reached.
+  The ceiling changes only by the user's explicit numeric override or a named
+  grant; the coordinator never auto-grows it, and an explicit ceiling is
+  exact.
 - **Task allowance** — each genuine task's own worker-round budget, default
-  12. It is independent of the run ceiling and of the Work preference file's
-  `## Work` allowance, which never sets an autonomous budget. Only a user
-  grant extends a specific task's allowance, as a named increment.
+  12, with the shared
+  [progress-aware contract](../work/references/rounds.md#progress-aware-budgets-and-continuation)'s
+  progress-based hard ceiling of 24: when the normal allowance is reached
+  with verified progress evidence, the coordinator records a bounded
+  extension up to that ceiling before dispatching further worker rounds —
+  automatically, without a permission ask, and never on code churn. It is
+  independent of the run ceiling and of the Work preference file's
+  `## Work` allowance, which never sets an autonomous budget. An explicit
+  user task limit or the boundary of a named grant is an exact cap that never
+  auto-extends; only a user grant extends a specific task's allowance beyond
+  its ceiling, as a named increment.
+- **Completed-task limit** — default 20 completed tasks per run, separate
+  from both worker budgets. A task counts toward the limit only after its
+  [task persistence gate](#task-persistence-gate) is fully satisfied,
+  including the bounded state finalization; deferred, blocked, exhausted,
+  review-open, and WIP-checkpointed tasks never count. Reaching the limit
+  while eligible backlog work remains is an INCOMPLETE safety stop, never a
+  completed run. An explicit user instruction may set a different limit,
+  recorded in the durable state; it never auto-grows.
 
 Every explore, implement, and fix round — including a reset continuation or a
 malformed-report correction — is one worker round charged to BOTH the current
 task and the run. Exploration that defines a task belongs to that task's
 allowance. The effective remaining worker budget is the smaller of the task's
-remaining allowance and the run's remaining ceiling; a worker dispatch needs
+remaining allowance in force and the run's remaining ceiling; a worker dispatch needs
 at least one effective round. Review, review-deep, and consult rounds do not
 consume either worker budget. Consult rounds keep their unchanged caps — one
 per decision, two per session. Review and review-deep rounds keep their own
-accounting and are bounded by the review-justification rules, not a fixed
-per-target pass count; the shared two-fix/three-review and two-re-audit
-defaults are not authorization gates in this workflow (see
+accounting and are bounded by the shared review-justification rules, not a fixed
+per-target pass count; per-target fix/review cycle counts are not
+authorization gates in this workflow (see
 [Fix continuation and review justification](#fix-continuation-and-review-justification)).
 
 Only a genuinely new task receives a fresh task allowance. Decomposing a
 task, replanning it, resuming it, steering it, or recovering it from an
 interruption keeps the same task identity and the same consumed counters;
-none of them replenishes the task allowance or the run ceiling. A renamed or
+none of them replenishes the task allowance or the run ceiling, and none
+erases a recorded progress extension or its evidence. A renamed or
 re-outlined slice of the same task is not a new task.
 
 ### Durable identities and counters
 
 Round 0 assigns the run a stable identity (a short slug recorded in the
-backlog and the active handoff) and records the run ceiling. Every task
+backlog and the active handoff) and records the run ceiling and the
+completed-task limit. Every task
 receives its stable task ID (`T1`, `T2`, … in recording order) when it first
 enters the backlog — in the round-0 plan, an invocation steering
 reconciliation, or when a round's report defines a new task — before any
@@ -706,10 +733,23 @@ allowance is allocated only at its first selection, and readiness still
 governs eligibility. The ID travels with the task through the backlog, the
 active packet, dispatch records, and the archive. The active handoff's
 `CURRENT STATE` carries one compact budget line — run identity, ceiling,
-consumed; task ID, allowance, consumed — next to the ledger, and the backlog
-carries the same counters on each task's entry. Counters record consumption;
+consumed; task ID, allowance in force (including any recorded progress
+extension), consumed — next to the ledger, and the backlog
+carries the same counters on each task's entry plus the completed-task count
+against its limit in the milestone status. Counters record consumption;
 remaining is derived from the ceiling or allowance, never stored as a second
-number that can drift.
+number that can drift. The completed-task count is derived from the backlog's
+confirmed completion records — a task counts only once its persistence gate
+is satisfied — never from a separate tally that can drift.
+
+A progress extension is a recorded allowance increment, not a reset: the
+coordinator writes the new allowance and its verified-progress evidence into
+the existing state (the budget line and a ledger or handoff note) before the
+next worker dispatch, following the same targeted-edit, fresh-re-read rules
+as any counter write. Consumed counters, per-target fix/review evidence, and
+the stall and blocker safeguards are unchanged by an extension. A resume
+continues the recorded allowance in force and consumption unchanged; a
+replay of productive work keeps its recorded charge.
 
 Counter authority is single. The `active.md` budget line is canonical for
 run consumption and the active task's counters; the backlog mirrors them on
@@ -789,13 +829,15 @@ Reconcile in this order at every launch and fresh resume, before dispatching:
 Examples. (a) Torn charge write with a readable prefix: the pre-launch
 `active.md` write tears after the incremented counters but before the
 dispatch record and pending note, leaving a readable budget line of run 4,
-T1 4 while the verified backlog mirror still reads run 3/6, T1 3/12. No
+T1 4 while the verified backlog mirror still reads run 3/6, T1 3/12 (a run
+started with an explicit ceiling of 6). No
 child launched — the charge was never verified. The resume finds the
 increment unbacked, rebuilds from the mirror (run 3, T1 3), repairs
 `active.md`, and dispatches the round with one new charge: run 4, T1 4
 after the first actual round. Mirroring the readable 4 first and then
 charging would reach 5 for one actual round — the unverified counters must
-never reach the mirror. (b) Interrupted switch: exhausted T1 (12/12) has its
+never reach the mirror. (b) Interrupted switch: exhausted T1 (12/12 under an
+exact user-set task cap) has its
 deferred packet durable in the backlog when the session dies before
 `active.md` is rewritten. A complete, coherent `active.md` still names T1:
 the duplicate deferred entry is removed and T1 stays active until the next
@@ -816,7 +858,9 @@ run ceiling or task allowance — and never resets counters.
 
 ### Task exhaustion is not a run stop
 
-When a task's allowance is exhausted, dispatch no further worker round for
+When a task's allowance in force is exhausted — at the progress ceiling, or
+at an exact explicit cap, with no further extension justified under the
+shared contract — dispatch no further worker round for
 that task and exclude it from worker selection until a user grant extends
 its allowance, so an exhausted deferred task cannot repeatedly win
 selection. Verification and the permitted review of its completed changes
@@ -831,8 +875,9 @@ remain in the tree. Selection never bypasses a review gate, a dependency, or
 a safety boundary: a task that depends on the unfinished work, or whose
 changes cannot be safely separated from it, is not ready, and no task is
 manufactured to spend remaining budget. When no safe ready task remains, the
-run stops under the stop conditions. The run itself stops for budget only
-when the run ceiling is exhausted.
+run stops under the stop conditions — an incomplete stop whenever unfinished
+tasks remain. The run itself stops for budget only
+when the run ceiling or the completed-task limit is exhausted.
 
 ## Setup (round 0, done by the main loop)
 
@@ -845,12 +890,14 @@ when the run ceiling is exhausted.
    [Git persistence between handoffs](#git-persistence-between-handoffs)).
    A resume or steering invocation keeps the recorded policy unless the user
    explicitly changes it; a legacy handoff with no recorded policy resumes as
-   working tree. If no budget was given, use the default run ceiling of 6
-   worker rounds; do not auto-grow the default for large goals — a larger
-   ceiling is the user's explicit numeric override or a later named grant.
+   working tree. If no budget was given, use the default run ceiling of 240
+   worker rounds — the emergency safety limit; do not auto-grow an explicit
+   ceiling — a larger ceiling is the user's explicit numeric override or a
+   later named grant.
    Strict-mode review rounds are cheap and are not counted against the worker
-   budget. Assign the run identity, record the ceiling and the default task
-   allowance of 12, and state all four parsed choices, the persistence
+   budget. Assign the run identity, record the ceiling, the default task
+   allowance of 12 with its progress ceiling of 24, and the completed-task
+   limit of 20, and state all four parsed choices, the persistence
    policy's basis, and — when the policy leaves accepted work uncommitted or
    unpushed — the explicit warning.
 2. Read only what is needed to define round 1: `.agenticale/handoffs/active.md`
@@ -947,24 +994,29 @@ review — re-read the `BACKLOG.md` Steering section (see
 [Live steering](#live-steering-human-owned-backlog-section)) and the durable
 budget line. A `pause` stops the loop at the safe checkpoint described there.
 A worker dispatch additionally needs at least one effective worker round —
-the smaller of the task's remaining allowance and the run's remaining ceiling
-(see [Run and task budgets](#run-and-task-budgets)); persist the round's
+the smaller of the task's remaining allowance in force and the run's remaining
+ceiling (see [Run and task budgets](#run-and-task-budgets)); persist the round's
 single charge against both budgets, with the pending-dispatch note, before
-launching the child.
+launching the child. When the allowance in force is reached and verified
+progress evidence justifies continuation, record the bounded extension first
+(shared contract), then dispatch under the new allowance.
 
 Task selection happens only at a selection boundary — the current task
-completed, deferred, or blocked — never mid-task. Apply the steering priority
+completed, deferred, or blocked — never mid-task. The run processes eligible
+backlog tasks until the backlog is drained or a safety limit is reached: at
+each boundary where a task has just completed, check the completed-task count
+against its limit before selecting further work. Apply the steering priority
 among ready tasks, then the normal backlog order. A ready task is one whose
 dependencies and review gates are satisfied and whose changes can be safely
 separated from any unfinished work in the tree. Worker selection additionally
 requires worker eligibility: at least one effective worker round remains for
-the task under both its allowance and the run ceiling. An allowance-exhausted
+the task under both its allowance in force and the run ceiling. An allowance-exhausted
 task is not worker-ready and is skipped with a recorded note even when
 steering names it first, while the permitted review of its completed changes
 remains schedulable under the review rules. Selecting a genuinely new task
 allocates its fresh allowance (its stable ID was assigned when it entered the
 backlog); returning to a deferred task restores its recorded packet,
-identity, and counters. Example: steering lists exhausted T1 before ready,
+identity, and counters — including any recorded progress extension. Example: steering lists exhausted T1 before ready,
 truly independent T2 — the loop records T1's skip, selects T2, and may still
 dispatch T1's permitted review; it never dispatches a worker round for T1,
 never bypasses a gate, dependency, or conflict, and never manufactures a
@@ -1279,19 +1331,22 @@ consume the worker-round budget.
 
 A consult settles a reversible technical or design decision within the
 allowances that remain; adopting its recommendation never starts a round the
-caps do not cover. In this workflow the fix → review loop is gated by the
-effective worker budget and the progress safeguards — each fix is a worker
-round charged to both budgets — not by the shared two-fix/three-review
-default (see
+budgets do not cover. In this workflow the fix → review loop is gated by the
+effective worker budget, verified progress, and the stall safeguards — each
+fix is a worker round charged to both budgets — not by per-target cycle
+counts (see
 [Fix continuation and review justification](#fix-continuation-and-review-justification)).
 Review, review-deep, and consult rounds keep their own accounting and stay
 dispatchable after worker-budget exhaustion when justified, including the
 permitted review of an exhausted task's completed changes. A consult cannot
-grant an allowance or justify a correction beyond those caps, and extending
-an allowance is a user-only decision that is never delegated to a consult.
+grant an allowance or justify a correction beyond the budgets:
+evidence-backed task extensions within the progress ceiling follow the
+shared contract, and any extension beyond them — past an explicit cap, the
+run ceiling, or the completed-task limit — is a user-only decision through a
+named increment, never delegated to a consult.
 An exhausted task allowance alone is not a run stop (see
 [Task exhaustion is not a run stop](#task-exhaustion-is-not-a-run-stop)).
-When the caps that govern the next needed round are hit, stop under the stop
+When the limits that govern the next needed round are hit, stop under the stop
 conditions and offer the user the named increment the continuation needs
 instead.
 
@@ -1327,8 +1382,10 @@ blocker to report, not noise to suppress.
 ## Review gate
 
 Apply the shared round contract's independent review, finding classification,
-and re-review closure. Its default two-fix-cycle limit is overridden here by
-the budget-bounded fix continuation below. In strict mode every
+and re-review closure. Its progress-aware continuation rules apply here with
+durable counters (see
+[Fix continuation and review justification](#fix-continuation-and-review-justification)
+below). In strict mode every
 implementation slice must pass that gate before work advances. A re-review
 reports each prior finding by ID as fixed, partially fixed, still open, or
 regressed; when the acceptance involves recovery or interruption behaviour,
@@ -1346,19 +1403,24 @@ invariants. Consultation and the autonomy envelope below govern stuck decisions.
 
 ### Fix continuation and review justification
 
-The shared contract's default caps — two fix cycles (three review passes) per
-target, and two deep re-audits per target — are not authorization gates in
-this workflow. Productive fix continuation is bounded by the effective worker
-budget instead:
+The shared contract's
+[progress-aware continuation](../work/references/rounds.md#progress-aware-budgets-and-continuation)
+binds this workflow: per-target fix/review cycle counts — including the
+historical two-fix/three-review and two-re-audit defaults — are not
+authorization gates. Productive fix continuation is bounded by the effective
+worker budget, verified progress evidence, and the stall safeguards:
 
 - **Budget-bounded continuation.** Every fix round is a worker round, charged
   exactly once against BOTH the task allowance and the run ceiling before
   launch. While at least one effective worker round remains, the latest fix
-  made real progress, and the autonomy envelope below holds, the coordinator
+  made verified progress, and the autonomy envelope below holds, the coordinator
   continues the fix → verify → re-review loop unattended — including beyond
-  two fixes or three review passes on one target. It never asks the user to
+  two fixes or three review passes on one target, and including a fourth or
+  later productive fix within budget. It never asks the user to
   authorize one more target cycle, fix cycle, or review pass while those
-  conditions hold.
+  conditions hold. When the task's allowance in force is reached, the shared
+  extension rules apply: a recorded, evidence-backed extension up to the
+  progress ceiling, or exhaustion.
 - **Review justification.** Every review round — ordinary or deep — must be
   justified by changed slice or fix evidence (a diff the previous review has
   not seen), a required integration gate (the periodic or opportunistic deep
@@ -1368,14 +1430,16 @@ budget instead:
 - **Durable counters, no loopholes.** Fix and review counters stay durable
   per-target evidence. They survive resumes, replans, renames, and
   interruption recovery unchanged; nothing resets or re-identifies them.
-  Counts recorded under the legacy default caps are retained as evidence,
+  Counts recorded under the historical default caps are retained as evidence,
   but those legacy defaults never re-gate a resumed run. An explicit user
   limit recorded in the durable state — a user-set cap or the boundary of a
-  named grant — remains binding and stops the loop when reached.
+  named grant — remains binding, never auto-extends, and stops the loop when
+  reached.
 - **Safeguards unchanged.** The progress safeguards stop the loop regardless
-  of remaining budget: two consecutive worker rounds with no net progress,
-  the same task blocked two rounds in a row, the repeated-interruption limit,
-  and the repeated-invariant replanning and standard-drift rules below.
+  of remaining budget: two consecutive worker rounds with no verified
+  progress, the same task blocked two rounds in a row, the
+  repeated-interruption limit, and the repeated-invariant replanning and
+  standard-drift rules below.
   Scope, irreversible-action, user-preference, Git, persistence, and steering
   limits are unchanged.
 - **Exhaustion.** When the effective worker budget is exhausted, dispatch no
@@ -1384,8 +1448,9 @@ budget instead:
   still runs under the review accounting even with zero worker rounds left:
   the budgets gate fix dispatch, not review. If blocking findings survive it,
   the target stays incomplete and review-open — blockers prevent completion.
-  An exhausted run ceiling stops the run under the allowance-stop rules,
-  offering the named worker increment a continuation needs instead of an
+  An exhausted run ceiling or completed-task limit stops the run under the
+  allowance-stop rules — an INCOMPLETE safety stop whenever eligible work
+  remains — offering the named increment a continuation needs instead of an
   automatic extra cycle. An exhausted task allowance alone defers the target
   with its resumable packet and open findings, and the run continues with
   another truly independent ready task when one can be selected safely —
@@ -1426,7 +1491,8 @@ stays docs/config-only or is reversible under the active persistence policy;
 the session's deep review work stays within one opportunistic escalation,
 with every re-audit justified by a productive fix delta, a required
 integration gate, or bounded interrupted-review recovery; consults stay
-within two per session; the effective worker budget covers the next fix and
+within two per session; the effective worker budget covers the next fix
+(including any justified progress extension) and
 no progress safeguard or explicit user limit has fired; and no irreversible
 action is required. Both worker budgets (task
 allowance and run ceiling) gate worker dispatch only, not every dispatch: an
@@ -1442,15 +1508,16 @@ beyond a cap — only the user can, through a named increment. Breach any
 guard, or reach an irreversible action — stop and ask. Asking is for guard
 breaches, irreversible actions, and what a consult could not settle — not
 for routine continuation inside the envelope, including fix continuation
-beyond the legacy per-target cycle defaults while budget, progress, and
-permissions allow.
+beyond per-target cycle counts and evidence-backed allowance extensions
+while budget, progress, and permissions allow.
 
 ## Worker prompt template
 
 ```
 You are round {N} in an autonomous work session, {MODE} mode.
 Budgets: run {RUN_ID} {RUN_USED}/{RUN_CEILING} worker rounds used; task
-{TASK_ID} {TASK_USED}/{TASK_ALLOWANCE} used. This round is charged to both.
+{TASK_ID} {TASK_USED}/{TASK_ALLOWANCE} used (allowance in force; progress
+ceiling {TASK_CEILING}). This round is charged to both.
 Work in the {REPO} repository at {PATH} (branch {BRANCH}). Related repos:
 {OTHERS}.
 Git persistence policy: {WORKING TREE | COMMIT | COMMIT AND PUSH, WITH BASIS}.
@@ -1622,14 +1689,19 @@ NEXT: one concrete action
 
 Stop the loop and report to the user when any of these hit:
 
-- **Goal met** — the final review (or, standard mode, the final worker
-  round) shows it (green tests, persistence policy satisfied, handoff updated).
-  Verify with one cheap command, then give the final report.
-- **Run ceiling exhausted** — do not dispatch another worker round;
+- **Goal met** — every backlog task is completed through its gates and the
+  final review (or, standard mode, the final worker
+  round) shows the goal is satisfied (green tests, persistence policy satisfied, handoff updated).
+  Verify with one cheap command, then give the final report. Blocked,
+  exhausted, or otherwise unfinished tasks mean the goal is not met: that is
+  an incomplete stop below, never a completed run.
+- **Run ceiling exhausted** — an INCOMPLETE safety stop whenever eligible
+  backlog work remains; never a successful run completion. Do not dispatch
+  another worker round;
   verification and the permitted review of completed changes still run
   under the unchanged review rules. Report
   the exhausted run ceiling, what remains, what is completed and what is
-  blocked, and the recent material progress. Where the host offers an
+  blocked, and the recent verified progress. Where the host offers an
   interaction tool, offer the situation-appropriate choices — a bounded
   replan (child rounds of a replan consume allowances), one additional
   bounded fix-and-review cycle, or a stop that preserves the current work —
@@ -1642,12 +1714,23 @@ Stop the loop and report to the user when any of these hit:
   are worker rounds) to the named budget (run ceiling or task allowance),
   and review rounds only against an explicit user review limit — never
   resets counters, and grants no scope, review, or Git rights beyond what it
-  names; a consult cannot grant any of these increments (see Decision
+  names; the resulting boundary is an exact cap that does not auto-extend,
+  and a consult cannot grant any of these increments (see Decision
   consultation). A declined or unanswered option ends the stop: do not ask
   again, do not schedule a resume, and leave the work in its preserved state.
   Give the final report with the continuation prompt; the handoff must make
   the next step explicit so work can resume.
-- **Task allowance exhausted** — not a run stop by itself. Dispatch no
+- **Completed-task limit reached** — the run has completed its limit of
+  tasks (default 20), each counted only after its task persistence gate was
+  fully satisfied. When eligible backlog work remains, this is an INCOMPLETE
+  safety stop, never a completed run: report the limit, the completed and
+  remaining tasks, and the continuation prompt, and offer the named
+  increment a continuation needs (a raised limit) or a stop that preserves
+  the current work; the limit never auto-grows. When the backlog is drained,
+  the normal **Goal met** close applies instead.
+- **Task allowance exhausted** — not a run stop by itself. The allowance in
+  force is exhausted at the progress ceiling or an exact explicit cap, with
+  no further extension justified. Dispatch no
   further worker round for that task; verification and the permitted review
   of its completed changes still run. Keep the unfinished part incomplete
   and resumable (findings, current state, one next action), then select
@@ -1658,7 +1741,10 @@ Stop the loop and report to the user when any of these hit:
 - **No safe ready work** — the current task is complete, deferred, or
   blocked, and no other truly independent ready task can be safely selected
   while unfinished changes exist. Stop with the preserved state, the
-  deferred resumable packets, and the continuation prompt.
+  deferred resumable packets, and the continuation prompt. When the stop
+  leaves blocked, exhausted, or otherwise unfinished tasks, the run is
+  explicitly incomplete even though no eligible work remains — report it as
+  an incomplete stop, never as a completed run.
 - **Persistence blocked** — a required commit or push — task product commits,
   WIP or reconciliation checkpoint commits, task state finalization, or
   session-close finalization — cannot be completed safely: an unsafe or
@@ -1695,8 +1781,8 @@ Stop the loop and report to the user when any of these hit:
   safely; the run stops only under **No safe ready work** or another run
   stop — never by bypassing a review gate, dependency, or safety boundary
   (see [Task exhaustion is not a run stop](#task-exhaustion-is-not-a-run-stop)).
-  While an effective worker round remains and fixes make real progress, this
-  stop never fires: continue the loop unattended instead (see
+  While an effective worker round remains and fixes make verified progress,
+  this stop never fires: continue the loop unattended instead (see
   [Fix continuation and review justification](#fix-continuation-and-review-justification)).
 - **Autonomy-envelope guard breach** — a second opportunistic escalation in
   one session without an explicit user request, a review or re-audit over
@@ -1711,8 +1797,9 @@ Stop the loop and report to the user when any of these hit:
   flags) — irreversible actions and user preference stop and ask (consult
   does not apply); reversible judgement decisions get one consult first (see
   Decision consultation).
-- **Two consecutive worker rounds with no net progress** — stop and
-  summarize.
+- **Two consecutive worker rounds with no verified progress** — stop and
+  summarize under the shared stall safeguards; remaining budget is not a
+  reason to continue.
 
 ## Final report (main loop, ≤ 15 lines)
 
@@ -1745,8 +1832,9 @@ monthly archive): the round ledger
 state (build/test evidence, per-repo persistence state and pin match), any
 material change to a role's model selection reported on resume, the open
 nits already tracked as checkboxes, the allowance usage (run and task
-identities, ceilings and allowances, consumed counters) and any granted
-extensions, the continuation prompt for an incomplete stop, and the exact
+identities, ceilings and allowances in force, consumed counters, the
+completed-task count against its limit) and any granted or evidence-backed
+progress extensions, the continuation prompt for an incomplete stop, and the exact
 next step. A fresh resume validates the handoff against
 the actual checkout and re-establishes missing context rather than trusting
 it. Update `BACKLOG.md` and
@@ -1830,9 +1918,13 @@ the main loop may make itself even though it normally does not edit files.
   asks are for guard breaches, irreversible actions, and what a consult
   could not settle.
 - Asking the user to authorize one more fix or review cycle while the
-  effective worker budget, real progress, and the envelope still permit
-  continuation — the legacy per-target cycle defaults (two fixes/three
-  reviews, two re-audits) are not authorization gates in this workflow.
+  effective worker budget, verified progress, and the envelope still permit
+  continuation — per-target cycle counts (the historical two fixes/three
+  reviews, two re-audits) are not authorization gates in either workflow.
+- Extending a task allowance without verified progress evidence, or treating
+  code churn — edits that do not move acceptance, reformatting, re-running a
+  disproved approach — as progress; an extension is a recorded,
+  evidence-backed increment within the progress ceiling, never a reset.
 - Re-reviewing unchanged evidence to spend review availability — every
   review needs a changed diff, a required integration gate, or bounded
   interrupted-review recovery; a review-only loop is prohibited.
@@ -1842,9 +1934,19 @@ the main loop may make itself even though it normally does not edit files.
 - Spending a consult on a user preference, taste, or an irreversible
   action — those go straight to the user; a second opinion cannot veto a
   force-push or decide what the user wants.
-- Auto-growing the default run ceiling for a large goal, or letting a
-  numeric resume reset persisted consumption — the ceiling changes only by
-  explicit override or named grant, and consumed counters carry over.
+- Auto-growing an explicit run ceiling, an exact user cap, or the
+  completed-task limit, or letting a
+  numeric resume reset persisted consumption — budgets change only by
+  explicit override or named grant (plus evidence-backed task extensions
+  within the progress ceiling), and consumed counters carry over.
+- Reporting a limit stop as a completed run while eligible work remains, or
+  reporting a run with blocked or exhausted tasks as successfully completed
+  even when no eligible work remains — a limit reached with eligible work
+  remaining is an INCOMPLETE safety stop, and unfinished tasks are explicitly
+  incomplete.
+- Counting a task toward the completed-task limit before its persistence gate
+  is fully satisfied, or counting a deferred, blocked, review-open, or
+  WIP-checkpointed task as completed — only a confirmed gate counts.
 - Treating one task's exhausted allowance as a run stop while truly
   independent ready tasks remain — or manufacturing a task, or bypassing a
   gate or dependency, to spend the run's remaining budget.

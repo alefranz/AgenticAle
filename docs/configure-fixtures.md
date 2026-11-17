@@ -185,8 +185,10 @@ positive integer (zero, negative, fractional, or non-numeric).
 never silently defaulted or clamped, and configure never writes an invalid
 value. The allowance is Work-only (Autonomous budgets are untouched),
 defaults to 12 when absent, and is available rounds, not required rounds.
-Editing it never resets an active Work invocation's allowance or consumed
-counters; new invocations pick up the change.
+The default auto-extends on verified progress evidence up to the hard
+ceiling of 24; an explicit entry is an exact cap that never auto-extends,
+whatever its size. Editing it never resets an active Work invocation's
+allowance or consumed counters; new invocations pick up the change.
 
 ## Verification is host-aware and user-driven
 

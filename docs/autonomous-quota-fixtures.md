@@ -56,9 +56,9 @@ Expected behavior:
   8 at t0+240 minutes. Thus the eighth retry is allowed four hours after the
   initial failure under the default cooldown; its rejection stops automatic
   retrying with count eight.
-- Do not spend worker, fix, review, or consultation allowances on quota-only
-  launches or waits, and do not count those events toward the two-blocker or
-  no-progress stop rules.
+- Do not spend worker, review, or consultation allowances on quota-only
+  launches or waits (a fix is a worker round), and do not count those events
+  toward the two-blocker or no-progress stop rules.
 - After eight no-work cooldown retry rejections, stop with the exact retry
   action recorded as resumable state. Reset this count only after a resumed
   child makes material progress, and charge that productive round against its

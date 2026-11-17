@@ -310,8 +310,9 @@ Expected behavior:
 
 ## Allowance exhausted with the review still permitted
 
-The worker allowance is spent on its last permitted worker round. The
-slice's changes are in the tree.
+The worker allowance in force is spent on its last permitted worker round —
+after any evidence-backed auto-continuation, at the progress ceiling, or at
+an exact explicit cap. The slice's changes are in the tree.
 
 Expected behavior:
 
@@ -319,7 +320,7 @@ Expected behavior:
 - Run the permitted review of the last allowed worker; the review accounting
   is separate from the worker allowance.
 - If more work is then required, stop with the exhausted allowance, the
-  completed and blocked state, and the recent material progress.
+  completed and blocked state, and the recent verified progress.
 
 ## Worker allowance is a ceiling, not a work target
 
@@ -342,21 +343,24 @@ a replan that re-outlines the remaining work as three new slices.
 Expected behavior:
 
 - The replan reorganizes scope only: the remaining worker allowance stays at
-  seven rounds, the fix/review counters for any still-unresolved target are
-  unchanged, and a new slice name grants no rounds.
+  seven rounds, any recorded progress extension stays in force, the
+  fix/review counters for any still-unresolved target are unchanged, and a
+  new slice name grants no rounds.
 - If the re-outlined work cannot finish within the remaining allowance, stop
   under the stop and continuation rules, identifying the specific exhausted
   allowance when it is reached.
 
 ## Structured stop with an interaction tool available
 
-In reviewed task work, a slice has used both fix cycles with blocking findings
-still open, and the host offers an interaction tool.
+In reviewed task work, the task's allowance in force is exhausted and the
+required review of the last allowed fix still reports blocking findings, and
+the host offers an interaction tool.
 
 Expected behavior:
 
-- Stop before any further dispatch and report the exhausted fix allowance,
-  what is completed, what is blocked, and the recent material progress.
+- Stop before any further worker dispatch and report the exhausted worker
+  allowance, what is completed, what is blocked, and the recent verified
+  progress.
 - Offer the situation-appropriate choices, for example "Replan before
   continuing", "Continue for one additional fix-and-review cycle", or "Stop
   and preserve current work".
@@ -389,34 +393,38 @@ The user approves "Continue for one additional fix-and-review cycle".
 
 Expected behavior:
 
-- Add exactly that increment: one fix round and its re-review.
+- Add exactly that increment: one fix round (a worker round) and its
+  re-review. The resulting boundary is an exact cap that does not
+  auto-extend.
 - Do not reset the fix or review counters, do not expand scope, and grant no
   review or Git rights the user did not name.
 - A replan requested through the same grant stays bounded: child rounds of
   the replan consume allowances.
 
-## Exhausted fix and review allowances: a consult cannot grant another fix
+## Exhausted worker budget: a consult cannot grant another fix
 
-Reviewed task work. A slice has used both fix cycles, the third review pass
-still carries blocking findings, and a consult on the surviving findings
-recommends a specific repair.
+Reviewed task work. The task's allowance in force is exhausted — at the
+progress ceiling or an exact explicit cap — the required review of the last
+allowed fix still carries blocking findings, and a consult on the surviving
+findings recommends a specific repair.
 
 Expected behavior:
 
-- Do not dispatch a third fix cycle or a further review pass: Work's two fix
-  cycles and three review passes gate every dispatch, and a consult's
-  recommendation is a second opinion, not an allowance. (Autonomous Mode is
-  different: its fix continuation is bounded by the effective worker budget,
-  not these per-target cycle caps — see the continuation fixtures below.)
-- Report the exhausted fix and review allowances with the completed and
-  blocked state and the recent material progress, and offer the
-  situation-appropriate choices — a bounded replan, one additional bounded
-  fix-and-review cycle, or a stop that preserves the current work — naming
-  the worker, fix, and review increments each choice consumes.
-- Continue only if the user grants the named fix and review increments. A
-  declined or unanswered option ends the stop with the continuation prompt:
-  do not ask again, do not schedule a resume, and leave the work in its
-  preserved state.
+- Do not dispatch another fix: the worker budget gates fix dispatch in both
+  workflows, and a consult's recommendation is a second opinion, not an
+  allowance. Per-target fix/review cycle counts are not the gate — the
+  exhausted worker allowance is.
+- Report the exhausted worker allowance with the completed and blocked
+  state and the recent verified progress, and offer the situation-appropriate
+  choices — a bounded replan, one additional bounded fix-and-review cycle,
+  or a stop that preserves the current work — naming the worker increment
+  each choice consumes (a fix is a worker round; review rounds only against
+  an explicit user review limit).
+- Continue only if the user grants the named worker increment; the resulting
+  boundary is an exact cap that does not auto-extend. A declined or
+  unanswered option ends the stop with the continuation prompt: do not ask
+  again, do not schedule a resume, and leave the work in its preserved
+  state.
 
 ## Exhausted worker budget: a consult's different path still consumes an allowance
 
@@ -427,54 +435,180 @@ Expected behavior:
 
 - Record the consult's recommendation as an independently advised decision,
   but do not dispatch a worker round from it: the worker budget is
-  exhausted and a consult cannot grant one.
-- Offer the user the choice of granting the named worker increment — with
-  the fix and review rounds the continuation needs — or stopping; a
-  declined or unanswered option ends the stop with the continuation prompt,
-  no re-ask, and no scheduled resume.
+  exhausted and a consult cannot grant one. The same-blocker safeguard
+  would stop the task's worker dispatch even with budget remaining.
+- Offer the user the choice of granting the named worker increment (a fix
+  is a worker round; review rounds only against an explicit user review
+  limit) or stopping; a declined or unanswered option ends the stop with
+  the continuation prompt, no re-ask, and no scheduled resume.
 
-## Autonomous productive continuation beyond the legacy cycle defaults
+## Progress-aware defaults: 12/24 per task, 240 run ceiling, 20 completed tasks
 
-Strict-mode Autonomous run. Target T1/R2-001 has already used more than two
-fix rounds and three review passes; the latest fix made real, verified
-progress and the newest review still reports one blocking finding. The
-effective worker budget shows three rounds remaining (the smaller of the
-task's remaining allowance and the run's remaining ceiling), the work is
-reversible under the recorded persistence policy, and no progress safeguard
-or explicit user limit has fired.
+A new Work task and a new Autonomous run start without explicit budgets.
+
+Expected behavior:
+
+- Work: the task's normal allowance is 12 worker rounds with a progress-based
+  hard ceiling of 24; the default allowance auto-extends on verified progress
+  evidence, in recorded increments, never on churn.
+- Autonomous: the run ceiling is 240 worker rounds — a generous emergency
+  safety limit, not a work target — each genuine task keeps the same 12/24
+  allowance/ceiling, and a separate completed-task limit of 20 bounds how
+  many tasks one run may finish. The run processes eligible backlog tasks
+  until the backlog is drained or a safety limit is reached.
+- An explicit invocation budget, preference entry, or user task limit is an
+  exact cap instead: it never auto-extends, whatever its size.
+
+## Verified correction at round twelve extends to thirteen
+
+A task reaches its normal allowance of 12 with the work unfinished. Since
+the allowance was last set, a fix resolved a prior blocking finding and the
+resolution is confirmed by its targeted check or the independent re-review;
+the coordinator can point to that evidence.
+
+Expected behavior:
+
+- Record the verified-progress evidence and the bounded extension in the
+  workflow's existing state before the next dispatch — session state in
+  reviewed task work, the durable handoff and backlog in Autonomous Mode —
+  then dispatch round thirteen automatically, without a permission ask.
+- The extension grows the allowance within the progress ceiling of 24; it
+  resets no consumed counter, fix/review evidence, or safeguard.
+- Without such evidence the allowance is exhausted instead: stop the task's
+  worker dispatch under the stop rules.
+
+## Churn cannot extend the allowance
+
+A task reaches its normal allowance of 12 with the work unfinished. The last
+rounds were churn: reformatting and re-renaming edits that do not move
+acceptance, a re-run of a disproved approach without new evidence, and
+checks still failing or unverified.
+
+Expected behavior:
+
+- No extension: churn establishes no verified progress, so the allowance is
+  exhausted; stop the task's worker dispatch incomplete with the stop report
+  and continuation prompt.
+- Two consecutive unproductive rounds fire the stall stop even earlier,
+  regardless of remaining budget or ceiling.
+- Evidence that rules out an approach can be progress; repeating the same
+  failure without new evidence is not.
+
+## Round twenty-four fix: the final review still runs
+
+A task's allowance has been extended on verified progress to the progress
+ceiling of 24, and round 24 is a fix whose changes are in the tree.
+
+Expected behavior:
+
+- Dispatch no further worker round: the progress ceiling bounds
+  auto-continuation, and no extension beyond it is justified.
+- The fix's required independent review — including a deep re-review where
+  the finding was judgmental — still runs at zero worker budget: the budget
+  gates fix dispatch, not review.
+- Blocking findings that survive it keep the target incomplete and
+  review-open; follow the stop/decision policy rather than attempting
+  another fix or asking to authorize one more cycle. Only a named user grant
+  can extend the allowance further, and its boundary is an exact cap.
+
+## Explicit caps are exact: eight rounds with verified progress
+
+The user sets an explicit allowance of eight worker rounds — at invocation
+or through the preference entry — and the task reaches eight with verified
+progress and unfinished work.
+
+Expected behavior:
+
+- Stop at eight: the explicit cap is exact and never auto-extends, whatever
+  its size; auto-continuation applies only to the default allowance.
+- Report the exhausted explicit allowance and offer the named increment a
+  continuation needs; the grant's resulting boundary is again an exact cap.
+- The same rule binds an explicit Autonomous run ceiling, an explicit user
+  task limit, and the boundary of a named grant.
+
+## Completed-task limit counts only closed persistence gates
+
+An Autonomous run with the default completed-task limit of 20 has finalized
+19 tasks through their full persistence gates. T20's product commits and
+push are confirmed, but its bounded state finalization is still pending;
+T21 is deferred unfinished, T22 is blocked, and T23 is WIP-checkpointed.
+
+Expected behavior:
+
+- The completed-task count is 19, derived from the backlog's confirmed
+  completion records: T20 does not count until its persistence gate —
+  including the state finalization — is fully satisfied, and deferred,
+  blocked, exhausted, review-open, and WIP-checkpointed tasks never count.
+- When T20's gate closes, the count reaches 20. With eligible backlog work
+  remaining, the run makes an INCOMPLETE safety stop: report the limit, the
+  completed and remaining tasks, and the continuation prompt, offering the
+  named increment (a raised limit) or a stop that preserves the current
+  work. The limit never auto-grows.
+- When the backlog is drained instead, the normal goal-met close applies.
+
+## A budget stop is never a successful completion
+
+An Autonomous run reaches its run ceiling (or its completed-task limit)
+while eligible backlog work remains; in a variant, no eligible work remains
+but blocked or exhausted tasks do.
+
+Expected behavior:
+
+- The stop is an INCOMPLETE safety stop, never a completed run: report the
+  exhausted limit, the completed and blocked state, the recent verified
+  progress, and the continuation prompt the stop rules require.
+- A run with blocked, exhausted, or otherwise unfinished tasks is explicitly
+  incomplete even when no eligible work remains — only satisfied acceptance
+  and closed gates complete a task, and only a fully completed goal completes
+  a run.
+- Verification and the permitted review of completed changes still run
+  under the unchanged review rules; no worker round is dispatched.
+
+## Productive fix continuation beyond historical cycle counts
+
+Either workflow. A target has already used more than two fix rounds and
+three review passes — this is its fourth productive fix situation; the
+latest fix made verified progress and the newest review still reports one
+blocking finding. The effective worker budget shows three rounds remaining
+(in Autonomous Mode, the smaller of the task's remaining allowance in force
+and the run's remaining ceiling), the work is reversible under the recorded
+persistence policy, and no progress safeguard or explicit user limit has
+fired.
 
 Expected behavior:
 
 - Continue unattended: dispatch the next fix round and then an independent
   re-review of the changed delta. Do not stop to ask the user to "authorize
   one more bounded cycle", add a fix cycle and a review pass, or confirm an
-  available deep re-audit — the legacy two-fix/three-review and two-re-audit
-  defaults are not authorization gates in Autonomous Mode.
-- Charge the fix exactly once against BOTH durable budgets before launch
-  (run and task counters each increment by one); the re-review debits neither
-  worker budget and is justified by the changed fix evidence.
+  available deep re-audit — per-target fix/review cycle counts (the
+  historical two-fix/three-review and two-re-audit defaults) are not
+  authorization gates in either workflow; a fourth or later productive fix
+  within budget needs no permission ask.
+- In Autonomous Mode, charge the fix exactly once against BOTH durable
+  budgets before launch (run and task counters each increment by one); the
+  re-review debits neither worker budget and is justified by the changed fix
+  evidence. In reviewed task work, the fix consumes the worker allowance and
+  the extension/stop rules above apply when it is reached.
 - Keep the target's fix/review counters as durable evidence — the historical
-  counts above the legacy defaults are retained, never reset or re-identified
+  counts above the old defaults are retained, never reset or re-identified
   to make the target look fresh.
-- The same situation in reviewed task work stops at the two-fix cap instead:
-  Work's per-slice caps are unchanged (see the Work fixtures above).
 
-## Autonomous deep findings continue beyond the legacy re-audit cap
+## Autonomous deep findings continue beyond historical re-audit counts
 
 A periodic or escalated deep review of an Autonomous target returns blocking
 findings after two re-audits have already run this session. The effective
-worker budget still covers another fix, each prior fix made real progress,
-and the envelope holds. In a variant, the slice needed two fix rounds before
-its ordinary review passed.
+worker budget still covers another fix, each prior fix made verified
+progress, and the envelope holds. In a variant, the slice needed two fix
+rounds before its ordinary review passed.
 
 Expected behavior:
 
 - Each blocking finding receives a dedicated fix round charged once to both
   worker budgets; judgmental findings are followed by a fresh deep review
   scoped to the fix delta and the invariants it touched, and mechanical-only
-  rounds close by local verification. The re-audit continues past the legacy
-  two-per-target cap while fixes stay productive — no authorization prompt,
-  and no unjustified re-audit of unchanged evidence.
+  rounds close by local verification. The re-audit continues past the
+  historical two-per-target count while fixes stay productive — no
+  authorization prompt, and no unjustified re-audit of unchanged evidence.
 - The two-fix struggle trigger fires the opportunistic escalation check as
   soon as the slice has needed at least two fix rounds, whether or not a
   later pass eventually passed; the session still runs at most one
@@ -509,28 +643,32 @@ Expected behavior:
   findings keep the target incomplete and review-open — blockers prevent
   completion, and no automatic extra fix cycle runs.
 - When the run ceiling is exhausted, stop the run under the allowance-stop
-  rules, reporting the exhausted budget, the completed and blocked state,
-  and the recent material progress, and offer the named worker increment a
+  rules — an INCOMPLETE safety stop whenever eligible work remains —
+  reporting the exhausted budget, the completed and blocked state, and the
+  recent verified progress, and offer the named worker increment a
   continuation needs (a fix is a worker round); a consult cannot grant it.
 - An exhausted task allowance alone defers only that task: the target stays
   incomplete and review-open with its resumable packet and open findings, a
   truly independent ready task may be selected with its fresh allowance, and
-  the run stops for budget only when the run ceiling is exhausted or no safe
-  ready work remains. No review gate, dependency, or safety boundary is
-  bypassed to keep the run going.
+  the run stops for budget only when the run ceiling or the completed-task
+  limit is exhausted, or no safe ready work remains — an incomplete stop
+  whenever unfinished tasks remain. No review gate, dependency, or safety
+  boundary is bypassed to keep the run going.
 
-## Autonomous no-progress stop despite remaining budget
+## Two unproductive worker rounds stop despite remaining budget
 
-An Autonomous target has effective worker rounds remaining, but two
-consecutive fix rounds made no net progress on the surviving blocking
-finding; in a variant, the same task reports the same blocker two rounds in
+Either workflow. A target has effective worker rounds remaining, but two
+consecutive worker rounds made no verified progress on the surviving
+blocking finding — their only output was unverified claims or still-failing
+checks; in a variant, the same task reports the same blocker two rounds in
 a row.
 
 Expected behavior:
 
-- Stop under the unchanged progress safeguards — two consecutive no-progress
-  worker rounds, or the same blocker twice — even though budget remains.
-  Remaining budget is not a reason to keep fixing a wall.
+- Stop the task's worker dispatch under the shared stall safeguards — two
+  consecutive unproductive worker rounds, or the same blocker twice — even
+  though budget remains. Remaining budget is not a reason to keep fixing a
+  wall, and no progress extension is justified without verified evidence.
 - A consult may recommend a materially different path, but that path still
   consumes the worker allowance and a consult cannot grant one; otherwise do
   not burn rounds on a wall only the user can decide. Repeated findings on a
@@ -538,25 +676,26 @@ Expected behavior:
   acceptance and counters intact, and reviewer standard drift is still
   settled once, not chased.
 
-## Autonomous explicit user limits and legacy caps on resume
+## Autonomous explicit user limits and historical caps on resume
 
 An Autonomous handoff records an explicit user limit ("at most three fix
 rounds for T2") alongside its counters. In a variant, the handoff was
-recorded under the legacy default caps with two fixes and three review
+recorded under the historical default caps with two fixes and three review
 passes already used, and the user resumes with plain `/autonomous` while
 effective worker rounds remain and fixes are productive.
 
 Expected behavior:
 
-- The explicit user limit stays binding: reaching it stops the loop under the
-  stop/decision policy with the named increment a continuation needs; only a
-  user grant extends it, and the grant never resets counters.
-- The legacy default caps do not re-gate the resumed run: with budget,
+- The explicit user limit stays binding and never auto-extends: reaching it
+  stops the loop under the stop/decision policy with the named increment a
+  continuation needs; only a user grant extends it, the grant never resets
+  counters, and its resulting boundary is again an exact cap.
+- The historical default caps do not re-gate the resumed run: with budget,
   progress, and permissions intact, the resume continues the fix → review
   loop unattended past the recorded two-fix/three-review counts. The
   historical counters persist as evidence — a resume, replan, rename, or
-  interruption recovery resets or re-identifies nothing, and no new state
-  file is created.
+  interruption recovery resets or re-identifies nothing, erases no recorded
+  progress extension, and creates no new state file.
 - A numeric resume still changes the run ceiling only; persisted consumption
   carries over, and an explicit user review limit, where recorded, is
   extended only by the review rounds a named grant names.
@@ -587,53 +726,66 @@ Expected behavior:
   delta, no gate trigger, and no interrupted review to recover is
   unjustified and prohibited.
 
-## Work keeps the shared cycle caps: the same third-fix situation
+## Work continues productive fixes within budget: the same third-fix situation
 
 Reviewed task work. A slice has used two fix cycles and three review passes
 with a blocking finding still open, while several worker rounds of the
-task's allowance remain unused.
+task's allowance remain unused and the latest fix made verified progress.
 
 Expected behavior:
 
-- Stop at the per-slice cap: Work allows at most two fix cycles and three
-  review passes per slice or combined-review target, regardless of remaining
-  worker allowance. Report the exhausted fix/review allowance and offer the
-  named increments; do not continue unattended past the cap.
-- The Autonomous continuation policy above changes nothing here: Work's
-  caps, its one-consultation-per-task allowance, and its stop/continuation
-  rules are unchanged, and the shared round contract's two-fix default still
-  binds Work.
+- Continue unattended under the shared progress-aware contract: dispatch the
+  next fix and its justified re-review without a permission ask. Per-slice
+  fix/review cycle counts are not authorization gates in Work either; the
+  worker allowance in force, verified progress, and the stall safeguards
+  bound the loop.
+- Stop only when the allowance in force is exhausted (after any
+  evidence-backed extension, at the progress ceiling, or at an exact
+  explicit cap), a stall or blocker safeguard fires, or an explicit user
+  limit binds — then report the exhausted allowance and offer the named
+  increments. The required review of the last allowed fix still runs at
+  zero worker budget.
+- Work's one-consultation-per-task allowance and its stop/continuation rules
+  are unchanged, and every review still needs changed evidence, a required
+  integration gate, or bounded interrupted-review recovery.
 
 ## Autonomous budgets: a 20-round run with an exhausted task
 
-An Autonomous run starts with `/autonomous 20 <goal>` (run ceiling 20). The
-first genuine task T1 (CSV export) consumes its full task allowance of 12
-worker rounds and is exhausted with part of the work unfinished. Two other
-truly independent ready tasks follow: T2 (logging) consumes 3 worker rounds
-and T3 (docs) consumes 2, each completing its review gate.
+An Autonomous run starts with `/autonomous 20 <goal>` (an exact run ceiling
+of 20) and an explicit user task cap of 12 for T1. The first genuine task T1
+(CSV export) consumes its full capped allowance of 12 worker rounds and is
+exhausted with part of the work unfinished. Two other truly independent
+ready tasks follow: T2 (logging) consumes 3 worker rounds and T3 (docs)
+consumes 2, each completing its review and persistence gates.
 
 Expected behavior:
 
 - Every explore/implement/fix round is charged once to both its task and the
   run: T1 12/12, T2 3/12, T3 2/12; run consumption 12 + 3 + 2 = 17 of 20, so
   the effective run remaining is 3. The budget line and the backlog counters
-  record exactly these numbers.
+  record exactly these numbers, and the milestone status records 2 completed
+  tasks against the limit of 20 — T1 never counts while unfinished.
+- T1's explicit cap is exact: it does not auto-extend even if the last rounds
+  made verified progress. (Under the default allowance, verified progress at
+  round 12 would instead justify a recorded extension up to the progress
+  ceiling of 24, bounded here by the run's remaining ceiling.)
 - T1's exhaustion dispatches no further worker round for T1, but verification
   and the permitted review of its completed changes still run; the unfinished
   part stays incomplete with findings, current state, and one next action in
   a resumable backlog packet — never archived as completed.
-- T2 and T3 are genuinely new tasks: each receives a fresh allowance of 12.
-  Their selection is safe despite T1's unfinished changes in the tree because
-  they are truly independent; a task depending on T1's unfinished work would
-  not be ready.
+- T2 and T3 are genuinely new tasks: each receives a fresh allowance of 12
+  with the progress ceiling of 24. Their selection is safe despite T1's
+  unfinished changes in the tree because they are truly independent; a task
+  depending on T1's unfinished work would not be ready.
 - The run does not stop at T1's exhaustion: an individual task limit alone is
-  not a run stop. It stops only when the goal is met, the run ceiling is
-  exhausted, no safe ready work remains, a steering pause applies, or an
-  existing safety/blocker/human-decision gate hits.
+  not a run stop. It stops only when the goal is met, the run ceiling or the
+  completed-task limit is exhausted, no safe ready work remains, a steering
+  pause applies, or an existing safety/blocker/human-decision gate hits —
+  an incomplete stop whenever unfinished tasks remain.
 - Continuing T1 later needs a named user grant to T1's task allowance (and
-  run remaining); the grant never resets counters. Review, review-deep, and
-  consult rounds consumed none of the worker budgets and kept their own
-  accounting.
+  run remaining); the grant never resets counters and its boundary is an
+  exact cap. Review, review-deep, and consult rounds consumed none of the
+  worker budgets and kept their own accounting.
 
 ## Task exhaustion: independent ready work continues, gates never bend
 
@@ -657,36 +809,42 @@ Expected behavior:
 
 Within one Autonomous run, a task is decomposed into three slices, replanned
 after a rejected experiment, interrupted once, and resumed in a fresh
-session.
+session; along the way a recorded progress extension raised its allowance in
+force from 12 to 16.
 
 Expected behavior:
 
-- The task keeps one stable ID and one allowance of 12 across all of these
-  events; every explore/implement/fix round — including the reset
-  continuation and the resumed work — charges the same task and the same run.
+- The task keeps one stable ID and one allowance in force across all of
+  these events — the default 12 plus any recorded extension; every
+  explore/implement/fix round — including the reset continuation, the
+  resumed work, and any replay of productive work — charges the same task
+  and the same run, keeping its recorded charge.
 - Decomposition, replanning, interruption recovery, and resume replenish
-  neither the task allowance nor the run ceiling, and re-issue no task ID.
+  neither the task allowance nor the run ceiling, re-issue no task ID, and
+  erase no recorded extension or its evidence.
 - A genuinely new task (a distinct backlog outcome, not a renamed slice of
   the same one) receives its stable ID when it enters the backlog and its
   fresh allowance only when first selected; an ID alone grants no rounds.
 
 ## Numeric resume never resets persisted counters
 
-An Autonomous run recorded ceiling 6 with 5 worker rounds consumed. The user
-resumes with `/autonomous 3`; later, with `/autonomous 10`; later still, with
-plain `/autonomous`.
+An Autonomous run recorded an explicit invocation ceiling of 6 with 5 worker
+rounds consumed. The user resumes with `/autonomous 3`; later, with
+`/autonomous 10`; later still, with plain `/autonomous`.
 
 Expected behavior:
 
 - `/autonomous 3` sets the run ceiling to 3; consumed stays 5, so the
-  effective remaining is zero and the run stops budget-exhausted under the
-  allowance-stop rules instead of silently resetting. The report offers the
-  named increment a continuation needs.
+  effective remaining is zero and the run stops budget-exhausted — an
+  INCOMPLETE safety stop if eligible work remains — under the allowance-stop
+  rules instead of silently resetting. The report offers the named increment
+  a continuation needs.
 - `/autonomous 10` sets the ceiling to 10 with consumed still 5: remaining 5.
   Plain `/autonomous` continues the recorded ceiling and counters unchanged.
 - No resume recomputes consumption from the ledger's length, resets counters,
-  or re-issues task IDs; a user grant adds exactly the named rounds to the
-  named budget.
+  re-issues task IDs, or erases a task's recorded progress extension; a user
+  grant adds exactly the named rounds to the named budget, and its boundary
+  is an exact cap.
 
 ## Crash with a pending dispatch: no double charge, no free replay
 
@@ -706,8 +864,9 @@ Expected behavior:
   round with its own single charge.
 - Never charge the same round twice, and never let a replay of productive
   work run free of its recorded charge. The run/task identities, consumed
-  counters, and pending-dispatch evidence survived the crash in the existing
-  handoff and backlog.
+  counters, allowances in force with any recorded progress extension, and
+  pending-dispatch evidence survived the crash in the existing handoff and
+  backlog.
 
 ## Steering pause at a safe checkpoint, then resume
 
@@ -2036,7 +2195,7 @@ Expected behavior:
   allowance; the protocol reuses the existing budget, it does not add one.
 - Stop with the stop report: which allowance is exhausted, the current best
   candidate and its measurements, the remaining gap to the target, and the
-  recent material progress, with the copy-pasteable continuation prompt.
+  recent verified progress, with the copy-pasteable continuation prompt.
 - Leave the working tree at the last accepted candidate (if one was accepted) or
   the pre-loop state, preserving unrelated user changes.
 
