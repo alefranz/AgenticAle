@@ -5,7 +5,10 @@ the [work skill](../skills/work/SKILL.md), the
 [shared round contract](../skills/work/references/rounds.md), and the
 [autonomous skill](../skills/autonomous/SKILL.md). They describe expected
 coordinator decisions; they are source-interpretation examples, not live host
-tests.
+tests. The counter, switching, and recovery cases interpret the autonomous
+skill's [state protocol](../skills/autonomous/SKILL.md#state-protocol), the
+single authority for the charge, settle, switch, reconcile, and finalize
+events.
 
 ## Coherent existing changes with an empty `/work --pr`
 
@@ -853,7 +856,8 @@ Expected behavior:
 The coordinator persisted a worker round's dispatch record, incremented
 counters, and pending-dispatch note, then the session crashed before the
 child's report was read — or, in a variant, before the child launched at
-all. A fresh activation inspects the working tree and host evidence.
+all. A fresh `/autonomous` activation runs the reconcile event, inspecting
+the working tree and host evidence.
 
 Expected behavior:
 
@@ -926,13 +930,13 @@ review and persistence gates and is archived; T1 is then resumed.
 
 Expected behavior:
 
-- Switching first writes T1's compact packet — stable ID, task counters
-  (never a run-consumption snapshot), established facts, current state,
-  acceptance, exactly one resumable `NEXT` — into the backlog's deferred
-  entries, then restores T2's packet into `active.md` with the run identity,
-  ceiling, and consumed carried unchanged from the outgoing budget line,
-  then updates the backlog's single active next action. T1 is not archived
-  as completed.
+- The switch event first writes T1's compact packet — stable ID, task
+  counters (never a run-consumption snapshot), established facts, current
+  state, acceptance, exactly one resumable `NEXT` — into the backlog's
+  deferred entries, then restores T2's packet into `active.md` with the run
+  identity, ceiling, and consumed carried unchanged from the outgoing budget
+  line, then updates the backlog's single active next action. T1 is not
+  archived as completed.
 - T2's archive record carries its stable ID and final counters. Resuming T1
   restores its recorded packet, identity, and counters unchanged — switching
   tasks and archiving completed work never reset or re-identify consumption.
@@ -949,10 +953,10 @@ launched — the charge was never read back as durable.
 
 Expected behavior:
 
-- The resume validates the complete packet before trusting the readable
-  line: the incremented counters have no backing dispatch record or pending
-  note, so they are a torn write, not consumption. It rebuilds from the
-  verified pre-launch mirror — run consumed 3 and T1 consumed 3, never a
+- The resume's reconcile event validates the complete packet before trusting
+  the readable line: the incremented counters have no backing dispatch record
+  or pending note, so they are a torn write, not consumption. It rebuilds from
+  the verified pre-launch mirror — run consumed 3 and T1 consumed 3, never a
   value from a deferred task packet — repairs `active.md`, and dispatches
   the round with one new charge: run 4, T1 4 after the first actual round.
 - The unverified counters never reach the backlog mirror: mirroring the
@@ -962,6 +966,28 @@ Expected behavior:
 - No double charge and no free round: if the tree and host evidence instead
   show a launched round whose charge was lost, that single charge is applied
   exactly once during reconciliation.
+
+## Interrupted mirror write reconciles from the validated active packet
+
+The charge event's `active.md` write landed and read back — run 4 and T1 4,
+backed by a complete pending-dispatch record — but the session died before
+the backlog mirror write, leaving the mirror at the pre-launch run 3/6 and
+T1 3/12. In a variant, the round had already settled in `active.md` (pending
+note resolved, ledger line recorded) when the result mirror was interrupted.
+
+Expected behavior:
+
+- The resume runs the reconcile event: the active packet is complete and its
+  excess over the mirror is backed by its own records, so it validates and
+  wins. The stale mirror is rewritten from the validated active packet —
+  never the reverse — and the pending dispatch is resolved exactly once
+  against the host and working-tree evidence under the settle outcomes.
+- The interrupted settle variant reconciles the same way: the settled ledger
+  line backs the active state and the mirror is rewritten from it. No
+  counter changes — settle records a result, it does not charge again.
+- No double charge and no free round: the mirror lag never becomes a second
+  charge, and a launched round's material work keeps its single recorded
+  charge. The human-owned Steering section survives every mirror rewrite.
 
 ## Interrupted task switch loses no packet and no consumption
 
@@ -981,6 +1007,37 @@ Expected behavior:
   snapshot. The deferred packet is never deleted on the strength of an
   unvalidated active packet. T1's counters and T2's fresh allowance are
   unchanged.
+
+## Plain `/autonomous` resumes the exact unfinished action
+
+A run is interrupted at one of the points below, and the user resumes with
+the same real command — plain `/autonomous` (a numeric resume changes only
+the ceiling). The reconcile event runs first; the validated state's one
+`NEXT` names the exact unfinished action.
+
+| Interruption point | The exact action the resume selects |
+| --- | --- |
+| Torn charge write before launch | Rebuild from the verified backlog mirror, then dispatch the round with one new charge — never mirror the torn counters. |
+| Charge verified, mirror write interrupted | Rewrite the stale mirror from the validated active packet, resolve the pending dispatch once, continue from the round's outcome. |
+| Switch: outgoing packet durable, `active.md` not rewritten | The complete, coherent active packet wins: remove the duplicate deferred entry and continue the active task to the next selection boundary. |
+| Productive child crash | Keep the single recorded charge, settle the interruption, and start the fresh continuation as a new round with its own charge. |
+| Quota-only launch rejection | Remove the pending charge, honor the recorded retry time, then launch the recorded round after the deadline. |
+| Product committed, push interrupted | Push the existing product commits as-is — never re-commit. |
+| Product pushed, state finalization missing | Complete the completion-record writes from the confirmed hashes and destination, then run the one finalize sequence. |
+| Finalization committed, push interrupted | Push the existing finalization commit as-is — never a second finalization commit. |
+| Finalization pushed, acknowledgment missing | Confirm the remote ancestry or content read-only; the gate is satisfied without any further write, and the next task is selected. |
+
+Expected behavior:
+
+- Every resume selects the exact unfinished step above — not a replay of
+  confirmed work, not a duplicated commit, charge, or completion record.
+  Identities and consumed counters are unchanged by the reconciliation, and
+  the completed-task count increments exactly once, when the gate is first
+  confirmed.
+- The detailed cases are the surrounding fixtures: torn counter write,
+  interrupted mirror, interrupted switch, crash with a pending dispatch,
+  the quota-only launch in the quota examples, and interruption between
+  commit, push, and completion.
 
 ## Exhausted-first priority must not stall selection
 
@@ -1402,7 +1459,7 @@ Expected behavior:
 - Committed-but-unpushed: resume the push of the existing commits — never
   re-commit or duplicate them. Pushed-but-unfinalized: verify the product
   push, complete the completion-record writes from the confirmed hashes and
-  destination, then create and push the one state-only finalization commit.
+  destination, then run the finalize event's one state-only commit and push.
   Finalization-committed-but-unpushed: push that existing commit as-is,
   never a second finalization commit for the same task.
 - Finalization-pushed-but-unacknowledged: confirm the finalization commit's

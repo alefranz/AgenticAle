@@ -314,21 +314,43 @@ limit; every task receives its stable ID
 selection, so steering can name never-selected tasks. The fresh allowance is
 allocated only at a genuinely new task's first selection. The ID travels
 through the backlog, the active packet, dispatch records, and the archive.
-The active handoff's budget line is the canonical record of run consumption
-and the active task's counters — including the allowance in force with any
-recorded progress extension; the backlog mirrors it and carries the
-completed-task count against its limit in the milestone status, and deferred
-packets carry task counters only — never a run-consumption snapshot. The
-completed-task count is derived from the backlog's confirmed completion
-records, never from a separate tally that can drift. Charges are
-persisted to the handoff before launch, mirrored to the backlog in a fixed
-order, and reconciled against the actual evidence on resume: the complete
-packet is validated before its counters are trusted, and a torn or
-incoherent handoff is rebuilt from the verified backlog mirror — never the
-reverse — so a crash, a torn write, an interrupted task switch, or a
-quota-only launch rejection never double charges, replays productive work
-for free, or restores stale run consumption. A resume continues the
-persisted counters; a numeric resume override changes the ceiling only.
+
+Counter and state-transition bookkeeping is consolidated in the skill's
+**state protocol** — one authoritative procedure for five events:
+**charge** (the durable, read-back-verified pre-launch write of both
+counters, the dispatch record, and the pending note, mirrored to the backlog
+before the child launches), **settle** (resolve the pending note and ledger
+line, then mirror; a productive round keeps its single charge, a quota-only
+or never-launched dispatch removes it, and a continuation is a new round
+with its own charge), **switch** (the outgoing deferred packet durable in
+the backlog before `active.md` is overwritten), **reconcile** (at every
+launch and fresh resume: validate the complete packet before trusting any
+counter, let only a validated active packet rewrite a disagreeing mirror,
+rebuild a torn or missing handoff from the verified backlog mirror — never
+the reverse — and resolve a pending dispatch exactly once against the actual
+evidence), and **finalize** (the one bounded state-only sequence that
+confirms a persistence boundary: record writes, one state-only commit,
+confirmed push, read-only acknowledgment, never the commit's own hash).
+Every other section names the event it applies instead of restating the
+procedure. The active handoff's budget line stays canonical for run
+consumption and the active task's counters — including the allowance in
+force with any recorded progress extension; the backlog mirrors it, carries
+the completed-task count against its limit in the milestone status, and is
+canonical for deferred packets, which carry task counters only — never a
+run-consumption snapshot. The completed-task count is derived from the
+backlog's confirmed completion records, never from a separate tally that can
+drift.
+
+The protocol is instruction-level: the coordinator model executes it with
+ordinary targeted file edits and Git commands. No host guarantees a shared
+script runtime or atomic file writes, so the safety comes from the fixed
+write order, the read-back before the next step, and validation before trust
+— not from a helper process. A crash, a torn write, an interrupted mirror or
+task switch, or a quota-only launch rejection never double charges, replays
+productive work for free, or restores stale run consumption. A resume — the
+same `/autonomous` command — runs reconcile first and continues the exact
+unfinished action the validated state's one `NEXT` names; a numeric resume
+override changes the ceiling only.
 
 An exhausted task allowance is not a run stop: the allowance in force is
 exhausted at the progress ceiling or an exact explicit cap, with no further
@@ -431,17 +453,17 @@ archiving; the coordinator owns final persistence verification and archival.
 The coordinator owns every commit and push — children leave verified changes
 in the working tree — stages only the task's accepted product changes
 (preserving unrelated work and secrets), makes coherent task commits, and
-confirms an ordinary push to the resolved upstream. It then runs one bounded
-state-only finalization: the completion record and archive are written into
-the existing state files, committed as a single state-only commit, and
-pushed and confirmed under the default policy. The finalization commit's own
-hash is never written into the state it commits, and the gate's local
-acknowledgment is read-only, so the sequence is finite — no recursive
+confirms an ordinary push to the resolved upstream. It then runs the state
+protocol's **finalize** event once: the completion record and archive are
+written into the existing state files, committed as a single state-only
+commit, and pushed and confirmed under the default policy. The finalization
+commit's own hash is never written into the state it commits, and the gate's
+local acknowledgment is read-only, so the sequence is finite — no recursive
 record-your-own-hash loop — and the task is marked completed and the next
 task selected only after the finalization is confirmed. An investigation-only
 task creates no artificial product commit, but changed durable findings are
 persisted by the same state finalization. Session-close state writes use the
-same bounded finalization: the local records are saved first, and blocked
+same finalize event: the local records are saved first, and blocked
 persistence — an unsafe destination or a rejected or uncertain push at any
 boundary, including a checkpoint — goes directly to the terminal local-only
 close: no further commits or pushes, all further persistence deferred and

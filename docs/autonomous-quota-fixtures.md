@@ -3,6 +3,8 @@
 These examples are acceptance cases for interpreting the provider-quota rules
 in the [Autonomous skill](../skills/autonomous/SKILL.md#provider-quota-recovery).
 They describe expected coordinator behavior; they are not live host tests.
+Charge retention and removal follow the skill's
+[state protocol](../skills/autonomous/SKILL.md#state-protocol) settle event.
 
 ## Quota interrupts a worker after partial progress
 
@@ -112,10 +114,11 @@ the child is terminal.
 
 Expected behavior:
 
-- Remove the pending charge and restore both consumed counters: a pure
-  quota-blocked launch with no resumed work consumes no task allowance and no
-  run ceiling. Resolve the pending-dispatch note as quota-only; do not delete
-  the evidence without a trace.
+- Remove the pending charge and restore both consumed counters (the settle
+  event's quota-only outcome): a pure quota-blocked launch with no resumed
+  work consumes no task allowance and no run ceiling. Resolve the
+  pending-dispatch note as quota-only; do not delete the evidence without a
+  trace.
 - Record the quota recovery state (evidence, retry time, no-work rejection
   count) in the existing active handoff; the run and task identities and all
   other counters survive unchanged.
