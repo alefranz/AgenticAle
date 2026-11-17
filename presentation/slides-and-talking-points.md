@@ -190,9 +190,9 @@
 ### Slide 10: `/autonomous` — A Self-Driving Backlog Loop
 **On Slide:**
 - **Same Core Primitives + Durable Disk State:**
-  - Reuses `/work`'s task contracts and strict independent review gates, backed by `BACKLOG.md` and `.agenticale/handoffs/active.md`.
+  - Reuses `/work`'s task contracts and strict independent review gates, backed by `BACKLOG.md` and the compact `.agenticale/active.md` snapshot.
 - **How It Runs:**
-  - Pulls the next item from the backlog -> implements -> runs strict independent review -> updates/grooms the backlog -> records a compact two-line ledger entry and exact `NEXT` action.
+  - Pulls the next item from the backlog -> implements -> runs strict independent review -> updates/grooms the backlog -> records compact task evidence and the exact `NEXT` action in the snapshot — a checkpoint, not a growing round journal.
 - **Built for Subscription Windows & Local Models:**
   - **Quota-Aware:** Persists provider rate-limit cooldown & retry state in `active.md`—waits for your subscription usage window to reset and resumes cleanly without losing progress.
   - **Local Model Friendly (`--profile NAME` preference files):** Pair cloud reasoning for review/coordination with local models for routine worker rounds.
@@ -201,9 +201,9 @@
 **Talking Points:**
 - Before we open up for questions, I want to spend 5 minutes on the most experimental part of the repo: **`/autonomous` mode**.
 - Think of `/autonomous` as asking: *"What happens if we take `/work`'s fresh subagent and strict review primitives, and attach them to a durable project backlog on disk?"*
-- Instead of keeping state only in the chat session, `/autonomous` maintains `BACKLOG.md` and `.agenticale/handoffs/active.md`. It picks a task, runs worker and strict review rounds, refines the backlog as it learns more about the codebase, and writes a durable checkpoint after every single round.
+- Instead of keeping state only in the chat session, `/autonomous` maintains `BACKLOG.md` and the compact `.agenticale/active.md` snapshot. It picks a task, runs worker and strict review rounds, refines the backlog as it learns more about the codebase, and keeps a compact durable checkpoint current after every round.
 - Two features make it especially fun for hobby projects:
-  1. **Subscription window awareness:** If you hit a provider quota limit at 2 AM, it records the exact state and cooldown window in the handoff file so it can wait or resume later with zero lost work.
+  1. **Subscription window awareness:** If you hit a provider quota limit at 2 AM, it records the exact state and cooldown window in the snapshot file so it can wait or resume later with zero lost work.
   2. **Hybrid local/cloud configuration:** You can point routine coding roles at local models while keeping a strong cloud model for the reviewer.
 - I wouldn't point `/autonomous` at a mission-critical production monorepo unattended tomorrow—but as a sandbox for side projects and seeing where long-horizon engineering is headed, it's eye-opening.
 

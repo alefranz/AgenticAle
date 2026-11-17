@@ -132,9 +132,13 @@ at `examples/preferences.example.md`. Configure adds no scaffold command, no
 profile management, and no persistent state; the workflows never invoke it
 and never write preference files themselves.
 
-`skills/autonomous/SKILL.md` adds durable backlog, handoff, archival, and
+`skills/autonomous/SKILL.md` adds durable backlog, compact-snapshot, and
 continuation policies. The target project owns `BACKLOG.md` and the
-`.agenticale/handoffs/` directory for the active packet and monthly archive.
+`.agenticale/` directory: the coordinator-only `active.md` snapshot — a
+compact checkpoint, not a journal — and the optional human-owned
+`steering.md`. There is no default archive, round ledger, or counter mirror;
+legacy `.agenticale/handoffs/` layouts are recognized with safe precedence
+and preserved untouched as history.
 Two durable worker-round budgets and a separate completed-task limit bound a
 run: a run ceiling (default 240 — a generous emergency safety limit, not a
 work target — or the invocation's numeric override), a per-task allowance
@@ -170,14 +174,17 @@ default caps never re-gate a resumed run, while explicit user limits stay
 binding. The no-progress, same-blocker, and repeated-interruption safeguards,
 the one-opportunistic-escalation-per-session guard (struggle trigger: at least
 two fix rounds), and the consult caps are unchanged. A human-owned
-`## Steering` section in `BACKLOG.md` provides deterministic pause/continue
-and ready-task priority controls, re-read before every round and preserved
-across agent writes. Invocation goal text supplied during an active run is
+optional `.agenticale/steering.md` file provides deterministic pause/continue
+and ready-task priority controls, re-read before every round and never
+agent-written; a pause persists across resumes until the human releases it.
+A legacy run's human-owned `## Steering` section in `BACKLOG.md` keeps the
+same controls when the new file is absent, with pause-wins precedence when
+both exist. Invocation goal text supplied during an active run is
 steering, not a conflict: the coordinator reconciles it with the backlog —
 decomposing explicit new outcomes into tasks and adjusting continuation —
 while preserving identities, counters, budgets, and review gates; an
 ambiguous destructive replacement asks the user, and the invocation text
-never enters the Steering section. A new run's default persistence policy
+never enters the steering surface. A new run's default persistence policy
 commits and pushes each completed task: after its required checks, review
 gates, and applicable deep gates, the coordinator makes coherent task
 commits, confirms an ordinary push to the resolved upstream, and persists
@@ -191,13 +198,14 @@ gate permits the next selection and counts the task exactly once. Counter
 and state-transition bookkeeping is consolidated in one instruction-level
 state protocol — five events (charge, settle, switch, reconcile, finalize)
 over the two existing state files, with a single counter authority (the
-active budget line canonical, the backlog mirroring it), targeted writes on
-fresh re-reads with read-back, and validation of the whole packet before any
-counter is trusted. It adds no state file, helper script, or runtime
-capability; the fixed write order and replay-safe reconciliation are what
-keep the bookkeeping consistent across crashes, torn writes, and interrupted
-switches. The same policy governs the run's other
-persistence boundaries: a significant backlog reconciliation — added or
+snapshot's budget line; the backlog never mirrors consumed counters),
+targeted writes on fresh re-reads with read-back, and validation of the
+whole snapshot before any counter is trusted — a torn or missing snapshot
+rebuilds only from verified prior Git and host evidence, or stops. It adds
+no state file, helper script, or runtime capability; the targeted writes and
+replay-safe reconciliation are what keep the bookkeeping consistent across
+crashes, torn writes, and interrupted switches. The same policy governs the
+run's other persistence boundaries: a significant backlog reconciliation — added or
 removed tasks, rewritten acceptance, reordered upcoming tasks, changed
 deferred packets, or a replaced basis of the active next action — is persisted
 as an immediate state-only checkpoint commit before further dispatch; a
@@ -207,7 +215,7 @@ checkpoint. A stop with attributable unfinished product changes checkpoints
 them as
 explicit WIP commits, pushed under the same policy, recording their
 verification/review status and exact continuation without completing the
-task or bypassing its gates. Routine ledger and counter writes create no
+task or bypassing its gates. Routine state and counter writes create no
 checkpoint commits; the task gate reuses recorded WIP commits instead of
 duplicating them, and every review's range starts at or before the recorded
 pre-WIP base — preserved across resumes — so the WIP commits are inside the
@@ -216,9 +224,9 @@ pushes follow the same destination, scope, failure, and recovery rules as
 task pushes; checkpointing dispatches no workers and consumes no budget.
 Reviews precede the gate and inspect the result at its phase — the
 uncommitted working tree or recorded WIP checkpoint commits; the coordinator
-owns final persistence verification and
-archival. The invocation itself is the explicit authorization that satisfies
-a conditional "do not commit unless explicitly asked" repository guard; only
+owns final persistence verification. The invocation itself is the explicit
+authorization that satisfies a conditional "do not commit unless explicitly
+asked" repository guard; only
 an actual user or repository prohibition selects a restricted policy, cited
 concretely — never Work's uncommitted default, the children's no-commit role
 boundary, or the coordinator role. The chosen policy and its basis are stated
@@ -228,12 +236,17 @@ policy resumes as working tree with that warning. Explicit restrictions win,
 resumes keep the recorded policy, and an explicit user change to commit or
 commit-and-push reconciles outstanding persistence under the new policy
 before further dispatch: completed tasks are re-evaluated even when already
-finalized and archived under the former policy, reopening persistence only —
-reviews, counters, and archived evidence preserved, existing commits reused,
+finalized under the former policy, reopening persistence only —
+reviews, counters, and recorded evidence preserved, existing commits reused,
 and checkpoint state already carried by a task finalization never committed
 twice. Failed or interrupted persistence is
 reconciled against the actual local and remote state before any next-task
-work. Session-close state uses the same bounded finalization; blocked
+work. When the last task completes, the consolidated final close carries the
+run-close record in the same completion commit, keeping the snapshot as the
+recovery checkpoint until that commit's persistence is confirmed; only then
+does a separate bounded cleanup fold the remaining state into the backlog's
+result records and remove the snapshot, recoverable from git history. An
+incomplete stop keeps the snapshot as its resume state. Blocked
 persistence at any boundary — including a failed or uncertain checkpoint
 push — goes directly to the terminal local-only close: the local records are
 saved first, no further commits or pushes follow (a descendant push would
@@ -249,11 +262,11 @@ verified account mapping. The two optional worker routes (`implement-easy`,
 `coordinator` key assigns the coordinating session's model on OpenCode.
 Fresh-agent review can use the same model as the
 worker. Work stops and reports explicit provider quota exhaustion without
-durable recovery; only Autonomous applies the cooldown and handoff policy
+durable recovery; only Autonomous applies the cooldown and recovery policy
 below.
 
 Autonomous mode also persists provider-quota cooldown and retry state in its
-existing active handoff. It can resume long work from verified partial progress
+compact snapshot. It can resume long work from verified partial progress
 after a supported wait or a later activation; it does not promise an automatic
 wake when the host exposes no such capability. See the
 [quota recovery examples](https://github.com/alefranz/AgenticAle/blob/main/docs/autonomous-quota-fixtures.md) for the behavior
@@ -473,8 +486,9 @@ CLI, the VS Code extension, and Codex in the ChatGPT desktop app.
 ## Safety and state boundaries
 
 The coordinator is intentionally thin: children receive compact packets and
-return reports. Autonomous Mode persists those reports to the target repository;
-everyday work keeps them in session context. Git operations follow the user's
+return reports. Autonomous Mode persists their relevant content as compact
+task evidence in the target repository; everyday work keeps them in session
+context. Git operations follow the user's
 requested endpoint and applicable repository instructions: everyday work's
 default delivery is uncommitted, while a new Autonomous run defaults to
 coherent task commits and a confirmed ordinary push per completed task, with
@@ -506,7 +520,7 @@ steering pause or the absence of safe ready work stops the run. Every
 incomplete stop carries a self-contained, copyable continuation prompt;
 everyday work keeps it in the session only, while Autonomous Mode persists
 it, with allowance usage and any granted or evidence-backed progress
-extension, in the existing handoff so a resume or a renamed target cannot
+extension, in the compact snapshot so a resume or a renamed target cannot
 evade the unresolved-target limits. See the
 [work-coordination examples](https://github.com/alefranz/AgenticAle/blob/main/docs/work-coordination-fixtures.md)
 for the expected decisions.

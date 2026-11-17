@@ -1954,10 +1954,14 @@ Expected behavior:
 A commit-and-push run `csv-export` (ceiling 240) has settled seven worker
 rounds across two tasks: T1 was deferred after five rounds, and T2 is active
 with two rounds consumed under its allowance of 12. The run then stops at a
-safe checkpoint — a steering `pause`, an exhausted ceiling, or no safe ready
-work — with T2's current slice implemented and verified but review-open, and
-attributable unfinished changes in the tree. The user later resumes with plain
-`/autonomous`.
+safe checkpoint — a steering `pause` or no safe ready work; 7/240 leaves run
+budget, so an exhausted ceiling is not a stop cause at this consumption —
+with T2's current slice implemented and verified but review-open, and
+attributable unfinished changes in the tree. In a variant the run instead
+carries an explicit ceiling of 7, so the same seven consumed rounds exhaust
+it exactly (7/7) and the stop is the ceiling stop. The user later resumes with
+plain `/autonomous`; in the pause variant the human first sets
+`mode: continue` (or removes the pause) in the steering surface.
 
 Expected behavior:
 
@@ -1979,6 +1983,19 @@ Expected behavior:
   7/240 and T2 stays 2/12, T1's packet stays 5/12. It adds no duplicate budget
   line, journal, or counter mirror, re-derives nothing from a ledger, and
   resets nothing; the ordinary review and persistence gates still apply.
+- Pause variant: continuation requires the human's own pause release first.
+  A fresh activation with a still-present `pause` stops again without
+  dispatching; only after the human sets `mode: continue` or removes the
+  pause does the plain resume continue the recorded `NEXT`. The release
+  changes no identity or counter.
+- Exact-ceiling variant (7/7): the plain resume is budget-exhausted and stops
+  under the allowance-stop rules with the continuation prompt — consumption
+  stays 7, and further worker rounds need the ceiling changed by one of the
+  two supported user actions: an explicit numeric resume override above 7,
+  or a named user grant adding its named rounds to the ceiling. Both carry
+  consumption over unchanged — no counter reset and no implicit grant — and
+  a numeric override at or below 7 leaves the run exhausted. The resume
+  never refreshes the exhausted ceiling on its own.
 - A variant stops under working-tree policy: no WIP or state commit is
   created, the same compact layout and single budget hold, and the diff
   evidence identifies the unfinished changes. The layout and unchanged

@@ -1,14 +1,15 @@
 # Autonomous
 
 Autonomous is for a long goal that needs to continue through several focused
-work rounds and fresh sessions. The skill keeps a durable backlog and handoff
-in the project so a later activation can resume the recorded next action.
+work rounds and fresh sessions. The skill keeps a durable backlog and a
+compact active checkpoint in the project so a later activation can resume the
+recorded next action.
 
 Use it for a multi-step project, such as:
 
 - `/autonomous Add CSV export, update its tests, and prepare the release`
 - `/autonomous 4 Migrate the report pipeline and verify the new behavior`
-- `/autonomous` to resume the active handoff
+- `/autonomous` to resume the active run
 - `/autonomous Also add PDF export` to steer an active run with new work
 
 The slash form is conceptual: use the invocation supported by your client, as
@@ -19,7 +20,7 @@ after the options as the goal text, possibly empty. An invocation with no
 goal text RESUMEs the active goal, preserving its persisted run ceiling and
 consumed counters; a new run with no budget uses the default run ceiling of
 240 worker rounds — a generous emergency safety limit, not a work target.
-Goal text supplied while a handoff is already active steers
+Goal text supplied while a run is already active steers
 the run instead of conflicting with it: explicit new outcomes are decomposed
 into new backlog tasks, and continuation instructions adjust the existing
 plan at the next selection boundary — without overwriting active work or
@@ -47,7 +48,7 @@ again. A change to the installation's model configuration takes effect only
 at the next fresh activation or resume: it never changes an already-running
 child, never resets budgets or review counters, never bypasses the provider
 quota-recovery rules, and never authorizes automatic provider switching. If a
-role's installed model selection changed materially since the handoff was
+role's installed model selection changed materially since the snapshot was
 written, the resume reports it. See
 [model configuration](../../guides/model-routing.md).
 
@@ -73,11 +74,12 @@ activity, these updates let you follow the work without opening every subtask.
 
 You provide the goal, constraints, and any acceptance examples. The workflow
 records durable progress in the target project's `BACKLOG.md` and
-`.agenticale/handoffs/active.md`. Each task carries a stable ID — assigned
-when it enters the backlog, before selection — and its worker-round
-counters; a task deferred unfinished keeps a compact resumable
+`.agenticale/active.md` — a compact snapshot of the current state and the
+evidence recovery needs, not a growing round journal. Each task carries a
+stable ID — assigned when it enters the backlog, before selection — and its
+worker-round counters; a task deferred unfinished keeps a compact resumable
 packet in the backlog — with its findings, current state, and one next
-action — instead of being archived as completed. It reports the completed
+action — instead of being recorded as completed. It reports the completed
 work, verification, and remaining limitations. An investigation-only goal
 returns findings and a next step without manufacturing product commits.
 
@@ -85,11 +87,11 @@ A new run commits and pushes each completed task by default: after the
 task's required checks and reviews — including applicable deep review
 gates — the coordinator makes coherent task commits and confirms an
 ordinary push before the next task starts. The completion record itself —
-result line, archived detail, updated handoff — is then persisted in one
+the backlog result line and the updated snapshot — is then persisted in one
 bounded state-only commit, pushed and confirmed under the same policy, so
 the pushed state is never left open and no endless chain of confirmation
 writes follows. Reviews run before this gate and inspect the uncommitted
-result; the coordinator owns final persistence verification and archival.
+result; the coordinator owns final persistence verification.
 Each task moves through explicit lifecycle states — review-open, accepted,
 persistence-pending, complete, or unfinished (deferred, blocked, exhausted) —
 and only a confirmed complete gate allows the next task's selection and
@@ -113,10 +115,10 @@ upgraded. If you explicitly change an active run's policy to commit or
 commit-and-push, the change is recorded with its basis, and outstanding
 persistence is reconciled under the new policy before further dispatch.
 Completed tasks are re-evaluated against the new policy even when they
-were already finalized and archived under the old one: their accepted work
+were already finalized under the old one: their accepted work
 may still be uncommitted or unpushed, and a gate satisfied under the old
 policy does not excuse it. Only the persistence is reopened — reviews,
-counters, the next action, and archived evidence stay unchanged; existing
+counters, the next action, and recorded evidence stay unchanged; existing
 commits are pushed as-is rather than re-created, and each completion record
 is updated through the same bounded finalization. The order is fixed and
 finite, so reconciliation state already carried by a task finalization is
@@ -143,24 +145,38 @@ significant backlog
 reconciliation — new or removed tasks, rewritten acceptance, reordered
 upcoming tasks, or changed deferred packets — is committed
 and pushed as a state-only checkpoint before further dispatch; routine
-counter and ledger writes are not checkpointed. Checkpoint pushes follow the
+counter and state writes are not checkpointed. Checkpoint pushes follow the
 same destination and safety rules as task pushes, and a failed or uncertain
 checkpoint push — like any blocked persistence — goes directly to the
 terminal local-only close: no further commits or pushes, all persistence
 deferred until a resume reconciles the actual local and remote state.
-Session-close state follows the same bounded finalization: its local records
-are saved first, and a blocked close stops with the finalization deferred
+When the last task completes and the goal is met, the same finalization
+carries the run-close record in one completion commit. The snapshot stays as
+the recovery checkpoint until that commit's persistence is confirmed under
+the policy; only then does a separate bounded cleanup fold the remaining
+state into the backlog's result records and remove the snapshot, recoverable
+from git history. An incomplete stop keeps the snapshot as its resume state.
+A blocked close stops with the persistence deferred
 and reported as unconfirmed — never completed — until a resume reconciles
 and confirms it.
 
-Completed handoffs and review records go in
-`.agenticale/handoffs/archive/YYYY-MM.md`. For runs that need to resume from
-a fresh clone, track `BACKLOG.md` and `.agenticale/handoffs/` in Git with the
+Completed task detail lives in the backlog's compact result records — date,
+outcome, product commit hashes, and the confirmed push destination when
+pushing applies. The run creates no default archive and no round journal,
+and historical material — legacy handoffs and existing archives from earlier
+runs — stays untouched. For runs that need to resume from
+a fresh clone, track `BACKLOG.md` and `.agenticale/` in Git with the
 matching product changes or submodule pin.
 
-When upgrading from a version that used `docs/handoffs/`, move the active
-handoff and archive into `.agenticale/handoffs/` before resuming. Update
-relative links and project instructions that refer to the old paths.
+Runs from older versions may carry the legacy `.agenticale/handoffs/active.md`
+packet and a human-owned `## Steering` section in `BACKLOG.md`. A resume
+recognizes that layout: with no migration or closure trace, it carries the
+recorded identities, consumed counters, allowances, gates, and policy exactly
+into the new compact snapshot once, then continues under the current
+contract; after a migration or closure it never re-imports the legacy
+packet's stale counters. The legacy files themselves stay untouched as
+history, and a legacy handoff with no recorded policy resumes as working
+tree with that warning.
 
 ## Prepare a backlog for Autonomous
 
@@ -179,10 +195,11 @@ acceptance checks directly. If you want to plan the work first, capture it in
   do next.
 - Keep the next few candidate slices in dependency order. The coordinator can
   revise their order or scope as it learns more.
-- Optionally add a `## Steering` section (see
+- Optionally create `.agenticale/steering.md` (see
   [Steer a running goal](#steer-a-running-goal)) to pause and continue the run
-  or reorder the next ready-task selection while it works. The section is
-  yours; the workflow reads it but never edits it.
+  or reorder the next ready-task selection while it works. The file is
+  yours; the workflow reads it but never edits it. A legacy `## Steering`
+  section in `BACKLOG.md` keeps the same controls for older runs.
 
 ```markdown
 # Project backlog
@@ -210,11 +227,11 @@ file contains the same rows as the filtered report.
 
 Start a new goal with explicit goal text that points to the milestone, for
 example `/autonomous Deliver the CSV export milestone in BACKLOG.md`. The
-coordinator creates `.agenticale/handoffs/active.md` and records the current slice
-and its next action. With an active handoff, the same goal text steers the
+coordinator creates `.agenticale/active.md` and records the current slice
+and its next action. With an active run, the same goal text steers the
 run — adding explicitly requested tasks or adjusting continuation — instead
-of starting a new one. Invoke `/autonomous` without goal text to resume an
-existing handoff's recorded `NEXT` action.
+of starting a new one. Invoke `/autonomous` without goal text to resume the
+active run's recorded `NEXT` action.
 
 ### Ask an AI agent to prepare the backlog
 
@@ -223,7 +240,7 @@ already know. You can add this instruction to your request.
 
 ```text
 Prepare the project backlog for an Autonomous run. Read AGENTS.md if present,
-the existing BACKLOG.md and .agenticale/handoffs/active.md if present, and enough
+the existing BACKLOG.md and .agenticale/active.md if present, and enough
 project source and tests to identify a verifiable first slice.
 
 In the project's root BACKLOG.md, record the milestone, its acceptance check,
@@ -251,8 +268,9 @@ to define a round goes to a focused exploration round with one question and a
 stop condition, not into the main loop. Before each substantive assignment,
 including the first, it explains the next step and its purpose. After a result,
 the next update connects the evidence to the next decision; a finished task ends
-with the delivery report. The compact state stays in the active handoff next to
-the round ledger.
+with the delivery report. The compact state stays in the active snapshot —
+a checkpoint, not a journal: settled results fold into the backlog's task
+records, and the snapshot keeps only what the next round and recovery need.
 
 The narration follows the [same guidance as Work](../work/index.md#progress-narration):
 short updates about outcomes, trade-offs, and verification, with model details
@@ -260,7 +278,7 @@ and counters surfaced when they affect a decision or you ask for them. For
 example: "The new reader passes its compatibility checks. I'm assigning the
 writer update next, keeping the old format readable during the transition."
 These summaries add tokens in exchange for an easier-to-follow account of a
-long task. The durable handoff preserves the state needed to resume; the visible
+long task. The durable snapshot preserves the state needed to resume; the visible
 updates help you understand how the work reached that state.
 
 Two worker-round budgets and a completed-task limit bound the run. The
@@ -292,13 +310,14 @@ survive crashes, resumes, and quota outages, each round is charged exactly
 once, and a resume never resets them. One consolidated state protocol owns
 the bookkeeping — charge before launch, settle when a round ends, switch at
 a selection boundary, reconcile at every launch and resume, and finalize at
-each persistence boundary. The active handoff's budget line is the canonical
-counter record; the backlog mirrors it in a fixed write order, and a resume
-validates the whole packet before trusting any counter, so a torn write or
-an interrupted task switch reconciles without double charging or restoring
-stale consumption. A numeric budget on a resume changes the run ceiling
-only: `/autonomous 3` after five consumed rounds leaves no worker rounds
-rather than silently refreshing the count.
+each persistence boundary. The snapshot's budget line is the single counter
+authority — the backlog never mirrors the consumed counters — and a resume
+validates the whole snapshot before trusting any counter, rebuilding a torn
+or missing snapshot only from verified prior Git and host evidence or
+stopping, so a torn write or an interrupted task switch reconciles without
+double charging or restoring stale consumption. A numeric budget on a resume
+changes the run ceiling only: `/autonomous 3` after five consumed rounds
+leaves no worker rounds rather than silently refreshing the count.
 
 When the run ceiling or the completed-task limit is exhausted while eligible
 backlog work remains, the loop makes an INCOMPLETE safety stop — never a
@@ -312,7 +331,7 @@ allowance), and review rounds only against an explicit user review limit: it
 never resets counters and grants no extra scope, review, or Git rights. A
 consult can settle a reversible decision but cannot grant one, and declining
 or not answering ends the stop. Allowance usage and any granted extension
-are persisted in the active handoff, and the incomplete stop carries a
+are persisted in the snapshot, and the incomplete stop carries a
 copy-pasteable continuation prompt so a later activation can act on the
 grant. A run with blocked or exhausted tasks is explicitly incomplete even
 when no eligible work remains; only a fully completed goal completes a run.
@@ -370,12 +389,12 @@ budget behavior.
 
 When the host reports provider quota exhaustion, the coordinator records the
 evidence, affected role, retry time, inspected partial progress, remaining work,
-and next action in the active handoff. It waits about 30 minutes by default, or
+and next action in the snapshot. It waits about 30 minutes by default, or
 longer when reliable provider reset metadata requires it, then resumes from the
 inspected working tree. Up to eight quota retries without resumed progress are
 allowed, with the count preserved across sessions and reset only after material
 progress. A supported host wait can keep the session waiting; otherwise the
-handoff is ready for a later activation, without a promised automatic wakeup.
+snapshot is ready for a later activation, without a promised automatic wakeup.
 
 The coordinator may ask you to settle a meaningful behavior choice, provide
 missing information, or clarify an ambiguous pull request destination. If a
@@ -384,25 +403,28 @@ the blocker and the choice needed to continue.
 
 ## Steer a running goal
 
-You can steer a run while it works, through one small human-owned section of
-the project's existing `BACKLOG.md` — no new file, and no general command
-channel:
+You can steer a run while it works, through one small, optional, human-owned
+file — `.agenticale/steering.md` — with exactly two documented controls and
+no general command channel:
 
 ```markdown
-## Steering
-
 - mode: continue
 - priority: T3, T2
 ```
 
+- The file is absent by default: no file means `continue` and no priority.
+  The coordinator reads it; it never creates, edits, or deletes it, and
+  children never touch it.
 - `mode: pause` asks the run to stop at the next safe checkpoint: the
   currently running child is allowed to finish its round, its result and
   budget charge are recorded, and the exact next action and all counters are
   preserved before the loop stops with a pause report. Nothing is interrupted
-  mid-round, and the workflow does not poll or run a watcher. Set
-  `mode: continue` (or remove the section) and invoke `/autonomous` again to
-  resume the recorded next action. With no new instruction, the run continues
-  normally.
+  mid-round, and the workflow does not poll or run a watcher. The pause is
+  persistent: it survives session ends and resumes. Set `mode: continue`
+  (or remove the pause) and invoke `/autonomous` again to resume the recorded
+  next action; a still-present `pause` stops a fresh activation again without
+  dispatching. Only your own edit releases it — with no pause present, the
+  run continues normally.
 - `priority` is an optional comma-separated list of task IDs that reorders
   only the next task selection among ready tasks. IDs are assigned when
   tasks enter the backlog, so a recorded task that has never been selected
@@ -410,14 +432,22 @@ channel:
   unblocks a blocked, dependent, unknown, or allowance-exhausted task —
   such IDs are skipped with a note.
 
-The section belongs to you. The coordinator re-reads it before every new
-round — workers, reviews, fixes, and consults alike — and never edits it;
-its backlog writes are targeted edits on a fresh re-read, so your concurrent
-steering changes survive. Steering cannot grant budget, change scope,
+The file belongs to you. The coordinator re-reads it before every new
+round — workers, reviews, fixes, consults, and deep reviews alike — and never
+edits it. Steering cannot grant budget, change scope,
 authorize Git actions, or bypass a review gate; those stay with the normal
 invocation and grant rules. Goal text in an invocation is a separate
 explicit channel: it can add tasks or steer continuation under the
-reconciliation rules above, and it is never written into this section.
+reconciliation rules above, and it is never written into the steering file.
+
+A legacy run may instead carry the human-owned `## Steering` section in
+`BACKLOG.md` with the same two controls. The coordinator reads it when the
+new file is absent and never edits it. When both surfaces exist, `pause` in
+either pauses the run, and `priority` comes from the new file when it defines
+one, otherwise from the legacy section; a disagreement is noted in the next
+report. Moving to the new file is your own act — the workflow never migrates,
+rewrites, or deletes human steering content, and the legacy section stays
+untouched as history.
 
 For the detailed state, budget, review, and resume rules, read the
 [Autonomous skill source](https://github.com/alefranz/AgenticAle/blob/main/skills/autonomous/SKILL.md)
