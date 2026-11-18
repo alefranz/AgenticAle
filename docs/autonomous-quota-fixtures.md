@@ -22,9 +22,13 @@ Expected behavior:
   charge against both the task allowance and the run ceiling — because it
   made material progress. Do not count the quota event as another interruption,
   malformed-report correction, or task blocker.
-- After cooldown, start a fresh worker that inspects both changed and untracked
-  files, validates or repairs the handoff, then continues its one next action.
-  It does not reset or recreate the partial implementation.
+- Before dispatch, the coordinator inspects the actual working tree, including
+  both changed and untracked files, validates the handoff against that state,
+  and repairs any missing or stale part from verified tree and host evidence,
+  without delegating the repair to a child. After cooldown, the fresh worker
+  re-checks the handoff read-only, reports any discrepancy in its report
+  without writing operational state, and continues its one `NEXT` action. It
+  does not reset or recreate the partial implementation.
 - Run the ordinary verification and independent review before accepting the
   slice.
 

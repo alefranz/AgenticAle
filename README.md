@@ -127,7 +127,7 @@ additional fix-and-review cycle — and a granted extension adds exactly the
 named rounds without resetting counters or granting extra rights; declining
 ends the stop. Every incomplete stop includes a copy-pasteable continuation
 prompt. Provider quota exhaustion is separate: Work stops without durable
-recovery, while Autonomous applies its own cooldown and handoff policy.
+recovery, while Autonomous applies its own cooldown and recovery policy.
 
 ## Customize model configuration
 
@@ -142,8 +142,9 @@ exact content before anything is written. The details are in the
 ## Choose where the task finishes
 
 Work leaves changes ready for your review unless you ask it to prepare and open
-a pull request. Autonomous keeps a durable handoff in the target project and,
-by default, commits and pushes each completed task before the next one starts.
+a pull request. Autonomous keeps a compact durable checkpoint in the target
+project and, by default, commits and pushes each completed task before the
+next one starts.
 The invocation itself is the explicit authorization, so a conditional "do not
 commit unless asked" repository guard is satisfied, not a restriction: only an
 actual prohibition selects a restricted policy, cited concretely, and the run
@@ -178,9 +179,12 @@ truly independent ready task can be selected safely. Goal text
 supplied while a run is active steers it: explicit new outcomes become
 backlog tasks and continuation instructions adjust the plan, without
 overwriting active work or resetting budgets and review gates. While a run
-works, you can also steer it through a small human-owned `## Steering`
-section in the project's `BACKLOG.md`: pause and continue at safe
-checkpoints, or reorder the next ready-task selection.
+works, you can also steer it through a small, optional, human-owned
+`.agenticale/steering.md` file: pause and continue at safe checkpoints, or
+reorder the next ready-task selection. The file is absent by default, the
+workflow only reads it, and a pause persists across resumes until you release
+it. Older runs may carry the same controls in a `## Steering` section of
+`BACKLOG.md`, which keeps working.
 
 ## Other included skills
 

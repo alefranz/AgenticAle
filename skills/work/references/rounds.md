@@ -310,8 +310,8 @@ through a recorded extension: the allowance grows by a bounded increment
 backed by verified progress evidence established since the allowance was last
 set or extended, and never beyond the progress ceiling. The extension and its
 evidence are recorded in the invoking workflow's existing state before the
-next worker dispatch — session state in reviewed task work, the durable
-handoff and backlog in Autonomous Mode. Without such evidence the allowance
+next worker dispatch — session state in reviewed task work, the compact
+snapshot in Autonomous Mode. Without such evidence the allowance
 is exhausted: stop the task's worker dispatch under the stop rules. Continuation
 is automatic while the evidence, the budget, and the safeguards allow it; the
 coordinator does not ask the user to authorize each extended round.
@@ -465,7 +465,8 @@ installation configures them), the task contract it ran, and — only where
 the active binding exposes it — the role's model selection.
 
 These records belong to the invoking workflow's state: session state in
-reviewed task work, the handoff and the round ledger in Autonomous Mode.
+reviewed task work, the compact snapshot and the backlog's settled task
+evidence in Autonomous Mode — a checkpoint, not a default round journal.
 In Autonomous Mode the record also carries the stable run and task identities
 and, for a worker round, its single charge against both worker budgets,
 persisted before launch so a crash or a quota-only launch can be reconciled

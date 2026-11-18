@@ -8,7 +8,9 @@ coordinator decisions; they are source-interpretation examples, not live host
 tests. The counter, switching, and recovery cases interpret the autonomous
 skill's [state protocol](../skills/autonomous/SKILL.md#state-protocol), the
 single authority for the charge, settle, switch, reconcile, and finalize
-events.
+events. The autonomous state is the compact snapshot `.agenticale/active.md`
+plus `BACKLOG.md`; the snapshot is the single counter authority, the
+coordinator is the only state writer, and there is no default archive.
 
 ## Coherent existing changes with an empty `/work --pr`
 
@@ -225,7 +227,7 @@ Expected behavior:
 ## Decision summary is user-visible, not hidden-only
 
 After a substantive worker result, the coordinator updates the session
-context (or the active handoff in Autonomous Mode) with the new state and
+context (or the active snapshot in Autonomous Mode) with the new state and
 dispatches the next round without telling the user anything.
 
 Expected behavior:
@@ -235,7 +237,7 @@ Expected behavior:
   any change of approach, the next evidence to collect, and any approaching
   limit or material uncertainty.
 - Also retain the compact state in the workflow's existing state: session
-  context in reviewed task work, the active handoff in Autonomous Mode.
+  context in reviewed task work, the active snapshot in Autonomous Mode.
 - The summary is progress narration about decisions and evidence, not
   individual tool calls or internal chain-of-thought; a routine
   verification-only check needs no summary.
@@ -767,9 +769,10 @@ Expected behavior:
 
 - Every explore/implement/fix round is charged once to both its task and the
   run: T1 12/12, T2 3/12, T3 2/12; run consumption 12 + 3 + 2 = 17 of 20, so
-  the effective run remaining is 3. The budget line and the backlog counters
-  record exactly these numbers, and the milestone status records 2 completed
-  tasks against the limit of 20 — T1 never counts while unfinished.
+  the effective run remaining is 3. The snapshot's budget line records exactly
+  these numbers once — the backlog never mirrors consumed counters — and the
+  completed-task count of 2 against the limit of 20 is derived from the
+  backlog's confirmed result records; T1 never counts while unfinished.
 - T1's explicit cap is exact: it does not auto-extend even if the last rounds
   made verified progress. (Under the default allowance, verified progress at
   round 12 would instead justify a recorded extension up to the progress
@@ -777,7 +780,7 @@ Expected behavior:
 - T1's exhaustion dispatches no further worker round for T1, but verification
   and the permitted review of its completed changes still run; the unfinished
   part stays incomplete with findings, current state, and one next action in
-  a resumable backlog packet — never archived as completed.
+  a resumable backlog packet — never recorded as completed.
 - T2 and T3 are genuinely new tasks: each receives a fresh allowance of 12
   with the progress ceiling of 24. Their selection is safe despite T1's
   unfinished changes in the tree because they are truly independent; a task
@@ -831,6 +834,34 @@ Expected behavior:
   the same one) receives its stable ID when it enters the backlog and its
   fresh allowance only when first selected; an ID alone grants no rounds.
 
+## Single counter authority: no mirror, no growing ledger
+
+An Autonomous run has settled several rounds. The snapshot carries the
+budget line — run identity, ceiling, consumed; active task ID, allowance in
+force, consumed — plus the open target's fix/review counters, the
+pending-dispatch evidence while a charged child is in flight, and the
+current slice's state. The backlog carries the run header, task entries,
+deferred packets, and result records.
+
+Expected behavior:
+
+- The consumed counters live exactly once, in the snapshot's budget line.
+  The backlog never mirrors the active task's or the run's consumed
+  counters — duplicate counters drift. Remaining budget is derived from the
+  ceiling or allowance, never stored as a second number.
+- The snapshot is a compact checkpoint (at most ~2 KB), not a journal:
+  settled rounds fold into the backlog task's compact result/progress note,
+  and the snapshot keeps only what the next round and recovery need. No
+  growing round ledger accumulates in either file, and consumption is never
+  re-derived from a ledger or from memory.
+- A deferred packet carries the task's own counters, never a run-consumption
+  snapshot, so a stale task packet can never restore a stale run count. The
+  completed-task count is derived from the backlog's confirmed result
+  records, never a separate tally.
+- The open target's fix/review counters persist as evidence in the snapshot
+  (or the deferred packet when deferred) without reset or re-identification
+  on resume or rename.
+
 ## Numeric resume never resets persisted counters
 
 An Autonomous run recorded an explicit invocation ceiling of 6 with 5 worker
@@ -846,10 +877,10 @@ Expected behavior:
   a continuation needs.
 - `/autonomous 10` sets the ceiling to 10 with consumed still 5: remaining 5.
   Plain `/autonomous` continues the recorded ceiling and counters unchanged.
-- No resume recomputes consumption from the ledger's length, resets counters,
-  re-issues task IDs, or erases a task's recorded progress extension; a user
-  grant adds exactly the named rounds to the named budget, and its boundary
-  is an exact cap.
+- No resume recomputes consumption from a ledger or from memory, resets
+  counters, re-issues task IDs, or erases a task's recorded progress
+  extension; a user grant adds exactly the named rounds to the named budget,
+  and its boundary is an exact cap.
 
 ## Crash with a pending dispatch: no double charge, no free replay
 
@@ -871,28 +902,82 @@ Expected behavior:
 - Never charge the same round twice, and never let a replay of productive
   work run free of its recorded charge. The run/task identities, consumed
   counters, allowances in force with any recorded progress extension, and
-  pending-dispatch evidence survived the crash in the existing handoff and
-  backlog.
+  compact pending-dispatch evidence survived the crash in the existing
+  snapshot and backlog.
 
-## Steering pause at a safe checkpoint, then resume
+## Children report; the coordinator alone writes state
 
-A worker round is in flight when the human sets `mode: pause` in the
-`## Steering` section of `BACKLOG.md`. Later the human sets `mode: continue`
-and invokes `/autonomous`.
+A worker round hits a reset trigger; a reviewer returns a verdict with
+nits; a consult returns a recommendation. None of them has written any
+operational file.
 
 Expected behavior:
 
+- Children return concise structured reports — including compact reset
+  evidence when they reset — and never write the backlog, the snapshot, the
+  steering file, or any operational file. Read-only exploration and
+  consultation children return their findings in the report; the coordinator
+  persists the relevant content before dispatching the next round.
+- For the reset, the worker's report carries established facts with file or
+  command evidence, `TRIED` (disproved hypotheses), current state, and one
+  `NEXT` action. The coordinator persists that evidence into the snapshot
+  (adding the compact `TRIED` section) and starts a fresh child from the
+  snapshot — never asking the old worker to keep exploring.
+- The coordinator records the reviewer's verdict and nits in the durable
+  state from the report and promotes nits to backlog checkboxes; the
+  reviewer writes no operational file and never marks the task completed.
+- The coordinator is the only state writer: every event step is a targeted
+  edit on a fresh re-read, read back to confirm it landed, and every
+  `BACKLOG.md` write preserves any concurrent human edit.
+
+## Steering pause at a safe checkpoint, then resume
+
+A worker round is in flight when the human creates `.agenticale/steering.md`
+with `- mode: pause`. Later the human sets `- mode: continue` and invokes
+`/autonomous`. In a variant, the human instead removes the file.
+
+Expected behavior:
+
+- The file is optional and absent by default: no file means `continue` and no
+  priority. The coordinator reads it; it never creates, edits, or deletes it,
+  and children never touch it. Only the exact value `pause` pauses; an
+  unrecognized `mode` value changes nothing and is noted in the next report.
 - The running child is allowed to settle; its result and single charge are
-  recorded, the exact `NEXT` and all counters are preserved, and the loop
-  stops with a pause report and the continuation prompt. No mid-round
-  interruption, no polling, no watcher or service.
-- The coordinator notices the pause at its next steering re-read — before
-  every new round dispatch, including reviews, fixes, and consults — not by
-  watching the file continuously.
-- The fresh activation re-reads the section: `continue` resumes the recorded
-  `NEXT` with the same identities and counters; a still-present `pause` stops
-  again without dispatching. With no new steering instruction, continuation
-  is normal.
+  recorded, the exact `NEXT` and all counters are preserved in the snapshot,
+  and the loop stops with a pause report and the continuation prompt. No
+  mid-round interruption, no polling, no watcher or service.
+- The coordinator notices the pause at its next steering re-read —
+  immediately before every new round dispatch, worker, review, fix, consult,
+  and deep review alike — not by watching the file continuously.
+- The pause is persistent: it survives session ends and resumes. The fresh
+  activation re-reads the surface: `continue` (or an absent file) resumes the
+  recorded `NEXT` with the same identities and counters; a still-present
+  `pause` stops again without dispatching. Only the human's own edit releases
+  it; with no new steering instruction, continuation is normal. A pause
+  noticed during a quota cooldown wait is honored before the next launch
+  after the wait; the wait keeps its deadline rules.
+
+## Legacy steering precedence: pause wins, priority from the new file
+
+A legacy run carries the human-owned `## Steering` section in `BACKLOG.md`.
+In one variant only the legacy section exists; in another the human has also
+created `.agenticale/steering.md`, and the two surfaces disagree.
+
+Expected behavior:
+
+- With only the legacy section present, the coordinator reads it exactly like
+  the new file — the same two controls, the same pause/priority semantics —
+  and never edits it.
+- With both surfaces present, `pause` in either pauses the run (pause wins);
+  `priority` comes from the new file when it defines one, otherwise from the
+  legacy section. A disagreement is noted in the next report, and neither
+  surface is ever auto-edited to resolve it.
+- The one-time transition is the human's own act — creating
+  `.agenticale/steering.md`, optionally copying the controls — never the
+  coordinator's: the agent never migrates, rewrites, or deletes human
+  steering content, and the legacy section stays untouched as history when
+  the new file exists. Invocation goal text is never written into either
+  surface.
 
 ## Steering priority with blocked IDs
 
@@ -911,102 +996,301 @@ Expected behavior:
 
 ## Concurrent human steering edit survives an agent backlog write
 
-The coordinator is about to tick a completed checkbox in `BACKLOG.md`; while
-it works, the human edits the `## Steering` section.
+A legacy run's coordinator is about to tick a completed checkbox in
+`BACKLOG.md`; while it works, the human edits the legacy `## Steering`
+section. In a variant, the run uses the new `.agenticale/steering.md` file.
 
 Expected behavior:
 
 - The coordinator re-reads `BACKLOG.md` immediately before its targeted write
   and applies only its own change to the fresh content; the human's steering
   edit survives. No stale whole-file overwrite.
-- Children never edit the Steering section; their operational notes leave it
-  untouched, and the same fresh-re-read discipline applies to their backlog
-  notes.
+- Children never edit the steering surface; their reports leave it untouched,
+  and the coordinator's backlog writes preserve any concurrent human edit.
+- With the new steering file, the surface is separate from `BACKLOG.md` and
+  is never agent-written at all — no backlog write can touch it, and the
+  coordinator still re-reads it before every dispatch.
 
-## Deferred packets and stable identities across switching and archival
+## Deferred packets and stable identities across switching and completion
 
 Task T1 is deferred unfinished when T2 is selected; T2 later completes its
-review and persistence gates and is archived; T1 is then resumed.
+review and persistence gates; T1 is then resumed.
 
 Expected behavior:
 
 - The switch event first writes T1's compact packet — stable ID, task
   counters (never a run-consumption snapshot), established facts, current
   state, acceptance, exactly one resumable `NEXT` — into the backlog's
-  deferred entries, then restores T2's packet into `active.md` with the run
+  deferred entries, then restores T2's packet into the snapshot with the run
   identity, ceiling, and consumed carried unchanged from the outgoing budget
   line, then updates the backlog's single active next action. T1 is not
-  archived as completed.
-- T2's archive record carries its stable ID and final counters. Resuming T1
-  restores its recorded packet, identity, and counters unchanged — switching
-  tasks and archiving completed work never reset or re-identify consumption.
-- All of this uses the existing `BACKLOG.md`, `active.md`, and monthly
-  archive; no new state file is created.
+  recorded as completed.
+- T2's completion is a compact backlog result record — date, outcome, product
+  commit hashes, and the confirmed push destination when pushing applies.
+  Resuming T1 restores its recorded packet, identity, and counters unchanged
+  — switching tasks and completing work never reset or re-identify
+  consumption.
+- All of this uses the existing `BACKLOG.md` and the compact snapshot; no
+  archive is created and no new state file. A deferred packet for a
+  checkpointed task also carries its WIP hashes, push state, and recorded
+  pre-WIP review base.
 
-## Torn counter write reconciles from the backlog mirror
+## No default archive; historical material stays untouched
 
-The coordinator's pre-launch `active.md` charge write tears after the
+A run completes several tasks and later stops. The repository also carries
+legacy handoffs and an existing monthly archive from earlier runs.
+
+Expected behavior:
+
+- Completed task detail lives in the backlog's compact result records —
+  date, outcome, product commit hashes, and the confirmed push destination
+  when pushing applies. The run creates no monthly archive and no
+  session-close archive paragraph, and no archival step gates completion.
+- Historical material — legacy handoffs, existing archives, old session
+  records — is preserved untouched: never rewritten into a lossy summary,
+  never deleted, and read only by an exact pointer when a decision needs it.
+- Unresolved blockers and nits stay as open backlog checkboxes; a deferred
+  unfinished task keeps its resumable packet and is never recorded as
+  completed.
+
+## Torn counter write reconciles from verified prior evidence
+
+The coordinator's pre-launch snapshot charge write tears after the
 incremented counters but before the dispatch record and pending-dispatch
 note. The file keeps a readable budget line showing run 4 and T1 4, while
-the verified backlog mirror still reads run 3/6 and T1 3/12. No child was
-launched — the charge was never read back as durable.
+the last committed state — the snapshot version carried by the run's latest
+state-only commit — still reads run 3/6 and T1 3/12. No child was launched —
+the charge was never read back as durable.
 
 Expected behavior:
 
 - The resume's reconcile event validates the complete packet before trusting
   the readable line: the incremented counters have no backing dispatch record
   or pending note, so they are a torn write, not consumption. It rebuilds from
-  the verified pre-launch mirror — run consumed 3 and T1 consumed 3, never a
-  value from a deferred task packet — repairs `active.md`, and dispatches
-  the round with one new charge: run 4, T1 4 after the first actual round.
-- The unverified counters never reach the backlog mirror: mirroring the
-  readable 4 first and then charging the dispatched round would reach run 5
-  for one actual round. A fully unreadable or missing `active.md` rebuilds
-  from the mirror the same way.
+  the verified committed state — run consumed 3 and T1 consumed 3 — repairs
+  the snapshot, and dispatches the round with one new charge: run 4, T1 4
+  after the first actual round.
+- There is no backlog counter mirror to rebuild from: consumed counters live
+  once in the snapshot. A deferred packet supplies task counters only for a
+  deferred task, never run consumption. Treating the readable 4 as consumption
+  and then charging the dispatched round would reach run 5 for one actual
+  round — unverified counters are never trusted.
 - No double charge and no free round: if the tree and host evidence instead
   show a launched round whose charge was lost, that single charge is applied
-  exactly once during reconciliation.
+  exactly once during reconciliation. If the exact consumed counters cannot
+  be established from the committed state plus verified host and working-tree
+  evidence, the resume stops with the continuation prompt naming the gap —
+  never guessing and never resetting counters to zero.
 
-## Interrupted mirror write reconciles from the validated active packet
+## Missing snapshot rebuilds from verified evidence or stops
 
-The charge event's `active.md` write landed and read back — run 4 and T1 4,
-backed by a complete pending-dispatch record — but the session died before
-the backlog mirror write, leaving the mirror at the pre-launch run 3/6 and
-T1 3/12. In a variant, the round had already settled in `active.md` (pending
-note resolved, ledger line recorded) when the result mirror was interrupted.
+The snapshot file is gone entirely — deleted, or lost with an interrupted
+write. The backlog survives with its deferred packets and result records,
+and the run's state-only commits carry earlier snapshot versions.
 
 Expected behavior:
 
-- The resume runs the reconcile event: the active packet is complete and its
-  excess over the mirror is backed by its own records, so it validates and
-  wins. The stale mirror is rewritten from the validated active packet —
-  never the reverse — and the pending dispatch is resolved exactly once
-  against the host and working-tree evidence under the settle outcomes.
-- The interrupted settle variant reconciles the same way: the settled ledger
-  line backs the active state and the mirror is rewritten from it. No
-  counter changes — settle records a result, it does not charge again.
-- No double charge and no free round: the mirror lag never becomes a second
-  charge, and a launched round's material work keeps its single recorded
-  charge. The human-owned Steering section survives every mirror rewrite.
+- The resume rebuilds only from verified prior evidence: the last committed
+  state in git history, the backlog's deferred packets for task counters
+  (never for run consumption), recorded WIP hashes and review bases, and host
+  or working-tree evidence of the rounds launched since that committed state.
+  Each verified round's outcome is applied exactly once under the settle
+  outcomes — material work keeps or applies its single charge, a confirmed
+  quota-only or never-launched dispatch removes or never applies it.
+- With no evidence sufficient to establish the exact consumed counters, the
+  resume stops with the continuation prompt naming the missing evidence —
+  never a fresh zeroed run, never a guess, and never consumption recomputed
+  from a ledger or from memory.
+- A torn or missing legacy packet follows the same recover-or-stop rule; the
+  legacy file is never auto-edited or deleted by the recovery. With a legacy
+  packet present and the new snapshot missing, the legacy-compatibility
+  guard runs first: a run already migrated or closed never re-imports it
+  (see the migrated-run fixture).
+
+## Legacy packet transition carries counters, gates, and policy exactly
+
+A resume finds no `.agenticale/active.md` but a legacy
+`.agenticale/handoffs/active.md` packet from a run under the old contract,
+with consumed counters, a recorded progress extension, fix/review counters,
+an open review gate, and a recorded persistence policy. The legacy backlog
+carries consumed-counter mirrors and the human-owned `## Steering` section.
+The backlog and git history show no trace of an earlier migration or closure
+of this run: no compact result records or run-close record under its identity,
+and no state-only commit carrying `.agenticale/active.md`. In variants, both
+packets exist; the legacy packet is torn; or the legacy handoff records no
+policy at all.
+
+Expected behavior:
+
+- The one-time transition validates the legacy packet and carries its
+  identities, consumed counters, allowances in force (including the recorded
+  progress extension), fix/review counters, open gates, and recorded
+  persistence policy exactly into the new compact snapshot — no reset, no
+  re-derivation — then persists the transition under the active policy as a
+  bounded state-only checkpoint before further dispatch (recorded diff
+  evidence under working-tree policy), runs the reconcile event, and
+  continues under the new contract. The checkpoint makes the migration
+  recognizable from git history on any later resume. The legacy file itself
+  is historical material: never auto-edited, migrated away, or deleted.
+- The legacy backlog's consumed-counter mirrors and milestone status are
+  superseded by the snapshot's budget line — never authoritative again and
+  no longer maintained. Later targeted writes follow the compact board
+  format, preserving the human-owned `## Steering` section, deferred
+  packets, result records, and historical pointers.
+- Both packets exist: a valid new snapshot wins and the legacy packet stays
+  untouched. A torn or missing packet — new or legacy — follows the
+  reconcile event's recover-or-stop rule: rebuild only from verified prior
+  evidence, or stop naming the gap; never guess or zero the counters.
+- A legacy handoff with no recorded policy predates the commit-and-push
+  default and resumes as working tree, stated with the warning that accepted
+  work stays uncommitted and unpushed — never silently upgraded. The legacy
+  steering section keeps its controls and precedence under the live-steering
+  rules; the agent never rewrites it.
+
+## Migrated run with a missing snapshot never re-imports the legacy packet
+
+A legacy run migrated at run 2 / T1 2: the transition checkpoint committed
+the new `.agenticale/active.md` at those counters, and the backlog's compact
+result notes superseded the legacy mirrors. A later charged round advanced
+the snapshot to run 3 / T1 3 — the charge was verified and the child ran
+productively — and then the new snapshot file was lost. The preserved legacy
+packet still reads run 2 / T1 2. The user resumes with plain `/autonomous`.
+In variants, the run instead completed and cleaned up earlier (the run-close
+record and every confirmed result record are durable, the snapshot
+legitimately gone); or the exact counters after the last committed snapshot
+cannot be established from host or working-tree evidence.
+
+Expected behavior:
+
+- Before any legacy fallback, the resume recognizes the prior migration from
+  the backlog and Git: the compact result records under the same run
+  identity and the state-only commits carrying `.agenticale/active.md` (a
+  bounded `git log -- .agenticale/active.md`). The legacy packet is history,
+  not current evidence — the resume never re-imports its stale run 2 / T1 2
+  as the live counters.
+- The missing new snapshot follows the reconcile event's recover-or-stop
+  rule: rebuild from the last committed new-snapshot state (run 2 / T1 2)
+  plus the verified host and working-tree evidence of the charged round
+  since, applying its single charge exactly once — run 3 / T1 3 — and
+  continue the recorded `NEXT`. Persistence reconciliation changes no
+  counters, and the legacy file is never auto-edited or deleted.
+- If the exact consumed counters cannot be established from that evidence,
+  the resume stops with the continuation prompt naming the gap — never
+  restores the stale legacy counters, never guesses, never zeroes.
+- Completed-and-closed variant: the resume recognizes the closure from the
+  durable run-close record and confirmed result records, verifies the close's
+  full persistence — completion and bounded cleanup confirmed under the
+  policy, any deferred failure records resolved, no outstanding close commit
+  or push — then reports the confirmed closure and creates no state and no
+  commits. It never re-imports the legacy packet or restarts the finished
+  run; a new run needs new goal text. Outstanding cleanup or resolution
+  persistence reconciles before that closure report, never after it (see the
+  combined legacy-entry/cleanup-interruption fixture below).
+- Only a run with no migration or closure trace in the backlog or git
+  history takes the one-time transition (the preceding fixture).
+
+## Legacy plain entry reconciles outstanding cleanup before reporting closure
+
+A commit-and-push run migrated from the legacy layout, completed every task,
+and reached its consolidated final close: the completion commit (the last
+task's completion record plus the run-close record, snapshot kept as the
+recovery checkpoint) was pushed and confirmed. The preserved legacy packet
+still sits at `.agenticale/handoffs/active.md` with its stale counters. The
+new snapshot is absent because the bounded cleanup legitimately removed it.
+The user resumes with plain `/autonomous`. In variants, the interruption
+landed at a different close cutpoint:
+
+- Deletion before commit: the cleanup fold and snapshot deletion are already
+  applied in the working tree, but the session died before the one cleanup
+  commit was created. No failure records were written.
+- Cleanup commit before push: the cleanup commit exists locally, but the
+  session died before its push, or the push returned no confirmation. No
+  failure records were written.
+- Unresolved failure records: an earlier blocked cleanup push wrote terminal
+  failure records to the backlog alone (the snapshot was already gone), and
+  the cleanup commit is still unpushed.
+- Confirmed complete: the completion and cleanup commits are both pushed and
+  confirmed, with no deferred records.
+
+Expected behavior:
+
+- The entry establishes the prior migration and closure from the backlog and
+  Git — the run-close record, the confirmed result records, and the state-only
+  commits carrying `.agenticale/active.md` — and never re-imports the stale
+  legacy packet. Durable completion records alone do not classify the run as
+  closed: the entry reconciles outstanding close persistence first, under the
+  bounded persistence sequence's interruption rules and the final close's
+  cutpoints, before any closure report.
+- Deletion-before-commit variant: the completion persistence is already
+  confirmed, so the resume creates the one cleanup commit from the saved fold
+  and deletion — never a second completion commit, never rewritten completion
+  records — pushes and confirms it, then reports the confirmed closure. No
+  failure records means no resolution commit.
+- Cleanup-commit-before-push variant: the resume pushes the existing cleanup
+  commit as-is — never re-creates it — and confirms it, then reports the
+  confirmed closure. The deleted snapshot stays recoverable from git history
+  and is never recreated. With no failure records there is no resolution
+  commit.
+- Unresolved-failure-records variant: the resume pushes the existing cleanup
+  commit as-is and confirms it; only then are the deferred backlog failure
+  records resolved to the confirmed hashes and destination, riding in exactly
+  one bounded state-only resolution commit, pushed and confirmed. Its own hash
+  is never written back, and the snapshot is never recreated. Only after that
+  does the entry report the confirmed closure.
+- Confirmed-complete variant: with the close's full persistence already
+  verified and no outstanding record writes, the entry reports the confirmed
+  closure and creates no state and no commits — the boundary is satisfied
+  without any further write.
+- Across every variant the reconciliation changes no identities or consumed
+  counters, adds no duplicate commit, and never pushes a descendant of an
+  uncertain commit in the same run. The legacy file is never auto-edited or
+  deleted, and the human-owned steering surface is untouched. A new run needs
+  new goal text; the finished run is never restarted.
+
+## Interrupted settle write keeps the single charge
+
+The charge event's snapshot write landed and read back — run 4 and T1 4,
+backed by a complete pending-dispatch record — and the child ran
+productively, but the session died before the settle write: the pending note
+is unresolved and the backlog's compact result note is missing. In a variant,
+the settle landed in the snapshot (pending note resolved, outcome recorded)
+when the backlog result-note write was interrupted.
+
+Expected behavior:
+
+- The resume runs the reconcile event: the snapshot is complete and its
+  counters are backed by its own records, so it validates and wins. The
+  pending dispatch is resolved exactly once against the host and
+  working-tree evidence under the settle outcomes: the productive round keeps
+  its single charge, and the settled result folds into the backlog task's
+  compact result/progress note.
+- The interrupted backlog-note variant reconciles the same way: the snapshot
+  is the counter authority, the missing note is completed from the settled
+  record, and no counter changes — settle records a result, it does not
+  charge again.
+- No double charge and no free round: the interrupted write never becomes a
+  second charge, and a continuation is a new round with its own single
+  charge. The human-owned steering surface survives every state write.
 
 ## Interrupted task switch loses no packet and no consumption
 
 Exhausted T1 (12/12) is being deferred in favor of ready T2. T1's deferred
-packet is durable in the backlog when the session dies before `active.md` is
+packet is durable in the backlog when the session dies before the snapshot is
 rewritten.
 
 Expected behavior:
 
-- A complete, coherent `active.md` still names T1: the validated active
-  packet wins, the duplicate deferred entry is removed (nothing is lost —
-  it was copied from the active packet), and at the next selection boundary
-  T1 is worker-ineligible, so the loop defers it again and selects T2.
-- A torn or incoherent `active.md` — even one whose budget line is still
-  readable — is rebuilt from the backlog: T1 from its deferred packet, run
-  consumed from the status mirror, never a stale run count from the task
-  snapshot. The deferred packet is never deleted on the strength of an
-  unvalidated active packet. T1's counters and T2's fresh allowance are
-  unchanged.
+- A complete, coherent snapshot still names T1: the validated snapshot wins,
+  the duplicate deferred entry is removed (nothing is lost — it was copied
+  from the snapshot), and at the next selection boundary T1 is
+  worker-ineligible, so the loop defers it again and selects T2.
+- A torn or incoherent snapshot — even one whose budget line is still
+  readable — is rebuilt from verified prior evidence: T1 from its deferred
+  packet, run consumed from the verified committed state or host evidence —
+  never a stale run count from a task packet. The deferred packet is never
+  deleted on the strength of an unvalidated snapshot. If the run consumption
+  cannot be established, the resume stops rather than guessing. T1's counters
+  and T2's fresh allowance are unchanged.
 
 ## Plain `/autonomous` resumes the exact unfinished action
 
@@ -1017,15 +1301,20 @@ the ceiling). The reconcile event runs first; the validated state's one
 
 | Interruption point | The exact action the resume selects |
 | --- | --- |
-| Torn charge write before launch | Rebuild from the verified backlog mirror, then dispatch the round with one new charge — never mirror the torn counters. |
-| Charge verified, mirror write interrupted | Rewrite the stale mirror from the validated active packet, resolve the pending dispatch once, continue from the round's outcome. |
-| Switch: outgoing packet durable, `active.md` not rewritten | The complete, coherent active packet wins: remove the duplicate deferred entry and continue the active task to the next selection boundary. |
+| Torn charge write before launch | Rebuild from the last verified committed state plus host evidence, then dispatch the round with one new charge — never trust the torn counters. |
+| Charge verified, settle write interrupted | Resolve the pending dispatch once against host/tree evidence, keep the single charge, continue from the round's outcome. |
+| Missing snapshot | Rebuild from the committed state plus verified host/tree evidence, applying each round exactly once — or stop naming the evidence gap. |
+| Switch: outgoing packet durable, snapshot not rewritten | The complete, coherent snapshot wins: remove the duplicate deferred entry and continue the active task to the next selection boundary. |
 | Productive child crash | Keep the single recorded charge, settle the interruption, and start the fresh continuation as a new round with its own charge. |
 | Quota-only launch rejection | Remove the pending charge, honor the recorded retry time, then launch the recorded round after the deadline. |
 | Product committed, push interrupted | Push the existing product commits as-is — never re-commit. |
 | Product pushed, state finalization missing | Complete the completion-record writes from the confirmed hashes and destination, then run the one finalize sequence. |
 | Finalization committed, push interrupted | Push the existing finalization commit as-is — never a second finalization commit. |
 | Finalization pushed, acknowledgment missing | Confirm the remote ancestry or content read-only; the gate is satisfied without any further write, and the next task is selected. |
+| Final close records written, completion commit missing | Create the one completion commit from the saved records — the snapshot stays as the recovery checkpoint. |
+| Completion commit created, push interrupted | Push the existing completion commit as-is; the cleanup follows only after the push is confirmed. |
+| Completion push confirmed, cleanup outstanding | Run the bounded cleanup: fold, delete the snapshot, one cleanup commit — never a second completion commit. |
+| Cleanup commit created, push interrupted | Push the existing cleanup commit as-is; the deleted snapshot stays recoverable from history, and any failure records live in the backlog alone. |
 
 Expected behavior:
 
@@ -1033,15 +1322,15 @@ Expected behavior:
   confirmed work, not a duplicated commit, charge, or completion record.
   Identities are unchanged, and consumed counters change only through the
   protocol's documented repairs and refunds: a torn charge write is rebuilt
-  from the verified backlog mirror, and a confirmed quota-only or
+  from verified prior Git/host evidence, and a confirmed quota-only or
   never-launched dispatch removes its pending charge. A productive round
   keeps its single charge, and persistence reconciliation changes no
   counters. The completed-task count increments exactly once, when the gate
   is first confirmed.
 - The detailed cases are the surrounding fixtures: torn counter write,
-  interrupted mirror, interrupted switch, crash with a pending dispatch,
-  the quota-only launch in the quota examples, and interruption between
-  commit, push, and completion.
+  missing snapshot, interrupted settle, interrupted switch, crash with a
+  pending dispatch, the quota-only launch in the quota examples, and
+  interruption between commit, push, and completion.
 
 ## Exhausted-first priority must not stall selection
 
@@ -1090,9 +1379,10 @@ Expected behavior:
   are preserved.
 - Continue the recorded `NEXT` action; the new tasks become selectable at
   the next selection boundary under the normal readiness rules. The
-  reconciliation is recorded in the existing backlog and active handoff.
-- The invocation text is not written into the human-owned `## Steering`
-  section, which keeps exactly its two documented controls.
+  reconciliation is recorded in the existing backlog and snapshot.
+- The invocation text is not written into the human-owned steering surface
+  (`.agenticale/steering.md`, or the legacy `## Steering` section), which
+  keeps exactly its two documented controls.
 
 ## Continuation steering preserves identities, counters, and gates
 
@@ -1116,7 +1406,7 @@ Expected behavior:
 
 ## Ambiguous destructive replacement asks before rewriting state
 
-With an active handoff and deferred packets, the user invokes
+With an active snapshot and deferred packets, the user invokes
 `/autonomous Start over with a cleaner approach`. A variant instead names
 exactly what to discard: "Discard T3 and its deferred packet; replace it
 with a schema-first approach".
@@ -1124,11 +1414,13 @@ with a schema-first approach".
 Expected behavior:
 
 - The ambiguous request stops and asks the user before any state is
-  rewritten: the active handoff, deferred packets, counters, and audit
+  rewritten: the active snapshot, deferred packets, counters, and historical
   material are preserved while asking.
 - The explicit, unambiguous variant is honoured only for what it names;
-  unrelated tasks, counters, and audit material survive, and discarded audit
-  detail is archived, never deleted.
+  unrelated tasks, counters, and historical material survive. Historical
+  records of the discarded work stay preserved untouched — never deleted and
+  never rewritten into a lossy summary; only the named open entries and
+  packets are discarded.
 - Neither variant resets the run's consumed counters or re-issues IDs for
   tasks that remain.
 
@@ -1141,13 +1433,14 @@ independent reviewer is dispatched before the task persistence gate has run.
 Expected behavior:
 
 - The reviewer inspects the range at its current phase — the uncommitted
-  working-tree result — and records its verdict in the active handoff as a
-  working-tree note. It does not require task commits or a confirmed push
-  the gate has not performed yet, and it never commits, pushes, archives
-  the slice, or marks the task completed.
+  working-tree result — and returns its verdict in its report only; it writes
+  no operational file. The coordinator records the verdict in the snapshot.
+  The reviewer does not require task commits or a confirmed push the gate has
+  not performed yet, and it never commits, pushes, or marks the task
+  completed.
 - The coordinator owns final persistence verification at the task
   persistence gate after the review and applicable deep review gates close,
-  and owns the archival of the completed record after the gate is satisfied.
+  and owns the backlog completion record after the gate is satisfied.
 - A review whose supplied range already includes commits — for example a
   re-review after the gate — verifies coherent task commits and cleanliness,
   and verifies a confirmed push only when the recorded persistence state
@@ -1175,7 +1468,7 @@ Expected behavior:
   progress rules.
 - accepted: the clean reviews closed slice gates, not the task. The
   coordinator runs the task persistence gate before any selection; T1 is
-  not reported completed, not archived, and not counted.
+  not reported completed and not counted.
 - persistence-pending: an outstanding or unconfirmed commit, push, or state
   finalization keeps T1 open and uncounted, and T2 is not selected. An
   interruption here resumes the exact unfinished step from the actual Git
@@ -1206,19 +1499,19 @@ Expected behavior:
   commits (one per logical change, not one per agent round).
 - The coordinator pushes with ordinary Git semantics to the resolved
   upstream and verifies success. It then runs exactly one bounded state-only
-  finalization: the completion record — result line with the product commit
-  hashes and confirmed destination, archived detailed record, updated active
-  handoff — is written into the existing state files, committed as one
-  state-only commit (never product changes or unrelated work), and pushed
-  and confirmed to the same destination. The finalization commit's own hash
-  is never written back into the state it commits; later records read it
-  from git history.
+  finalization: the completion record — the backlog result line with the
+  product commit hashes and confirmed destination, and the snapshot updated
+  with the confirmed persistence state and one `NEXT` — is written into the
+  existing state files, committed as one state-only commit (never product
+  changes or unrelated work), and pushed and confirmed to the same
+  destination. The finalization commit's own hash is never written back into
+  the state it commits; later records read it from git history.
 - T1 is marked completed and T2 selected only after the finalization is
   confirmed — the local acknowledgment is a read-only verification, not
   another state write, so no recursive record-your-own-hash loop exists.
 - The persistence state (accepted, committed, push pending/confirmed) is
-  durable in the active handoff and mirrored on the backlog task entry as it
-  advances, so an interruption at any step resumes exactly there.
+  durable in the snapshot as it advances, persisted before the next step, so
+  an interruption at any step resumes exactly there.
 - Under a recorded commit-only policy the same gate requires the coherent
   commits and the state-only finalization commit but no pushes; under
   working-tree policy neither commits nor pushes — the recorded policy is
@@ -1315,12 +1608,11 @@ Expected behavior:
 An active working-tree run — the user originally asked to leave changes
 uncommitted — has T1 fully finalized under that policy: its review gates
 closed, its persistence gate satisfied with recorded diff evidence, the
-completion record written and the detailed record archived, and its
-accepted changes still in the working tree. A significant backlog
-reconciliation's targeted edits have also landed in the state files,
-uncommitted, with their diff evidence recorded. The user now invokes
-`/autonomous Commit and push each completed task, including the tasks
-already finished in this run`.
+completion record written in the backlog, and its accepted changes still in
+the working tree. A significant backlog reconciliation's targeted edits have
+also landed in the state files, uncommitted, with their diff evidence
+recorded. The user now invokes `/autonomous Commit and push each completed
+task, including the tasks already finished in this run`.
 
 Expected behavior:
 
@@ -1332,22 +1624,21 @@ Expected behavior:
 - T1's gate was satisfied under the working-tree policy, but that never
   satisfies the new policy: re-evaluate T1 against commit-and-push and
   reopen its persistence only. Its closed reviews and verdicts, consumed
-  counters, recorded `NEXT`, and archived evidence stay unchanged — no
+  counters, recorded `NEXT`, and historical evidence stay unchanged — no
   re-review, no rework, no new slice, no budget charge; the coordinator
   reconciles it itself, dispatching no child.
 - Before any further dispatch, in the fixed finite order: T1 goes through
   the task persistence gate under the new policy — coherent task commits
   from its accepted working-tree changes, a confirmed ordinary push to the
   resolved destination, and exactly one bounded state-only finalization
-  that updates the existing completion record (backlog result line,
-  archived record's persistence state, active handoff) with the confirmed
-  hashes and destination. That finalization commits the changed durable
-  state not yet committed, carrying the reconciliation's landed edits. The
-  significant reconciliation's checkpoint then creates no second commit —
-  its state is already carried by T1's finalization and is confirmed
-  read-only. In a variant with no task finalization carrying it, the
-  reconciliation receives exactly one state-only checkpoint commit, pushed
-  and confirmed.
+  that updates the existing completion record (backlog result line and
+  snapshot) with the confirmed hashes and destination. That finalization
+  commits the changed durable state not yet committed, carrying the
+  reconciliation's landed edits. The significant reconciliation's checkpoint
+  then creates no second commit — its state is already carried by T1's
+  finalization and is confirmed read-only. In a variant with no task
+  finalization carrying it, the reconciliation receives exactly one
+  state-only checkpoint commit, pushed and confirmed.
 - The ordinary destination, scope, and failure rules apply unchanged: an
   unsafe or ambiguous destination stops and asks, and a rejected or
   uncertain push records the exact persistence state and stops local-only,
@@ -1362,11 +1653,11 @@ Expected behavior:
 An active commit-only run — the user originally asked to commit but not
 push — has T1 fully finalized under that policy: coherent product commits
 and the state-only finalization commit exist locally, unpushed, and the
-completion record is archived with the product hashes and no destination.
-A significant reconciliation's state-only checkpoint commit and an open
-T2's WIP checkpoint commit also exist locally, unpushed. The user now
-invokes `/autonomous Switch to commit and push — push the completed tasks
-and the run's existing commits`.
+completion record carries the product hashes and no destination. A
+significant reconciliation's state-only checkpoint commit and an open T2's
+WIP checkpoint commit also exist locally, unpushed. The user now invokes
+`/autonomous Switch to commit and push — push the completed tasks and the
+run's existing commits`.
 
 Expected behavior:
 
@@ -1374,7 +1665,7 @@ Expected behavior:
   visibly. T1's former-policy gate satisfaction does not exempt it:
   re-evaluated against the new policy, its product commits exist but its
   push is outstanding, so its persistence is reopened — reviews, counters,
-  `NEXT`, and archived evidence unchanged, no re-review or rework, no
+  `NEXT`, and historical evidence unchanged, no re-review or rework, no
   budget charge, and no child dispatched.
 - In the fixed finite order, T1's gate reuses the existing product commits
   — verified for attribution and coherence, never re-committed — pushes
@@ -1428,9 +1719,9 @@ returns an uncertain result.
 Expected behavior:
 
 - Record the exact persistence state — accepted task, commit hashes,
-  destination, and the push evidence or error — in the active handoff and
-  backlog. Keep the task open: it is not archived or reported as completed,
-  and the next task is not selected.
+  destination, and the push evidence or error — in the snapshot and backlog.
+  Keep the task open: it is not recorded as completed, and the next task is
+  not selected.
 - Stop with the continuation prompt. No force-push, no automatic merge or
   rebase, no blind retry; a non-fast-forward rejection is resolved by
   preserving state and asking, not by rewriting history.
@@ -1443,9 +1734,12 @@ Expected behavior:
   establishes whether the uncertain push landed, and resumes the exact
   unfinished step — pushing the existing commits as-is when they are not on
   the remote, never re-committing them. While the push is unresolved, no
-  descendant commit or push follows it. The task stays incomplete and
-  uncounted, and no next task is selected, until the whole gate is confirmed
-  satisfied.
+  descendant commit or push follows it. Once the push is confirmed, the
+  terminal stop's deferred failure records are resolved to the confirmed
+  hashes and destination and ride in exactly one bounded state-only commit;
+  a clean interruption that wrote no failure records needs no such commit.
+  The task stays incomplete and uncounted, and no next task is selected,
+  until the whole gate is confirmed satisfied.
 
 ## Interruption between commit, push, and completion reconciles
 
@@ -1515,54 +1809,91 @@ Expected behavior:
   follow the recorded policy like any other state write; they are never
   product commits.
 
-## Session-close state uses the same bounded finalization
+## Consolidated final close carries the last task, run close, and cleanup
 
-A commit-and-push run reaches its final report after the last task's gate
-has closed. The session-close handoff paragraph, backlog status, and active
-handoff still need their final writes. In a variant, the session dies after
-the session-close state commit but before its push.
-
-Expected behavior:
-
-- The coordinator writes the session-close records into the existing state
-  files, then applies the same bounded finalization as the task gate: one
-  state-only commit of the session-close state changes — never product
-  changes — pushed and confirmed to the resolved destination. The printed
-  report mirrors the saved archive paragraph and points at its path and the
-  commit hash read from git history; the hash is never written into the
-  files the commit contains.
-- The interrupted variant reconciles exactly like the task gate: the resume
-  confirms the existing session-close commit from local history and the
-  remote read-only and pushes it as-is — no second commit, no rewritten
-  records — before any continuation work.
-- Under commit-only policy the session-close commit is created but not
-  pushed; under working-tree policy the records stay in the working tree
-  with diff evidence. No new state file is created for any of this.
-
-## Blocked session-close finalization stops local-only
-
-A commit-and-push run reaches session close after the last task's gate has
-closed, and the session-close records are written locally. In variants, the
-resolved destination is unsafe or ambiguous, the state-only commit's push is
-rejected non-fast-forward, or the push result is uncertain.
+A commit-and-push run's last remaining task has just closed its persistence
+gate and the goal is met. In variants, the session dies after the close
+records are written but before the completion commit; after the completion
+commit but before its push; after the push is confirmed but before the
+cleanup; the run instead stops incomplete; or the run uses working-tree or
+commit-only policy.
 
 Expected behavior:
 
-- The local records — session-close paragraph, backlog, active handoff — are
-  written first and never wait on the push. They carry the exact persistence
-  state: the local commit hash when one exists, the destination, and the push
+- The same finalization that records the last task's completion also carries
+  the run-close record — one bounded state-only completion commit, not a
+  separate task finalization followed by a session-close commit. The snapshot
+  is not deleted in this commit: it stays, updated with the confirmed product
+  persistence and one `NEXT` naming the close's exact unfinished step, as the
+  recovery checkpoint until the completion commit's push is confirmed. The
+  printed report mirrors the saved records and points at the commit hash read
+  from git history; the hash is never written into the files the commit
+  contains.
+- The cleanup runs only after that confirmation, and only for a completed
+  run: fold the snapshot's remaining content into the backlog's result
+  records, read them back, then remove the snapshot; the fold and deletion
+  ride in one bounded state-only cleanup commit, pushed and confirmed. A
+  successful close is exactly two state-only commits — completion, then
+  cleanup — each confirmed before the next step begins. The deleted snapshot
+  stays recoverable from git history. Never delete it while any task is
+  unfinished or any required persistence is unconfirmed.
+- The interruption variants reconcile the exact unfinished step: before the
+  completion commit, create it once from the saved records; committed but
+  unpushed, push it as-is — never a second completion commit; push confirmed
+  with cleanup outstanding, run the cleanup without rewriting the completion
+  records. A clean interruption writes no failure records and needs no
+  resolution commit: a confirmed finalization with no outstanding record
+  writes satisfies the boundary without any further write.
+- An incomplete stop keeps the snapshot as its resume state: the stop close
+  persists the stop records without deleting it.
+- Under working-tree policy no commit exists: the completion records are
+  recorded as diff evidence, and only after that verification fold the
+  snapshot content into the backlog results, read them back, and remove the
+  snapshot, recording both changes as diff evidence. Under commit-only the
+  completion commit and the cleanup commit are created in the same order but
+  not pushed. No new state file is created for any of this.
+
+## Blocked final close stops local-only
+
+A commit-and-push run reaches its final close after the last task's gate has
+closed, and the run-close records are written locally. In variants, the
+resolved destination is unsafe or ambiguous before the completion commit
+exists; the completion commit's push is rejected non-fast-forward or returns
+an uncertain result; or the completion push is confirmed, the cleanup commit
+is created, and its push is rejected or uncertain.
+
+Expected behavior:
+
+- The local records — run-close record, backlog, snapshot — are written
+  first and never wait on the push. They carry the exact persistence state:
+  the local commit hash when one exists, the destination, and the push
   evidence or error, with the finalization marked deferred and unconfirmed.
+  While the completion commit's push is unconfirmed the snapshot is still
+  present: the failure records are written there and in the backlog, and no
+  cleanup commit is created in this run — it would carry the uncertain
+  commit as a descendant.
 - The run stops terminally with the continuation prompt: no blind retry, no
   force-push, merge, or rebase, no branch creation, and no automatic
   destination change. The printed report mirrors the saved local records and
   reports the finalization as deferred — never as completed — and no
   completion is recorded before confirmation.
-- A resume reconciles exactly like the task gate: re-read the durable state,
-  inspect the actual local history and the remote read-only, then resume the
-  exact unfinished step — push the existing state-only commit as-is, or
-  create it from the saved local records when none exists — never duplicating
-  commits. Only a confirmed finalization closes the session's persistence;
-  identities and counters are unchanged by the reconciliation.
+- A resume reconciles the exact unfinished step: re-read the durable state,
+  inspect the actual local history and the remote read-only, then push the
+  existing completion commit as-is — creating it from the saved records only
+  when none exists — and confirm it. After confirmation, the deferred
+  failure records are resolved to the confirmed hashes and destination, and
+  the resolution rides in the one cleanup commit with the fold and the
+  snapshot deletion, pushed and confirmed. No second completion commit, no
+  repeated cleanup, no self-hash write; identities and counters are
+  unchanged by the reconciliation.
+- Cleanup-push variant: the snapshot is already legitimately gone after the
+  verified completion persistence. The terminal failure records go to the
+  backlog alone — the snapshot is never recreated — and no further commit or
+  push follows in this run. The resume pushes the existing cleanup commit
+  as-is; once confirmed, the deferred records are resolved to the confirmed
+  destination and ride in exactly one bounded state-only resolution commit,
+  pushed and confirmed. The deleted snapshot stays recoverable from git
+  history throughout.
 - The same local-only close applies when the run arrives at close with
   persistence already blocked at an earlier boundary — a rejected, failed,
   or uncertain task, WIP, or reconciliation checkpoint push, or a blocked
@@ -1578,18 +1909,23 @@ changes named by T1's deferred packet.
 
 Expected behavior:
 
-- Before the session-close records and finalization, the coordinator stages
-  only the unfinished product changes attributable to the run's tasks and
-  creates one WIP checkpoint commit per changed repository, identified with
-  a `WIP:` prefix naming the run and task IDs (for example
-  `WIP: csv-export T2 — slice 2, review open`). It pushes with ordinary Git
-  semantics to the resolved upstream and verifies success.
-- The session-close records carry, per task, the WIP commit hashes, the
-  verification and review status (what passed, what is still open), the
-  confirmed push destination, and exactly one resumable `NEXT`; the bounded
-  state-only finalization then commits and pushes those records. No
-  checkpoint hash is written into the files its own commit contains.
-- T2 stays open and review-open: nothing is archived as completed, no review
+- Before the stop records and finalization, the coordinator stages only the
+  unfinished product changes attributable to the run's tasks and creates one
+  WIP checkpoint commit per changed repository, identified with a `WIP:`
+  prefix naming the run and task IDs (for example `WIP: csv-export T2 —
+  slice 2, review open`). It pushes with ordinary Git semantics to the
+  resolved upstream and verifies success.
+- The stop records carry, per task, the WIP commit hashes, the pre-WIP review
+  base, the verification and review status (what passed, what is still open),
+  the confirmed push destination, and exactly one resumable `NEXT`. This
+  compact per-task evidence lives on the backlog task entries and, as recovery
+  needs it, in the snapshot. Consumed counters are not part of that per-task
+  record: the active task's and the run's consumption stay once in the
+  snapshot's budget line, and T1's deferred packet keeps its own counters —
+  the backlog never mirrors the active/run counters. The bounded state-only
+  finalization then commits and pushes those records. No checkpoint hash is
+  written into the files its own commit contains.
+- T2 stays open and review-open: nothing is recorded as completed, no review
   or persistence gate is bypassed, and the resume continues the recorded
   `NEXT` with the ordinary gates still required.
 - The checkpoint dispatches no child and consumes no worker, review, or
@@ -1604,7 +1940,7 @@ legacy handoff with no recorded policy.
 
 Expected behavior:
 
-- Commit-only: the WIP checkpoint commits and the session-close state commit
+- Commit-only: the WIP checkpoint commits and the stop-close state commit
   are created, but nothing is pushed.
 - Working-tree and legacy: no checkpoint or state commit is created; the
   unfinished changes stay in the working tree, identified by `git status`
@@ -1613,11 +1949,64 @@ Expected behavior:
 - No variant marks a task completed or bypasses a restriction to satisfy the
   default policy.
 
+## Multi-round stop and plain resume keep one budget and no journal
+
+A commit-and-push run `csv-export` (ceiling 240) has settled seven worker
+rounds across two tasks: T1 was deferred after five rounds, and T2 is active
+with two rounds consumed under its allowance of 12. The run then stops at a
+safe checkpoint — a steering `pause` or no safe ready work; 7/240 leaves run
+budget, so an exhausted ceiling is not a stop cause at this consumption —
+with T2's current slice implemented and verified but review-open, and
+attributable unfinished changes in the tree. In a variant the run instead
+carries an explicit ceiling of 7, so the same seven consumed rounds exhaust
+it exactly (7/7) and the stop is the ceiling stop. The user later resumes with
+plain `/autonomous`; in the pause variant the human first sets
+`mode: continue` (or removes the pause) in the steering surface.
+
+Expected behavior:
+
+- The stop writes compact per-task evidence, not a round journal: the backlog
+  T2 entry carries the WIP commit hashes, the pre-WIP review base, the
+  verification/review status, the push state, and one resumable `NEXT`; the
+  snapshot keeps the current state and what recovery needs. Settled round
+  outcomes fold into the backlog tasks' bounded result/progress notes — no
+  one-line-per-round ledger accumulates in either file, and no stop or close
+  step requires a full ledger. Host logs and git history are optional
+  diagnostics, not a default archive.
+- Consumption lives exactly once: the snapshot budget line reads run
+  `csv-export` 7/240 and active T2 2/12 (allowance in force), plus the open
+  target's fix/review counters. T1's deferred packet carries its own 5/12.
+  The backlog's active T2 entry and the run header never mirror the consumed
+  counters, and no second tally or per-round budget copy is written.
+- The plain resume runs the reconcile event, validates the intact snapshot,
+  and continues the recorded `NEXT` with consumption unchanged — run stays
+  7/240 and T2 stays 2/12, T1's packet stays 5/12. It adds no duplicate budget
+  line, journal, or counter mirror, re-derives nothing from a ledger, and
+  resets nothing; the ordinary review and persistence gates still apply.
+- Pause variant: continuation requires the human's own pause release first.
+  A fresh activation with a still-present `pause` stops again without
+  dispatching; only after the human sets `mode: continue` or removes the
+  pause does the plain resume continue the recorded `NEXT`. The release
+  changes no identity or counter.
+- Exact-ceiling variant (7/7): the plain resume is budget-exhausted and stops
+  under the allowance-stop rules with the continuation prompt — consumption
+  stays 7, and further worker rounds need the ceiling changed by one of the
+  two supported user actions: an explicit numeric resume override above 7,
+  or a named user grant adding its named rounds to the ceiling. Both carry
+  consumption over unchanged — no counter reset and no implicit grant — and
+  a numeric override at or below 7 leaves the run exhausted. The resume
+  never refreshes the exhausted ceiling on its own.
+- A variant stops under working-tree policy: no WIP or state commit is
+  created, the same compact layout and single budget hold, and the diff
+  evidence identifies the unfinished changes. The layout and unchanged
+  consumption are identical across policies.
+
 ## Significant reconciliation checkpoints state before further dispatch
 
 An active commit-and-push run receives `/autonomous Also add PDF export`;
 the reconciliation adds T4 and T5 and rewrites T3's acceptance. In a variant,
-the only writes between two rounds are a ledger line and the counter mirror.
+the only writes between two rounds are a counter charge and a settled result
+note.
 
 Expected behavior:
 
@@ -1627,9 +2016,10 @@ Expected behavior:
   pushes and confirms it to the resolved destination before dispatching any
   further round. The checkpoint's own hash is never written back into the
   state it commits.
-- The ledger-and-counter variant creates no checkpoint commit: routine
-  progress writes are not reconciliations, and per-write commits are not the
-  contract.
+- The routine-writes variant creates no checkpoint commit: counter charges,
+  settled results, dispatch records, and persistence-state records are
+  routine progress writes, not reconciliations, and per-write commits are not
+  the contract.
 - Under commit-only the checkpoint commit is created but not pushed; under
   working-tree policy no commit is created and the diff evidence identifies
   the reconciled state. The checkpoint dispatches no child and consumes no
@@ -1640,9 +2030,9 @@ Expected behavior:
 An active commit-and-push run receives `/autonomous Do the migration tests
 before the CSV polish, and the docs task last`; the reconciliation reorders
 the upcoming backlog tasks. In one variant the only writes between two
-rounds are a ledger line and the counter mirror; in another the human sets
-`priority: T3, T2` in the Steering section while the backlog's task order is
-untouched.
+rounds are a counter charge and a settled result note; in another the human
+sets `priority: T3, T2` in the steering surface while the backlog's task
+order is untouched.
 
 Expected behavior:
 
@@ -1655,9 +2045,8 @@ Expected behavior:
 - The reorder applies at the next selection boundary under the normal
   readiness rules; the active slice and any running round are never
   interrupted, and no allowance, gate, or counter changes.
-- The ledger-and-counter variant creates no checkpoint commit: routine
-  progress writes are not reconciliations, and per-write commits are not the
-  contract.
+- The routine-writes variant creates no checkpoint commit: routine progress
+  writes are not reconciliations, and per-write commits are not the contract.
 - The bare `priority` hint reorders only the next selection among ready
   tasks: it rewrites no backlog entry, creates no durable plan change, and
   needs no checkpoint commit. It is a selection control, not a plan
@@ -1703,12 +2092,11 @@ Expected behavior:
   destination, and the push evidence — is recorded, every task stays open,
   and the stop goes directly to the terminal local-only close.
 - The close creates no new commits and attempts no pushes: no WIP checkpoint
-  commit for the review-open changes and no session-close finalization
-  commit. Pushing either would carry the uncertain checkpoint as a
-  descendant — an implicit retry of the blocked push. The unfinished changes
-  stay in the working tree, identified by `git status` and `git diff`
-  evidence in the local records, which mark all further persistence deferred
-  and unconfirmed.
+  commit for the review-open changes and no stop-close finalization commit.
+  Pushing either would carry the uncertain checkpoint as a descendant — an
+  implicit retry of the blocked push. The unfinished changes stay in the
+  working tree, identified by `git status` and `git diff` evidence in the
+  local records, which mark all further persistence deferred and unconfirmed.
 - The final report is printed from the saved local records with the exact
   evidence and one next action — reconcile and complete the deferred
   persistence — and reports nothing as completed or finalized. No further
@@ -1717,9 +2105,9 @@ Expected behavior:
   before any next work: it confirms whether the checkpoint push actually
   succeeded, pushes the existing checkpoint commit as-is when it did not —
   never duplicating it — then completes the deferred WIP checkpoint once
-  from the attributable changes the records name and the deferred
-  session-close finalization from the saved records. Identities and consumed
-  counters are unchanged; only then does the recorded work continue.
+  from the attributable changes the records name and the deferred stop-close
+  finalization from the saved records. Identities and consumed counters are
+  unchanged; only then does the recorded work continue.
 
 ## Task gate completes work already in WIP commits
 
@@ -1795,10 +2183,10 @@ Expected behavior:
 ## Interrupted WIP checkpoint reconciles without duplication
 
 The session dies after the WIP checkpoint commits were created but before
-their push; in variants, the WIP push succeeded but the session-close records
-were never written; the records were written and the state finalization
-commit created but never pushed; or the attributable changes were never
-committed at all.
+their push; in variants, the WIP push succeeded but the stop records were
+never written; the records were written and the state finalization commit
+created but never pushed; or the attributable changes were never committed
+at all.
 
 Expected behavior:
 
@@ -1823,19 +2211,53 @@ evidence is not quota. The worker budgets show run 4/6 and T1 4/12.
 
 Expected behavior:
 
-- Record the interruption in the ledger and start a fresh review child over
-  the same range from the active handoff; the partial verdict is not a
+- Record the interruption in the snapshot and start a fresh review child
+  over the same range from the snapshot; the partial verdict is not a
   completed review.
 - The continuation is accounted under the unchanged review rules — it is not
   a worker round and never debits the task allowance or the run ceiling:
   run stays 4/6 and T1 stays 4/12. A worker continuation in the same
   situation would instead be a new worker round with its own single charge.
 
+## Interrupted worker and reviewer resume: coordinator repairs, child reports read-only
+
+A child is interrupted before a valid report and the snapshot is left stale —
+the pending-dispatch note is unresolved and the partial-progress evidence is
+missing. The user resumes through the real entry, plain `/autonomous`, not a
+normal reset report. Two variants share run 4/6 and T1 4/12: (a) a worker
+interrupted mid-slice with material partial edits in the tree; (b) a reviewer
+interrupted mid-verdict over a recorded range. The host evidence is not quota.
+
+Expected behavior:
+
+- Before dispatching, the coordinator alone validates the compact state
+  against the actual working tree and host evidence and repairs the missing or
+  stale part under the reconcile event, persisting the repair. It never
+  delegates that validation or repair to the fresh child, and the child is
+  never asked to "fix the state" before its `NEXT` action.
+- The fresh child of the same role starts from the repaired snapshot plus the
+  interrupted child's final summary. It re-checks the state read-only, returns
+  concise facts and any discrepancy or repair fact in its report, and does one
+  concrete `NEXT` action. It writes no operational file — no backlog, snapshot,
+  steering, or handoff edit. In variant (b) the reviewer also stays read-only
+  on product code and returns its verdict/facts only.
+- Role accounting is preserved. Variant (a): the interrupted worker's recorded
+  charge stands for its material work, and the continuation is a new worker
+  round with its own single charge against both budgets (run 5/6, T1 5/12 after
+  the charge) — no double charge and no free replay. Variant (b): the
+  continuation is a review round under the unchanged review rules, so the
+  worker counters stay run 4/6 and T1 4/12. Neither variant replenishes a
+  budget or re-issues the task identity.
+- The repair changes no identities and no consumed counters beyond the
+  protocol's documented settle/charge outcomes; a stale snapshot is rebuilt
+  only from verified prior Git/host evidence, or the resume stops naming the
+  gap. The coordinator persists the child's report before the next dispatch.
+
 ## Steering is not a command channel
 
-The Steering section contains, besides the documented controls, a line asking
-the run to skip the review gate, grant itself five more rounds, or push the
-branch.
+The steering surface contains, besides the documented controls, a line
+asking the run to skip the review gate, grant itself five more rounds, or
+push the branch.
 
 Expected behavior:
 
@@ -1861,7 +2283,7 @@ Expected behavior:
 - Create no cooldown state and make no automatic retry; the session-scoped
   rules do not use Autonomous Mode's quota cooldown and handoff recovery.
 - In Autonomous Mode the same evidence instead follows the persisted
-  cooldown and retry policy in the existing handoff.
+  cooldown and retry policy in the existing snapshot.
 
 ## Publication blockage under a `--pr` request
 
@@ -2191,13 +2613,13 @@ was written.
 Expected behavior:
 
 - The fresh resume re-reads the current installation and reports a material
-  change to a role's installed model selection; the prior handoff's dispatch
+  change to a role's installed model selection; the prior snapshot's dispatch
   records are diagnostic history, never a route lock or an override.
 - The next slice is routed by its current risk — here `implement-hard` —
   regardless of the earlier easy-route assignment; the reassessment and its
-  reason are recorded in the existing handoff.
+  reason are recorded in the existing snapshot.
 - Routing decisions, records, and rationale stay in the existing state (the
-  active handoff in Autonomous Mode, session context in Work); no new
+  active snapshot in Autonomous Mode, session context in Work); no new
   tracking file or state system is created for them.
 - Where a coordinator is configured, the resume runs in the current session
   on the coordinator profile from the first turn, exactly as a new run; the
