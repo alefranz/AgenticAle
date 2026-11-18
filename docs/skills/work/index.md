@@ -343,9 +343,11 @@ per-provider breakdown with cost. It reads the session data through the
 OpenCode API with read-only queries — it makes no model calls and changes
 nothing.
 
-This is the report from a multi-session run. The session identifier and
-task titles are shortened and illustrative, while the report structure and
-values are faithful to a real run:
+This is a sample report from a multi-session run. The session identifier
+and task titles are shortened and illustrative, and the model names are
+currentized for illustration only — they do not come from a live run with
+those models. The report structure and numeric usage values are recorded
+from the original real run:
 
 ```text
 Add CSV export for the report table
@@ -357,9 +359,9 @@ Sessions: 5
 Agent                   Task                                 Model                                 In     Out    Cache R  Cache W  Reason      Total  Cost
 build                   Add CSV export for the report table  local-llama/qwen3.8-27b (medium)  58,532  23,512  1,350,400        0       0  1,432,444  0.00
   agenticale/implement  Implement the CSV export slice       local-llama/qwen3.8-27b           61,811  20,146  1,242,498        0       0  1,324,455  0.00
-  agenticale/review     Review the CSV export changes        openai/gpt-6.1-sol                23,749     775     65,536        0     220     90,060  0.00
+  agenticale/review     Review the CSV export changes        openai/gpt-6.2-sol                23,749     775     65,536        0     220     90,060  0.00
   agenticale/fix        Fix the review findings              local-llama/qwen3.8-27b           11,969   3,578     88,429        0       0    103,976  0.00
-  agenticale/review     Re-review the fix                    openai/gpt-6.1-sol                 5,610     968     40,320        0      15     46,898  0.00
+  agenticale/review     Re-review the fix                    openai/gpt-6.2-sol                 5,610     968     40,320        0      15     46,898  0.00
 
 Totals (Total excludes Reasoning, which may already be counted in Output):
 Sessions   : 5

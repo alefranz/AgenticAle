@@ -150,16 +150,16 @@ const ALL_ROLES = ["explore", "implement", "implement-easy", "implement-hard", "
 // The exact example preset acceptance: one primary coordinator plus nine
 // workers, each with its exact provider/model#variant value.
 const EXAMPLE_ASSIGNMENTS = {
-  coordinator: "openai/gpt-6.1-sol#medium",
+  coordinator: "openai/gpt-6.2-sol#medium",
   explore: "local-llama/qwen3.8-27b#medium",
   "implement-easy": "local-llama/qwen3.8-27b#medium",
   implement: "alibaba-token-plan/qwen4-max-preview#medium",
   "implement-hard": "alibaba-token-plan/qwen4-max-preview#xhigh",
   fix: "alibaba-token-plan/qwen4-max-preview#medium",
-  review: "openai/gpt-6.1-sol#high",
-  "review-deep": "openai/gpt-6-astra#high",
-  "consult-hard": "openai/gpt-6-astra#high",
-  consult: "openai/gpt-6.1-sol#high",
+  review: "openai/gpt-6.2-sol#high",
+  "review-deep": "openai/gpt-6.2-astra#high",
+  "consult-hard": "openai/gpt-6.2-astra#high",
+  consult: "openai/gpt-6.2-sol#high",
 };
 
 const stripFrontmatter = (text) => text.replace(/^---\n[\s\S]*?\n---\n/, "");

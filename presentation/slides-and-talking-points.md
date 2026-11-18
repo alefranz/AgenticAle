@@ -98,7 +98,7 @@
 **Talking Points:**
 - Alongside fresh context, `/work` solves model selection **per role**: each of the seven roles — `explore`, `implement`, `implement-hard`, `fix`, `review`, `deep-review`, `consult` — gets its own model, and where the host supports it, its own reasoning effort.
 - On OpenCode the model configuration is set **at install time**: a flat per-role config — a JSON file or a bundled preset like `openai` — is baked into the seven generated agent profiles, so dispatching the role *is* the routing.
-- On the other hosts (Copilot, Codex, Antigravity), the configuration is **one optional Markdown preference file** with direct role assignments like `- review: openai/gpt-6.1-sol, xhigh` — a project file wins over the personal one, and nothing else in the file is interpreted.
+- On the other hosts (Copilot, Codex, Antigravity), the configuration is **one optional Markdown preference file** with direct role assignments like `- review: openai/gpt-6.2-sol, xhigh` — a project file wins over the personal one, and nothing else in the file is interpreted.
 - For named setups, a leading `--profile NAME` selects `preferences.NAME.md` at the same locations — and a missing file is a concise, actionable error, never a silent fallback.
 - When a task or review finding needs concurrency, subtle state, security, or difficult contract reasoning, `/work` runs the implement or fix contract on the `implement-hard` role, which you can point at your strongest model.
 

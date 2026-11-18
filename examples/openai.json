@@ -1,9 +1,9 @@
 {
   "explore": "openai/gpt-6-luna#medium",
   "implement": "openai/gpt-6-luna#high",
-  "implement-hard": "openai/gpt-6.1-sol#high",
+  "implement-hard": "openai/gpt-6.2-sol#high",
   "fix": "openai/gpt-6-luna#high",
-  "review": "openai/gpt-6.1-sol#high",
-  "review-deep": "openai/gpt-6.1-sol#xhigh",
-  "consult": "openai/gpt-6.1-sol#xhigh"
+  "review": "openai/gpt-6.2-sol#high",
+  "review-deep": "openai/gpt-6.2-sol#xhigh",
+  "consult": "openai/gpt-6.2-sol#xhigh"
 }
