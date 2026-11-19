@@ -39,7 +39,9 @@ the `/autonomous` command entry — including a fresh resume — runs in the
 current session on the generated `agenticale/coordinator` profile from the
 first turn; without one, the invoking session coordinates on its own model.
 Code and configuration changes receive independent review by default, with
-focused fixes for blocking findings.
+focused fixes for blocking findings; in strict mode a clearly mechanical
+slice closes by its deterministic check instead, with an independent review
+only when risk warrants one.
 
 Model configuration is not durable goal state: the preference file (or a
 selected `preferences.NAME.md`) is read once at each activation and stays
@@ -139,8 +141,9 @@ checkpoints them as explicit WIP commits under the same policy, recording
 their verification and review status and the exact continuation in the
 durable state. A WIP checkpoint never completes a task or bypasses its
 review gate; when the task later finishes, its gate reuses those commits, and
-every review's range starts at or before the recorded pre-WIP base —
-preserved across resumes — so the WIP commits are inside the diff. A
+the coordinator's own reviews of the task use a range that starts at or
+before the recorded pre-WIP base — preserved across resumes — so the WIP
+commits are inside the diff. A
 significant backlog
 reconciliation — new or removed tasks, rewritten acceptance, reordered
 upcoming tasks, or changed deferred packets — is committed
@@ -355,21 +358,55 @@ the loop continues — including beyond two fixes or three review passes on one
 target — while at least one effective worker round remains, the latest fix
 made real progress, and no safeguard or explicit user limit has fired. It
 does not repeatedly ask you to authorize one more cycle. Every review must be
-justified by changed slice or fix evidence, a required integration gate, or
-bounded interrupted-review recovery; a review-only loop over unchanged
-evidence is prohibited. Fix and review counters persist as evidence across
-resumes, replans, and renames — nothing resets or re-identifies them — and
-explicit limits you recorded stay binding; legacy default cycle caps never
-re-gate a resumed run.
+justified by changed slice or fix evidence, a required integration gate,
+bounded interrupted-review recovery, or an explicit user request — which
+authorizes one bounded audit over the range you name: the request is itself
+the justification, so it needs no changed fix evidence, and it authorizes
+that audit, not a review-only loop. The preserved triggers are required
+integration gates: the trigger itself — the two-fix struggle signal, the
+shared worker/reviewer blind-spot signal after at least two fix rounds made
+in response to a review round's findings (it fires whether or not a later
+pass eventually passed), or the periodic boundary, contract, or scale
+condition — is the justification,
+and each trigger's range is its own: the struggle audit runs over the slice's
+accumulated commit or diff range — its single-slice range from the slice's
+own entry (first change or recorded WIP boundary) through the current state,
+including every fix delta — while the periodic audit runs over the
+accumulated range since the periodic baseline — the preceding deep review
+whose audit range covered the whole accumulated range since the previous
+baseline (an integration-scope audit), or session start when none has run.
+When the slice's own gate was a deep review standing in for it, the struggle
+audit re-covers the slice's whole range, justified by the changed fix
+evidence and the trigger; a single-slice audit, standing-in or struggle,
+never advances the periodic baseline. Neither audit requires a diff the
+previous review has not seen. The review-only-loop prohibition still applies:
+a repeat of the same trigger's audit over the same range with no new
+trigger, no changed evidence, and no interrupted review to recover is
+prohibited. Fix and review counters persist as
+evidence across resumes, replans, and renames — nothing resets or
+re-identifies them — and explicit limits you recorded stay binding; legacy
+default cycle caps never re-gate a resumed run.
 
 Deep-review re-audits likewise follow productive fixes instead of a fixed
 per-target cap. The worker budget gates the next fix, not the review: the
 required deep re-review of the last allowed judgmental fix still runs when
-zero worker rounds remain. The session still runs at most one opportunistic
-escalation — triggered when a slice touches a high-risk surface, needs at
-least two fix rounds, or you explicitly ask for one — and the periodic
-integration triggers are unchanged. Consults stay capped at one per decision
-and two per session and can never grant worker budget. When the worker budget
+zero worker rounds remain. The session still runs at most one additional
+opportunistic escalation — the cap counts additional escalations, the
+post-gate deep reviews: the struggle trigger and explicit user requests —
+and a deep review standing in for a slice's own gate is that slice's
+required gate review, outside the cap; you may always explicitly direct an
+additional escalation. The high-risk-surface
+escalation selects the level of the slice's own review: when its risk
+warrants an integration-level audit, one deep review stands in for the
+normal review — its verdict is the slice's gate — otherwise the normal
+review alone; one level for the slice's range, never the normal review and a
+deep review both in its place. The two-fix-round and explicit-request
+triggers are unchanged post-gate triggers governed by the review-justification
+rules, and the periodic integration triggers no longer include a standalone
+slice-count trigger — three accepted slices since the last deep review no
+longer fires one — while the milestone, release, or session-close boundary
+after two or more accepted slices still does. Consults stay capped at one per
+decision and two per session and can never grant worker budget. When the worker budget
 is exhausted, fixes stop but the required review of the last allowed worker
 still runs; surviving blockers keep the target incomplete and review-open.
 An exhausted run ceiling stops the run and offers the named increment a

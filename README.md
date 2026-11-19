@@ -11,7 +11,9 @@ The workflow is designed to lower model cost by using fast, inexpensive, or
 local models for routine high-volume work, and stronger models for difficult
 implementation and independent review. Successful delivery, including a
 requested pull request, includes independent review, acceptance checks, and
-fixes for blocking findings, so your attention goes to completed work.
+fixes for blocking findings — a clearly mechanical change closes by its
+deterministic check instead, with an independent review only when risk
+warrants it — so your attention goes to completed work.
 
 Describe the outcome you want and invoke a workflow explicitly. The session
 where you invoke it coordinates the work. On OpenCode you can optionally
@@ -103,8 +105,10 @@ See [Antigravity installation](https://alefranz.github.io/AgenticAle/setup.html#
 ## What happens when you use it
 
 Work completes a bounded task through implementation, independent review,
-focused fixes for blocking findings, and acceptance checks. When investigation
-is needed, it gathers evidence first. Autonomous applies the same review gates
+focused fixes for blocking findings, and acceptance checks — a clearly
+mechanical change closes by its deterministic check instead, with an
+independent review only when risk warrants it. When
+investigation is needed, it gathers evidence first. Autonomous applies the same review gates
 to long goals and saves a durable next action for a later session. Each
 workflow reports its checks and remaining limitations.
 

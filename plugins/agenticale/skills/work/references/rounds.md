@@ -108,8 +108,10 @@ Run one slice at a time using the invoking workflow's existing roles:
    out of its assignment; a worker that discovers a bad boundary returns
    evidence and a proposed next action instead of expanding its scope.
 2. Verify the result and complete the applicable review/fix gate before the
-   next implementation slice starts. Review against the slice's acceptance and
-   the overall invariants. Explicitly deferred functionality is not itself a
+   next implementation slice starts. A clearly mechanical change closes by the
+   shared contract's deterministic verification, with independent review only
+   when risk warrants it. Review against the slice's acceptance and the overall
+   invariants. Explicitly deferred functionality is not itself a
    defect; a broken invariant or unmet current acceptance condition is.
 3. Reassess after every slice or inconclusive round: what was established,
    which assumptions changed, whether the next outcome is still needed, and
@@ -271,7 +273,9 @@ it. Productive implementation and verification need not reset on a tool count.
 Both workflows bound worker dispatch by this same progress-aware contract.
 The invoking workflow supplies the numbers, the state storage, and any
 run-level limits; the rules below bind reviewed task work and Autonomous Mode
-identically.
+identically, except that the struggle and periodic deep review triggers are
+Autonomous Mode's escalation gates and grant Work no post-gate escalation
+right.
 
 ### Verified progress evidence
 
@@ -353,10 +357,38 @@ fired, continue the fix → verify → re-review loop without asking the user to
 authorize another cycle — a fourth or later productive fix within budget
 needs no permission ask. Every review round, ordinary or deep, must be
 justified by changed slice or fix evidence (a diff the previous review has
-not seen), a required integration gate, or bounded interrupted-review
-recovery over the same range; a review-only loop over unchanged evidence is
-prohibited. The invoking workflow's consultation caps and trigger-based
-deep-review limits are unchanged.
+not seen), a required integration gate, bounded interrupted-review recovery
+over the same range, or an explicit user request. An explicit user request
+authorizes one bounded audit over the range the user names — the request is
+itself the justification, so it needs no changed fix evidence, and it
+authorizes that audit, not a review-only loop: the prohibition on
+coordinator-initiated review loops over unchanged evidence continues to
+apply. The preserved deep review triggers are Autonomous Mode's escalation
+gates — required integration gates: the trigger itself — the two-fix struggle
+signal, the shared worker/reviewer blind-spot signal after at least two fix
+rounds made in response to a review round's findings (it fires whether or
+not a later pass eventually passed), or the periodic boundary, contract,
+or scale condition — is the justification, and each trigger's range is its
+own: the struggle audit runs over the slice's accumulated
+commit or diff range — its single-slice range from the slice's own entry
+(first change or recorded WIP boundary) through the current state, including
+every fix delta — while the periodic audit runs over the accumulated range
+since the periodic baseline — the preceding deep review whose audit range
+covered the whole accumulated range since the previous baseline (an
+integration-scope audit), or session start when none has run; neither
+requires a diff the previous review has not seen. When the slice's own gate
+was a deep review standing in for it, the struggle audit re-covers the
+slice's whole range — justified by the changed fix evidence and the trigger —
+and a single-slice audit, standing-in or struggle, never advances the
+periodic baseline. The review-only-loop prohibition still applies: a repeat
+of the same trigger's audit over the same range with no new trigger, no
+changed evidence, and no interrupted review to recover is prohibited. In
+Work, post-fix closure follows the finding-class rule, and a deep review
+applies only where Work's own rules warrant one: a single slice's risk
+warrants an integration-level audit and stands in for the ordinary review
+before dependent work proceeds, uncovered integration scope at the combined
+boundary, or an explicit user request. The invoking workflow's consultation
+caps and trigger-based deep review limits are unchanged.
 
 The worker budget gates fix dispatch, not review: when the allowance in force
 is exhausted — at the progress ceiling or an exact explicit cap — dispatch no
@@ -512,8 +544,11 @@ criteria. Fix continuation follows the shared
 [progress-aware contract](#progress-aware-budgets-and-continuation): the
 effective worker budget, verified progress evidence, and the stall safeguards
 bound it — not an arbitrary per-target fix/review cycle count — and every
-review must be justified by changed evidence, a required integration gate, or
-bounded interrupted-review recovery. The required independent review of the
+review must be justified by changed evidence, a required integration gate,
+bounded interrupted-review recovery, or an explicit user request — one
+bounded audit over the range the user names: the request is itself the
+justification, and it authorizes that audit, not a review-only loop. The
+required independent review of the
 last allowed fix still runs at zero worker budget. If blockers survive it,
 follow the invoking workflow's stop/decision policy rather than repeatedly
 attempting the same fix; the target stays incomplete and review-open.
@@ -531,10 +566,21 @@ boundary around its external side effects, not only from internal method tests.
 A purely mechanical finding has a sufficient deterministic acceptance check.
 After its fix, the coordinator can close it by running that check. Behaviour,
 correctness, or design findings require independent re-review of the fix and
-affected invariants. Do not spend another full review on a deterministic edit
-or reopen unaffected accepted work. If a reviewer repeatedly tightens the same
-standard, settle that standard once through the invoking workflow's decision
-policy rather than treating each new preference as another defect.
+affected invariants. Do not spend another full review on a mechanical finding
+closed by its deterministic check or reopen unaffected accepted work. If a
+reviewer repeatedly tightens the same standard, settle that standard once
+through the invoking workflow's decision policy rather than treating each new
+preference as another defect.
+
+The same mechanical/judgemental distinction governs changes, not only
+findings: a clearly mechanical change — one whose entire acceptance is a
+deterministic check — closes by running that check, without an independent
+review; independent review is required only when risk warrants it (a surface
+the check does not cover, a visible correctness risk, interaction with earlier
+work, or the invoking workflow's stricter mode requires it). Every other
+change keeps its review gate unchanged. A failed deterministic check is
+repaired and the same check is re-run by the coordinator: it is not a review
+finding and does not trigger a review.
 
 The coordinator checks the final diff/state and a relevant acceptance result
 before reporting completion. An accepted change requires the necessary checks
