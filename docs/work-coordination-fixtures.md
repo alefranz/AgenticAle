@@ -91,14 +91,37 @@ Expected behavior:
 - A clean verdict stops with the report: no implementation work is
   manufactured, and nothing is committed, pushed, or published because the
   task's conditional delivery instruction names publication only after fixes.
-- Blocking findings enter the normal loop: a focused fix round, verification
-  of the fixes, and an independent re-review within the existing caps, after
-  which the commits, push, and created or updated pull request follow.
+- Blocking findings enter the normal loop, closed by the finding's class: a
+  mechanical finding closes by its deterministic check (a passing check
+  closes only that finding; fail → another fix round), and a judgmental
+  finding takes an independent re-review within the existing caps.
+  Acceptance and delivery wait until all blockers are closed, each by its
+  class: the commits, push, and created or updated pull request follow only
+  after every blocking finding is closed.
 - The selection is explicit-only: an ordinary `/work` invocation without such
-  a request is unchanged, a deep review is never started on the coordinator's
-  own initiative, and merely mentioning one does not select it. The request
-  adds no command, flag, role, or routing configuration, and it is not a
-  general rule for multi-step command chaining in the task text.
+  a request is unchanged, this initial deep review of existing changes is
+  never started on the coordinator's own initiative, and merely mentioning one
+  does not select it. The request adds no command, flag, role, or routing
+  configuration, and it is not a general rule for multi-step command chaining
+  in the task text.
+
+## An explicit initial deep review of a named range
+
+The branch and working tree contain existing changes, and the user invokes
+`/work First perform a deep review of the range v1.4.2..HEAD. If there are
+blocking findings, fix them, verify the fixes, then commit and push.`
+
+Expected behavior:
+
+- The explicit request selects the review-deep contract for the first review
+  round, before any implementation round, exactly as the un-named request
+  does.
+- The review covers exactly the user-named range `v1.4.2..HEAD`: the named
+  range replaces the comparison, and the default merge-base-to-working-tree
+  range applies only when the request names no range.
+- Blocking findings, if any, enter the normal loop, closed by the finding's
+  class, with acceptance and delivery waiting until all blockers are closed
+  under the task's delivery instructions as written.
 
 ## No task and no changes
 
@@ -616,11 +639,14 @@ Expected behavior:
   rounds close by local verification. The re-audit continues past the
   historical two-per-target count while fixes stay productive — no
   authorization prompt, and no unjustified re-audit of unchanged evidence.
-- The two-fix struggle trigger fires the opportunistic escalation check as
-  soon as the slice has needed at least two fix rounds, whether or not a
-  later pass eventually passed; the session still runs at most one
-  opportunistic escalation unless the user explicitly directs another, and
-  the periodic triggers are unchanged.
+- The two-fix struggle trigger — the slice has needed at least two fix
+  rounds made in response to a review round's findings, whether or not a
+  later pass eventually passed — is checked, and the audit dispatched,
+  after the slice's applicable required gate passes; the session still runs
+  at most one additional opportunistic escalation unless the user explicitly
+  directs another — a required slice-gate deep review is outside that cap.
+  The remaining periodic triggers — boundary, contract-surface, scale — are
+  unchanged; slice count alone no longer fires one.
 - The worker budget gates the next fix, not the re-review: the required deep
   re-review of the last allowed judgmental fix still dispatches when zero
   effective worker rounds remain. When a blocking verdict survives that
@@ -630,6 +656,172 @@ Expected behavior:
   exhausted task allowance alone defers the target incomplete and
   review-open, and the run continues with another truly independent ready
   task when one can be selected safely. A consult cannot grant budget.
+
+## Clearly mechanical changes close by deterministic verification
+
+Either workflow. A slice's entire acceptance is a deterministic check — for
+example, a prescribed docs correction or a reference-checked rename. In a
+variant, a same-shaped change touches a surface the check does not cover, or
+exposes a visible correctness risk.
+
+Expected behavior:
+
+- The coordinator runs the slice's deterministic acceptance check and closes
+  the slice on its pass, with no independent review dispatched.
+- When risk warrants it — a surface the check does not cover, or a visible
+  correctness risk — an independent review is still dispatched before the
+  slice is accepted and work advances.
+- Every other change keeps its review gate unchanged; the mechanical
+  exception never weakens the prohibition of review-only loops over unchanged
+  evidence.
+
+## A high-risk slice gets one review level, never both
+
+Autonomous strict mode. A hard slice's risk warrants an integration-level
+audit: it interacts with an earlier slice, a shared invariant, or an
+uncertain contract later work depends on. In a variant, a self-contained
+high-risk slice's acceptance a single-slice review fully covers.
+
+Expected behavior:
+
+- The level of the slice's own review is selected before its review
+  dispatches: the integration-level slice is reviewed by one deep review
+  standing in for the normal review, and its verdict is the slice's gate,
+  closing before dependent work proceeds.
+- The self-contained high-risk slice keeps its normal review only — no
+  automatic deep review follows it.
+- The session never dispatches a redundant deep review over the same slice
+  range its normal review already covered without changed fix evidence, a
+  required integration gate, bounded interrupted-review recovery, or an
+  explicit user request: the two-fix struggle trigger and an explicit user
+  request remain post-gate justifications — the explicit request itself needs
+  no changed fix evidence — and the periodic gate's deep review over the
+  already-reviewed range is still justified as a required integration gate,
+  not an autonomy-envelope guard breach.
+
+## A required slice-gate deep review runs after the escalation cap is spent
+
+Autonomous strict mode. The session's one opportunistic escalation has
+already been spent on an earlier post-gate deep review. A later high-risk
+slice's gate requires a deep review: its risk warrants an integration-level
+audit, and no normal review of it has run.
+
+Expected behavior:
+
+- The deep review runs as that slice's gate, outside the escalation cap: the
+  cap counts additional escalations — the post-gate deep reviews, the
+  struggle trigger, and explicit user requests — and does not limit a
+  slice's own required gate review.
+- Dependent work does not advance before its verdict; the gate closes on the
+  verdict like any other required review.
+- The cap still limits further additional escalations: a further post-gate
+  trigger is recorded as a deferred-escalation note for the periodic gate, and
+  the user may still direct an additional escalation explicitly.
+
+## An explicit user request after a standing-in or deterministic gate
+
+Autonomous strict mode. A slice's required gate was a deep review standing in
+for its own review — its risk warranted an integration-level audit — or, in a
+variant, the slice was clearly mechanical and closed by its coordinator-run
+deterministic check. After that gate passes cleanly, the user explicitly asks
+for a deep review of this slice. In another variant, the session's one
+additional escalation is already spent when the user asks.
+
+Expected behavior:
+
+- The post-gate trigger check applies because the slice's applicable required
+  gate passed — a review round, ordinary or standing-in deep, or the
+  deterministic check for a clearly mechanical slice — not only when a normal
+  review ran, so the slice keeps its post-gate triggers.
+- The explicit request authorizes one bounded additional deep review over the
+  range the user names: the request is itself the justification — it needs no
+  changed fix evidence — and it authorizes that audit, not a review-only loop.
+- The additional deep review counts against the additional-escalation cap,
+  while a required slice-gate deep review would be outside it. The user may
+  direct the escalation even after the cap is spent; the cap limits
+  coordinator-initiated additional escalations, not an explicit user request.
+
+## The struggle trigger needs no diff the previous review has not seen
+
+Autonomous. A slice needed at least two fix rounds made in response to a
+review round's findings, and its second judgmental fix was already
+independently re-reviewed: the re-reviewer has seen the slice's final diff.
+The two-fix struggle trigger fires after the slice's gate passes cleanly.
+In a variant, a further struggle audit is requested over the same range with
+nothing new.
+
+Expected behavior:
+
+- One deep review is dispatched as a required integration gate over the
+  slice's accumulated commit or diff range — its single-slice range from the
+  slice's own entry through the current state, including every fix delta; it
+  does not start at the preceding deep review, so when the slice's own gate
+  was a deep review standing in for it, the struggle audit re-covers the
+  slice's whole range, justified by the changed fix evidence and the trigger.
+  The trigger itself — the shared worker/reviewer blind-spot signal after at
+  least two fix rounds made in response to a review round's findings, whether
+  or not a later pass eventually passed — is the justification; it does not
+  require a diff the previous review has not seen.
+- A second struggle audit over the same range with no new trigger, no
+  changed evidence, and no interrupted review to recover is prohibited as a
+  review-only loop.
+
+## Same-gate retries of a failed check are not fix rounds for the struggle trigger
+
+Autonomous strict mode. A clearly mechanical slice's gate is its
+coordinator-run deterministic check. The check fails; the coordinator
+dispatches a focused repair and re-runs the same check; it fails again; a
+second repair, another re-run; it finally passes. No reviewer ever ran, and
+no review round ever returned a finding for this slice.
+
+Expected behavior:
+
+- The gate closes on the passing check: a failed deterministic check is
+  repaired and the same gate is re-run by the coordinator — no finding
+  classification and no review round, since no reviewer ran.
+- The two same-gate retries are repairs, not fix rounds: the struggle
+  trigger counts fix rounds made in response to a review round's findings,
+  and it presupposes a reviewer — it does not fire.
+- No deep review is dispatched on that basis: no post-gate trigger fires,
+  and the slice is recorded accepted when its gate passes cleanly.
+
+## Slice count alone no longer triggers a deep review
+
+Autonomous. Three or more accepted implementation slices have closed since
+the last deep review, but no periodic trigger — boundary, contract-surface,
+or scale — and no escalation trigger has fired.
+
+Expected behavior:
+
+- No deep review is dispatched: slice count is not a trigger. The periodic
+  gate runs only on a milestone, release, or session-close boundary after
+  two or more accepted slices, an accepted slice changing a public API,
+  package/dependency identity, cross-repository contract, or submodule
+  relationship, or an accepted range spanning two repositories or roughly
+  twelve non-handoff files; the escalation triggers are unchanged.
+
+## A standing-in deep review does not shorten the periodic range
+
+Autonomous. Slice A passed its ordinary review, and slice B — a high-risk
+slice whose risk warranted an integration-level audit — passed its gate by
+a deep review standing in for its own review. No periodic trigger has fired
+since session start. A milestone boundary then fires the periodic gate.
+
+Expected behavior:
+
+- The periodic audit's range spans A and B — from session start, the
+  previous baseline — not an empty range after B: the standing-in audit was
+  scoped to slice B only, so it did not advance the periodic baseline; the
+  baseline advances only when a deep review's audit range covered the whole
+  accumulated range since the previous baseline (an integration-scope
+  audit).
+- Slice A, already audited at slice level, is re-covered as part of that
+  integration range: the same-range re-coverage is justified as a required
+  integration gate under the scoped no-stacking rule, not a review-only
+  loop.
+- That periodic audit, its range having covered the whole accumulated range
+  since the previous baseline, is the new baseline for the next periodic
+  range.
 
 ## Autonomous budget exhaustion: the required review still runs, blockers prevent completion
 
@@ -710,28 +902,36 @@ Expected behavior:
 ## Autonomous review-only loops over unchanged evidence are prohibited
 
 An Autonomous target's latest review returned blocking findings, but no fix
-has changed the diff since; in a variant, a mechanical fix closed by its
+has changed the diff since; in a variant, a mechanical finding closed by its
 deterministic check; in another, a review child was interrupted mid-verdict;
 and in another, the periodic deep-review gate fires over a range whose
-slices already passed their per-slice reviews.
+slices already passed their per-slice reviews; and in another, the user
+explicitly asks for a deep review of a slice after its review passed
+cleanly.
 
 Expected behavior:
 
 - No unjustified re-review of unchanged evidence: a review round needs
   changed slice or fix evidence, a required integration gate (periodic or
-  opportunistic deep review), or bounded interrupted-review recovery over
-  the same range. Dispatching another review just to spend availability, or
-  looping review-only rounds hoping for a different verdict, is prohibited
-  even while review rounds remain dispatchable.
-- The mechanical fix closes by the coordinator's deterministic check without
+  opportunistic deep review), bounded interrupted-review recovery over the
+  same range, or an explicit user request. Dispatching another review just
+  to spend availability, or looping review-only rounds hoping for a
+  different verdict, is prohibited even while review rounds remain
+  dispatchable.
+- The explicit user request authorizes one bounded audit over the range the
+  user names: the request is itself the justification — it needs no changed
+  fix evidence — and it authorizes that audit, not a review-only loop; the
+  prohibition on coordinator-initiated review loops over unchanged evidence
+  continues to apply.
+- The mechanical finding closes by the coordinator's deterministic check without
   another full review. The interrupted review is replaced by one fresh
   review child over the same range under the review accounting — not a
   worker round, and not a reason to re-review accepted work.
 - The periodic gate's deep review over the already-reviewed range is
   justified as a required integration gate — a justified same-range review,
   not an autonomy-envelope guard breach. A further deep re-audit with no fix
-  delta, no gate trigger, and no interrupted review to recover is
-  unjustified and prohibited.
+  delta, no gate trigger, no interrupted review to recover, and no explicit
+  user request is unjustified and prohibited.
 
 ## Work continues productive fixes within budget: the same third-fix situation
 
@@ -754,7 +954,8 @@ Expected behavior:
   zero worker budget.
 - Work's one-consultation-per-task allowance and its stop/continuation rules
   are unchanged, and every review still needs changed evidence, a required
-  integration gate, or bounded interrupted-review recovery.
+  integration gate, bounded interrupted-review recovery, or an explicit user
+  request.
 
 ## Autonomous budgets: a 20-round run with an exhausted task
 
@@ -2117,10 +2318,10 @@ recorded WIP checkpoint commits.
 
 Expected behavior:
 
-- Every review of T2 uses a range whose lower bound is the recorded pre-WIP
-  base or earlier, so the WIP commits are inside the diff; the reviewer
-  inspects them as part of the task's changes and treats their WIP
-  identification as unfinished status, not completion.
+- The coordinator's own reviews of T2 use a range whose lower bound is the
+  recorded pre-WIP base or earlier, so the WIP commits are inside the diff;
+  the reviewer inspects them as part of the task's changes and treats their
+  WIP identification as unfinished status, not completion.
 - At the task gate the coordinator verifies the recorded WIP commits'
   attribution and coherence, never re-commits or duplicates their changes,
   and commits only the remaining accepted working-tree delta as coherent
@@ -2146,8 +2347,9 @@ Expected behavior:
   per repository — the commit immediately before the task's first WIP
   checkpoint commit — with the WIP hashes and push state; a deferred packet
   carries the same boundary.
-- Every review of T2 after the resume uses a range whose lower bound is B0
-  or earlier, so W1 and the new working-tree delta are both inside the diff.
+- The coordinator's own reviews of T2 after the resume (the slice review
+  and the later deep review) use a range whose lower bound is B0 or earlier,
+  so W1 and the new working-tree delta are both inside the diff.
   The resumed session's start boundary never replaces B0: a deep review
   scoped "since the session start" would exclude the historical WIP, so the
   recorded base is preserved and reused across resumes instead.
@@ -2155,6 +2357,47 @@ Expected behavior:
   identification as unfinished status, never as completion or a satisfied
   gate: the full WIP-plus-working-tree result is reviewed without
   re-reviewing unrelated accepted work.
+
+## An explicit request starting after the WIP base is widened to the base
+
+Autonomous. The same open checkpointed task T2: recorded pre-WIP review base
+B0, WIP checkpoint commit W1 on top of it, and later working-tree deltas.
+After the applicable gate passes cleanly, the user explicitly asks for a
+deep review of a range whose named start comes after B0 — for example
+`W1..HEAD`.
+
+Expected behavior:
+
+- The explicit request authorizes one bounded audit; the recorded pre-WIP
+  base B0 is a floor on the lower bound, so the effective lower bound is B0
+  and the WIP commits stay inside the diff — a named start after the base is
+  widened, never truncated.
+- The audit brief names the requested range and the effective range
+  separately and states why the range was widened; the user's named end
+  stands as the audit's upper end, and the named range sets the audit's
+  focus — never narrowing silently to the named start or widening silently
+  past the named end.
+
+## An explicit request ending at a recorded commit excludes the working-tree tail
+
+Autonomous. The same open checkpointed task T2: recorded pre-WIP review base
+B0, WIP checkpoint commit W1, and later working-tree deltas added since W1.
+After the slice's applicable gate passes cleanly, the user explicitly asks
+for a deep review of `B0..W1` — a range whose named start is at the recorded
+base and whose named end is a recorded commit before the current
+working-tree state.
+
+Expected behavior:
+
+- The named range stands exactly: the named start at the base is not
+  widened, and the named end W1 is the audit's upper end — the later
+  working-tree deltas are not added to this audit, and no default
+  range is substituted for the named one.
+- The full-WIP-plus-working-tree rule still governs the checkpoint's own
+  reviews: the coordinator-initiated slice review, re-review, and deep
+  reviews of T2 continue to use a range whose lower bound is B0 or earlier
+  so that W1 and every later working-tree delta are inside the diff; only
+  the user-named audit is bounded by the named range.
 
 ## WIP push scope distinguishes authorized checkpoints from unrelated commits
 
@@ -2664,8 +2907,10 @@ Expected behavior:
   never entered on inference. No outcome card is pre-registered, no baseline is
   measured for the loop, no candidate record is kept, and no outcome verdict is
   reported.
-- The task proceeds exactly as today — implementation, independent review,
-  acceptance checks, and delivery under the existing rules.
+- The task proceeds exactly as today — implementation, the applicable gate
+  (an independent review, or for a clearly mechanical change its deterministic
+  check, with an independent review only when risk warrants it), acceptance
+  checks, and delivery under the existing rules.
 - The number or performance goal in the text is treated as ordinary task
   context, not as a trigger for the protocol.
 
@@ -2688,9 +2933,11 @@ Expected behavior:
   cache-busting; compare against the original pinned baseline and the
   pre-registered acceptance criteria.
 - On a candidate that clears the acceptance criteria outside the noise policy,
-  run the unchanged independent review; when it is clean and the objective target
-  is met, stop and report the baseline and final measurements, method and noise,
-  the acceptance criteria and that they were met, the attempts made, the review
+  run its applicable gate — the unchanged independent review, or for a clearly
+  mechanical change its deterministic check, with an independent review only
+  when risk warrants it; when it passes and the objective target is met, stop
+  and report the baseline and final measurements, method and noise, the
+  acceptance criteria and that they were met, the attempts made, the gate
   result, and remaining limitations.
 - Reuse the existing worker rounds, review gate, worker-round allowance with
   its evidence-based progress extension and any exact explicit user limit,
@@ -2744,7 +2991,8 @@ Expected behavior:
 - Send the blocking findings through the existing fix and re-review rules:
   fix continuation is bounded by the worker-round allowance, its
   evidence-based progress extension, and any exact explicit user limit — not
-  a fixed per-target fix/review cycle count — and each re-review needs
+  a fixed per-target fix/review cycle count — and each re-review, a
+  continuation of the review the original findings already warranted, needs
   changed fix evidence or another valid justification. The review gate is
   unchanged by the protocol. After any outcome-affecting fix, re-measure the
   repaired candidate and re-compare it against the original baseline before

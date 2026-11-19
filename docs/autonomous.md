@@ -22,10 +22,27 @@ flowchart LR
     A[Large development goal] --> B[Session coordinator]
     B --> C[Explore]
     C --> D[Implement]
-    D --> E[Independent review]
+    D --> Mode{Standard mode?}
+    Mode -->|Yes| Verify[Normal verification by the coordinator]
+    Mode -->|No| Mechanical{Clearly mechanical?}
+    Mechanical -->|Yes| Check[Deterministic check]
+    Mechanical -->|No| E[Independent review — ordinary, or a standing-in deep review]
+    Verify -->|pass| G[Save evidence and next action]
+    Verify -->|fail| RepairVerify[Repair]
+    RepairVerify --> Verify
+    Check -->|pass| RiskWarrants{Risk warrants a review?}
+    RiskWarrants -->|Yes| E
+    RiskWarrants -->|No| G
+    Check -->|fail| Repair[Repair]
+    Repair --> Check
+    E -->|accepted| AllClosed
     E -->|blocking findings| F[Focused fix]
-    F --> E
-    E -->|accepted| G[Save evidence and next action]
+    F -->|mechanical finding| FindingCheck[Deterministic check of the finding]
+    FindingCheck -->|pass| AllClosed{All blockers closed?}
+    AllClosed -->|no| F
+    AllClosed -->|yes| G
+    FindingCheck -->|fail| F
+    F -->|judgmental finding| E
     G -->|more work| B
     G -->|goal complete| H[Human inspection]
 ```
@@ -39,9 +56,25 @@ Exploration, implementation, review, fixes, and escalation are separate jobs
 with separate contexts, more like a small development team than one
 long-running chat.
 
-The agent that writes a change does not mark its own work. A fresh agent
-reviews the result, and blocking findings go through a focused fix and review
-loop bounded by the run's worker budgets and progress safeguards — not a
+The agent that writes a change does not mark its own work. In strict mode a
+clearly mechanical change closes by its deterministic check run by the
+coordinator, with an independent review only when a visible risk warrants it,
+and every other change is reviewed by a fresh agent — an ordinary review, or
+a deep review standing in for the slice's own gate where its risk warrants an
+integration-level audit, whose verdict is the slice's gate. In standard mode
+the slice's gate is the coordinator's normal verification. A failed
+deterministic check or failed standard-mode verification is repaired and the
+same gate is re-run by the coordinator — it does not enter the review-finding
+loop, because no reviewer ran — while a review's blocking findings go through
+a focused fix whose closure follows the finding's class, not the fix's
+appearance: a mechanical finding closes by the deterministic
+check, while a judgemental finding — a behaviour, correctness, or design
+finding — takes an independent re-review of the fix and the invariants it
+touched, even when the repairing edit is a simple mechanical change. When a
+review reports several blocking findings, every blocker must close before the
+slice is accepted — a passing check alone never accepts while another
+blocker remains open. The
+loop is bounded by the run's worker budgets and progress safeguards, not a
 fixed per-target cycle count. Each accepted round leaves compact durable
 evidence so another agent or a later session can continue without
 reconstructing the plan from chat history.
@@ -79,11 +112,15 @@ and asks before pushing to a main, protected, or ambiguous destination.
 
 ## How the workflow works
 
-For implementation work, including a single-task goal, each task is followed
-by a fresh independent review; blocking findings are sent to a focused fix
-round before work advances. The coordinator keeps investigation-only work or
-explicitly low-risk mechanical tasks lighter only when a full review gate would
-not add useful value. The workflow records durable state in `BACKLOG.md` and
+For implementation work, including a single-task goal, each slice is followed
+by its applicable gate: a review round — ordinary, or a standing-in deep
+review where the slice's risk warrants an integration-level audit — or, for a
+clearly mechanical slice, the coordinator-run deterministic check; in
+standard mode, the normal verification. Blocking findings are sent to a
+focused fix round before work advances; a failed deterministic check or
+standard-mode verification is repaired and the same gate is re-run. The
+coordinator keeps investigation-only work or explicitly low-risk mechanical
+tasks lighter only when a full review gate would not add useful value. The workflow records durable state in `BACKLOG.md` and
 the compact snapshot `.agenticale/active.md` in the project being worked on.
 
 For a complex bounded goal, the coordinator may outline a few provisional,
@@ -310,10 +347,13 @@ effective worker round remains, the latest fix made verified progress, and
 the autonomy envelope holds, the coordinator continues the fix → verify →
 re-review loop unattended — including a fourth or later productive fix within
 budget, with no repeated prompts to authorize one more target cycle. Every
-review needs changed slice or fix evidence, a required integration gate, or
-bounded interrupted-review recovery; review-only loops over unchanged
-evidence are prohibited. Fix and review counters persist as per-target
-evidence across resumes, replans, and renames, with no reset or
+review needs changed slice or fix evidence, a required integration gate,
+bounded interrupted-review recovery, or an explicit user request — which
+authorizes one bounded audit over the range the user names: the request is
+itself the justification, so it authorizes that audit, not a review-only
+loop; review-only loops over unchanged evidence are prohibited. Fix and
+review counters persist as per-target evidence across resumes, replans,
+and renames, with no reset or
 re-identification; counts recorded under the historical default caps are
 retained as evidence but never re-gate a resumed run, while an explicit user
 limit recorded in the durable state stays binding and never auto-extends.
@@ -329,9 +369,14 @@ whenever eligible work remains, with the named increment a continuation
 needs, while an exhausted task allowance alone defers the target and the run
 continues with another truly independent ready task when one can be selected
 safely. Consults remain capped at one per decision and two per session and
-cannot grant worker budget; the session still runs at most one opportunistic
-deep review escalation, and its struggle trigger fires at two or more fix
-rounds on a slice.
+cannot grant worker budget; the session still runs at most one additional
+opportunistic deep review escalation — the post-gate deep reviews: the
+struggle trigger, which fires at two or more fix rounds made in response to
+a review round's findings on a slice (it fires whether or not a later pass
+eventually passed), and an explicit user request — while a
+deep review standing in for a slice's own gate is that slice's required gate
+review, outside the cap, and you may always explicitly direct an additional
+escalation.
 
 Round 0 records a stable run identity, the run ceiling, and the completed-task
 limit; every task receives its stable ID
@@ -486,8 +531,8 @@ closure remain durable in the compact state: settled results fold into the
 backlog's task records, and no default archive is created.
 
 A new run defaults to commit and push per completed task. Slices and tasks
-are different units: each slice passes its own review gate, and the task's
-persistence gate runs once, after its required checks, reviews, and
+are different units: each slice passes its own gate, and the task's
+persistence gate runs once, after its required checks, gates, and
 applicable deep gates close. Reviews are phase-aware: a slice reviewer
 inspects the uncommitted working-tree result and records its verdict, never
 requiring the gate's commits or push before the gate has run;
@@ -571,9 +616,9 @@ checkpoints them as explicit WIP commits (one per changed repository,
 with the verification/review status and exact continuation recorded in the
 durable state. A WIP checkpoint never completes a task or bypasses its
 gates; the task gate later reuses the recorded WIP commits instead of
-duplicating them, and every review's range starts at or before the recorded
-pre-WIP base — preserved across resumes — so the WIP commits are inside the
-diff. Checkpoints
+duplicating them, and the coordinator's own reviews of the task use a range
+that starts at or before the recorded pre-WIP base — preserved across
+resumes — so the WIP commits are inside the diff. Checkpoints
 are coordinator Git actions: they dispatch no children and consume no
 budget, follow the same destination, scope, failure, and recovery rules as
 task pushes — a blocked or uncertain checkpoint push goes directly to the

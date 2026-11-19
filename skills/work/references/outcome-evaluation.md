@@ -5,7 +5,7 @@ only when a task is invoked with the `--outcome` option. It carries the
 Lever-derived methodology — a pre-registered objective, a reproducible
 measurement, explicit acceptance criteria, noise awareness, and evidence-based
 iteration — as an instruction-level protocol. It is not a new orchestration: it
-reuses Work's existing worker rounds, independent review gate, progress-aware
+reuses Work's existing worker rounds, applicable gate, progress-aware
 fix/review continuation rules, stop/continuation machinery, and worker-round
 allowance. It introduces no generic verdict script, no metric framework, no
 parallel candidate execution, and no new dispatch role.
@@ -60,7 +60,7 @@ policy); it is never an editor's silent edit to fit a result.
 
 The coordinator pre-registers the card and runs the instrument; it drives the
 loop. The implement worker proposes one candidate and does not grade it. The
-independent reviewer gates correctness, unchanged. Each step reuses the existing
+slice's applicable gate gates correctness, unchanged. Each step reuses the existing
 rounds and gates:
 
 1. **Identify** the explicitly requested measurable objective. Only a `--outcome`
@@ -87,11 +87,12 @@ rounds and gates:
    the worker-round allowance in force, the shared progress-aware continuation
    rules, and the pre-registered stop conditions.
 10. **Complete** the task only when both the outcome criteria and the existing
-    correctness gates (the acceptance checks and the independent review) are
+    correctness gates (the acceptance checks and the applicable gate) are
     satisfied.
 
-The independent review gate is separate from the measurement and is unchanged
-by the protocol. A candidate that clears the acceptance criteria but carries
+The applicable gate is separate from the measurement and is unchanged
+by the protocol: outcome measurement is not a substitute for the required
+correctness verification. A candidate that clears the acceptance criteria but carries
 blocking review findings goes through the existing fix and re-review loop
 under the shared progress-aware continuation rules; after any
 outcome-affecting fix it is re-measured and re-compared against the original
@@ -121,7 +122,7 @@ be in scope. Instead:
 
 The absence of a generic verdict script must not mean accepting unsupported
 subjective claims. An accepted outcome requires recorded measurements, a stated
-comparison, and (to be completed) a passed review.
+comparison, and (to be completed) a passed gate.
 
 ## Candidate handling
 
@@ -151,7 +152,7 @@ The loop stops on the first of these terminal conditions, and each feeds the
 existing stop/continuation machinery, which owns the final stop report and
 continuation prompt:
 
-- **Objective met** — a review-clean candidate meets the acceptance criteria and
+- **Objective met** — a gate-clean candidate meets the acceptance criteria and
   the objective target.
 - **Best candidate reported (partial)** — the budget or a stall is reached before
   the objective is met: report the current best candidate, the measurements, and
@@ -168,7 +169,7 @@ A **constraint trip** — a guard metric regressing beyond the noise policy even
 though the primary metric improves — is not a terminal stop. It rejects the
 candidate (revert its own changes and preserve the known-good implementation),
 and the loop continues only if the budget and the other stop conditions still
-allow. It is a measurement outcome, separate from the independent review gate.
+allow. It is a measurement outcome, separate from the applicable gate.
 
 ## Completion and reporting
 
@@ -178,15 +179,15 @@ The final report for an outcome-driven task states:
 - The measurement method and any relevant noise or uncertainty.
 - The acceptance criteria and whether they were met.
 - The attempts made, including rejected or inconclusive candidates.
-- The correctness checks and the independent review results.
+- The correctness checks and the results of the applicable gate.
 - The remaining limitations.
 
 It distinguishes three outcomes clearly, and reports which holds:
 
 - **Outcome achieved** — the measurement criteria were satisfied (evidence:
   recorded measurements and a stated comparison).
-- **Correctness verified** — the existing acceptance checks and independent
-  review gates passed.
+- **Correctness verified** — the existing acceptance checks and the
+  applicable gate passed.
 - **Task completed** — both of the above.
 
 Never report an outcome as achieved solely because the implementation looks

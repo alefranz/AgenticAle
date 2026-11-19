@@ -89,8 +89,9 @@ or the repeated-interruption limit stop dispatch regardless of remaining
 budget. Per-target fix/review cycle counts are not authorization gates:
 productive fix continuation is bounded by the effective worker budget,
 verified progress, and the stall safeguards, every review needs changed
-evidence, a required integration gate, or bounded interrupted-review
-recovery, and the required review of the last allowed fix still runs at zero
+evidence, a required integration gate, bounded interrupted-review recovery,
+or an explicit user request (one bounded audit over the range the user
+names), and the required review of the last allowed fix still runs at zero
 worker budget. A limit reached with eligible work remaining is an incomplete
 safety stop, never a successful completion.
 The six task contracts are capability-neutral: they carry only the role's
@@ -106,7 +107,7 @@ the `fix` contract and the fix counters while it dispatches on the
 outcome-evaluation protocol, loaded only when a task is invoked with the bare
 `--outcome` option. It pre-registers a lean outcome card before implementation,
 drives one candidate at a time against the pinned baseline through the existing
-worker rounds and the unchanged independent review gate, and reuses the
+worker rounds and the unchanged applicable gate, and reuses the
 existing worker-round allowance and stop/continuation machinery. It is
 instruction-level: no generic verdict script, no metric framework, no new
 orchestration, and no new dispatch role.
@@ -161,9 +162,10 @@ Productive fix continuation follows the shared progress-aware contract rather
 than per-target cycle counts (the historical two-fix/three-review and
 two-re-audit defaults are not authorization gates in either workflow):
 each further fix is charged once to both budgets, every review needs changed
-evidence, a required integration gate, or bounded interrupted-review recovery,
-and the loop continues unattended while budget, progress, and the autonomy
-envelope allow — no repeated cycle-authorization prompts, and no review-only
+evidence, a required integration gate, bounded interrupted-review recovery,
+or an explicit user request (one bounded audit over the range the user
+names), and the loop continues unattended while budget, progress, and the
+autonomy envelope allow — no repeated cycle-authorization prompts, and no review-only
 loops over unchanged evidence. The budgets gate fix dispatch, not review: the
 required review of the last allowed fix — including a deep re-review — runs
 at zero worker budget, and surviving blockers keep an exhausted task
@@ -172,8 +174,13 @@ truly independent ready work remains. Historical fix/review counters persist as
 evidence without reset or re-identification on resume or rename; the legacy
 default caps never re-gate a resumed run, while explicit user limits stay
 binding. The no-progress, same-blocker, and repeated-interruption safeguards,
-the one-opportunistic-escalation-per-session guard (struggle trigger: at least
-two fix rounds), and the consult caps are unchanged. A human-owned
+the one-opportunistic-escalation-per-session guard (it counts additional
+escalations — the post-gate deep reviews: the struggle trigger at two or more
+fix rounds made in response to a review round's findings (it fires whether or
+not a later pass eventually passed) and explicit user requests; a deep review
+standing in for a slice's own gate is a required gate
+review outside the cap, and the user may explicitly direct an additional
+escalation), and the consult caps are unchanged. A human-owned
 optional `.agenticale/steering.md` file provides deterministic pause/continue
 and ready-task priority controls, re-read before every round and never
 agent-written; a pause persists across resumes until the human releases it.
@@ -217,9 +224,10 @@ explicit WIP commits, pushed under the same policy, recording their
 verification/review status and exact continuation without completing the
 task or bypassing its gates. Routine state and counter writes create no
 checkpoint commits; the task gate reuses recorded WIP commits instead of
-duplicating them, and every review's range starts at or before the recorded
-pre-WIP base — preserved across resumes — so the WIP commits are inside the
-diff, never excluded by a resumed session boundary. Checkpoint
+duplicating them, and the coordinator's own reviews of the task use a range
+that starts at or before the recorded pre-WIP base — preserved across
+resumes — so the WIP commits are inside the diff, never excluded by a resumed
+session boundary. Checkpoint
 pushes follow the same destination, scope, failure, and recovery rules as
 task pushes; checkpointing dispatches no workers and consumes no budget.
 Reviews precede the gate and inspect the result at its phase — the

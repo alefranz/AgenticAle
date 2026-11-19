@@ -6,9 +6,11 @@ when you request it. It can start from a requested outcome, from existing
 branch changes (committed or uncommitted), or from a preceding
 [Review](../review/index.md)'s findings in the same session.
 
-A fresh independent reviewer checks the result before it is called done, and
-routine rounds can run on a capable lower-cost or local model that may still
-cost less overall than using the strongest model throughout. Added rounds
+An independent review is the default before a result is called done — a
+clearly mechanical change instead closes by its deterministic check, with an
+independent review only when risk warrants it — and routine rounds can run on
+a capable lower-cost or local model that may still cost less overall than
+using the strongest model throughout. Added rounds
 count toward total effort, and savings and quality depend on the task, models,
 provider, and account.
 
@@ -26,9 +28,11 @@ Invoke the installed skill for a bounded task and describe the outcome you want:
 - `/work Investigate why export is slow and recommend a fix`
 
 Add `--pr` when you want Work to deliver the finished task as a pull request:
-it completes the implementation and its checks, runs the independent review,
-makes coherent commits, pushes, and opens the pull request — or updates the
-task branch's existing open PR when one already exists. Leading options —
+it completes the implementation and its checks, runs the independent review —
+a clearly mechanical change instead closes by its deterministic check, with
+an independent review only when risk warrants it — makes coherent commits,
+pushes, and opens the pull request, or updates the task branch's existing open
+PR when one already exists. Leading options —
 `--pr` (or `--pr=<PR URL>`), `--consult`, `--outcome`, `--stats`, and the
 `--` delimiter — may appear in any order, with everything after the options as
 the task text:
@@ -51,8 +55,9 @@ changes — the same comparison, scope, and review-deep role as
 `/review --deep` — before any implementation round. Blocking findings go through the normal fix and
 re-review loop, and your delivery instructions are honored as written: the
 example's clean path reports the review and stops without committing,
-pushing, or publishing. A deep review is never started on Work's own
-initiative, and the explicit entry adds no flag or general command chaining.
+pushing, or publishing. This initial deep review of existing changes is never
+started on Work's own initiative — Work's deep reviews come only from its own
+triggers — and the explicit entry adds no flag or general command chaining.
 
 ## Continue working on the same PR
 
@@ -142,23 +147,40 @@ uncertainty requires — a small question is answered with a direct read, and a
 focused exploration round runs only when the question needs its own context,
 with one question and a stop condition. No discovery round is mandatory, and a
 question about subtle semantics is not automatically a fit for the `explore`
-role. It then sends a compact task packet to an implementation agent. After implementation,
-a different agent reviews the result against the request, project conventions,
-and relevant checks. The coordinator assigns a focused fix when the review
-finds a defect, then verifies the result and delivers it according to your
-request.
+role. It then sends a compact task packet to an implementation agent. Each
+implemented slice then passes its review gate: a clearly mechanical change
+closes by its deterministic check, with a reviewer only when risk warrants
+one — a failing deterministic check is repaired and the same check is re-run,
+not a review finding and no review trigger; otherwise the slice's review runs:
+for a high-risk slice whose risk warrants an integration-level audit, one deep
+review stands in as the slice's gate, and every other slice gets the ordinary
+review. The coordinator assigns
+a focused fix when a review finds a defect, then verifies the result and
+delivers it according to your request.
 
 ```mermaid
 flowchart TD
     Task[Task] --> ExploreNeeded{Explore first?}
+    Task -->|"initial deep review requested (entry)"| NamedRangeAudit["Deep review of the user-named range (initial audit of existing changes: merge-base to working tree when unnamed) · review-deep role"]
+    NamedRangeAudit --> ExploreNeeded
     ExploreNeeded -->|Yes| Explore[Focused exploration · explore role]
     ExploreNeeded -->|No| Implement[Routine implementation · implement role]
     Explore --> Implement
-    Implement --> Review[Independent review · review role]
-    Review --> SliceAccepted[Slice accepted]
+    Implement --> Mechanical{Clearly mechanical?}
+    Mechanical -->|Yes| DeterministicCheck[Deterministic check]
+    Mechanical -->|No| Level{High risk warranting an integration-level audit?}
+    Level -->|Yes| DeepSlice[One deep review stands in for the slice's review · review-deep role]
+    Level -->|No| Review[Independent review · review role]
+    DeterministicCheck -->|pass| RiskWarrants{Risk warrants a review?}
+    DeterministicCheck -->|fail| FixCheck[Focused fix · fix role]
+    FixCheck --> DeterministicCheck
+    RiskWarrants -->|Yes| Level
+    RiskWarrants -->|No| SliceAccepted[Slice accepted]
+    DeepSlice -->|gate passed| SliceAccepted
+    Review -->|gate passed| SliceAccepted
     SliceAccepted --> MoreSlices{More slices useful?}
     MoreSlices -->|Yes| Implement
-    MoreSlices -->|No| DeepReviewNeeded{Substantial interactions or high risk?}
+    MoreSlices -->|No| DeepReviewNeeded{Uncovered integration scope?}
     DeepReviewNeeded -->|Yes| DeepReview[Deep review of combined work · review-deep role]
     DeepReviewNeeded -->|No| Checks[Acceptance checks and report]
     DeepReview --> Checks
@@ -189,12 +211,21 @@ Every review uses the same findings gate:
 ```mermaid
 flowchart TD
     Review[Review] --> Findings{Blocking findings?}
+    Findings -->|No| AllClosed
     Findings -->|Yes| Fix[Focused fix · fix role]
-    Fix --> Review
-    Findings -->|No| Accepted[Accept this review]
+    Fix -->|mechanical finding| Check[Deterministic check]
+    Check -->|pass| AllClosed{All blockers closed?}
+    AllClosed -->|no| Fix
+    AllClosed -->|yes| Accepted[Accept this review]
+    Check -->|fail| Fix
+    Fix -->|judgmental finding| Review
 ```
 
-A re-review closes the loop over the earlier report: each prior finding is
+When a review reports multiple blocking findings, every blocker must close
+before the review is accepted: a mechanical finding by its deterministic
+check, a judgmental finding by an independent re-review — a passing check
+alone never accepts while another blocker is still open. A re-review closes
+the loop over the earlier report: each prior finding is
 reported by ID as fixed, partially fixed, still open, or regressed, with new
 defects kept separate from the consequences of an earlier unresolved issue.
 When the acceptance involves recovery or interruption behavior, the evidence
@@ -225,8 +256,11 @@ safeguard has fired, Work continues the fix → verify → re-review loop withou
 asking you to authorize another cycle. Two consecutive worker rounds with no
 verified progress stop the loop regardless of remaining budget, as does a
 repeated blocker. Every review must be justified by changed evidence, a
-required integration gate, or bounded interrupted-review recovery — a
-review-only loop over unchanged evidence is prohibited. The worker budget
+required integration gate, bounded interrupted-review recovery, or an
+explicit user request — which authorizes one bounded audit over the range
+you name: the request is itself the justification, so it authorizes that
+audit, not a review-only loop. A review-only loop over unchanged evidence
+is prohibited. The worker budget
 gates fixes, not review: the required independent review of the last allowed
 fix still runs at zero worker budget, and surviving blockers keep the work
 incomplete and review-open.
@@ -248,11 +282,27 @@ a genuinely unmet invariant is a real design issue — the plan is reopened with
 the original acceptance and counters intact — while reviewer standard drift is
 settled once, not chased as a defect.
 
-Each slice passes review before Work moves to the next one. Deep review is an
-additional gate when the combined changes have substantial interactions or a
-high-risk shared invariant; any blocking findings return through the fix and
-review loop. An investigation-only request ends after exploration with findings
-and a recommended next step. Work opens a pull request only when you explicitly
+Each slice passes review before Work moves to the next one — a clearly
+mechanical change closes by its deterministic check, with independent review
+only when risk warrants it. Deep review of the combined work is an
+additional gate for uncovered integration scope — substantial
+interactions or a high-risk shared invariant that the single-slice reviews
+(including any standing-in deep review) did not cover — while an explicit
+user request authorizes a separate bounded audit of the range it names — for
+the initial audit of existing changes, that request defaults to the
+merge-base-to-working-tree comparison when no range is named; changed
+evidence and interrupted-review recovery justify
+continuing or recovering an already-warranted review, not starting a new
+combined-boundary audit. Where a single slice's
+risk warranted a standing-in deep review, that review already covers the
+slice's risk, so the combined-boundary audit fires for integration scope the
+single-slice reviews have not covered, and an explicit request fires for
+its named range — never both over the same changes redundantly: a same-range deep review is
+unjustified without changed evidence, a required integration gate, bounded
+interrupted-review recovery, or an explicit user request. Any
+blocking findings return through the fix and review loop. An
+investigation-only request ends after exploration with findings and a
+recommended next step. Work opens a pull request only when you explicitly
 request PR delivery; otherwise it reports what it checked and any limitations.
 
 ## Progress narration
@@ -427,9 +477,10 @@ material change is a new card version that requires your explicit approval.
 Work then drives one candidate at a time through the existing rounds, runs the
 agreed instrument under the same conditions as the baseline, and compares every
 candidate against the original pinned baseline, never a moving best. The
-independent review gate is unchanged: a candidate that meets the metric but
-carries blocking review findings is not reported as done, and after any
-outcome-affecting fix it is re-measured before the outcome can count. A delta
+applicable gate is unchanged: a candidate that meets the metric but fails its
+applicable gate — a blocking review finding, or a failed deterministic check —
+is not reported as done, and after any outcome-affecting fix it is re-measured
+before the outcome can count. A delta
 inside the noise policy is reported as inconclusive, never as a win, and no
 statistical confidence is invented. There is no generic verdict script: the
 measurement is a reproducible command or test, preferably an existing project
@@ -438,7 +489,7 @@ pre-registered criteria.
 
 The final report distinguishes three states and says which holds — **outcome
 achieved** (the measurement criteria were satisfied), **correctness verified**
-(the acceptance checks and the independent review passed), and **task
+(the acceptance checks and the applicable gate passed), and **task
 completed** (both) — along with the baseline and final measurements, the
 method and noise, the attempts made including rejected and inconclusive
 candidates, and the remaining limitations.
