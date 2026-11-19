@@ -24,8 +24,11 @@ workflows and do not activate Autonomous Mode.
 
 Consume the invoking user's task text directly; do not treat a placeholder
 arguments token as the task. A leading `--pr` option selects PR delivery:
-complete the implementation and its checks, complete the independent review,
-make coherent task commits, push, and create or update a pull request. A
+complete the implementation and its checks, complete the independent review —
+except a clearly mechanical change that already closed by its deterministic
+check, which is not re-opened by an independent review (the shared contract's
+mechanical-change rule) — make coherent task commits, push, and create or
+update a pull request. A
 leading `--stats` option requests a session usage summary in the final report;
 the options — `--pr`, `--stats`, `--consult`, and `--outcome` —
 are combinable in any order, and the remaining text is the task. `--pr` never takes a bare
@@ -91,9 +94,9 @@ criteria, the constraints, and the stop conditions before any candidate
 implementation begins — and once established they are not silently changed to
 make a candidate appear successful, because a material change is a new card
 version that requires explicit user approval. It then drives one candidate at a
-time through the existing worker rounds and the unchanged independent review
-gate, and it completes the task only when both the outcome criteria and the
-existing correctness gates are satisfied.
+time through the existing worker rounds and the applicable gate, and it
+completes the task only when both the outcome criteria and the existing
+correctness gates are satisfied.
 
 ## Start from the requested outcome
 
@@ -145,7 +148,11 @@ a fast role.
 
 Choose the smallest useful path:
 
-- A clear change: implement, independently review, and finish.
+- A clear change: implement, independently review, and finish — a clearly
+  mechanical change closes by its deterministic check under the shared
+  contract's mechanical-change rule, with independent review only when risk
+  warrants it; a failing deterministic check is repaired and the same check
+  is re-run — it is not a review finding and does not trigger a review.
 - Existing work that is already complete or nearly so: review it and fix its
   concrete findings; do not assign an implementation round to modify
   already-complete work.
@@ -158,8 +165,14 @@ Choose the smallest useful path:
   loop, then reassess before assigning the next one.
 - Investigation or advice only: return findings and options without implementing.
 - Review feedback: inspect the actual feedback and current changes, fix the
-  requested issues, and independently review the fix and affected behaviour.
-  Retrieve referenced feedback using available tools; ask for it if inaccessible.
+  requested issues, and close them by the shared contract's finding-class
+  rule — closure follows the finding's class, not the fix's appearance: a
+  mechanical finding closes by the coordinator running its sufficient
+  deterministic check, and a judgemental finding — a behaviour, correctness,
+  or design finding — requires independent re-review of the fix and affected
+  invariants, even when the repairing edit itself is a simple mechanical
+  change. Retrieve referenced feedback using available tools; ask for it if
+  inaccessible.
 
 Ask the user about consequential scope, behaviour, or preference choices; do
 not invent their preference or require a consultation first. Continue routine
@@ -185,8 +198,8 @@ An unambiguous natural-language request to begin with a deep review of the
 existing branch changes — for example, "First perform a deep review of the
 current branch changes" — selects the
 [review-deep](references/tasks/review-deep.md) contract for the first review
-round, which runs before any implementation round. It is explicit-only, like
-the other entry rules here: a deep review is never started on the
+round, which runs before any implementation round. This initial audit of existing changes is
+explicit-only, like the other entry rules here: it is never started on the
 coordinator's own initiative, and merely mentioning one while discussing the
 task does not select it. There is no deep review flag; the request is named
 in the task text.
@@ -194,13 +207,18 @@ in the task text.
 The round reuses the same comparison and scope semantics as a standalone
 `/review --deep`: the merge base of the current branch and the resolved base
 to the current working-tree result, including relevant untracked files,
-recorded before dispatch. The reviewer runs on the `review-deep` role, like
-any other round.
+recorded before dispatch. That merge-base comparison is the default when the
+user has not named a range; when the request names a range (for example
+`A..B`), the review covers exactly the named range. The reviewer runs on the `review-deep`
+role, like any other round.
 
 The review enters the normal Work loop: applicable blocking findings go
-through the existing fix and re-review rules, with verification of the fixes
-and independent re-review under the shared progress-aware continuation rules. A clean verdict must not
-manufacture implementation work. The user's delivery instructions in the task
+through the existing fix rules, and each closes by the shared contract's
+finding-class rule — a mechanical finding closes by the coordinator running
+its sufficient deterministic check, and a judgemental finding takes an
+independent re-review of the fix and affected invariants — under the shared
+progress-aware continuation rules. A clean verdict must not manufacture
+implementation work. The user's delivery instructions in the task
 text are honored as written, including conditional ones: an instruction to
 commit, push, and create or update a pull request only when the review finds
 blocking findings publishes only after those fixes, while a clean review stops
@@ -315,16 +333,34 @@ task, with shared overall acceptance criteria and one budget; it does not activa
 Autonomous Mode or create project tracking files.
 
 Independent review is the default for each changed slice before the next slice
-starts. There is no strict/standard selector in this workflow. An explicit user
-request to skip review can override this; disclose that review was skipped.
+starts; a clearly mechanical change closes by its deterministic check under the
+shared contract's mechanical-change rule, with independent review only when
+risk warrants it — and a failing deterministic check is repaired and the same
+check is re-run by the coordinator: it is not a review finding and does not
+trigger a review. There is no strict/standard selector in this workflow. An
+explicit user request to skip review can override this; disclose that review
+was skipped.
 Ordinary slice review includes its interactions with earlier work. Use deep
 review only where substantial interactions or high-risk shared invariants need
-an integration audit; decomposition alone does not trigger it at every step.
+an integration audit; where a single slice's risk warrants such an audit, one
+deep review stands in for that slice's ordinary review — never both levels
+redundantly over the same changes: a same-range deep review is unjustified
+without changed evidence, a required integration gate, bounded
+interrupted-review recovery, or an explicit user request — and the review
+precedes any work that depends on the slice.
+Decomposition alone does not trigger it at every step.
 Prefer an audit at the combined-result boundary, or earlier when later work
 would depend on an uncertain contract. Supply the exact accumulated change
 range, accepted outcomes, and integration checks. A review that already covers
-that range and those checks need not be duplicated at delivery. Any combined
-review target follows the same progress-aware continuation rules as a slice.
+that range and those checks need not be duplicated at delivery. Post-fix
+closure follows the shared contract's finding-class rule. The shared contract's
+struggle and periodic deep review triggers are Autonomous Mode's escalation
+gates only: Work has no opportunistic post-gate escalation trigger — it does
+not escalate to a deep review after a slice's gate on its own — and where a
+Work deep review does occur it comes from Work's own triggers: a high-risk
+slice's standing-in gate audit, uncovered integration scope at the combined
+boundary, or an explicit user request. Any combined review target follows the
+same progress-aware continuation rules as a slice.
 
 The worker allowance defaults to twelve worker rounds (explore, implement,
 hard implementation, or fix), covering the whole task across exploration,
@@ -354,10 +390,12 @@ requested outcome is complete. Do not dispatch rounds to use up a remaining allo
 or manufacture work to spend it. Allow one consultation per task; a
 `--consult` invocation consumes that allowance for its initial task-framing
 consultation. Review calls do not consume the worker budget; every review
-must be justified by changed evidence, a required integration gate, or
-bounded interrupted-review recovery, and productive fix continuation is
-bounded by the worker budget, verified progress, and the stall safeguards —
-not a per-slice fix/review cycle count.
+must be justified by changed evidence, a required integration gate, bounded
+interrupted-review recovery, or an explicit user request — which authorizes
+one bounded audit over the range the user names: the request is itself the
+justification, and it authorizes that audit, not a review-only loop — and
+productive fix continuation is bounded by the worker budget, verified
+progress, and the stall safeguards — not a per-slice fix/review cycle count.
 Budget across the whole sequence, leaving room for fixes and integration work;
 decomposition or replanning does not replenish the allowance or reset its
 recorded extensions. Reassess the remaining scope against the remaining
@@ -459,8 +497,11 @@ Repository instructions governing commits still apply.
 
 A leading `--pr` option, or an unambiguous request to commit and push the
 task's updates to a pull request, selects PR delivery: complete the
-implementation and its checks, complete the independent review, make coherent
-task commits, push the task branch, and create or update a pull request. This
+implementation and its checks, complete the independent review — except a
+clearly mechanical change that already closed by its deterministic check,
+which is not re-opened by an independent review (the shared contract's
+mechanical-change rule) — make coherent task commits, push the task branch,
+and create or update a pull request. This
 is one delivery request: do not ask again for each of those actions. A mention
 of an existing PR or a request to address its feedback alone does not select
 this endpoint. Publishing intent is task-scoped: a fresh invocation without
@@ -486,9 +527,12 @@ For the PR endpoint:
    conflict cannot be resolved safely. Check available authentication/tooling
    early.
 2. Keep worker rounds uncommitted unless repository instructions require
-   otherwise. Review the task changes independently before committing; make
-   coherent task commits, not one commit for every agent round. Stage only task
-   changes, preserving unrelated staged content as well as unstaged work.
+   otherwise. Review the task changes independently before committing — except
+   a clearly mechanical change that already closed by its deterministic check
+   without risk warranting review, which is not re-opened by an independent
+   review (the shared contract's mechanical-change rule); make coherent task
+   commits, not one commit for every agent round. Stage only task changes,
+   preserving unrelated staged content as well as unstaged work.
 3. Before pushing, inspect the full branch diff and outgoing commits against
    the intended base. Ensure they match the requested scope and final reviewed
    content; additional edits must be verified and reviewed as appropriate. A
