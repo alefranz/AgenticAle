@@ -577,8 +577,19 @@ Keep the agent ledger out of the default user-facing summary. A clean review
 is evidence of checking, not a guarantee that the change has no defects.
 
 When `--stats` was supplied, follow the active runtime binding's session
-usage summary procedure against the coordinator session and include a compact
-result — overall duration, the per-session table (or a compact excerpt of
-it), totals, and the per-provider breakdown — in the final report. If the
+usage summary procedure against the coordinator session and present the
+session usage report it produces under this contract: include it verbatim,
+as the final section of the final report, in a fenced text code block. The
+contract governs how the report is presented, not how it is produced. If the
 active binding has no such procedure, state that the option is unsupported
 on the active runtime.
+
+The report keeps its own structure and order: the header block (title,
+coordinator, session id, duration, session count), the per-session table,
+the totals, and the per-provider breakdown — no reordering, reformatting,
+recomputation, rounding, translating, or dropping of any section. The only
+permitted deviation: when the per-session table has more than 15 rows,
+include only its first 15 rows, in the report's own display order, followed
+by exactly one note line `… N more sessions omitted` where N is the number
+of rows not shown; the header block, totals block, and per-provider
+breakdown remain complete and verbatim in that case.
