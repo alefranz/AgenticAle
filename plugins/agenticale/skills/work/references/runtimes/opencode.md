@@ -230,11 +230,14 @@ environment variable supplies the session id, so no argument is needed:
 node scripts/session-stats.mjs
 ```
 
-Include its summary, or a compact excerpt when the table is large, in the
-final report. The helper issues only read-only API queries against the
-running OpenCode server and changes nothing. If the server is unreachable,
-report that the summary could not be produced and continue with the
-remaining delivery.
+The helper's text report is the session usage report itself. Present it in
+the final report under the Work skill's session-usage report contract in its
+`## Finish` section — verbatim, as the final section of the report, in a
+fenced text code block, with only the contract's defined 15-row per-session
+table excerpt permitted. The helper issues only read-only API queries
+against the running OpenCode server and changes nothing. If the server is
+unreachable, report that the summary could not be produced and continue with
+the remaining delivery.
 
 ## Limitations (stated honestly)
 

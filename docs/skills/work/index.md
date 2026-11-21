@@ -393,6 +393,13 @@ per-provider breakdown with cost. It reads the session data through the
 OpenCode API with read-only queries — it makes no model calls and changes
 nothing.
 
+When the summary is produced, the final report includes it verbatim as its
+last section, in a fenced text block with the same fixed structure as the
+sample below. The single defined exception: when the per-session table has
+more than 15 rows, the report shows only its first 15 rows, followed by a
+`… N more sessions omitted` line; the header, totals, and per-provider
+breakdown stay complete.
+
 This is a sample report from a multi-session run. The session identifier
 and task titles are shortened and illustrative, and the model names are
 currentized for illustration only — they do not come from a live run with
