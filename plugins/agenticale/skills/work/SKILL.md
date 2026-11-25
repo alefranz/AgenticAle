@@ -381,7 +381,9 @@ An invalid value is an actionable error naming its source and the value,
 never silently defaulted or clamped. The allowance's source is the installed
 default, a preference file, or the invocation. An explicit invocation or
 preference allowance is an exact cap: it never auto-extends, whatever its
-size; auto-continuation applies only to the default allowance. The override
+size; auto-continuation applies to the default allowance and to
+`progress`-flavoured grants of the task worker allowance — never to an
+explicit user cap or review limit. The override
 changes only the available worker rounds — never how many must run, the
 consultation allowance, the progress safeguards, scope, or permissions; it is
 Work-specific — Autonomous Mode keeps its own budget rules. The allowance is
@@ -395,7 +397,9 @@ interrupted-review recovery, or an explicit user request — which authorizes
 one bounded audit over the range the user names: the request is itself the
 justification, and it authorizes that audit, not a review-only loop — and
 productive fix continuation is bounded by the worker budget, verified
-progress, and the stall safeguards — not a per-slice fix/review cycle count.
+progress, the stall safeguards, and the review-limit headroom condition
+([Fix continuation and review justification](references/rounds.md#fix-continuation-and-review-justification))
+— not a per-slice fix/review cycle count.
 Budget across the whole sequence, leaving room for fixes and integration work;
 decomposition or replanning does not replenish the allowance or reset its
 recorded extensions. Reassess the remaining scope against the remaining
@@ -444,10 +448,17 @@ quota cooldown and handoff recovery.
 ### Stop and continuation
 
 Apply [the shared contract's checkpoint, decision summary, and stop-report
-rules](references/rounds.md#checkpoints-decision-summary-and-stop-reports).
-Use its progress narration guidance for each substantive dispatch. Keep routine
+rules](references/rounds.md#checkpoints-decision-summary-and-stop-reports),
+including its every-incomplete-stop continuation-prompt rule. Use its
+progress narration guidance for each substantive dispatch. Keep routine
 dispatch records and counters in session state and the continuation prompt in
-the stop report; Work writes no operational files for these.
+the stop report; the prompt carries the recorded decision state for the
+affected targets — the settlements, declarations, and residual lists, the
+convergence history with its per-round facts and acceptance-failure flags,
+the per-slice reservation spend where the invoking workflow records one, and
+the remaining bounded-continuation authority — so a fresh session binds the
+same one-time decisions instead of re-asking them. Work writes no operational
+files for these.
 
 When the allowance in force is exhausted — after any evidence-backed
 auto-continuation, at the progress ceiling, or at an exact explicit cap — do
@@ -463,14 +474,30 @@ current work"; without one, state the same options in the stop report.
 
 A user grant is a specific increment: it adds the named allowance — worker
 rounds (a fix is a worker round), or review rounds against an explicit user
-review limit. The resulting boundary is an exact cap that does not
-auto-extend. A grant never resets existing counters and grants no scope,
-review, or Git rights beyond what it names; a
+review limit. A grant states a flavour: `cap` — the added rounds end in an
+exact boundary that does not auto-extend, the named default when the wording
+names a total ("10 more rounds" ⇒ +10, cap) — or `progress` — the boundary
+auto-extends under the verified-progress rule up to the progress ceiling, the
+flavour for "keep going while it's making progress" rather than a specific
+number. A `progress` flavour is a grant on the task worker allowance only —
+an explicit user review limit never auto-grows and is not flavour-eligible;
+a grant on it is recorded `cap`-flavoured. A free-text grant matching neither
+flavour exactly is parsed once;
+when ambiguous it gets one clarifying question, and the parsed flavour is
+recorded in session state. A grant never resets existing counters and grants
+no scope, review, or Git rights beyond what it names; a
 replan requested through it stays bounded the same way. A declined or
 unanswered option ends the stop: do not ask again, do not schedule a resume,
 and leave the work in its preserved state. Provider quota exhaustion stops
 under its own rules above; it is separate from these allowance stops and from
-Autonomous Mode's quota cooldown.
+Autonomous Mode's quota cooldown. A stop report that offers a budget grant
+offers the `progress` flavour as the leading option only when the exhausted
+budget is the task worker allowance accepting a `progress`-flavoured grant
+(the default allowance, or a `progress`-flavoured grant in force below its
+progress ceiling) — the progress-leading named increment applies only while
+the task worker allowance is below its progress ceiling; at or past the
+ceiling the offered increment is the `cap` increment; otherwise the offered
+increment is the `cap` increment.
 
 ## State stays in the session
 
