@@ -86,8 +86,9 @@ work to apply it.
 - **Destructive replacement.** An explicit, unambiguous request to discard or replace
   named work is honoured only for what it names, preserving unrelated tasks and
   historical material. An ambiguous destructive request — "start over" or "replace the
-  goal" without naming what is discarded — stops and asks the user before any state is
-  rewritten.
+  goal" without naming what is discarded — stops, and the clarifying question
+  proceeds through the [anti-ask gate](#asking-the-user-anti-ask-gate), before any
+  state is rewritten.
 
 The invocation text never goes into the human-owned steering surface (see
 [Live steering](#live-steering)). Record the reconciliation in the existing backlog and
@@ -177,17 +178,22 @@ coordinator:
 
 - Compose every round prompt so it needs no user decision; when a choice cannot be made
   locally, state the choice to make in the prompt itself.
-- If a report comes back `blocked` on a decision, take the Decision consultation path:
-  one second opinion first, and a question to the user only for irreversible actions,
-  user preference, or a consult that does not commit. Never route a user-facing question
-  through a child subagent.
+- If a report comes back `blocked` on a decision, run the second opinion only where the
+  [Decision consultation](#decision-consultation-independent-second-opinion) rule owes a
+  consult; the question this branch would put to the user proceeds through the
+  [anti-ask gate](#asking-the-user-anti-ask-gate) — for an irreversible action or a
+  user-reserved decision no consult is owed, so the question goes straight to the gate.
+  Never route a user-facing question through a child subagent.
 - A tool denial inside a round is a report item, not a retry: re-scope the next round or
   handle the path from the main loop.
 - The main loop runs unattended and defaults to a documented assumption recorded in the
-  state. Questions to the user are reserved for the stop conditions below (guard breach,
-  irreversible action, a consult that could not settle a standard-setting question, same
-  task blocked twice) — never for routine continuation or a preference the state can
-  decide.
+  state. Every question to the user routes through the
+  [anti-ask gate](#asking-the-user-anti-ask-gate), the single entry for questions: only a
+  situation on the gate's closed list is question-eligible, and even that candidate passes
+  the gate's three checks — a recorded decision binds, an owed consult runs first, and a
+  covered continuation is never asked — before it reaches the user; a question that fails
+  the gate is a guard breach, reported, not sent. Never for routine continuation or a
+  preference the state can decide.
 
 ## Core rules (do not break)
 
@@ -225,7 +231,9 @@ Resolve these paths from the project root used to start or resume the run; creat
   ceiling, default task allowance and progress ceiling, completed-task limit) in a short
   header; each task's stable ID, title, dependencies, governing decisions, and
   acceptance; compact resumable packets for deferred unfinished tasks, carrying the
-  task's own counters; one- or two-line result records for completed tasks (date,
+  task's own counters, its active targets' recorded `STANDARD:`, `CONVERGENCE:`, and
+  `DECLARED:` lines, its per-slice `SLICE-RES:` reservation lines, and the target's
+  residual list; one- or two-line result records for completed tasks (date,
   outcome, product commit hashes, confirmed push destination when pushing applies); and
   exactly one active next action. The completed-task count is derived from the confirmed
   result records, never a separate tally. The backlog never mirrors the active task's or
@@ -235,10 +243,32 @@ Resolve these paths from the project root used to start or resume the run; creat
   ~2 KB and contains `GOAL`, `ESTABLISHED`, `CURRENT STATE`, `ACCEPTANCE`, and exactly one
   `NEXT` action; a reset adds a compact `TRIED` section. `CURRENT STATE` carries the
   single budget line — run identity, ceiling, consumed; active task ID, allowance in
-  force (including any recorded progress extension), consumed; the open target's
-  fix/review counters — plus the pending-charge evidence while a charged child is in
-  flight (dispatch record and pending-dispatch note: round number, role, task ID), the
-  compact persistence state of an open gate, and the current slice's evidence. The
+  force (including any recorded progress extension and the grant flavour of any named
+  grant in force), consumed; the open target's fix/review counters — plus the
+  pending-charge evidence while a charged child is in flight (dispatch record and
+  pending-dispatch note: round number, role, task ID), the compact persistence state of
+  an open gate, the current slice's evidence, and, for each active target, its recorded
+  standard-settlement, convergence-history, declaration, and slice-reservation lines:
+  `STANDARD: <target>: <class>: blocking (bar: <the class's precision bar>) @R<N>
+  (<consult-adopted|user>)` (one line per settled class; a nit class is recorded
+  `STANDARD: <target>: <class>: nit (residual) @R<N> (<consult-adopted|user>)`; the
+  tag records the standard's content provenance — the standard came from the consult
+  and the user adopted it, or the user named it themselves or chose an alternative —
+  and is `user` on the degraded path where the decision proceeds directly with the
+  standard named; a settlement record always evidences a user decision, even when the
+  user ratifies the consult's proposed standard),
+  `CONVERGENCE: <target>: R<N> <n>fix/<n>new[<classes>]` per review round since the
+  last clean close — with the suffix `a!` appended to a round in which an acceptance
+  check failed — with a trailing `saturation R<N>|none`, and
+  `DECLARED: <target>: R<N> <outcome>; continue-x2 used|unused; remaining:
+  <what remains open>` where `<outcome>` is
+  `closed-with-residuals|continue-x2|incomplete|user-review`;
+  `SLICE-RES: <slice> <spent>/<reserved> [<over-reservation reason @R<N>]>`. When a slice
+  gate closes
+  accepted-with-residuals, the target's residual list is recorded with its lines: it
+  merges every slice residual list at acceptance and rides the task persistence gate and
+  the final report. Lines for closed targets fold into the backlog's task result record:
+  the snapshot carries only active targets' lines, keeping its size bound. The
   snapshot is not a journal: settled rounds fold into compact backlog task results; the
   snapshot keeps only what the next round and recovery need. Create it before the first
   round of a session if absent. A role's model selection, where the active binding
@@ -429,7 +459,9 @@ Final report). No further commit or push follows it in this run: a later WIP or
 finalization push would carry the uncertain commit as a descendant, an implicit retry. Do
 not select the next task, force-push, merge or rebase automatically, retry blindly, or
 change the destination; a non-fast-forward rejection means the remote moved; preserving
-the state and asking is the recovery, not rewriting history. All further persistence is
+the state and asking is the recovery, not rewriting history. A recovery question the
+run would put to the user is question-eligible and proceeds through the [anti-ask
+gate](#asking-the-user-anti-ask-gate). All further persistence is
 deferred to a reconciling resume, which reconciles the actual local and remote state
 before any next work under the interruption rules above.
 
@@ -441,7 +473,8 @@ or a clean review — governs next-task selection and completion accounting:
 | State | Entry condition | Next-task selection | Completed-task count |
 | --- | --- | --- | --- |
 | review-open | Work in progress; a required slice review, fix loop, or applicable deep gate is still open. | Never — the task stays active. | Never |
-| accepted | Every required check, review gate, and applicable deep gate has closed; the persistence gate has not yet run. | Never — the gate runs first. | Never |
+| accepted | A terminal task state, entered only when every required task gate — every required check, review gate, and applicable deep gate — has closed and acceptance is verified; it and `accepted-with-residuals` are both terminal task states, and the difference is that no slice gate closed with residuals under a recorded settlement or declaration. The persistence gate has not yet run — task persistence (`persistence-pending → complete`) remains outstanding in both states. | Never — the gate runs first. | Never |
+| accepted-with-residuals | A terminal task state, entered exactly as `accepted` — every required task gate closed and acceptance verified — with the one difference that at least one slice gate closed on the shared contract's `accepted-with-residuals` outcome (every open finding a nit under the target's recorded settled standard, under a recorded settlement or declaration); only that slice-gate closure is terminal at the gate level — while any later slice or required gate is still open the task stays `review-open`; the merged residual list — every slice residual list carried in state — rides the task persistence gate and the final report; the persistence gate has not yet run — task persistence (`persistence-pending → complete`) remains outstanding in both states. | Never — the gate runs first, exactly as for `accepted`. | Never |
 | persistence-pending | The gate is underway: a required product commit, its push, or the bounded state finalization is outstanding or unconfirmed. | Never — finish or reconcile the gate first. | Never |
 | complete | The whole persistence gate is confirmed under the active policy, including the bounded state finalization. | Allowed at the next selection boundary. | Counts exactly once |
 | deferred / blocked / exhausted | Unfinished, with a resumable packet or open findings preserved in the backlog. | Only via documented deferral: another truly independent ready task may be selected safely. | Never |
@@ -452,6 +485,13 @@ Invariants:
   the persistence gate outstanding. An accepted or persistence-pending task is never
   reported completed or counted, and the next task is never selected while its required
   commit or push is outstanding or unverified.
+- `review-open → accepted-with-residuals` leaves the persistence gate outstanding exactly
+  like `accepted`: the state transition is
+  `review-open → accepted-with-residuals → persistence-pending → complete`, the residual
+  list is part of the gate's evidence, and the gate's "required checks and reviews
+  complete" clause is satisfied because the blocking set under the settled standard is
+  empty. An accepted-with-residuals task is never WIP-checkpointed or deferred as
+  incomplete: its residuals are recorded, not open work.
 - The only paths to a selection boundary are a confirmed complete gate and a documented
   deferral or block of the active task — the outgoing packet durable in the backlog before
   the snapshot is overwritten. A deferral is never a completion bypass: the unfinished
@@ -489,7 +529,8 @@ completed tasks whose accepted work is unpersisted under the new policy.
    changes and creates coherent task commits — one per logical change, not one per agent
    round. Unrelated staged, unstaged, and untracked work, concurrent human edits, and
    secrets are preserved and never swept into a task commit; overlapping edits that cannot
-   be attributed to the task safely stop and ask. An investigation-only task produces
+   be attributed to the task safely stop, and the attribution question proceeds through
+   the [anti-ask gate](#asking-the-user-anti-ask-gate). An investigation-only task produces
    findings, not product changes: it creates no artificial product commit; when its
    findings change the durable state, the finalization persists them like any other state
    change, and with truly nothing to persist the gate is satisfied by the recorded
@@ -574,14 +615,17 @@ never a duplicate commit, never a record-your-own-hash write.
 **Push destination.** Resolve the destination before the run's first push and re-check it
 at every push: the checked-out branch's configured upstream (remote and branch), plus any
 destination named by repository instructions. Push only to that resolved upstream. Stop
-and ask the user before pushing when the destination is unsafe or unclear: the branch is
+before pushing when the destination is unsafe or unclear — the destination question
+proceeds through the [anti-ask gate](#asking-the-user-anti-ask-gate) — the unsafe or
+unclear cases: the branch is
 `main`/`master` or otherwise protected by repository instructions or hosting rules, no
 upstream is configured, multiple remotes make the target ambiguous, or the outgoing commits
 include work outside the authorized scope. The run's completed-task commits and recorded
 WIP checkpoint commits are authorized outgoing scope — a WIP checkpoint is pushable even
 while its task's review is open — but unrelated or unreviewed unauthorized commits are not;
-they resolve the publication scope first (ask). Never create a branch, change remotes,
-force-push, merge, or open a pull request to make a push succeed.
+the run resolves the publication scope first, and that publication-scope question proceeds
+through the [anti-ask gate](#asking-the-user-anti-ask-gate). Never create a branch, change
+remotes, force-push, merge, or open a pull request to make a push succeed.
 
 ### Stop-boundary WIP checkpoints
 
@@ -593,7 +637,8 @@ identifies the checkpoint explicitly: a `WIP:` prefix naming the run identity an
 IDs whose changes it carries (for example `WIP: csv-export T2 — slice 2, review open`).
 Unrelated staged, unstaged, and untracked work, concurrent human edits, and secrets are
 preserved and never swept into a WIP commit; overlapping edits that cannot be attributed to
-a task safely stop and ask, leaving the changes in the tree. With no attributable
+a task safely stop, with the attribution question proceeding through the
+[anti-ask gate](#asking-the-user-anti-ask-gate), leaving the changes in the tree. With no attributable
 unfinished product changes, no WIP commit is created.
 
 A WIP checkpoint is never task completion: the task stays open or deferred, its review and
@@ -690,9 +735,14 @@ bounds how many tasks one run may finish:
   progress evidence, the coordinator records a bounded extension up to that ceiling before
   dispatching further worker rounds — automatically, without a permission ask, and never on
   code churn. It is independent of the run ceiling and of the Work preference file's
-  `## Work` allowance, which never sets an autonomous budget. An explicit user task limit or
-  the boundary of a named grant is an exact cap that never auto-extends; only a user grant
-  extends a specific task's allowance beyond its ceiling, as a named increment.
+  `## Work` allowance, which never sets an autonomous budget. An explicit user task limit
+  or the boundary of a named grant recorded with the `cap` flavour is an exact cap that
+  never auto-extends; a grant on this allowance recorded with the `progress` flavour
+  ([Grant
+  flavours](../work/references/rounds.md#grant-flavours)) is an explicit auto-extend
+  authority up to the progress ceiling, not a cap — a `progress` flavour is not offered
+  for the run ceiling or the completed-task limit — and only a user grant extends a
+  specific task's allowance beyond its ceiling, as a named increment.
 - **Completed-task limit** — default 20 completed tasks per run, separate from both worker
   budgets. A task counts toward the limit only after its task persistence gate is fully
   satisfied, including the bounded state finalization; deferred, blocked, exhausted,
@@ -704,8 +754,30 @@ bounds how many tasks one run may finish:
 it adds exactly the rounds it names — worker rounds (fix rounds are worker rounds) to the
 named budget (run ceiling or task allowance), and review rounds only against an explicit user
 review limit. A grant never resets counters and grants no scope, review, or Git rights beyond
-what it names; the resulting boundary is an exact cap that does not auto-extend. A consult
-cannot grant any increment.
+what it names; the resulting boundary is an exact cap that does not auto-extend, except
+when the grant is on the task allowance and recorded with the `progress` flavour, whose
+boundary auto-extends under the verified-progress rule up to the progress ceiling — a
+`progress` flavour is a grant on the task allowance only: the run ceiling, an explicit
+user review limit, and the completed-task limit are never flavour-eligible, and a grant
+on one of them is recorded `cap`-flavoured, an exact named increment. A consult cannot
+grant any increment.
+
+**Grant flavours.** A named grant states a flavour, recorded in the snapshot's budget line
+(`M0-03: 15 (progress @R57) 9 consumed`). `cap`: the added rounds end in an exact boundary
+that does not auto-extend — the current semantics, and the named default when the user's
+wording names a total ("10 more rounds" ⇒ +10, cap). `progress`: the boundary auto-extends
+under the verified-progress rule up to the progress ceiling — the flavour for "keep going
+while it's making progress" rather than a specific number. A free-text grant matching
+neither flavour exactly is parsed once; when ambiguous it gets one clarifying question, and
+the parsed flavour is recorded in the budget line. A `progress` flavour is a grant on the
+task allowance only: the run ceiling, an explicit user review limit, and the completed-task
+limit never auto-grow and are not flavour-eligible — a grant on one of them is recorded
+`cap`-flavoured, an exact named increment. A budget question offers the `progress` flavour
+as the leading option only when the exhausted budget is the task allowance accepting a
+`progress`-flavoured grant (the default allowance, or a `progress`-flavoured grant in force
+below its progress ceiling), and the `cap` increment as the conservative alternative
+otherwise; the coordinator's own extension proposals are always `progress`-flavoured up to
+the ceiling and never propose a `cap` increment as the leading option.
 
 Every explore, implement, and fix round — including a reset continuation or a
 malformed-report correction — is one worker round charged to BOTH the current task and the
@@ -741,9 +813,10 @@ from which the completed-task count is derived, and the single active next actio
 deferred packet carries the task's own counters, never a run-consumption snapshot, so a
 stale task snapshot can never restore a stale run count. Counters record consumption;
 remaining is derived from the ceiling or allowance, never stored as a second number that
-can drift. The open target's fix/review counters live in the snapshot (or the deferred
-packet when deferred) and persist as evidence without reset or re-identification on resume
-or rename.
+can drift. The open target's fix/review counters and its recorded `STANDARD:`,
+`CONVERGENCE:`, and `DECLARED:` lines, its per-slice `SLICE-RES:` reservation lines, and
+the target's residual list live in the snapshot (or the deferred packet when deferred)
+and persist as evidence without reset or re-identification on resume or rename.
 
 **Write discipline.** Every event step is a targeted edit applied to a fresh re-read of the
 file it writes, read back to confirm it landed before the next step; each step writes one
@@ -803,12 +876,16 @@ again.
 
 **Switch (A → B) — at a selection boundary.**
 
-1. Write A's deferred packet — with its current counters from the snapshot's budget line —
-   into the backlog's deferred entries. The outgoing packet is durable before the snapshot
-   is overwritten, so no interrupted step loses a packet.
-2. Write B's packet into the snapshot, restoring B's task counters from its backlog packet
-   (or a fresh allowance for a genuinely new task) and carrying the run identity, ceiling,
-   and consumed unchanged from the outgoing budget line.
+1. Write A's deferred packet — with its current counters from the snapshot's budget line,
+   its active targets' recorded `STANDARD:`, `CONVERGENCE:`, and `DECLARED:` lines, its
+   per-slice `SLICE-RES:` reservation lines, and the target's residual list — into the
+   backlog's deferred entries. The outgoing packet is durable before the snapshot is
+   overwritten, so no interrupted step loses a packet.
+2. Write B's packet into the snapshot, restoring B's task counters and its targets'
+   recorded `STANDARD:`, `CONVERGENCE:`, and `DECLARED:` lines, its per-slice `SLICE-RES:`
+   reservation lines, and the target's residual list from its backlog packet (or a fresh
+   allowance for a genuinely new task) and carrying the run identity, ceiling, and
+   consumed unchanged from the outgoing budget line.
 3. Update the backlog's single active next action.
 
 **Reconcile — at every launch and fresh resume, before dispatching.**
@@ -1043,6 +1120,19 @@ before each substantive dispatch, including the first: what was learned, what co
 and why. Keep the compact state in the snapshot's `CURRENT STATE`; routine dispatch records
 and counters belong in that state, not in every visible update.
 
+When a task decomposes into N known slices, record a per-slice reservation — the allowance
+in force divided by the slices remaining, minimum one — in the snapshot
+(`SLICE-RES: S1 5/5`). A slice spending past its reservation does not stop: it records the
+reason (standard loop, replan, …) and surfaces the remaining slices' reduced margin in the
+next dispatch packet. The shared
+[Convergence declaration](../work/references/rounds.md#convergence-declaration) is the
+single authority for the threshold: its two-round saturation trigger applies once the
+slice has spent more than half its recorded reservation, and a slice that has overspent
+has necessarily spent more than half of it, so the same single trigger applies — no
+second condition exists. At a task
+with S1+S2+S3 and a 12-round allowance, S1's over-reservation at round 5 would have been
+flagged before round 9, not discovered inside a budget question.
+
 For each current slice or discovery assignment:
 
 1. **Worker round.** Compose a self-contained prompt from the worker template. Invoke one
@@ -1088,9 +1178,34 @@ For each current slice or discovery assignment:
    finding is closed by the coordinator running its sufficient
    deterministic check — no review round — while a judgmental finding gets an
    independent re-review of the fix and the invariants it touched (a review round,
-   or the scoped deep re-audit where the gate was deep). After the applicable gate
-   passes cleanly, check the remaining opportunistic deep review escalation triggers
-   below before recording the slice accepted.
+   or the scoped deep re-audit where the gate was deep). Before dispatching the next
+   fix round for an unresolved target, the struggle trigger is checked on its own
+   condition — at least two fix rounds made in response to a review round's findings —
+   and when it fires while the slice's gate has not passed, the in-loop **diagnostic
+   audit** dispatches (advisory, never the slice gate; see Deep review gates) before
+   the next fix; if dispatching it would exceed an applicable explicit review
+   limit that covers deep reviews, or consume the last permitted review under it,
+   the loop does not
+   dispatch — it stops at that boundary report-only, and the eligible
+   `cap`-flavoured increment on that limit is a separate question-eligible situation
+   through the [anti-ask gate](#asking-the-user-anti-ask-gate) — the
+   budget-exhaustion entry, case (ii): an explicit review limit is cap-only, and
+   reporting the stop is not asking; that boundary stop defeats the anti-ask
+   gate's third check — when it fires, continuation is not covered, and the
+   loop dispatches neither the in-loop diagnostic nor the next fix; when a
+   settlement decision or a saturation
+   declaration is pending for the target, the struggle trigger is not checked and the
+   in-loop diagnostic audit is not dispatched — the pending decision is itself the
+   resolution the audit would be ordered to end in (settlement proposal, replan, or
+   declaration), and the shared
+   [Decision order](../work/references/rounds.md#convergence-declaration) forbids
+   further rounds on the target while it is pending — and the trigger is re-checked on
+   the next loop iteration once the decision is recorded. After the applicable gate
+   closes — passing cleanly or closing `accepted-with-residuals` under a recorded
+   settlement or declaration — check the remaining opportunistic deep review escalation
+   triggers and any applicable deep gate below before recording the slice accepted: the
+   checks apply to either closure outcome, not only a clean pass, before the task
+   proceeds.
 5. **Record the outcome.** An accepted slice that leaves the task unfinished continues with
    the task's next slice. When the task's last slice is accepted and its applicable deep
    gates have closed, satisfy the task persistence gate — coherent task commits, a confirmed
@@ -1212,7 +1327,13 @@ rule below, in which case its verdict is that slice's gate, or, for the remainin
 triggers below, after the slice has passed its applicable required gate — an
 ordinary review round, a deep review standing in for the slice's own gate, for a
 clearly mechanical slice its deterministic check, or, in standard mode, the
-slice's normal verification. Review-deep rounds do not
+slice's normal verification — after either closure outcome, the slice gate
+passing cleanly or closing `accepted-with-residuals` under a recorded
+settlement or declaration. There is one exception to that post-gate placement:
+the in-loop diagnostic audit of a non-converging loop is checked and dispatched
+on its own trigger inside the loop, on a still-open gate before the next fix
+round — advisory, never the slice's gate, deferred while a settlement decision
+or a saturation declaration is pending (see Diagnostic mode below). Review-deep rounds do not
 consume the worker-round budget and are recorded as `R<N>: review-deep clean|findings`.
 Two trigger families govern it:
 
@@ -1249,11 +1370,20 @@ review dispatches; the remaining post-gate triggers — the two-fix struggle sig
 the explicit user request — are checked, and the audit dispatched, only after the
 slice passes its applicable required gate (an ordinary review round, a deep review
 standing in for the slice's own gate, for a clearly mechanical slice its
-deterministic check, or, in standard mode, the slice's normal verification), still
+deterministic check, or, in standard mode, the slice's normal verification) —
+after either closure outcome, the gate passing cleanly or closing
+`accepted-with-residuals` under a recorded settlement or declaration — still
 governed by the existing review-justification rules
 (changed fix evidence, a required integration gate, bounded interrupted-review
-recovery, or an explicit user request), as is the periodic gate's same-range
-integration audit: the struggle signal and the periodic gate are required
+recovery, or an explicit user request). The in-loop diagnostic audit — the
+struggle trigger inside a non-converging loop whose slice gate has not passed —
+is the exception to this post-gate placement: it is checked and dispatched on
+its own trigger inside the loop, on a still-open gate before the next fix round
+— advisory, never the slice's gate, deferred while a settlement decision or a
+saturation declaration is pending, and subject to the in-loop diagnostic
+headroom stop (the same boundary stop as Task-loop step 4 and Diagnostic mode)
+— and the post-gate behaviour for passed gates is unchanged. As is the periodic gate's same-range
+integration audit, the struggle signal and the periodic gate are required
 integration gates — the trigger itself (the shared worker/reviewer blind-spot
 signal after at least two fix rounds made in response to a review round's
 findings, whether or not a later pass eventually passed; the periodic
@@ -1311,14 +1441,44 @@ explicit-request audit uses the user-named range (its lower bound floored at
 the open task's recorded pre-WIP base). Budget guard: run at most one opportunistic
 escalation per session. A deep review standing in for a slice's own gate is a required gate review, not an
 opportunistic escalation: the cap counts additional escalations — the post-gate deep
-reviews, the struggle trigger and explicit user requests — and does not limit a slice's
-own required gate review. When the cap is already spent and a later high-risk slice's gate
-requires a deep review, that deep review still runs as the slice's gate and dependent work
-waits for its verdict; the cap keeps limiting additional escalations. If a further
+reviews, the in-loop diagnostic mode audit (the struggle trigger's audit dispatched
+inside a non-converging loop) and explicit user requests — and does not limit a slice's
+own required gate review; the periodic-gate family is unaffected. When the cap is
+already spent and a later high-risk slice's gate requires a deep review, that deep review
+still runs as the slice's gate and dependent work waits for its verdict; the cap keeps
+limiting additional escalations. If a further
 opportunistic trigger fires, record it in the snapshot as a deferred-escalation note and
 let the periodic gate pick it up when its trigger fires. The user may always direct an
 additional escalation explicitly. Consult rounds are capped at two per session, separately
 from the escalation and re-audits.
+
+**Diagnostic mode inside a non-converging loop.** When the slice's required gate has not
+passed because its review keeps reporting blocking findings, the struggle signal is still
+checked on its own trigger condition — at least two fix rounds made in response to a review
+round's findings — and, when it fires, the audit dispatches immediately in **diagnostic
+mode**: its verdict is advisory, never the slice gate; it runs over the slice's
+accumulated single-slice range as before; and its report must end in a standard
+settlement, a replan with the original acceptance intact, or the saturation declaration —
+never in another fix round on unchanged evidence. The same headroom stop applies
+before the dispatch: if dispatching the audit would exceed an applicable explicit
+review limit that covers deep reviews, or consume the last permitted review under
+it, the loop does not
+dispatch — it stops at that boundary report-only, and the eligible `cap`-flavoured
+increment on that limit is a separate question-eligible situation through the
+[anti-ask gate](#asking-the-user-anti-ask-gate) — the budget-exhaustion entry,
+case (ii): an explicit review limit is cap-only, and reporting the stop is not
+asking; that boundary stop defeats the anti-ask gate's third check — when it
+fires, continuation is not covered, and the loop dispatches neither the
+in-loop diagnostic nor the next fix; when no such limit applies, or headroom
+holds, the dispatch is unchanged.
+That outcome rule binds diagnostic mode only: an ordinary post-gate audit still
+gives each blocking finding its dedicated fix round under the shared continuation
+rules below. The diagnostic audit counts against the
+one-opportunistic-escalation-per-session cap above — it is the struggle trigger's
+audit, dispatched before the gate — so a required slice-gate deep review stays
+outside the cap, no slice is stranded, and the periodic-gate family is unaffected.
+The diagnostic audit is recorded with the trigger it fired on and with its mode;
+the post-gate trigger behaviour for passed gates is unchanged.
 
 **Shared continuation rules.** When the range covers a task with recorded WIP checkpoint
 commits, its lower bound is the recorded pre-WIP base or earlier — a resumed session start
@@ -1355,18 +1515,33 @@ interrupted-review recovery, or an explicit user request may justify a
 same-range review — an explicit user request authorizes one bounded audit
 over the range the user names — but a review-only loop over unchanged
 evidence may not. The coordinator promotes every non-blocking nit to a
-`BACKLOG.md` checkbox before closing the audit.
+`BACKLOG.md` checkbox before closing the audit. Settled residuals — nits
+under a recorded settled standard, carried by the settlement or declaration
+as known limitations — are not open work and are not promoted to a checkbox;
+they ride the residual list into task persistence and the final report as
+known limitations.
 
 ## Decision consultation (independent second opinion)
 
 This skill runs unattended, so the escape hatch for a decision the loop cannot settle is not
 a question to the user: it is one foreground round with the consult contract — an
-independent second opinion. When a stop condition below would end in "ask the user a
-question" about a reversible judgement decision (a blocked task, surviving blocking findings
-after a fix, a standard-setting question, or any decision the state cannot settle), the main
-loop may run one consult round instead of asking. A consult is also warranted before the
-loop commits to a clear, direct, complex choice — a bounded focused decision whose framing
-benefits from independent review — not only when the loop is stuck.
+independent second opinion. On the two standard-setting paths — a standard unsettled by
+the shared [Standard settlement](../work/references/rounds.md#standard-settlement)
+trigger, and a [convergence
+declaration](../work/references/rounds.md#convergence-declaration) that requires a
+closure decision — the consult is mandatory before any user question, within the
+unchanged caps (one per decision, two per session); the one decision the loop then owes
+— the settlement's proposed-standard decision, or the declaration's one decision —
+proceeds through the [anti-ask gate](#asking-the-user-anti-ask-gate), per the shared
+contract's [Decision order](../work/references/rounds.md#convergence-declaration).
+Everywhere else the consult
+remains the available alternative to asking: when a stop condition below would end
+in "ask the user a question" about a reversible judgement decision (a blocked task,
+surviving blocking findings after a fix, a standard-setting question, or any decision
+the state cannot settle), the main loop may run one consult round instead of asking. A
+consult is also warranted before the loop commits to a clear, direct, complex choice — a
+bounded focused decision whose framing benefits from independent review — not only when
+the loop is stuck.
 
 Where the installation configures the `consult-hard` route, dispatch the consult on it
 directly when the decision's character is apparent: conflicting evidence, interacting
@@ -1378,21 +1553,44 @@ honour is surfaced as a limitation, never silently substituted.
 Give the consult exactly one decision: the question, the candidate options with what each
 does to scope, budget, and risk, what was already tried and why it failed, the acceptance
 conditions, and the cheap checks it may run. It returns one recommendation with a confidence
-level; the main loop may adopt it. Adoption is recorded like any other decision: a consult
+level; the main loop may adopt it. On the standalone settlement path — the settlement
+trigger fires on its own, no saturation declaration pending — the consult instead names a
+**proposed** standard for the open classes — a proposal, not a binding adoption, and the
+loop never settles the standard on the consult's authority alone: it owes the user exactly
+one decision — ratify the proposed standard, one of the alternatives (including the
+reviewer's original bar), or close now when the nit-only option is eligible — offered
+through the [anti-ask gate](#asking-the-user-anti-ask-gate); the shared [Standard
+settlement](../work/references/rounds.md#standard-settlement) is the single authority for
+that path. On the declaration closure path — a saturation declaration pending — the
+settlement question is not a separate ratification question: per the shared contract's
+[Decision order](../work/references/rounds.md#convergence-declaration), any open finding
+in a class not yet settled for the target joins the single combined declaration decision,
+whose mandatory preparatory consult — where its allowance permits — names the proposed
+standard first, and where every open class is already settled the declaration stands alone
+with its closure options. On either path the consult never reopens an already-settled
+class: the settlement trigger fires only for classes with no recorded settlement, and a
+recorded class unsets only under the reopening conditions stated in the shared [Standard
+settlement](../work/references/rounds.md#standard-settlement). Any other consult adoption
+is recorded like any other decision: a consult
 outcome plus a state note citing the consult round and its report, marked as an
 **independently advised decision the user can veto later**.
 
 Consult does NOT apply to: irreversible actions (force-push, deleting branches, publishing a
-release or pull request — those stop and ask), user preference or taste (ask), and anything
+release or pull request — those proceed through the
+[anti-ask gate](#asking-the-user-anti-ask-gate)), user preference or taste (likewise
+question-eligible through the gate), and anything
 `AGENTS.md` reserves to the user. A low-confidence consult, or one that hedges despite its
-format, counts as no answer: ask the user. At most one consult per decision and two per
-session. Consult rounds do not consume the worker-round budget.
+format, counts as no answer: the owed question then proceeds through the
+[anti-ask gate](#asking-the-user-anti-ask-gate) like any other. At most one consult per
+decision and two per session. Consult rounds do not consume the worker-round budget.
 
 A consult settles a reversible technical or design decision within the allowances that
 remain; adopting its recommendation never starts a round the budgets do not cover. The fix →
-review loop is gated by the effective worker budget, verified progress, and the stall
-safeguards — each fix is a worker round charged to both budgets — not by per-target cycle
-counts. Review, review-deep, and consult rounds keep their own accounting and stay
+review loop is gated by the effective worker budget, verified progress, the stall
+safeguards, and the review-limit headroom condition
+([Fix continuation and review justification](#fix-continuation-and-review-justification))
+— each fix is a worker round charged to both budgets — not by per-target cycle counts.
+Review, review-deep, and consult rounds keep their own accounting and stay
 dispatchable after worker-budget exhaustion when justified, including the permitted review
 of an exhausted task's completed changes. A consult cannot grant an allowance or justify a
 correction beyond the budgets: evidence-backed task extensions within the progress ceiling
@@ -1401,7 +1599,9 @@ ceiling, or the completed-task limit — is a user-only decision through a named
 never delegated to a consult. An exhausted task allowance alone is not a run stop (see
 [Task exhaustion is not a run stop](#task-exhaustion-is-not-a-run-stop)). When the limits
 that govern the next needed round are hit, stop under the stop conditions and offer the user
-the named increment the continuation needs instead.
+the named increment the continuation needs instead. The interactive budget grant offer
+is a question-eligible situation that proceeds through the [anti-ask
+gate](#asking-the-user-anti-ask-gate).
 
 ## Reset and handoff gate
 
@@ -1460,9 +1660,11 @@ The shared contract's
 and [review/fix gate](../work/references/rounds.md#review-and-fix-gate) bind this workflow
 unchanged: per-target fix/review cycle counts — including the historical two-fix/three-review
 and two-re-audit defaults — are not authorization gates; the effective worker budget,
-verified progress, and the stall safeguards bound the fix → verify → re-review loop, which
-continues unattended (a fourth or later productive fix needs no permission ask); every review
-needs changed evidence, a required integration gate, bounded interrupted-review recovery, or
+verified progress, the stall safeguards, and the review-limit headroom condition
+([Fix continuation and review justification](../work/references/rounds.md#fix-continuation-and-review-justification))
+bound the fix → verify → re-review loop, which continues unattended (a fourth or later
+productive fix needs no permission ask); every review needs changed evidence, a required
+integration gate, bounded interrupted-review recovery, or
 an explicit user request — one bounded audit over the range the user names: the request is
 itself the justification, and it authorizes that audit, not a review-only loop; and the
 required review of the last allowed fix still runs at zero worker budget. This skill
@@ -1473,8 +1675,11 @@ in the snapshot (or the deferred packet). They survive resumes, replans, renames
 interruption recovery unchanged; nothing resets or re-identifies them. Counts recorded under
 the historical default caps are retained as evidence, but those legacy defaults never re-gate
 a resumed run. An explicit user limit recorded in the durable state — a user-set cap or the
-boundary of a named grant — remains binding, never auto-extends, and stops the loop when
-reached.
+boundary of a named grant — remains binding and stops the loop when reached: a
+`cap`-flavoured boundary never auto-extends, and a `progress`-flavoured boundary —
+always a task-allowance grant — auto-extends only under the verified-progress rule, up
+to the progress ceiling, and continuation under it is subject to the review-limit
+headroom condition ([Fix continuation and review justification](../work/references/rounds.md#fix-continuation-and-review-justification)).
 
 **Safeguards and exhaustion.** The shared stall safeguards stop the loop regardless of
 remaining budget: two consecutive unproductive worker rounds, the same blocker two rounds in a
@@ -1484,31 +1689,54 @@ keep the target incomplete and review-open. An exhausted run ceiling or complete
 stops the run (an INCOMPLETE safety stop whenever eligible work remains), offering the named
 increment a continuation needs; an exhausted task allowance alone defers the target and the
 run continues with another truly independent ready task (see
-[Task exhaustion is not a run stop](#task-exhaustion-is-not-a-run-stop)).
+[Task exhaustion is not a run stop](#task-exhaustion-is-not-a-run-stop)). The
+interactive budget grant offer is a question-eligible situation that proceeds through
+the [anti-ask gate](#asking-the-user-anti-ask-gate).
 
 **Repeated findings on the same invariant.** Classify first. A genuinely unmet invariant is a
 real design defect: reopen the plan through the checkpoint's replanning signal with the
 original acceptance and the target's fix/review counters intact, no scope weakening. Only when
 the behaviour already meets acceptance and later rounds merely tighten the standard is it a
-standard-setting question: settle it once — take a consult (see Decision consultation), codify
-the recommended standard as an independently advised decision the user can veto, apply it
-everywhere, and stop iterating against the drift. Neither path resets counters or weakens
-scope.
+standard-setting question: settle it once — the consult (see Decision consultation) names
+a **proposed** standard, not a binding adoption, and the loop owes the user exactly one
+decision — ratify the proposed standard, one of the alternatives (including the reviewer's
+original bar), or close now when the nit-only option is eligible — offered through the
+[anti-ask gate](#asking-the-user-anti-ask-gate), with the shared [Standard
+settlement](../work/references/rounds.md#standard-settlement) as the single authority for
+that path — and stop iterating against the drift. The standalone question is owed only
+when no saturation declaration is pending: when one is, per the shared contract's
+[Decision order](../work/references/rounds.md#convergence-declaration), the settlement
+question is the declaration's single combined decision, and this instruction owes no
+separate question. Neither path resets counters or weakens scope.
 
 **Autonomy envelope.** The coordinator continues the loop without asking while all of these
 hold: the work stays docs/config-only or is reversible under the active persistence policy;
 additional deep review escalations stay within one per session — the cap counts
-additional escalations (post-gate deep reviews: the struggle trigger and explicit user
-requests); a required slice-gate deep review is outside that cap, and the user may always
+additional escalations (post-gate deep reviews, the struggle trigger — including its
+in-loop diagnostic form — and explicit user requests); a required slice-gate deep review is
+outside that cap, and the user may always
 explicitly direct an additional escalation — with every re-audit justified; consults stay
 within two per session; the effective worker budget covers the next
-fix (including any justified extension) and no safeguard or explicit user limit has fired; and
-no irreversible action is required. Both worker budgets gate worker dispatch only: an
+fix (including any justified extension), no safeguard or explicit user limit
+has fired, and the next cycle — the next fix and its required re-review —
+leaves at least one review available under each applicable explicit review
+limit (the review-limit headroom condition in
+[Fix continuation and review justification](../work/references/rounds.md#fix-continuation-and-review-justification));
+and no irreversible action is required. When the next cycle would exceed an
+explicit review limit or consume the last permitted review under one, the loop
+stops at that boundary report-only, and the eligible `cap`-flavoured increment
+on that review limit is a separate question-eligible situation through the
+[anti-ask gate](#asking-the-user-anti-ask-gate) — the budget-exhaustion entry,
+case (ii): an explicit review limit is cap-only, and reporting the stop is not
+asking. Both worker budgets gate worker dispatch only: an
 exhausted task allowance defers that task, not the run, and an exhausted run ceiling stops
 worker dispatch while the permitted review of completed changes still runs. A consult never
 grants an allowance — only the user can, through a named increment. Breach any guard, or reach
-an irreversible action — stop and ask. Asking is for guard breaches, irreversible actions, and
-what a consult could not settle — not for routine continuation inside the envelope.
+an irreversible action — stop. Every question to the user routes through the
+[anti-ask gate](#asking-the-user-anti-ask-gate), the single entry for questions — guard
+breaches, irreversible actions, and what a consult could not settle included — and never for
+routine continuation inside the envelope; a question that fails the gate is a guard breach,
+reported, not sent.
 
 ## Worker prompt template
 
@@ -1520,6 +1748,10 @@ ceiling {TASK_CEILING}). This round is charged to both.
 Work in the {REPO} repository at {PATH} (branch {BRANCH}). Related repos:
 {OTHERS}.
 Git persistence policy: {WORKING TREE | COMMIT | COMMIT AND PUSH, WITH BASIS}.
+Target's settled standard (recorded for this target; "none" otherwise):
+{BLOCKING CLASSES WITH PRECISION BAR; NIT CLASSES}
+Target's convergence state: {CONVERGENCE LINE, OR "none"}
+Slice reservation (where recorded): {SLICE-RES LINE}
 
 Goal (context only — you do only your task): {GOAL}
 
@@ -1588,6 +1820,10 @@ Task that was supposed to be completed (verbatim): {TASK}
 Worker's self-report (unverified — check every claim): {REPORT}
 Changes to review: {COMMIT HASHES OR BASELINE + WORKING-TREE DIFF per repo}
 Git persistence policy: {POLICY}
+Target's settled standard (recorded for this target; "none" otherwise):
+{BLOCKING CLASSES WITH PRECISION BAR; NIT CLASSES}
+Target's convergence state: {CONVERGENCE LINE, OR "none"}
+Slice reservation (where recorded): {SLICE-RES LINE}
 
 First read:
 - {AGENTS.md path}, if it exists (follow its conventions); otherwise skip
@@ -1615,6 +1851,19 @@ Independently verify:
    repository-wide architecture, upstream-parity, or origin audit unless that
    was the assigned task.
 4. Conventions: {relevant AGENTS.md rules when present}.
+5. Settled standard (per the shared Standard settlement section): the settled
+   standard binds only its settled classes — a finding in a settled nit class is
+   a nit that never blocks the verdict, and a finding in a class not yet settled
+   is assessed against the original acceptance criteria as a new finding: it may
+   block the verdict as an unmet acceptance condition. A verdict that blocks on a
+   nit-class finding under the recorded settled standard is malformed: the shared
+   Standard settlement section's malformed-verdict recovery rule is the
+   authority — the coordinator records the malformation (the original verdict
+   and the correction, both in the record) and the gate proceeds on the
+   corrected classification under the recorded settlement; no same-range
+   re-review is dispatched for a malformed verdict (a repeat over unchanged
+   evidence has no permitted justification), and a malformed verdict is not
+   a clean verdict.
 
 Return your verdict in the report only; you write no handoff, backlog, or
 operational note. The coordinator records your verdict and nits in the durable
@@ -1640,12 +1889,30 @@ product-code changes and write no operational state. You are unattended in a
 child session: never ask the user anything; if the evidence cannot settle a
 claim, record it as a blocking finding.
 
-Audit range: {COMMIT OR DIFF RANGE} across {REPOS}.
-Pending slice (only when this audit stands in for its own review): {SLICE,
-ACCEPTANCE, AND CHANGE RANGE}
+Mode: {STANDARD | DIAGNOSTIC — the in-loop diagnostic audit (the struggle
+trigger inside a non-converging loop): the verdict is advisory and never the
+slice's gate}
+Audit range: {COMMIT OR DIFF RANGE} across {REPOS} — in diagnostic mode, the
+pending slice's accumulated single-slice range: from the slice's own entry
+(first change or recorded WIP boundary) through the current state, including
+every fix delta
+Pending slice (only when this audit stands in for its own review or runs in
+diagnostic mode): {SLICE, ACCEPTANCE, AND CHANGE RANGE}
 Accepted slices: {COMPACT_SLICE_SUMMARIES}
 Integration acceptance: {BUILD/TEST COMMANDS and contract checks}
 Lower bound for the selected trigger: {BOUNDARY — the periodic baseline for a periodic audit, the slice's own entry for a struggle audit, the pending slice's entry for a standing-in deep review that is the slice's own gate, the user-named range for an explicit-request audit (effective lower bound: the open task's recorded pre-WIP base when the user-named start comes after it — the user-named range then sets focus and upper end — the brief names the requested and effective ranges separately, with the widening reason; when the named start is at or before the base, the named start stands), or session start; the recorded pre-WIP base is a floor on the lower bound, never a ceiling on the request — a resumed session start never truncates historical WIP}
+Fix-loop history (diagnostic mode only): {CONVERGENCE: <target>: R<N>
+<n>fix/<n>new[<classes>] — one entry per review round since the last clean
+close: the confirmed-fixed count, the new-finding count, and the new
+findings' classes, with the suffix `a!` appended to a round in which an
+acceptance check failed, per the shared Convergence declaration section}
+Recorded settled standard (recorded for this target; "none" otherwise):
+{STANDARD: <target>: <class>: blocking (bar:
+<the class's precision bar>) @R<N> (<consult-adopted|user>) or STANDARD:
+<target>: <class>: nit (residual) @R<N> (<consult-adopted|user>) — the
+target's recorded settled-standard line(s), per the shared Standard settlement
+section: the class, blocking or nit, the class's precision bar, and the
+decision's provenance}
 
 First read:
 - {AGENTS.md path}, if it exists; otherwise skip this item
@@ -1658,14 +1925,33 @@ recorded WIP checkpoint commits before the task persistence gate; coherent
 commits and confirmed pushes after it), submodule pins, handoff/backlog
 consistency, and regressions caused by the combined changes. When a pending
 slice is named, cover its full acceptance as well as its interactions with
-earlier work — your verdict is that slice's gate, not just an audit of accepted
-work. Do not expand into a repository-wide archaeology audit.
+earlier work. When this audit stands in for the slice's own review, your
+verdict is that slice's gate, not just an audit of accepted work; in
+diagnostic mode the verdict is advisory and never the slice's gate — the
+pending slice is named for context (its identity, acceptance, accumulated
+single-slice range, and fix-loop history), and the report's required
+DISPOSITION — a standard settlement proposal, a replan, or the saturation
+declaration — is what the diagnosis must end in. Classify your findings per
+the shared Standard settlement section: a settled class binds — flag findings
+inside a settled blocking class, and treat a finding in a settled nit class as
+a nit that never blocks the verdict — while a finding in a class not yet
+settled is assessed against the original acceptance criteria. Do not expand
+into a repository-wide archaeology audit.
 
 Return a concise audit verdict and every nit in your report only; you write no
 handoff or backlog note. The coordinator records the verdict, promotes every
 nit to a BACKLOG checkbox, and owns final persistence verification after the
-gates close. You never mark tasks completed. The steering surface is
-human-owned: never edit it.
+gates close. Settled residuals — nits under a recorded settled standard,
+carried by the settlement or declaration as known limitations — are not open
+work and are not promoted to a checkbox; they ride the residual list into
+task persistence and the final report as known limitations. You never mark
+tasks completed. The steering surface is
+human-owned: never edit it. In diagnostic mode the report must end in exactly
+one DISPOSITION — never another fix round on unchanged evidence: a standard
+settlement proposal (the proposed standard per open class, per the shared
+Standard settlement section), a replan with the original acceptance criteria
+intact, or the saturation declaration (per the shared Convergence declaration
+section).
 
 Your final response must be exactly:
 VERDICT: clean | blocking findings
@@ -1673,7 +1959,101 @@ BLOCKING: one line per finding — what, where (file/commit), required action
 NITS: one line each (or "none")
 EVIDENCE: commands YOU ran with results
 NEXT: one concrete action
+DISPOSITION: (diagnostic mode only — the report's final line) settlement
+proposal | replan | saturation declaration
 ```
+
+## Asking the user (anti-ask gate)
+
+The main loop asks the user only through this gate: the closed list defines
+which SITUATIONS are question-eligible, and the three checks below decide
+whether an eligible situation may be asked NOW. Every question the loop would
+put to the user — from the closed list or not — is a candidate question that
+passes those checks; a question that fails them is a guard breach of the
+autonomy envelope, not a courtesy: it stops, is reported as such, and does
+not go to the user. An exact-cap (or ceiling) stop is report-only unless an
+interactive grant offer is eligible under the budget-exhaustion entry's case
+(i) or (ii): reporting the stop is not asking.
+
+The closed list of question-eligible situations: an
+autonomy-envelope guard breach; an irreversible or user-reserved action
+(force-push, deleting branches, publishing, or anything `AGENTS.md` reserves);
+a user preference over scope, acceptance, or goal text; a budget exhaustion
+stop with its increment offer — the one leading-option rule keyed to the
+exhausted budget, per the shared
+[Grant flavours](../work/references/rounds.md#grant-flavours) rule: (i) the
+task worker allowance at its exact boundary — the default allowance or a
+`progress`-flavoured grant still below its ceiling — reached with verified
+progress offers the named increment with `progress` leading (the auto-extension
+takes effect under the verified-progress rule), `cap` as the conservative
+alternative; (ii) the progress ceiling of the default allowance or of a
+`progress`-flavoured grant, an exact `cap`-flavoured boundary, an exact
+invocation or preference cap, the run ceiling, the completed-task limit, or
+an explicit review limit offers (at most) a `cap`-flavoured named increment —
+never lead with an auto-extension that cannot take effect; the run ceiling and
+the limits never auto-grow, a run-level stop keeps its INCOMPLETE safety-stop
+character, and verified progress does not override a cap; a standalone
+[standard settlement](../work/references/rounds.md#standard-settlement) — the
+one-decision standard settlement: ratify the proposed standard, one of the
+alternatives including the reviewer's original bar, or close now when the
+nit-only option is eligible — where the consult allowance permits, the
+mandatory consult runs first and names the proposed standard, and where the
+consult allowance is exhausted, the same one decision proceeds directly with
+the standard named (the degraded path) — the decision is owed either way, the
+consult is not; a one-time grant-flavour clarification when a
+free-text grant is ambiguous ([Grant flavours](../work/references/rounds.md#grant-flavours)); a
+persistence-recovery question — a destination or commit-attribution
+question when persistence is blocked, declared question-eligible in the
+[bounded persistence sequence](#the-bounded-persistence-sequence) — which
+passes the gate's three checks (recorded decision, consult owed,
+continuation covered) like any other candidate question; a
+[convergence declaration](../work/references/rounds.md#convergence-declaration)
+that requires a closure decision; or the same blocker two rounds running with
+no materially different path (consult first).
+
+A settlement record always evidences a user decision, even when the user
+ratifies the consult's proposed standard: the `STANDARD:` line's tag
+(`<consult-adopted|user>`) records the standard's content provenance — the
+standard came from the consult and the user adopted it, or the user named it
+themselves or chose an alternative — and is `user` on the degraded path.
+
+A candidate question — including one from the closed list — passes the
+checks, in order, and the outcome is recorded in state:
+
+1. **Recorded decision?** A settlement or declaration already covering the
+   situation binds — apply it, do not ask.
+2. **Consult owed?** The decision is a reversible judgement (surviving
+   blocking findings, a standard question, a path choice) and no consult has
+   run for it — run the consult first; a low-confidence or hedged consult
+   counts as no answer, and the owed question then proceeds through this gate.
+   On the two standard-setting paths the mandatory consult runs first, then
+   the one decision proceeds through this gate per the shared contract's
+   [Decision order](../work/references/rounds.md#convergence-declaration); on
+   a standard-setting path whose consult allowance is exhausted, no consult is
+   owed — the one decision proceeds directly, recorded.
+3. **Continuation covered?** The effective worker budget covers the next
+   cycle — the next fix and its required re-review — each applicable explicit
+   review limit leaves at least one review available after that cycle, the
+   latest fix made verified progress, and no safeguard, settlement, or
+   declaration is pending — continue the loop without asking and record the
+   auto-continuation (round, target, evidence) in the snapshot. When the next
+   cycle would exceed an explicit review limit or consume the last permitted
+   review under one, continuation is not covered: the loop stops report-only,
+   and the eligible `cap`-flavoured increment on that review limit is a
+   separate question-eligible situation through this gate — the
+   budget-exhaustion entry, case (ii): an explicit review limit is cap-only,
+   and reporting the stop is not asking. When an in-loop diagnostic dispatch
+   is pending and dispatching it would exceed an applicable explicit review
+   limit that covers deep reviews, or consume the last permitted review under
+   it, continuation is not covered either: the same boundary stop applies — the
+   loop stops report-only and dispatches neither the in-loop diagnostic nor
+   the next fix, and the eligible `cap`-flavoured increment on that limit is
+   the same separate question-eligible situation through this gate (the
+   budget-exhaustion entry, case (ii): an explicit review limit is cap-only,
+   and reporting the stop is not asking).
+
+"The review blocked again" is not on the closed list while the gate's third
+check holds.
 
 ## Stop conditions
 
@@ -1690,10 +2070,15 @@ Stop the loop and report to the user when any of these hit:
   remains; never a successful run completion. Do not dispatch another worker round;
   verification and the permitted review of completed changes still run. Report the exhausted
   run ceiling, what remains, what is completed and blocked, and the recent verified progress.
-  Where the host offers an interaction tool, offer the situation-appropriate choices — a
-  bounded replan (its child rounds consume allowances), one additional bounded fix-and-review
-  cycle, or a stop that preserves the current work — naming the worker and review increments
-  each consumes; without one, state the same options in the stop report. Persist the allowance
+  Where the host offers an interaction tool, the situation is question-eligible through the
+  [anti-ask gate](#asking-the-user-anti-ask-gate), and reporting the stop is not asking: the
+  gate offers the situation-appropriate choices — a bounded replan (its child rounds consume
+  allowances), one additional bounded fix-and-review cycle, or a stop that preserves the
+  current work — naming the worker and review increments each consumes; without one, state
+  the same options in the stop report. A grant on the run
+  ceiling or an explicit user review limit is recorded `cap`-flavoured — those boundaries
+  never auto-grow — so the stop offers at most a `cap`-flavoured named increment, keeping
+  the stop's INCOMPLETE safety-stop character. Persist the allowance
   usage and any granted extension in the snapshot so a resume or renamed target cannot evade
   the unresolved-target limits. A continuation needs a named user grant (see
   [Run and task budgets](#run-and-task-budgets)); a consult cannot grant one. A declined or
@@ -1703,13 +2088,33 @@ Stop the loop and report to the user when any of these hit:
   each counted only after its task persistence gate was fully satisfied. When eligible
   backlog work remains, this is an INCOMPLETE safety stop, never a completed run: report the
   limit, the completed and remaining tasks, and the continuation prompt, and offer the named
-  increment a continuation needs (a raised limit) or a stop that preserves the current work;
-  the limit never auto-grows. When the backlog is drained, the normal **Goal met** close
+  increment a continuation needs (a raised limit, recorded `cap`-flavoured — the limit
+  never auto-grows) or a stop that preserves the current work. Listing those options in
+the stop report is not asking — reporting the stop is not a question; the interactive
+named-increment offer, where it applies, is a distinct question-eligible situation
+that proceeds through the [anti-ask gate](#asking-the-user-anti-ask-gate). When the backlog is
+  drained, the normal **Goal met** close
   applies instead.
 - **Task allowance exhausted** — not a run stop by itself. The allowance in force is
   exhausted at the progress ceiling or an exact explicit cap, with no further extension
   justified. Dispatch no further worker round for that task; verification and the permitted
-  review of its completed changes still run. Keep the unfinished part incomplete and
+  review of its completed changes still run. When the budget question offers the named
+  increment a continuation needs, it applies the one leading-option rule keyed to the
+  exhausted budget, stated verbatim in the [anti-ask gate](#asking-the-user-anti-ask-gate)'s
+  budget-exhaustion entry (the shared
+  [Grant flavours](../work/references/rounds.md#grant-flavours) rule): (i) the task
+  worker allowance at its exact boundary — the default allowance or a
+  `progress`-flavoured grant still below its ceiling — reached with verified progress
+  offers the named increment with `progress` leading (the auto-extension takes effect
+  under the verified-progress rule), `cap` as the conservative alternative; (ii) the
+  progress ceiling of the default allowance or of a `progress`-flavoured grant, an
+  exact `cap`-flavoured boundary, an exact invocation or preference cap, the run
+  ceiling, the completed-task limit, or an
+  explicit review limit offers (at
+  most) a `cap`-flavoured named increment — never lead with an auto-extension that
+  cannot take effect; the run ceiling and the limits never auto-grow, a run-level stop
+  keeps its INCOMPLETE safety-stop character, and verified progress does not override
+  a cap. Keep the unfinished part incomplete and
   resumable (findings, current state, one next action), then select another truly independent
   ready task with its fresh allowance when one can be selected safely; otherwise stop under
   **No safe ready work** below. Never bypass a review gate, dependency, or safety boundary to
@@ -1725,7 +2130,8 @@ Stop the loop and report to the user when any of these hit:
   completed safely: an unsafe or ambiguous push destination, a rejected or uncertain push, or
   an explicit restriction conflicting with the requested delivery. Preserve the exact
   persistence state, keep any open task open, and stop with the continuation prompt;
-  destination decisions ask the user. The stop goes directly to the terminal local-only close
+  destination decisions are question-eligible through the
+  [anti-ask gate](#asking-the-user-anti-ask-gate). The stop goes directly to the terminal local-only close
   under **Persist before printing** in Final report — no further commits or pushes in this
   run, all further persistence deferred. A resume reconciles the actual local and remote
   state before any next work.
@@ -1733,6 +2139,39 @@ Stop the loop and report to the user when any of these hit:
   checkpoint: let a running child settle, record its result and charge, preserve the exact
   `NEXT` and all counters, and report the pause with the continuation prompt (see Live
   steering). The pause persists across resumes. No polling, watcher, or service.
+- **Blocking findings survive while budget remains** — not a stop: while the
+  [anti-ask gate](#asking-the-user-anti-ask-gate)'s third check holds, continue
+  the fix → verify → re-review loop unattended. That check requires the next
+  cycle — the next fix and its required re-review — to fit within the
+  effective worker budget and leave at least one review available under each
+  applicable explicit review limit: when the next cycle would exceed an
+  explicit review limit or consume the last permitted review under one,
+  continuation is not covered, the loop stops report-only, and the
+  eligible `cap`-flavoured increment on that review limit is a separate
+  question-eligible situation
+  through the gate — the budget-exhaustion entry, case (ii): an explicit
+  review limit is cap-only, and reporting the stop is not asking. The only
+  exits from the loop are a clean review, a settlement-bounded close, a
+  [convergence
+  declaration](../work/references/rounds.md#convergence-declaration), a
+  safeguard, or the budget. This stop condition replaces any practice of
+  re-asking gate closure between rounds.
+- **Convergence saturation** — the shared [convergence
+  declaration](../work/references/rounds.md#convergence-declaration) detector
+  fires on the active target. The declaration is the stop report: run it
+  before any further round on that target and dispatch no further fix or
+  re-review before it resolves, under the shared
+  [Decision order](../work/references/rounds.md#convergence-declaration):
+  when the declaration runs and any open finding is in a class not yet
+  settled for the target — whether or not the standalone settlement trigger
+  fired — the settlement question for those classes is carried inside the
+  declaration as the single combined decision; where every open finding's
+  class is already settled, the declaration stands alone with its closure
+  options. **Continue, bounded** is offered only when legal under the
+  shared bounded-continuation rule, and **Close accepted-with-residuals**
+  only when the same recorded decision contains the nit-only settlement
+  outcome. When that outcome already holds, the declaration notifies and the
+  target closes accepted-with-residuals and the loop ends without a question.
 - **Same task blocked two rounds in a row** — stop; a consult may recommend a materially
   different path, but that path still consumes the worker allowance and a consult cannot
   grant one — otherwise do not burn rounds on a wall that only the user can decide.
@@ -1741,22 +2180,32 @@ Stop the loop and report to the user when any of these hit:
   exhausted. The consult authorizes no further fix or review pass — the user alone grants
   those as named increments. When the run ceiling is exhausted, stop the run; one consult on
   the surviving findings may separate genuine defects from standard drift (see Repeated
-  findings on the same invariant), and a hedged consult counts as no answer: ask the user.
+  findings on the same invariant): on the standard-setting path the mandatory consult runs
+  first, then the owed one decision proceeds through the
+  [anti-ask gate](#asking-the-user-anti-ask-gate) — a hedged consult counts as no answer,
+  and the decision reaches the gate without it.
   Report the exhausted budget with the continuation prompt so a resume can act on a grant.
   When only the task allowance is exhausted, defer the target incomplete and review-open with
   its resumable packet and open findings, and select another truly independent ready task when
   safe; the run stops only under **No safe ready work** or another run stop. While an effective
-  worker round remains and fixes make verified progress, this stop never fires: continue the
-  loop unattended instead.
+  worker round remains and fixes make verified progress, this stop never fires: the loop
+  continues unattended only while the [anti-ask gate](#asking-the-user-anti-ask-gate)'s third
+  check holds.
 - **Autonomy-envelope guard breach** — a second additional opportunistic escalation in one
   session without an explicit user request (a required slice-gate deep review is not an
   escalation), a review or re-audit over unchanged evidence with no review justification,
-  an explicit user limit reached, or work leaving docs/config-only/reversible scope — stop
-  and ask.
+  or work leaving docs/config-only/reversible scope — stop; the situation is
+  question-eligible through the [anti-ask gate](#asking-the-user-anti-ask-gate), and
+  reporting the stop is not asking. An explicit user limit reached is not a guard
+  breach: it is the report-only budget-exhaustion stop above, with its
+  `cap`-flavoured grant offer (case (ii)) as a separate question-eligible
+  situation through the [anti-ask gate](#asking-the-user-anti-ask-gate), where
+  it applies.
 - **A decision or irreversible action is required** (force-push, deleting branches,
   publishing a release or pull request, or anything `AGENTS.md` flags) — irreversible actions
-  and user preference stop and ask (consult does not apply); reversible judgement decisions
-  get one consult first.
+  and user preference are question-eligible (consult does not apply for them) and proceed
+  only through the [anti-ask gate](#asking-the-user-anti-ask-gate); reversible judgement
+  decisions get one consult first, then the gate.
 - **Two consecutive worker rounds with no verified progress** — stop and summarize under the
   shared stall safeguards; remaining budget is not a reason to continue.
 
@@ -1770,7 +2219,8 @@ Stop the loop and report to the user when any of these hit:
   reported on resume) and the exact next step. Under a restricted policy, state that accepted
   work remains unpushed (commit-only) or uncommitted and unpushed (working tree), per the
   recorded policy and its basis.
-- Open blockers or decisions needed.
+- Open blockers or decisions needed, and the merged residual list of any task closed
+  accepted-with-residuals — recorded in state and in the task result record.
 - For an incomplete stop, the continuation prompt: outcome and blockers with evidence, what
   actually exists (files, branches, commits) and what to preserve, the next recommended
   approach, the checks and independent review still required, and the delivery permissions
@@ -1887,6 +2337,21 @@ itself even though it normally does not edit files.
 - Asking the user for routine continuation inside the autonomy envelope, or to authorize one
   more fix/review cycle while budget, progress, and the envelope permit continuation —
   per-target cycle counts are not authorization gates.
+- Re-asking the user a gate-closure or continuation question for a target that already has
+  a recorded settlement or declaration — the recorded decision binds; a re-declaration
+  needs new evidence, and a second bounded continue is never offered.
+- Asking the user to authorize a fix/review cycle the anti-ask gate's third check covers —
+  the no-ask default is the rule; a failed gate is a guard breach, reported, not sent.
+- Reclassifying a reviewer's finding in a dispatch packet without a recorded settlement —
+  unratified reclassifications carry as proposals only; the recorded class is preserved
+  until a shared Standard settlement reopening condition holds — changed acceptance, a
+  genuinely unmet invariant of a blocking class, or a user instruction.
+- Letting the struggle trigger stay unfired because the slice gate has not
+  passed — in a non-converging loop the diagnostic audit runs on the trigger, not behind
+  the gate, subject to the in-loop diagnostic headroom stop (the same boundary stop as
+  Task-loop step 4 and Diagnostic mode).
+- Offering "close with documented residuals" before a settlement or declaration exists —
+  without one it is not a legal close.
 - Extending a task allowance without verified progress evidence, or treating code churn as
   progress; an extension is a recorded, evidence-backed increment within the progress ceiling,
   never a reset.
@@ -1920,7 +2385,7 @@ itself even though it normally does not edit files.
   counters, and one `NEXT`.
 - Reporting goal text supplied during an active run as a conflict, or overwriting the active
   state with it — reconcile it as steering; an ambiguous destructive replacement asks the
-  user.
+  user, question-eligible through the anti-ask gate.
 - Selecting the next task before the completed task's required commits and push are confirmed,
   or blindly duplicating commits after an uncertain push — reconcile the actual local and
   remote state first.

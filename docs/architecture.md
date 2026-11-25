@@ -76,23 +76,47 @@ remain in workflow state; the coordinator surfaces them when they affect a
 decision or the user asks. This keeps the main conversation understandable even when a
 host collapses child activity, without relying on any particular host layout.
 The contract also defines review-closure rules for re-reviews and the
-self-contained continuation prompt that every incomplete stop carries. Its
+self-contained continuation prompt that every incomplete stop carries. It
+defines the two shared loop-settling mechanisms: standard settlement — a
+finding class's blocking-or-nit status is settled once per target: the
+invoking workflow's decision policy (a consult in Autonomous Mode; a
+user-presented question in Work) names a proposed standard, not a binding
+adoption, and the user's single recorded decision — ratify, an alternative
+including the reviewer's original bar, or close now when every open finding is
+a nit — is recorded in the workflow's state, always evidencing a user
+decision, even when the user ratifies the consult's proposed standard, and
+bound into every later dispatch packet for the target, so a verdict that
+blocks on a nit-class finding is malformed — recovered without a re-review:
+the coordinator records the malformation and the gate proceeds on the
+corrected classification under
+the recorded settlement — and the convergence declaration, where a
+deterministic saturation trigger fires one structured declaration (finding
+trajectory, verified evidence, cost so far, exactly one decision) before any
+further round on a non-converging target, the only user-visible form of that
+state, closing the target `accepted-with-residuals` without asking when the
+settled standard classifies every open finding as a nit. Its
 progress-aware budget contract binds both workflows identically: each task
 starts with a normal worker-round allowance (default twelve) and a
 progress-based hard ceiling (default twenty-four); reaching the allowance
 with verified progress evidence — passing acceptance, a verified correction,
 a resolved blocker, or a material new finding — extends it automatically in
 recorded increments up to the ceiling, never on code churn, while an explicit
-invocation, preference, or grant allowance is an exact cap that never
-auto-extends. Two consecutive unproductive worker rounds, a repeated blocker,
+invocation or preference allowance is an exact cap that never auto-extends; a
+named grant is recorded with a flavour, and the `cap` flavour (the default
+when the wording names a total) ends in an exact boundary that never
+auto-extends while the `progress` flavour is an auto-extend authority under
+the verified-progress rule up to the progress ceiling — a grant on the task
+worker allowance only: the run ceiling and an explicit user review limit
+never auto-grow, and a grant on one of them is recorded `cap`-flavoured. Two consecutive
+unproductive worker rounds, a repeated blocker,
 or the repeated-interruption limit stop dispatch regardless of remaining
 budget. Per-target fix/review cycle counts are not authorization gates:
 productive fix continuation is bounded by the effective worker budget,
-verified progress, and the stall safeguards, every review needs changed
-evidence, a required integration gate, bounded interrupted-review recovery,
-or an explicit user request (one bounded audit over the range the user
-names), and the required review of the last allowed fix still runs at zero
-worker budget. A limit reached with eligible work remaining is an incomplete
+verified progress, the stall safeguards, and the review-limit headroom
+condition, every review needs changed evidence, a required integration
+gate, bounded interrupted-review recovery, or an explicit user request (one
+bounded audit over the range the user names), and the required review of
+the last allowed fix still runs at zero worker budget. A limit reached with eligible work remaining is an incomplete
 safety stop, never a successful completion.
 The six task contracts are capability-neutral: they carry only the role's
 instructions, with no host-specific protocol. `implement`, `implement-easy`,
@@ -136,7 +160,10 @@ and never write preference files themselves.
 `skills/autonomous/SKILL.md` adds durable backlog, compact-snapshot, and
 continuation policies. The target project owns `BACKLOG.md` and the
 `.agenticale/` directory: the coordinator-only `active.md` snapshot — a
-compact checkpoint, not a journal — and the optional human-owned
+compact checkpoint, not a journal, which per active target also carries the
+recorded shared-contract lines (settled standard, convergence history,
+declaration, and slice reservation) that fold into the backlog's result
+records when the target closes — and the optional human-owned
 `steering.md`. There is no default archive, round ledger, or counter mirror;
 legacy `.agenticale/handoffs/` layouts are recognized with safe precedence
 and preserved untouched as history.
@@ -146,9 +173,13 @@ work target — or the invocation's numeric override), a per-task allowance
 (default 12, independent of the Work preference) with the shared
 progress-based hard ceiling of 24, and a completed-task limit (default 20).
 The default task allowance extends automatically in recorded, evidence-backed
-increments up to its progress ceiling; an explicit ceiling, user task limit,
-or grant boundary is an exact cap that never auto-extends, and the
-completed-task limit never auto-grows. Every explore/implement/fix round is
+increments up to its progress ceiling; an explicit ceiling or user task limit
+is an exact cap that never auto-extends, as is a grant boundary recorded with
+the `cap` flavour, while a `progress`-flavoured grant is a grant on the task
+worker allowance only — an auto-extend authority under the verified-progress
+rule up to the progress ceiling — and the run ceiling, the completed-task
+limit, and any explicit user review limit never auto-grow, a grant on one of
+them recorded `cap`-flavoured. Every explore/implement/fix round is
 charged once to both worker budgets — the effective remaining budget is the
 smaller — under stable run and task identities whose consumed counters and
 pending-dispatch evidence survive crashes, resumes, and quota-only launch
@@ -165,8 +196,11 @@ each further fix is charged once to both budgets, every review needs changed
 evidence, a required integration gate, bounded interrupted-review recovery,
 or an explicit user request (one bounded audit over the range the user
 names), and the loop continues unattended while budget, progress, and the
-autonomy envelope allow — no repeated cycle-authorization prompts, and no review-only
-loops over unchanged evidence. The budgets gate fix dispatch, not review: the
+autonomy envelope allow — continuation is the default under the main loop's
+anti-ask gate, which asks the user only for a closed list of situations and
+treats a question that fails it as a guard breach, reported, not sent — with
+no repeated cycle-authorization prompts and no review-only loops over
+unchanged evidence. The budgets gate fix dispatch, not review: the
 required review of the last allowed fix — including a deep re-review — runs
 at zero worker budget, and surviving blockers keep an exhausted task
 incomplete and review-open, deferred rather than stopping the run while
@@ -175,10 +209,17 @@ evidence without reset or re-identification on resume or rename; the legacy
 default caps never re-gate a resumed run, while explicit user limits stay
 binding. The no-progress, same-blocker, and repeated-interruption safeguards,
 the one-opportunistic-escalation-per-session guard (it counts additional
-escalations — the post-gate deep reviews: the struggle trigger at two or more
-fix rounds made in response to a review round's findings (it fires whether or
-not a later pass eventually passed) and explicit user requests; a deep review
-standing in for a slice's own gate is a required gate
+escalations — the struggle trigger at two or more fix rounds made in response
+to a review round's findings, fired whether or not the slice's gate later
+closed, post-gate as a deep review for a closed gate and, inside the fix
+loop, checked before the next fix round and dispatched in diagnostic mode
+when it fires while the slice's gate is still open (its verdict advisory,
+never the slice gate, deferred while a settlement decision or a saturation
+declaration is pending for the target, and withheld when dispatching it would
+consume the last review available under an explicit limit that covers deep
+reviews — at that boundary the run stops and offers the `cap`-flavoured
+increment instead), and explicit user requests; a deep
+review standing in for a slice's own gate is a required gate
 review outside the cap, and the user may explicitly direct an additional
 escalation), and the consult caps are unchanged. A human-owned
 optional `.agenticale/steering.md` file provides deterministic pause/continue
@@ -198,10 +239,22 @@ commits, confirms an ordinary push to the resolved upstream, and persists
 the completion record in one bounded state-only finalization commit —
 pushed and confirmed under the same policy, never recording its own hash —
 before the next task is selected. Each task is in exactly one lifecycle
-state — review-open, accepted, persistence-pending, complete, or unfinished
-(deferred, blocked, exhausted) — and the state, not a worker report or a
-clean review, governs selection and accounting: only a confirmed complete
-gate permits the next selection and counts the task exactly once. Counter
+state — review-open, accepted, accepted-with-residuals, persistence-pending,
+complete, or unfinished (deferred, blocked, exhausted) — and the state, not a
+worker report or a clean review, governs selection and accounting: only a
+confirmed complete gate permits the next selection and counts the task
+exactly once; `accepted` and `accepted-with-residuals` are both terminal
+task states, entered only when every required task gate — every required
+check, review gate, and applicable deep gate — has closed and acceptance is
+verified, the difference being whether at least one slice gate closed with
+residuals (every open finding a nit under the target's recorded settled
+standard, under a recorded settlement or declaration) — only a slice-gate
+closure is terminal at the gate level: while any later slice or required
+gate is open the task stays `review-open` — and task persistence
+(`persistence-pending → complete`) remains outstanding in both; the merged
+residual list rides the gate and the final report, and an
+accepted-with-residuals task is never WIP-checkpointed or deferred as
+incomplete. Counter
 and state-transition bookkeeping is consolidated in one instruction-level
 state protocol — five events (charge, settle, switch, reconcile, finalize)
 over the two existing state files, with a single counter authority (the

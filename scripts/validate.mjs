@@ -247,6 +247,35 @@ function validateSkillAutonomous() {
   if (!body.includes("](../work/references/rounds.md)")) {
     fail(path, "body must link the shared round contract ../work/references/rounds.md", "link the shared round contract");
   }
+  if (!body.includes("Asking the user (anti-ask gate)")) {
+    fail(path, "body must keep the anti-ask gate section", "restore the Asking the user (anti-ask gate) heading");
+  }
+  for (const marker of [
+    "STANDARD: <target>: <class>: blocking (bar: <the class's precision bar>)",
+    "STANDARD: <target>: <class>: nit (residual) @R<N> (<consult-adopted|user>)",
+    "CONVERGENCE: <target>: R<N> <n>fix/<n>new[<classes>]",
+    "saturation R<N>|none",
+    "DECLARED: <target>: R<N> <outcome>; continue-x2 used|unused; remaining:",
+    "SLICE-RES: <slice> <spent>/<reserved>",
+  ]) {
+    if (!body.includes(marker)) {
+      fail(path, `body must keep the snapshot state line marker \`${marker}\``, "restore the shared-contract snapshot state lines");
+    }
+  }
+}
+
+// The shared round contract is a plain reference (no frontmatter), loaded by
+// both workflows: the shared mechanisms it defines must stay named sections,
+// because the skills' anchor links and the published docs point at these
+// exact headings.
+function validateSharedRoundsContract() {
+  const path = "skills/work/references/rounds.md";
+  const text = readText(path);
+  for (const marker of ["### Standard settlement", "### Convergence declaration", "### Grant flavours"]) {
+    if (!text.includes(marker)) {
+      fail(path, `body must keep the shared mechanism section '${marker}'`, "restore the section; both workflows and the docs link to its anchor");
+    }
+  }
 }
 
 function validateSkillReview() {
@@ -802,6 +831,7 @@ validateSkillAutonomous();
 validateSkillSourceLookup();
 validateSkillPullRequest();
 validateSkillConfigure();
+validateSharedRoundsContract();
 await validateModelConfigs();
 validateAdapter();
 validateCommandTemplates();

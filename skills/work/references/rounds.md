@@ -175,7 +175,7 @@ explicit review waiver still follows that workflow's verification requirements.
 | Individually clean slices fail an integration check | Keep the task open and fix/re-review the affected interactions within the invoking workflow's remaining limits; escalate to deep review when warranted. |
 | Budget or repeated-failure limits are reached mid-sequence | Stop with accepted outcomes, actual unfinished state, and the next action; a new slice name does not grant more rounds. |
 | A task's worker allowance is exhausted while the run ceiling still has rounds | No further worker round for that task; verification and the permitted review of its completed changes still run. The unfinished part stays incomplete and resumable; the run may select another truly independent ready task with a fresh allowance, never bypassing gates or dependencies, and stops when no safe ready work remains. |
-| The same underlying invariant is flagged in consecutive rounds | Repeated findings about one invariant trigger replanning: a real design issue reopens the plan with the original acceptance and counters intact, while a drifting reviewer standard is settled once, not chased as a defect. |
+| The same underlying invariant is flagged in consecutive rounds | Repeated findings about one invariant trigger replanning: a real design issue reopens the plan with the original acceptance and counters intact, while a drifting reviewer standard is settled once, not chased as a defect ([Standard settlement](#standard-settlement)). |
 
 ## Checkpoints, decision summary, and stop reports
 
@@ -187,7 +187,8 @@ and its review — the effective minimum where both a task allowance and a run
 ceiling apply. Repeated findings about the same underlying invariant are a
 replanning signal, not a reason to keep fixing: a real design problem reopens
 the plan with the original acceptance criteria intact, while reviewer standard
-drift is settled once through the invoking workflow's decision policy.
+drift is settled once through the invoking workflow's decision policy
+([Standard settlement](#standard-settlement)).
 Replanning never resets the fix and review counters for the same unresolved
 target.
 
@@ -240,7 +241,14 @@ delivery permissions and restrictions. When the delivery is PR-based, the
 prompt also carries the exact delivery target: the pull request URL when one
 exists, otherwise the intended repository and head destination — stated as
 not yet created, and including fork destinations — so a fresh session resumes
-the same pull request instead of duplicating it. A fresh session must
+the same pull request instead of duplicating it. The prompt also carries the
+recorded decision state for the affected targets — the settlement lines, the
+declaration lines, the residual lists, the convergence history with its
+per-round facts and acceptance-failure flags, the per-slice reservation spend
+where the invoking workflow records a per-slice reservation, and the
+remaining bounded-continuation authority — whether a bounded continue was
+used and what of it remains — so a fresh session binds the same one-time
+decisions instead of re-asking them. A fresh session must
 inspect the current checkout and re-establish missing context rather than
 trusting the prompt.
 Reviewed task work keeps the prompt in the stop report only; Autonomous Mode
@@ -322,8 +330,13 @@ coordinator does not ask the user to authorize each extended round.
 
 An explicit user cap is exact and never auto-grows: an allowance set by a
 task-time instruction, a preference entry, or the boundary of a named user
-grant does not auto-extend, whatever its size. Auto-continuation applies only
-to the workflow's default allowance, and the progress ceiling bounds
+grant recorded with the `cap` flavour does not auto-extend, whatever its
+size. The one exception is a named grant recorded with the `progress` flavour
+([Grant flavours](#grant-flavours)): it is an explicit auto-extend authority,
+not a cap — its boundary auto-extends under the verified-progress rule up to
+the progress ceiling. Auto-continuation applies to the workflow's default
+allowance and to `progress`-flavoured grants of the task worker allowance,
+and the progress ceiling bounds
 auto-continuation only — an explicit user allowance or grant may name any
 positive size. A user grant adds exactly the named rounds and never resets
 counters.
@@ -333,6 +346,31 @@ evidence, or the stall and blocker safeguards. Decomposition, replanning,
 renaming, resume, and interruption recovery keep the same allowance in force
 and the same consumption; a replay of productive work keeps its recorded
 charge.
+
+### Grant flavours
+
+A named grant states a flavour. `cap`: the added rounds end in an exact
+boundary that does not auto-extend — the current semantics, and the named
+default when the user's wording names a total ("10 more rounds" ⇒ +10, cap).
+`progress`: the boundary auto-extends under the verified-progress rule up to
+the progress ceiling — the flavour for "keep going while it's making
+progress" rather than a specific number. A free-text grant matching neither
+flavour exactly is parsed once; when ambiguous it gets one clarifying
+question, and the parsed flavour is recorded in the budget line
+(`M0-03: 15 (progress @R57) 9 consumed`). A `progress` flavour is a grant on
+the task worker allowance only: the run ceiling, an explicit user review
+limit, and any completed-task limit never auto-grow and are not
+flavour-eligible — a grant on one of them is recorded `cap`-flavoured, an
+exact named increment. A budget question offers the `progress` flavour as the
+leading option only when the exhausted budget is the task worker allowance
+accepting a `progress`-flavoured grant (the default allowance, or a
+`progress`-flavoured grant in force below its progress ceiling) — the
+progress-leading named increment applies only while the task worker allowance
+is below its progress ceiling; at or past the ceiling the offered increment
+is the `cap` increment — and the `cap` increment as the conservative
+alternative otherwise; the coordinator's
+own extension proposals are always `progress`-flavoured up to the ceiling and
+never propose a `cap` increment as the leading option.
 
 ### Stall safeguards
 
@@ -344,19 +382,28 @@ A consult may recommend a materially different path, but that path still
 consumes the worker allowance and a consult cannot grant one. Repeated
 findings about a genuinely unmet invariant reopen the plan with the original
 acceptance and counters intact; reviewer standard drift is settled once, not
-chased. Quota-only waits and launch rejections are not no-progress rounds
-under the invoking workflow's quota rules.
+chased ([Standard settlement](#standard-settlement)). Quota-only waits and
+launch rejections are not no-progress rounds under the invoking workflow's
+quota rules.
 
 ### Fix continuation and review justification
 
 Per-target productive fix/review cycle counts are not authorization gates.
 Fix continuation is bounded by the effective worker budget, verified progress
-evidence, and the stall safeguards instead: while budget remains, the latest
-fix made verified progress, and no safeguard or explicit user limit has
-fired, continue the fix → verify → re-review loop without asking the user to
-authorize another cycle — a fourth or later productive fix within budget
-needs no permission ask. Every review round, ordinary or deep, must be
-justified by changed slice or fix evidence (a diff the previous review has
+evidence, the stall safeguards, and the review-limit headroom condition
+instead: while budget remains, the latest fix made verified progress, no
+safeguard or explicit user limit has fired, and the next cycle — the next
+fix and its required re-review — leaves at least one review available under
+each applicable explicit user review limit, continue the fix → verify →
+re-review loop without asking the user to authorize another cycle — a fourth
+or later productive fix within budget needs no permission ask. When the next
+cycle would consume the last permitted review under an explicit user review
+limit, the loop stops at that boundary, and the invoking workflow's budget
+question offers the eligible named increment for that limit — always a
+`cap`-flavoured increment ([Grant flavours](#grant-flavours)): an explicit
+user review limit never auto-grows and is not flavour-eligible. Every
+review round, ordinary or deep, must be justified by changed slice or fix
+evidence (a diff the previous review has
 not seen), a required integration gate, bounded interrupted-review recovery
 over the same range, or an explicit user request. An explicit user request
 authorizes one bounded audit over the range the user names — the request is
@@ -398,6 +445,176 @@ findings that survive it keep the target incomplete and review-open; follow
 the invoking workflow's stop/decision policy rather than attempting another
 fix or asking to authorize one more cycle.
 
+### Standard settlement
+
+A finding's class is either blocking or a nit for a target, and that status
+is settled once per target and held in state, not in the conversation.
+Classify before settling: repeated findings about a genuinely unmet
+invariant are a real design issue — the plan reopens with the original
+acceptance criteria and counters intact, unchanged by this path. Only
+reviewer standard drift — an already-seen finding class re-opening — takes
+the settlement path below. Its trigger is deterministic, and it fires only for
+classes with no recorded settlement: the second consecutive review round on
+the same target that opens only findings of an already-seen class that has no
+recorded settlement line. A never-seen class — the first appearance of that
+class in the loop — is a new finding, not drift, and is assessed against the
+original acceptance criteria; the settlement trigger cannot fire on it. An
+already-seen class that was never the subject of a recorded settlement — the
+class recurred but never settled — is likewise assessed against the original
+acceptance criteria for classification, but, being already seen, it can
+qualify as standard drift, and the settlement trigger can fire for it. When
+it fires, the standard for that class is unsettled drift, and no further fix
+round dispatches on those findings until it is settled.
+
+Settlement path: the invoking workflow's decision policy first — in
+Autonomous Mode one consult round names a **proposed** standard for each open
+class, e.g. mechanism facts: blocking, source-verified; citation accuracy:
+blocking, exact file:line; wording and scope phrasing: nit, recorded as
+residual. The proposal is not a binding adoption: the loop never settles the
+standard on the consult's authority alone. The loop then owes the user exactly
+one decision, offered through the invoking workflow's question authority —
+the anti-ask gate in Autonomous Mode, directly in Work, where the user is
+present: ratify the proposed standard; one of the alternatives, including the
+reviewer's original bar; or close the target now, available when the proposed
+standard classifies every open finding as a nit. In Work the coordinator
+presents the proposed standard with the reviewer's original bar alongside in
+that one question. When the invoking workflow's consult allowance is
+exhausted, the same one decision reaches the user directly with the proposed
+standard named — a degraded path to one recorded decision, never repeated
+questions. The outcome is recorded in the invoking workflow's state, one line per settled
+class: a blocking class as
+`STANDARD: <target>: <class>: blocking (bar: <the class's precision bar>)
+@R<N> (<consult-adopted|user>)` and a nit class as
+`STANDARD: <target>: <class>: nit (residual) @R<N> (<consult-adopted|user>)`,
+and is bound into every subsequent dispatch packet for the target. The
+settled standard binds only its settled classes: reviewers flag findings
+inside the blocking classes, a finding in a settled nit class is a nit that
+never blocks the verdict — a verdict that blocks on a nit-class finding is
+malformed — and a finding in a class not yet settled is assessed against the
+original acceptance criteria as a new finding: it may block the verdict as an
+unmet acceptance condition, and where it is a genuinely unmet invariant the
+plan reopens with the original acceptance criteria and counters intact. A
+malformed verdict
+is recovered without a re-review: the coordinator records the malformation —
+the original verdict and the correction — in the state, and the gate proceeds
+on the corrected classification under the recorded settlement: the finding is
+reported as a nit, and the close path applies when every open finding is then
+a nit. No re-review runs over the same range — a same-range re-review has no
+permitted justification and the review-only-loop prohibition stands — and the
+target's next review still needs its own justification. A malformed verdict is
+not a clean verdict: the gate outcome comes from the corrected classification,
+never from the raw verdict.
+
+A settlement reopens only on changed acceptance, a genuinely unmet invariant
+of a blocking class, or a user instruction — never on a later reviewer
+tightening the same class. A reclassification of a finding under a recorded
+settlement — a reviewer or consult proposing a different blocking or nit
+classification for it — is an unratified proposal, and non-binding: the
+recorded settlement continues to bind, and a recorded class is unset only
+when a stated reopening condition holds — changed acceptance, a genuinely
+unmet invariant of a blocking class, or a user instruction. The
+reclassification is reported and may inform the next settlement question
+where the rules allow one, but it changes nothing until and unless a
+reopening condition holds.
+
+### Convergence declaration
+
+The coordinator keeps, per target, the loop's finding history: for each
+review round in the current fix loop, how many prior findings were confirmed
+fixed and the classes of the new findings. **Saturation** fires when the last
+three review rounds each confirm all prior findings fixed and open only new
+findings of classes already seen in the loop, and no acceptance check failed
+in any of them; two rounds suffice once the slice has spent more than half
+its recorded reservation (where the invoking workflow records a per-slice
+reservation) — this single condition is the whole threshold: a slice that has
+overspent its reservation has necessarily spent more than half of it, so the
+same trigger applies and no second condition exists. Where the invoking
+workflow keeps durable state — the
+Autonomous Mode snapshot — that history is the target's `CONVERGENCE` line:
+one entry per review round since the last clean close,
+`R<N> <n>fix/<n>new[<classes>]` — the confirmed-fixed count, the new-finding
+count, and the new findings' classes — with the suffix `a!` appended to a
+round in which an acceptance check failed, keeping the saturation trigger's
+no-failed-check condition recomputable after a handoff — and a trailing
+`saturation R<N>|none` marking the round that declared saturation, e.g.
+`CONVERGENCE: S1: R54 2fix/2new[wording] R56 2fix/2new[wording] saturation
+R57|none`; a round with a failed acceptance check reads `R41
+1fix/1new[mechanism] a!`.
+
+**Decision order** — stated here once; the workflows reference it. When more
+than one mechanism is live on a target, they run in this order:
+
+1. **Settlement trigger first.** When the [standard
+   settlement](#standard-settlement) trigger fires, the settlement path — the
+   consult first where the invoking workflow's decision policy has one — runs
+   before any further fix round on the target, and no fix round dispatches
+   while its one decision is pending.
+2. **Saturation next.** When saturation fires, the declaration runs before
+   any further round on the target. Whenever the declaration runs and any
+   open finding is in a class not yet settled for the target — whether or
+   not the standalone settlement trigger fired — the settlement question for
+   those classes is carried inside the declaration as the single combined
+   decision, and the declaration waits on that one decision. The invoking
+   workflow's decision policy supplies the proposed standard: in Autonomous
+   Mode a mandatory preparatory consult — where its allowance permits — runs
+   before that combined decision and names it first; it is neither a fix
+   round nor a worker round, so it does not violate the
+   before-any-further-round prohibition — it prepares the decision. In Work
+   the coordinator presents the proposed standard directly, no consult on
+   this path. Where the consult allowance is exhausted, the combined
+   decision proceeds directly with the standard named — the degraded path.
+   Where every open finding's class is already settled, the declaration
+   stands alone with its closure options.
+3. **Bounded continuation legality.** **Continue, bounded** is offered only
+   when all of these hold: the same recorded decision leaves at least one
+   open finding in a settled blocking class, or no settlement exists for
+   those classes — in which case the settlement question runs first, or is
+   carried inside the declaration per the rule above; the effective worker
+   budget permits the next fix; the review limits permit, leaving at least
+   one review available under the headroom condition; and no safeguard has
+   fired. When the settled standard classifies every open finding as a
+   nit, **Continue, bounded** is not offered: the options are
+   close-with-residuals, stop-incomplete, and user-review.
+4. **Residual closure.** **Close accepted-with-residuals** is offered only
+   when the same recorded decision contains the nit-only settlement outcome —
+   a settlement classifying every open finding as a nit, ratified, or carried
+   inside the declaration, in that one decision. When the consult allowance
+   is exhausted on a standalone declaration — no unsettled classes — the
+   declaration proceeds and the closure decision reaches the user directly: a
+   degraded path, recorded.
+
+Saturation is a stop, and it requires a **convergence declaration** before
+any further round on the target — a visible, self-contained statement that
+the loop is not converging. The declaration names: the target and slice; the
+finding trajectory with classes (e.g. 6 → 4 → 4 → 2 → 2, mechanism-class
+closed at R50, wording-class re-opening every round); what is verified and
+green (acceptance evidence, deterministic checks); the cost so far (rounds,
+worker budget consumed, wall time including user waits); and exactly one
+decision with its options and costs:
+
+- **Close accepted-with-residuals under the settled standard** — available
+  without asking when the settled standard classifies every open finding as
+  a nit: the declaration then notifies, the close is recorded, and the loop
+  ends. When no settlement covers all open classes, the close is offered
+  inside the combined decision of decision order 2 and 4, not separately.
+- **Continue, bounded** — at most two more fix/re-review rounds, offered
+  only when the fix it authorises is legal under the settled standard
+  (decision order 3); the declaration re-fires afterwards and this option is
+  gone.
+- **Stop the target incomplete** — with the continuation prompt.
+- **User reviews the target directly** — dispatch stops; the coordinator may
+  hand over the drafted fix without applying it.
+
+The decision is recorded as
+`DECLARED: <target>: R<N> <outcome>; continue-x2 used|unused; remaining:
+<what remains open>`, where `<outcome>` is
+`closed-with-residuals|continue-x2|incomplete|user-review`. A target with a
+recorded declaration is never asked the same question twice: a re-declaration
+is possible only with new evidence — a new finding class, a failed acceptance
+check, or the expiry of a granted bounded continue — and a second bounded
+continue is never offered. The declaration, not a repeated gate-closure
+question, is the only user-visible form of a non-converging loop.
+
 ### Incomplete safety stops
 
 A limit reached while eligible work remains is an INCOMPLETE safety stop,
@@ -418,6 +635,11 @@ run.
 | An explicit user allowance of eight rounds is reached with verified progress | Stop at eight: the explicit cap is exact and does not auto-extend; offer the named increment a continuation needs. |
 | The twenty-fourth worker round is a fix and the progress ceiling is reached | No further worker round; the fix's required independent review still runs at zero worker budget, and surviving blockers keep the target incomplete. |
 | A run-level safety limit is reached while eligible backlog work remains | INCOMPLETE safety stop with the continuation prompt — never reported as a completed run. |
+| The second consecutive review on a target opens only findings of an already-seen class | No further fix round dispatches on those findings: the [Standard settlement](#standard-settlement) path runs first, and the settled standard binds every later dispatch packet. |
+| Convergence saturation fires on a target | The [convergence declaration](#convergence-declaration) runs before any further round on that target — the loop's non-convergence is declared once, with trajectory, verified-green evidence, cost, and exactly one decision. |
+| Blocking findings survive while budget and verified progress hold and no safeguard fired | Continue the fix → verify → re-review loop unattended (subject to the review-limit headroom condition in [Fix continuation and review justification](#fix-continuation-and-review-justification)); surviving findings are not a permission ask. |
+| A free-text grant matches neither grant flavour exactly | Parse it once; one clarifying question when ambiguous; the parsed flavour is recorded in the budget line. |
+| A settlement classifies every open finding as a nit | Close the target accepted-with-residuals under the settled standard without a question; the residual list is recorded in state and in the task result record. |
 
 ## Routing policy
 
@@ -542,7 +764,9 @@ expand the assignment to repair unrelated issues.
 Send blocking findings to a fresh fix worker with the original acceptance
 criteria. Fix continuation follows the shared
 [progress-aware contract](#progress-aware-budgets-and-continuation): the
-effective worker budget, verified progress evidence, and the stall safeguards
+effective worker budget, verified progress evidence, the stall safeguards,
+and the review-limit headroom condition in
+[Fix continuation and review justification](#fix-continuation-and-review-justification)
 bound it — not an arbitrary per-target fix/review cycle count — and every
 review must be justified by changed evidence, a required integration gate,
 bounded interrupted-review recovery, or an explicit user request — one
@@ -562,6 +786,18 @@ boundaries where they are meaningful. When a change makes recovery or
 interruption behaviour part of the acceptance, the evidence comes from the
 real user entry or command selection that reaches it and the interruption
 boundary around its external side effects, not only from internal method tests.
+
+`accepted-with-residuals` is a terminal slice-gate outcome: the target's
+acceptance is verified, every deterministic check passes, and every open
+finding is a nit under the target's settled standard ([Standard
+settlement](#standard-settlement)). Its record obligations: the residual list
+is recorded in state and in the task result record as a known-limits line, and
+is surfaced in the final report; a dependent task's dispatch packet names the
+inherited residuals. Closing with residuals is legal only under a recorded
+settlement or a recorded convergence declaration ([Convergence
+declaration](#convergence-declaration)) — without one, "close with documented
+residuals" is not an option the coordinator offers and the target stays
+review-open under the invoking workflow's stop/decision policy.
 
 A purely mechanical finding has a sufficient deterministic acceptance check.
 After its fix, the coordinator can close it by running that check. Behaviour,
