@@ -95,10 +95,20 @@ the pushed state is never left open and no endless chain of confirmation
 writes follows. Reviews run before this gate and inspect the uncommitted
 result; the coordinator owns final persistence verification.
 Each task moves through explicit lifecycle states — review-open, accepted,
-persistence-pending, complete, or unfinished (deferred, blocked, exhausted) —
-and only a confirmed complete gate allows the next task's selection and
-counts the task, exactly once, toward the completed-task limit; a clean
-review alone never completes a task.
+accepted-with-residuals, persistence-pending, complete, or unfinished
+(deferred, blocked, exhausted) — and only a confirmed complete gate allows
+the next task's selection and counts the task, exactly once, toward the
+completed-task limit; a clean review alone never completes a task. Both
+`accepted` and `accepted-with-residuals` are terminal task states, entered
+only when every required task gate — every slice gate, every applicable deep
+gate — has closed with the acceptance verified; the difference is whether at
+least one slice gate closed with residuals (every open finding a nit under
+the target's recorded settled standard, under a recorded settlement or
+declaration). Only a slice-gate closure is terminal at the gate level: while
+any later slice or required gate remains open the task stays `review-open`.
+In both states, task persistence — `persistence-pending → complete` —
+remains outstanding; the merged residual list rides the task persistence gate
+and the final report, recorded as known limitations, not as open work.
 Explicit user or repository restrictions win: a commit-only or working-tree
 run is recorded with its basis and followed, never bypassed. A restriction
 means an actual prohibition — you ask to leave changes uncommitted or not to
@@ -293,8 +303,29 @@ with a progress-based hard ceiling of 24: when the allowance is reached with
 verified progress evidence — passing acceptance checks, a confirmed fix, a
 resolved blocker, or a material new finding — the coordinator records a
 bounded extension up to that ceiling and continues automatically, without a
-permission ask and never on code churn. An explicit user task limit or the
-boundary of a named grant is an exact cap that never auto-extends. Every
+permission ask and never on code churn. An explicit user task limit, or the
+boundary of a named grant recorded with the `cap` flavour, is an exact cap
+that never auto-extends; a grant recorded with the `progress` flavour is an
+explicit auto-extend authority up to the progress ceiling rather than a cap
+— "keep going while it's making progress" instead of a specific number.
+Auto-continuation is scoped to the task allowance: it applies to the default
+allowance and to `progress`-flavoured grants on it, and never to the run
+ceiling or any explicit user review limit. A free-text grant matching
+neither flavour is parsed once, gets one clarifying question when ambiguous,
+and its flavour is recorded in the snapshot; the offered increment is keyed
+to the budget being extended: the task allowance at its exact boundary — the
+default allowance, or a `progress`-flavoured grant still below its ceiling —
+reached with verified progress offers the named increment with `progress`
+leading (the auto-extension takes effect under the verified-progress rule),
+`cap` as the conservative alternative; the progress-leading named increment
+applies only while the task worker allowance is below its progress ceiling,
+and at or past the ceiling the offered increment is the `cap`-flavoured one;
+at the progress ceiling, an exact
+cap, the run ceiling, the completed-task limit, or an explicit user review
+limit, the increment offered — at most — is a `cap`-flavoured named
+increment: the report never leads with an auto-extension that cannot take
+effect, verified progress does not override a cap, and a run-level stop
+keeps its INCOMPLETE safety-stop character. Every
 exploration, implementation, and fix round is charged to both budgets, and
 the effective remaining budget is the smaller of the two; review,
 review-deep, and consult rounds consume neither budget: consults keep their
@@ -322,13 +353,18 @@ double charging or restoring stale consumption. A numeric budget on a resume
 changes the run ceiling only: `/autonomous 3` after five consumed rounds
 leaves no worker rounds rather than silently refreshing the count.
 
-When the run ceiling or the completed-task limit is exhausted while eligible
+When the run ceiling is exhausted while eligible
 backlog work remains, the loop makes an INCOMPLETE safety stop — never a
 completed run — without another worker round. The report says what is
 completed and what is blocked, and the recent verified progress, and offers
-bounded choices — a bounded replan, one additional fix-and-review cycle, or a
-stop that preserves the current work — naming the rounds each choice
-consumes. A granted extension adds exactly the named rounds — worker rounds
+bounded choices — a bounded replan, one additional fix-and-review cycle
+(available only if the resulting budgets satisfy the review-headroom rule —
+the cycle leaves at least one review available under each explicit review
+limit you set), or a stop that preserves the current work — naming the
+rounds each choice consumes; the offered increments are `cap`-flavoured
+named increments — the
+run ceiling never auto-grows. A granted extension adds exactly the named
+rounds — worker rounds
 (fix rounds are worker rounds) to the named budget (run ceiling or task
 allowance), and review rounds only against an explicit user review limit: it
 never resets counters and grants no extra scope, review, or Git rights. A
@@ -338,6 +374,15 @@ are persisted in the snapshot, and the incomplete stop carries a
 copy-pasteable continuation prompt so a later activation can act on the
 grant. A run with blocked or exhausted tasks is explicitly incomplete even
 when no eligible work remains; only a fully completed goal completes a run.
+
+The completed-task limit stop is separate from the worker-budget stops
+above: when the completed-task limit is reached, continuation does not mean
+more worker rounds for existing tasks — the stop offers, at most, a
+`cap`-flavoured increase of the completed-task limit itself, recorded as a
+new exact cap that never auto-grows, or a stop that preserves the current
+work — and accepting the increase means agreeing to complete more tasks. It
+keeps the INCOMPLETE safety-stop character: with eligible backlog work
+remaining, it is never a completed run.
 
 One task's exhausted allowance is not a run stop. No further worker round
 runs for that task, but verification and the permitted review of its
@@ -356,8 +401,10 @@ Autonomous does not gate the fix → review loop at a fixed per-target cycle
 count: each further fix is a worker round charged once to both budgets, and
 the loop continues — including beyond two fixes or three review passes on one
 target — while at least one effective worker round remains, the latest fix
-made real progress, and no safeguard or explicit user limit has fired. It
-does not repeatedly ask you to authorize one more cycle. Every review must be
+made real progress, no safeguard or explicit user limit has fired, and the
+next cycle — the next fix and its required re-review — leaves at least one
+review available under each applicable explicit review limit. It does not
+repeatedly ask you to authorize one more cycle. Every review must be
 justified by changed slice or fix evidence, a required integration gate,
 bounded interrupted-review recovery, or an explicit user request — which
 authorizes one bounded audit over the range you name: the request is itself
@@ -391,18 +438,22 @@ Deep-review re-audits likewise follow productive fixes instead of a fixed
 per-target cap. The worker budget gates the next fix, not the review: the
 required deep re-review of the last allowed judgmental fix still runs when
 zero worker rounds remain. The session still runs at most one additional
-opportunistic escalation — the cap counts additional escalations, the
-post-gate deep reviews: the struggle trigger and explicit user requests —
-and a deep review standing in for a slice's own gate is that slice's
-required gate review, outside the cap; you may always explicitly direct an
-additional escalation. The high-risk-surface
+opportunistic escalation — the cap counts additional escalations: the
+post-gate deep reviews (the struggle trigger and explicit user requests) and
+the in-loop diagnostic audit — and a deep review standing in for a slice's
+own gate is that slice's required gate review, outside the cap; you may
+always explicitly direct an additional escalation. The high-risk-surface
 escalation selects the level of the slice's own review: when its risk
 warrants an integration-level audit, one deep review stands in for the
 normal review — its verdict is the slice's gate — otherwise the normal
 review alone; one level for the slice's range, never the normal review and a
 deep review both in its place. The two-fix-round and explicit-request
 triggers are unchanged post-gate triggers governed by the review-justification
-rules, and the periodic integration triggers no longer include a standalone
+rules — checked after either closure outcome, a clean pass or closing
+`accepted-with-residuals` under a recorded settlement or declaration, and
+distinct from the in-loop diagnostic trigger, which fires on a still-open
+gate before the next fix round — and the periodic integration triggers no
+longer include a standalone
 slice-count trigger — three accepted slices since the last deep review no
 longer fires one — while the milestone, release, or session-close boundary
 after two or more accepted slices still does. Consults stay capped at one per
@@ -418,11 +469,114 @@ user-preference, Git, persistence, and steering limits all still apply.
 
 Repeated findings on the same invariant are classified as a real
 design issue — replanned with the original acceptance and counters intact —
-or as reviewer standard drift, settled once rather than chased. Provider
+or as reviewer standard drift, settled once rather than chased. When the
+drift is detected, the loop settles the standard once instead of chasing it:
+a consulted independent review names a **proposed** standard for each open
+class — which finding classes block and which are nits — not a binding
+adoption, and the run owes you exactly one decision: ratify the proposed
+standard; one of the alternatives, including the reviewer's original bar; or
+close the target now, available when the proposed standard classifies every
+open finding as a nit. The decision is owed either way — the consult
+proposes first where its allowance permits, and where the allowance is
+exhausted the same one decision proceeds directly with the standard named,
+recorded. That decision is recorded and binds every later review of the
+target, and the record always evidences a user decision, even when you
+ratify the consult's proposed standard. The settled standard binds only its
+settled classes: a finding in a settled nit class is a nit that never blocks
+the verdict, and a finding of a class that has never appeared in the loop is
+a new finding assessed against your original acceptance criteria — it can
+block; a finding of a class that has recurred but was never settled is
+likewise assessed against your original acceptance criteria, but, being
+already seen, it is the kind of standard drift that can trigger the one-time
+settlement question. A settlement
+reopens only on changed acceptance, a genuinely unmet invariant of a
+blocking class, or your instruction — never on a later reviewer tightening
+the same class. Provider
 quota exhaustion is separate: it follows the recovery policy below, not these
 allowance stops. The preference file's `## Work` section (the Work
 worker-round allowance) does not change these rules: Autonomous keeps its own
 budget behavior.
+
+If a target's loop still stops converging — each review closes the earlier
+findings, but the same classes re-open every round — the run makes a single
+convergence declaration before any further round on that target: the finding
+trajectory, what is verified and green, the cost so far, and exactly one
+decision — close the target with its recorded residuals, continue for at most
+two bounded fix-and-review rounds, stop it incomplete, or review it yourself.
+The shared decision order applies: when the declaration runs and any open
+finding is in a class not yet settled for the target — whether or not the
+standalone settlement trigger fired — the settlement question for those
+classes is the single combined decision inside the declaration, and where all
+open classes are already settled the declaration stands alone — the mandatory
+consult, where the consult allowance permits, runs before that combined
+decision and names the proposed standard first, and it is neither a fix round
+nor a worker round; "continue, bounded" is offered only
+when all of these hold — the same recorded decision leaves at least one open
+finding in a settled blocking class, or no settlement is recorded yet; the
+worker budget permits the next fix; the review limits permit; and no
+safeguard has fired; and residual closure is offered only when the same
+recorded decision contains the nit-only settlement outcome. When the settled
+standard already classifies every open finding as a nit, the declaration
+simply notifies you and the target closes
+`accepted-with-residuals` without a question. The declaration — not a repeated
+gate-closure question — is the only user-visible form of a non-converging
+loop: a target with a recorded declaration is never asked the same question
+twice, and "close with documented residuals" is not offered before a
+settlement or declaration exists. While a slice keeps struggling, the
+two-fix struggle trigger is also checked inside the fix loop, before the
+next fix round: when it fires while the slice's gate has not passed, you may
+see an independent deep review run in diagnostic mode — its verdict is
+advisory, never the slice's gate, and it counts against the session's
+single opportunistic-escalation allowance. It is dispatched only when it
+does not exceed an explicit review limit that covers deep reviews, or
+consume the last review available under one; at that boundary the loop
+stops and offers the `cap`-flavoured increment on that limit — the same
+offer as any budget-exhaustion stop — rather than spending the last review. While a
+settlement decision or a saturation declaration is pending for the target,
+the trigger is not checked and the audit is not dispatched — the pending
+decision is itself the resolution the audit would be ordered to end in; the
+ordinary post-gate behaviour — which applies after either closure outcome,
+a clean pass or closing `accepted-with-residuals` under a recorded
+settlement or declaration — is unchanged, and this in-loop diagnostic
+trigger is the still-open-gate path.
+
+The main loop is built to continue, not to ask. Continuation is the default,
+and the gate is the single authority for questions: the closed list defines
+which situations are question-eligible, and the gate's checks decide whether
+an eligible situation may be asked now — every question the loop would put to
+you, listed or not, is a candidate that passes those checks. The
+question-eligible situations are: an autonomy-envelope guard breach; an
+irreversible or user-reserved action such as force-pushing or publishing; a
+choice about scope, acceptance, or the goal text itself; a budget exhaustion
+stop with its flavour-scoped increment — the task allowance offers the named
+increment with `progress` leading per the grant-flavour rule, while the run
+ceiling and any explicit user review limit never auto-grow and offer at most
+a `cap`-flavoured named increment; the standalone settlement's one decision —
+ratify the proposed standard, an alternative including the reviewer's
+original bar, or close now when the nit-only option is eligible — owed
+either way: the consult proposes first where its allowance permits, and where
+it is exhausted the decision proceeds directly with the standard named; the
+one-time clarification of an ambiguous grant; a persistence-recovery
+question — a destination or commit-attribution question when persistence is
+blocked; a convergence declaration that requires a closure decision; or the
+same blocker two rounds running with no materially different path. On the two
+standard-setting paths — the standard settlement question and a closure
+decision from a convergence declaration — the run consults an independent
+second opinion, where the consult allowance permits, before asking. On the
+declaration path, the same combined-versus-standalone rule the declaration
+passage states applies: when the declaration runs and any open finding is in
+a class not yet settled for the target — whether or not the standalone
+settlement trigger fired — the settlement question for those classes joins
+the single declaration decision, and where all open classes are already
+settled the declaration stands alone; the consult runs only where its
+allowance permits. A candidate that fails the checks is a guard
+breach: it stops, is reported as such, and is not sent. Reporting a stop is
+not asking: an exact-cap stop is report-only unless an interactive grant
+offer is eligible, and that grant offer is a separate question-eligible
+situation, not part of the stop report.
+"The review blocked again" is not a question while budget, verified progress,
+and the loop's state all permit continuing the fix — surviving blocking
+findings are not a permission ask.
 
 When the host reports provider quota exhaustion, the coordinator records the
 evidence, affected role, retry time, inspected partial progress, remaining work,
