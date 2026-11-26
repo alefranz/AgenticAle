@@ -1,5 +1,5 @@
 {
-  "coordinator": "openai/gpt-6.2-sol#medium",
+  "coordinator": "alibaba-token-plan/qwen4-max-preview#medium",
   "explore": "local-llama/qwen3.8-27b#medium",
   "implement-easy": "local-llama/qwen3.8-27b#medium",
   "implement": "alibaba-token-plan/qwen4-max-preview#medium",

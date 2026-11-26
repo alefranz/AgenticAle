@@ -1,6 +1,6 @@
 {
   "runtime": "qwen-code",
-  "render": "For each worker profile, emit dist/qwen-code/agents/agenticale/<name>.md carrying the Qwen Code agent frontmatter — name 'agenticale-<name>' (must match the filename; colons and slashes are invalid in agent names), the profile's description, maxTurns (the profile's turn ceiling), background: false, and the disallowedTools list rendered from the profile's permission policy — plus the matching neutral task-contract body copied from skills/work/references/tasks/<role>.md (implement, implement-easy, and implement-hard all use implement.md; consult and consult-hard both use consult.md). The model for that role is taken from the flat model config at build time (adapters/qwen-code/models.json by default, or the --models option): a value whose provider equals codex.providerPrefix renders an executor block (kind codex, the codex command, and -c overrides pinning the model and the clamped reasoning effort) instead of a model line; any other listed provider renders one model line in provider-qualified '<provider>:<model>' form; an unlisted role renders neither, so the profile inherits the session model (a codex-routed role renders only when listed, because the executor cannot inherit). The seven base roles always render, one profile per role; the optional implement-easy and consult-hard profiles render only when the config lists them explicitly. When the config carries the top-level coordinator key, the build additionally emits the coordinator agent file from the coordinator entry below (body copied from the adapter-owned coordinator.md); Qwen Code has no session-primary agent concept, so the coordinating session adopts that body and model per the runtime binding.",
+  "render": "For each worker profile, emit a FLAT dist/qwen-code/agents/agenticale-<name>.md (Qwen Code 0.28.6 scans only the Markdown files directly inside .qwen/agents/, never subdirectories). The file carries name 'agenticale-<name>' (agent names accept letters, numbers, hyphens, and underscores; colons and dots do not), the profile's description, and the matching neutral task-contract body copied from skills/work/references/tasks/<role>.md (implement, implement-easy, and implement-hard all use implement.md; consult and consult-hard both use consult.md). Beyond that, the frontmatter depends on the role's model routing from the flat model config at build time (adapters/qwen-code/models.json by default, or the --models option): a value whose provider equals codex.providerPrefix renders ONLY 'background: false' plus an executor block (kind codex, the codex command, the base args, and -c overrides pinning the model and — only when the value carries a #effort suffix — the effort, passed through verbatim); the host rejects an external agent that supplies model (other than inherit), maxTurns, tools, disallowedTools, or related overrides, so none of those fields renders for codex-routed profiles. Any other listed provider renders 'maxTurns', 'background: false', the disallowedTools list rendered from the profile's permission policy via permissionToolNames, and one 'model:' line carrying the BARE model id (the provider component is routing information only; the host's authType:modelId form recognizes built-in auth types alone, and a bare id resolves the session auth type first, then built-in auth types, with custom-provider models reachable through their protocol bucket). An unlisted role (or --no-model) renders the direct form with no model line and no executor block, so the profile inherits the session model. The seven base roles always render, one profile per role; the optional implement-easy and consult-hard profiles render only when the config lists them explicitly. When the config carries the top-level coordinator key, the build additionally emits the flat coordinator agent file from the coordinator entry below (body copied from the adapter-owned coordinator.md); the coordinator value must be Qwen-direct — the build rejects a codex-routed coordinator value, because the coordinating session switches to that model within Qwen's own provider registry and a codex executor definition never makes its model available to the session. Qwen Code has no session-primary agent concept, so the coordinating session adopts the coordinator body per the runtime binding.",
   "keyByRoute": {
     "explore": "explore",
     "implement": "implement",
@@ -15,7 +15,7 @@
   "profiles": [
     {
       "name": "explore",
-      "outputPath": "agents/agenticale/explore.md",
+      "outputPath": "agents/agenticale-explore.md",
       "description": "Focused reconnaissance of project or external source for one tightly scoped question.",
       "maxTurns": 24,
       "permissions": [
@@ -26,7 +26,7 @@
     },
     {
       "name": "implement",
-      "outputPath": "agents/agenticale/implement.md",
+      "outputPath": "agents/agenticale-implement.md",
       "description": "Implements one small, verifiable implementation slice.",
       "maxTurns": 64,
       "permissions": [
@@ -36,7 +36,7 @@
     },
     {
       "name": "implement-easy",
-      "outputPath": "agents/agenticale/implement-easy.md",
+      "outputPath": "agents/agenticale-implement-easy.md",
       "description": "Implements one routine implementation slice (easy-task dispatch context).",
       "optional": true,
       "maxTurns": 64,
@@ -47,7 +47,7 @@
     },
     {
       "name": "implement-hard",
-      "outputPath": "agents/agenticale/implement-hard.md",
+      "outputPath": "agents/agenticale-implement-hard.md",
       "description": "Implements one reasoning-heavy implementation slice (hard-task dispatch context).",
       "maxTurns": 64,
       "permissions": [
@@ -57,7 +57,7 @@
     },
     {
       "name": "fix",
-      "outputPath": "agents/agenticale/fix.md",
+      "outputPath": "agents/agenticale-fix.md",
       "description": "Addresses only the specified review findings in a fix pass.",
       "maxTurns": 48,
       "permissions": [
@@ -67,7 +67,7 @@
     },
     {
       "name": "review",
-      "outputPath": "agents/agenticale/review.md",
+      "outputPath": "agents/agenticale-review.md",
       "description": "Independent high-reasoning review of one completed implementation slice.",
       "maxTurns": 56,
       "permissions": [
@@ -77,7 +77,7 @@
     },
     {
       "name": "review-deep",
-      "outputPath": "agents/agenticale/review-deep.md",
+      "outputPath": "agents/agenticale-review-deep.md",
       "description": "Expensive, integration-level audit of several accepted implementation slices.",
       "maxTurns": 72,
       "permissions": [
@@ -87,7 +87,7 @@
     },
     {
       "name": "consult",
-      "outputPath": "agents/agenticale/consult.md",
+      "outputPath": "agents/agenticale-consult.md",
       "description": "Independent second opinion on one stuck technical decision; read-only, returns one recommendation.",
       "maxTurns": 20,
       "permissions": [
@@ -98,7 +98,7 @@
     },
     {
       "name": "consult-hard",
-      "outputPath": "agents/agenticale/consult-hard.md",
+      "outputPath": "agents/agenticale-consult-hard.md",
       "description": "Independent second opinion on one reasoning-heavy stuck technical decision; read-only, returns one recommendation.",
       "optional": true,
       "maxTurns": 20,
@@ -111,15 +111,14 @@
   ],
   "coordinator": {
     "name": "coordinator",
-    "outputPath": "agents/agenticale/coordinator.md",
+    "outputPath": "agents/agenticale-coordinator.md",
     "description": "Workflow coordinator session: plans bounded slices, dispatches worker children, and integrates their reports.",
     "body": "coordinator.md"
   },
   "codex": {
     "providerPrefix": "openai",
     "command": "codex",
-    "baseArgs": ["app-server", "--stdio"],
-    "effortClamp": { "xhigh": "high", "max": "high" }
+    "baseArgs": ["app-server", "--stdio"]
   },
   "permissionToolNames": {
     "subagent": ["agent"],
@@ -132,7 +131,9 @@
       { "name": "work", "source": "skills/work" },
       { "name": "autonomous", "source": "skills/autonomous" },
       { "name": "review", "source": "skills/review" },
-      { "name": "configure", "source": "skills/configure" }
+      { "name": "configure", "source": "skills/configure" },
+      { "name": "pull-request-description", "source": "skills/pull-request-description", "kind": "support" },
+      { "name": "source-code-lookup", "source": "skills/source-code-lookup", "kind": "support" }
     ]
   }
 }
