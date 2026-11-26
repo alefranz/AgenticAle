@@ -460,27 +460,27 @@ async function assertBuildOutputOwned(output) {
 
   // Recognize the current (schema 3) build state, which uses `schemaVersion`
   // and a `package.name` object and owns the four current roots.
+  const owns = (outputs, roots) => Array.isArray(outputs)
+    && outputs.length === roots.length
+    && outputs.every((root, index) => root === roots[index]);
   const isCurrent = state
     && state.schemaVersion === CURRENT_BUILD_STATE_VERSION
     && state.package?.name === "agenticale"
-    && Array.isArray(state.outputs)
-    && state.outputs.join("\n") === OUTPUT_ROOTS.join("\n");
+    && owns(state.outputs, OUTPUT_ROOTS);
   // Recognize the real schema-1 baseline state exactly as the old builder
   // wrote it: a top-level `schema` key (not `schemaVersion`) and a string
   // `package` (not `package.name`), owning the older two-root layout.
   const isLegacy = state
     && state.schema === 1
     && state.package === "agenticale"
-    && Array.isArray(state.outputs)
-    && state.outputs.join("\n") === LEGACY_OUTPUT_ROOTS.join("\n");
+    && owns(state.outputs, LEGACY_OUTPUT_ROOTS);
   // Recognize the schema-2 state (pre-qwen-code root) so an upgrade deletes
   // only the roots that version owned; the new qwen-code root is then treated
   // as newly introduced and content-conflict protected like any other.
   const isSchema2 = state
     && state.schemaVersion === 2
     && state.package?.name === "agenticale"
-    && Array.isArray(state.outputs)
-    && state.outputs.join("\n") === SCHEMA_2_OUTPUT_ROOTS.join("\n");
+    && owns(state.outputs, SCHEMA_2_OUTPUT_ROOTS);
   if (state && !isCurrent && !isLegacy && !isSchema2) {
     throw new Error(`Build state is invalid: ${statePath}.`);
   }
@@ -559,9 +559,20 @@ export async function buildBundles(options) {
     await readFile(join(repositoryRoot, "adapters", "qwen-code", "adapter.json"), "utf8"),
   );
   if (qwenAdapter.runtime !== "qwen-code") throw new Error("Qwen Code adapter must declare runtime 'qwen-code'.");
-  if (qwenAdapter.codex?.providerPrefix !== "openai" || qwenAdapter.codex?.command !== "codex"
+  if (qwenAdapter.codex?.kind !== "codex" || qwenAdapter.codex?.providerPrefix !== "openai" || qwenAdapter.codex?.command !== "codex"
       || JSON.stringify(qwenAdapter.codex?.baseArgs ?? null) !== JSON.stringify(["app-server", "--stdio"])) {
     throw new Error("Qwen Code adapter must keep codex routing pinned to the openai prefix and the codex app-server stdio launch: adapters/qwen-code/adapter.json");
+  }
+  // The host constraint that matters at build time: the agents scan is
+  // non-recursive, so every rendered file must sit at the top level of the
+  // agents root under its flat agenticale-<role> name.
+  for (const profile of qwenAdapter.profiles) {
+    if (!profile || profile.outputPath !== `agents/agenticale-${profile.name}.md`) {
+      throw new Error(`Qwen Code profile '${profile && profile.name}' must output the flat agents/agenticale-${profile && profile.name}.md path (the host scans only the top level of .qwen/agents/): adapters/qwen-code/adapter.json`);
+    }
+  }
+  if (qwenAdapter.coordinator?.outputPath !== "agents/agenticale-coordinator.md") {
+    throw new Error("Qwen Code coordinator must output the flat agents/agenticale-coordinator.md path: adapters/qwen-code/adapter.json");
   }
   const qwenProfiles = [];
   for (const profile of qwenAdapter.profiles) {

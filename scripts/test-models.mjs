@@ -276,6 +276,12 @@ try {
       ["internal space", "fix", "provider /model"],
       ["trailing space after effort", "consult", "a/b#medium "],
       ["coordinator newline injection", "coordinator", "provider/model\nmode: primary"],
+      ["double quote in id", "review", 'provider/mo"del'],
+      ["backslash in id", "fix", "provider/model\\nx"],
+      ["numeric bare model id", "review", "openai/001"],
+      ["boolean bare model id", "explore", "provider/true"],
+      ["null bare model id", "consult", "provider/null"],
+      ["numeric coordinator model id", "coordinator", "provider/123"],
     ];
     for (const [label, role, badValue] of rejectedValueCases) {
       const bad = join(scratch, `rejected-${label.replace(/\s+/g, "-")}.json`);

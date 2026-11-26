@@ -51,11 +51,28 @@ export const modelPresets = new Map([
 // --models or --no-model option is given.
 export const DEFAULT_MODEL_CONFIG = "adapters/opencode/models.json";
 
+// Whether an unquoted YAML scalar would coerce to a non-string: the null
+// variants, the YAML 1.1 boolean set, or a number (integer, decimal, or
+// exponential). Used to reject model ids that the Qwen Code renderer would
+// write as a bare YAML scalar and the host would read back as something else.
+// JSON.parse alone cannot stand in: it rejects leading-zero integers like
+// "001" as invalid, while a YAML parser coerces them.
+function isYamlCoercibleScalar(scalar) {
+  if (["null", "Null", "NULL", "~", "true", "True", "TRUE", "false", "False", "FALSE", "yes", "Yes", "YES", "no", "No", "NO"].includes(scalar)) return true;
+  return /^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/.test(scalar);
+}
+
 // Parse the string form of one role's value: "provider/model" or
 // "provider/model#effort". Returns { model, effort } where effort is null
 // when the value carries none. The value is written verbatim into generated
 // frontmatter (as one "provider/model[#variant]" model line), so whitespace
-// and control characters are rejected outright.
+// and control characters are rejected outright. Quotes and backslashes are
+// rejected too: the model id is interpolated into a TOML string by the Qwen
+// Code codex executor renderer, where they would change the parsed value.
+// An id that a YAML parser would coerce to a non-string (a number like "001",
+// a boolean, or null) is rejected because both renderers write the model id
+// as an unquoted YAML scalar, so such an id would silently become a different
+// model (or no model at all) in the host.
 export function parseModelValue(value, role) {
   const label = `Model for role '${role}'`;
   if (typeof value !== "string" || value.trim().length === 0) {
@@ -64,12 +81,23 @@ export function parseModelValue(value, role) {
   if (/[\u0000-\u001f\u007f\s]/.test(value)) {
     throw new Error(`${label} must not contain whitespace or control characters (it is written verbatim into generated frontmatter): ${JSON.stringify(value)}.`);
   }
+  if (/[\\"]/.test(value)) {
+    throw new Error(`${label} must not contain quotes or backslashes (they would change the value when written verbatim into generated frontmatter): ${JSON.stringify(value)}.`);
+  }
   const hashIndex = value.indexOf("#");
   const modelPart = hashIndex === -1 ? value : value.slice(0, hashIndex);
   const effortPart = hashIndex === -1 ? null : value.slice(hashIndex + 1);
   const slashIndex = modelPart.indexOf("/");
   if (slashIndex <= 0 || slashIndex === modelPart.length - 1) {
     throw new Error(`${label} must be "provider/model[#effort]" with non-empty provider and model components; got '${value}'.`);
+  }
+  // The Qwen Code renderer writes the BARE model component as an unquoted
+  // YAML scalar, so an id that a YAML parser would coerce to a number, a
+  // boolean, or null (like "001", "1.5", "true", or "null") would silently
+  // become a different model — or no model at all — in the host.
+  const bareModel = modelPart.slice(slashIndex + 1);
+  if (isYamlCoercibleScalar(bareModel)) {
+    throw new Error(`${label} model id must not be a YAML scalar that coerces to a number, boolean, or null (the host would read it as a different value): ${JSON.stringify(value)}.`);
   }
   if (effortPart !== null && !effortSet.has(effortPart)) {
     throw new Error(`${label} has an invalid reasoning effort '${effortPart}' (expected one of ${effortLevels.join(", ")}): '${value}'.`);

@@ -61,8 +61,11 @@ From this adapter plus the flat model config, the build emits:
   Qwen-direct (not codex-routed): the coordinating session is the user's own
   session, it runs on the coordinator's model via a session-scoped model
   switch drawn from Qwen's own provider registry, and a codex executor
-  definition never makes its model available to the session. The build
-  rejects a codex-routed coordinator value. Qwen Code has no session-primary
+  definition never makes its model available to the session. The shared build
+  skips a codex-routed coordinator value with a console note and a
+  `qwenCode.coordinatorSkipped` build-state record (it must not fail a build
+  whose other roots still render); the installer enforces the strict
+  rejection. Qwen Code has no session-primary
   agent concept: the runtime binding tells the session to adopt this file's
   body. The coordinator file is never dispatched as a worker child.
 - `dist/qwen-code/skills/` — the four explicit-only skills plus the two
@@ -83,10 +86,12 @@ OpenCode there is no separate command surface, so shipping command files would
 duplicate names.
 
 This adapter is **metadata only**. It contains no model values (those come
-from the flat model config, `adapters/qwen-code/models.json` by default or the
-`--models PATH|PRESET` option, at build time) and no neutral task-contract body
-text (the build copies the body from the neutral task contracts; the
-coordinator body is the adapter-owned `coordinator.md`).
+from the flat model config at build time — the packaged build default
+`adapters/opencode/models.json`, or the `--models PATH|PRESET` option;
+`adapters/qwen-code/models.json` is the Qwen Code install default carried as
+a config file, not a build default) and no neutral task-contract body text
+(the build copies the body from the neutral task contracts; the coordinator
+body is the adapter-owned `coordinator.md`).
 
 ## 3. The 9-role → agent mapping
 
@@ -150,8 +155,9 @@ limitation of this host, carried by the runtime binding.
 ## 5. How the model is applied at render time
 
 The adapter carries **no** model values; the build reads them from the flat
-model config (`adapters/qwen-code/models.json` by default, or the
-`--models PATH|PRESET` / `--no-model` option) for the role being rendered, and
+model config (the packaged build default `adapters/opencode/models.json`, or
+the `--models PATH|PRESET` / `--no-model` option — the Qwen Code install
+default is `adapters/qwen-code/models.json`) for the role being rendered, and
 routes by `codex.providerPrefix` (`"openai"`):
 
 - **Codex-routed value** (`openai/<model>[#effort]`): the build emits an
@@ -253,9 +259,10 @@ skills/` for install into `.qwen/skills/` (project) or `~/.qwen/skills/`
 
 ## 8. Status
 
-This adapter is **documentation and adapter data** in the current
-documentation-only pass (BACKLOG increments 1–2). The build path
-(`dist/qwen-code/` rendering), the runtime binding
-(`skills/work/references/runtimes/qwen-code.md`), and the installer entry are
-not yet implemented; live Qwen Code rendering and behavior are not tested
-here.
+The adapter data and the build path (`qwen-code/` rendering, validated by
+`scripts/validate.mjs` and the render fixtures in
+`scripts/test-build.mjs`) are implemented (BACKLOG increments 1–3). The
+runtime binding (`skills/work/references/runtimes/qwen-code.md`) and the
+installer entry are not yet implemented (BACKLOG increments 4–5); live Qwen
+Code rendering and dispatch are verified only by the spike probes recorded in
+BACKLOG.md, not by this branch's test suite.

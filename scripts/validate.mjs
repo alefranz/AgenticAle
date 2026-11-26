@@ -654,12 +654,17 @@ function validateQwenCodeAdapter() {
     if (coordinator.body !== "coordinator.md") fail(coordinatorPath, "coordinator body must reference the adapter-owned coordinator.md", "set body: coordinator.md");
   }
   // The codex executor binding is pinned: the build refuses to render a
-  // different command or base args, so the validator holds the same line.
+  // different kind, command, or base args, so the validator holds the same
+  // line (including the exact key set, so no stray key survives).
   const codex = adapter.codex;
   const codexPath = `${path}#codex`;
   if (!codex || typeof codex !== "object" || Array.isArray(codex)) {
-    fail(path, "adapter must include a codex executor binding", "add the codex binding (providerPrefix, command, baseArgs)");
+    fail(path, "adapter must include a codex executor binding", "add the codex binding (kind, providerPrefix, command, baseArgs)");
   } else {
+    if (JSON.stringify(Object.keys(codex).sort()) !== JSON.stringify(["baseArgs", "command", "kind", "providerPrefix"])) {
+      fail(codexPath, "codex binding must carry exactly kind, providerPrefix, command, and baseArgs", "remove the extra keys; keep the pinned binding");
+    }
+    if (codex.kind !== "codex") fail(codexPath, "codex kind must be 'codex'", "restore kind: codex");
     if (codex.providerPrefix !== "openai") fail(codexPath, "codex providerPrefix must be 'openai'", "restore providerPrefix: openai");
     if (codex.command !== "codex") fail(codexPath, "codex command must be 'codex'", "restore command: codex");
     if (JSON.stringify(codex.baseArgs) !== JSON.stringify(["app-server", "--stdio"])) fail(codexPath, "codex baseArgs must be [\"app-server\", \"--stdio\"]", "restore baseArgs: [\"app-server\", \"--stdio\"]");
@@ -689,32 +694,18 @@ function validateQwenCodeAdapter() {
     fail(path, "adapter must include a skillDiscovery entry", "add the skillDiscovery entry");
   } else {
     if (skillDiscovery.outputSkillsRoot !== "skills") fail(skillDiscoveryPath, "skillDiscovery outputSkillsRoot must be 'skills'", "restore outputSkillsRoot: skills");
-    if (!Array.isArray(skillDiscovery.skills) || skillDiscovery.skills.length !== 6) {
-      fail(skillDiscoveryPath, "skillDiscovery must list exactly the six skills", "restore the six skill entries");
-    } else {
-      const supportKinds = new Set(["pull-request-description", "source-code-lookup"]);
-      const seen = new Set();
-      for (const entry of skillDiscovery.skills) {
-        const entryPath = `${skillDiscoveryPath}.skills.${entry && entry.name}`;
-        if (!entry || typeof entry.name !== "string" || entry.name.length === 0) {
-          fail(skillDiscoveryPath, "every skillDiscovery entry needs a non-empty name", "add the skill name");
-          continue;
-        }
-        if (seen.has(entry.name)) fail(entryPath, "skillDiscovery names must be unique", "remove the duplicate entry");
-        seen.add(entry.name);
-        if (entry.source !== `skills/${entry.name}`) {
-          fail(entryPath, `skill source must be skills/${entry.name}`, `restore source: skills/${entry.name}`);
-        }
-        if (entry.kind === undefined && supportKinds.has(entry.name)) {
-          fail(entryPath, "support skills must declare kind: support", "add kind: support");
-        }
-        if (entry.kind !== undefined && entry.kind !== "support") {
-          fail(entryPath, "skill kind must be 'support' when present", "use kind: support");
-        }
-        if (entry.kind === undefined && !supportKinds.has(entry.name) && !["work", "autonomous", "review", "configure"].includes(entry.name)) {
-          fail(entryPath, "unknown skill entry without a support kind", "declare kind: support or use a documented skill name");
-        }
-      }
+    // The build copies its own fixed six-skill list, so the declared inventory
+    // must match it exactly, kind flags and all.
+    const expectedSkills = [
+      { name: "work", source: "skills/work" },
+      { name: "autonomous", source: "skills/autonomous" },
+      { name: "review", source: "skills/review" },
+      { name: "configure", source: "skills/configure" },
+      { name: "pull-request-description", source: "skills/pull-request-description", kind: "support" },
+      { name: "source-code-lookup", source: "skills/source-code-lookup", kind: "support" },
+    ];
+    if (JSON.stringify(skillDiscovery.skills) !== JSON.stringify(expectedSkills)) {
+      fail(skillDiscoveryPath, "skillDiscovery must list exactly the six skills the build copies (work, autonomous, review, configure, and the two support skills with kind: support)", "restore the exact six skill entries");
     }
   }
   const adapterText = readText(path);

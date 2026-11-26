@@ -189,9 +189,14 @@ Nothing else is wired up.
   profile/coordinator/codex/permissionToolNames/skillDiscovery metadata,
   flat output paths, maxTurns ceilings, deny sets) plus the qwen-code
   packaged default in the model-config checks. `scripts/test-build.mjs`
-  covers both profile shapes, the no-coordinator and coordinator variants,
-  `--no-model` inheritance, the skip record, state records, file counts,
-  and the new ownership/schema-3 upgrade paths.
+  covers both profile shapes (exact model lines, -c overrides, the
+  no-other-host-rejected-keys form), the no-coordinator and coordinator
+  variants, `--no-model` inheritance, the skip record, state records, file
+  counts, and the skill inventory. Ownership/confinement: the schema-1 and
+  schema-2 states migrate to schema 3, an unowned pre-existing qwen-code
+  root refuses the run, a malformed (newline-joined) schema-3 state is
+  rejected, and the qwen-code root is covered by the symlink-confinement
+  cases.
 - [ ] **4. Runtime binding.** `skills/work/references/runtimes/qwen-code.md`
   (invocation surface, dispatch = Agent tool with `subagent_type:
   agenticale-<role>`, approval/sandbox semantics, refresh procedure,
@@ -199,8 +204,18 @@ Nothing else is wired up.
   reference that routes this host to the binding.
 - [ ] **5. Install.** Installer entry (target: project `.qwen/` or
   `~/.qwen/`), ownership manifest for configured-route intent, install docs.
-- [ ] **6. Review gates.** After increment 3: codex-deep-review over build +
-  tests; after increment 4: over the binding.
+- [x] **Review gate 2** (after increment 3): codex-deep-review over build +
+  tests reported 1×P1 (TOML-breaking chars in model ids), 9×P2, 1×P3.
+  Fixed in the same pass: the shared loader now rejects quotes/backslashes
+  and YAML-coercible bare model ids; the build pins `codex.kind`, asserts the
+  flat output paths, and compares state outputs as exact arrays; the validator
+  pins the exact codex key set (kind included) and the exact six-skill
+  inventory; the coordinator descriptions drop the YAML-breaking colon; the
+  test suite gained exact-shape assertions, the skill-inventory check, and
+  schema-2 migration / unowned-qwen-root / malformed-state fixtures; README
+  and docs were aligned with the actual build behavior.
+- [ ] **6b. Review gate 3.** After increment 4: codex-deep-review over the
+  runtime binding.
 
 ## Open questions
 

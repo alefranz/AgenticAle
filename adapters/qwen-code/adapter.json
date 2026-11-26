@@ -112,10 +112,11 @@
   "coordinator": {
     "name": "coordinator",
     "outputPath": "agents/agenticale-coordinator.md",
-    "description": "Workflow coordinator session: plans bounded slices, dispatches worker children, and integrates their reports.",
+    "description": "Workflow coordinator session that plans bounded slices, dispatches worker children, and integrates their reports.",
     "body": "coordinator.md"
   },
   "codex": {
+    "kind": "codex",
     "providerPrefix": "openai",
     "command": "codex",
     "baseArgs": ["app-server", "--stdio"]

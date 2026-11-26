@@ -92,6 +92,7 @@ try {
   check(openCodeRel.length === 53, "OpenCode bundle has 53 files (7 profiles + 4 commands + 42 skills)");
   const qwenRel = await listRelative(fixture.qwenCodeRoot);
   check(qwenRel.length === 49, "Qwen Code bundle has 49 files (7 flat profiles + 42 skills)");
+  check(JSON.stringify(await listRelative(join(fixture.qwenCodeRoot, "skills"))) === JSON.stringify(standaloneRel), "Qwen Code bundle ships the exact six-skill inventory (file set identical to the standalone bundle)");
 
   // No routing artifact ships in any output root (the flat model config is a
   // build-time input only; nothing routing-shaped is materialized). The
@@ -210,7 +211,8 @@ try {
     const text = await readText(join(fixture.qwenCodeRoot, "agents", `agenticale-${role}.md`));
     check(text.includes("background: false"), `${role} Qwen profile declares background: false`);
     const bare = defaultModels[role].split("#")[0].split("/").slice(1).join("/");
-    check(text.includes(`model: ${bare}`), `${role} Qwen profile renders the bare model id (provider and effort stripped) from ${defaultModels[role]}`);
+    check(new RegExp(`^model: ${bare}$`, "m").test(text), `${role} Qwen profile renders exactly one bare model line (provider and effort stripped) for ${defaultModels[role]}`);
+    check(!text.includes('    - "-c"'), `${role} Qwen profile has no codex -c override lines for a direct value`);
     check(!text.includes("executor:"), `${role} Qwen profile has no executor block for a direct value`);
   }
   const qwenExplore = await readText(join(fixture.qwenCodeRoot, "agents", "agenticale-explore.md"));
@@ -220,9 +222,12 @@ try {
   check(qwenImplement.includes("disallowedTools:") && qwenImplement.includes("  - agent") && !qwenImplement.includes("write_file"), "implement Qwen profile (standard) denies only the subagent tool");
   for (const role of qwenCodex) {
     const text = await readText(join(fixture.qwenCodeRoot, "agents", `agenticale-${role}.md`));
+    check(text.includes("background: false"), `${role} Qwen profile declares background: false`);
     check(text.includes("executor:") && text.includes("  kind: codex") && text.includes("  command: codex"), `${role} Qwen profile renders the codex executor for an openai/ value`);
     check(text.includes('    - "app-server"') && text.includes('    - "--stdio"'), `${role} Qwen profile keeps the pinned app-server stdio base args`);
+    check(text.includes('    - "-c"'), `${role} Qwen profile pins the model through -c TOML override lines`);
     check(!/^maxTurns:/m.test(text) && !text.includes("disallowedTools:") && !/^model:/m.test(text), `${role} Qwen profile renders ONLY the executor for a codex-routed value (no maxTurns/tools/model line)`);
+    check(!/^tools:/m.test(text) && !/^mcpServers:/m.test(text) && !/^hooks:/m.test(text), `${role} Qwen profile carries no other host-rejected external-agent keys`);
   }
   check(qwenReviewProfile.includes('    - "model=\\"gpt-6.2-sol\\""' ), "review Qwen executor pins the bare model as a -c TOML override");
   check(qwenReviewProfile.includes('    - "model_reasoning_effort=\\"high\\""'), "review Qwen executor passes the effort through verbatim");
@@ -509,6 +514,35 @@ try {
   const legacyGuardRun = spawnSync(process.execPath, [build, "--output", legacyGuard], { encoding: "utf8" });
   check(legacyGuardRun.status === 1 && /unmanaged bundle paths/.test(legacyGuardRun.stderr), "F3 legacy state with pre-existing new-root content is refused");
   check((await readFile(newRootFile, "utf8")) === "keep", "F3 refused guard leaves the new-root content intact");
+
+  // F4: a schema-2 (pre-qwen-code) state must be recognized and migrated,
+  // and its unowned new qwen-code root is content-conflict protected.
+  const schema2Out = join(scratch, "f4-migrate");
+  await mkdir(schema2Out, { recursive: true });
+  await writeFile(join(schema2Out, ".agenticale-build.json"), JSON.stringify({ schemaVersion: 2, package: { name: "agenticale" }, outputs: ["plugin/agenticale", "standalone/.agents/skills", "opencode"] }), "utf8");
+  const schema2Migrate = spawnSync(process.execPath, [build, "--output", schema2Out], { encoding: "utf8" });
+  check(schema2Migrate.status === 0, "F4 schema-2 state is accepted and migrated");
+  if (schema2Migrate.status !== 0) console.error(schema2Migrate.stdout, schema2Migrate.stderr);
+  const schema2Migrated = JSON.parse(await readText(join(schema2Out, ".agenticale-build.json")));
+  check(schema2Migrated.schemaVersion === 3 && schema2Migrated.outputs.includes("qwen-code"), "F4 migrated state is schema 3 and owns the qwen-code root");
+  const schema2Guard = join(scratch, "f4-guard");
+  await mkdir(schema2Guard, { recursive: true });
+  await writeFile(join(schema2Guard, ".agenticale-build.json"), JSON.stringify({ schemaVersion: 2, package: { name: "agenticale" }, outputs: ["plugin/agenticale", "standalone/.agents/skills", "opencode"] }), "utf8");
+  const qwenNewRootFile = join(schema2Guard, "qwen-code", "keep.txt");
+  await mkdir(join(schema2Guard, "qwen-code"), { recursive: true });
+  await writeFile(qwenNewRootFile, "keep", "utf8");
+  const schema2GuardRun = spawnSync(process.execPath, [build, "--output", schema2Guard], { encoding: "utf8" });
+  check(schema2GuardRun.status === 1 && /unmanaged bundle paths/.test(schema2GuardRun.stderr), "F4 schema-2 state with pre-existing qwen-code content is refused");
+  check((await readFile(qwenNewRootFile, "utf8")) === "keep", "F4 refused guard leaves the qwen-code content intact");
+
+  // F5: a malformed schema-3 state whose outputs are one newline-joined
+  // string (instead of the four separate entries) must be rejected, not
+  // treated as owning all four roots.
+  const malformedOut = join(scratch, "f5-malformed");
+  await mkdir(malformedOut, { recursive: true });
+  await writeFile(join(malformedOut, ".agenticale-build.json"), JSON.stringify({ schemaVersion: 3, package: { name: "agenticale" }, outputs: ["plugin/agenticale\nstandalone/.agents/skills\nopencode\nqwen-code"] }), "utf8");
+  const malformedRun = spawnSync(process.execPath, [build, "--output", malformedOut], { encoding: "utf8" });
+  check(malformedRun.status === 1 && /Build state is invalid/.test(malformedRun.stderr), "F5 newline-joined outputs are rejected as an invalid build state");
 } finally {
   await rm(scratch, { recursive: true, force: true });
 }

@@ -30,9 +30,9 @@ Remove-Item -LiteralPath $smokeRoot -Recurse -Force
 
 Expected observations:
 
-- the build writes three output roots under `dist` (`plugin/agenticale`,
-  `standalone/.agents/skills`, `opencode`) and `.agenticale-build.json`
-  (schemaVersion 2);
+- the build writes four output roots under `dist` (`plugin/agenticale`,
+  `standalone/.agents/skills`, `opencode`, `qwen-code`) and
+  `.agenticale-build.json` (schemaVersion 3);
 - installation succeeds without a model request;
 - `copilot plugin list --json` contains an enabled `agenticale` entry;
 - a new CLI session exposes the six skills (`work`, `review`, `autonomous`,

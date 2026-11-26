@@ -510,19 +510,22 @@ catalogs; `--check` verifies all artifacts are current.
 
 ## Build output
 
-`scripts/build.mjs` reads the authored core and the OpenCode adapter and writes
-three output roots beneath `--output` (default `dist`):
+`scripts/build.mjs` reads the authored core and the OpenCode and Qwen Code
+adapters and writes four output roots beneath `--output` (default `dist`):
 
 | Output root | Contents |
 | --- | --- |
 | `<output>/plugin/agenticale` | Agent Plugins 1.0 package (31 files: `plugin.json` + the six skills and their resources, with the preference fragment appended to the workflow skills) |
 | `<output>/standalone/.agents/skills` | the six standalone skills (30 files), no plugin dependency, with the preference fragment appended to the workflow skills |
 | `<output>/opencode` | the seven base worker profiles (plus the optional `implement-easy`/`consult-hard` and `coordinator` profiles when configured), the same skills, and the four command entries (41 files by default, up to 44) |
+| `<output>/qwen-code` | the flat `agents/agenticale-<role>.md` worker profiles (the same seven base roles, plus the optional roles and the flat coordinator when configured), the same six skills (37 files by default, up to 52); codex-routed model values render a pinned codex executor block instead of a model line |
 
-The build writes `.agenticale-build.json` (schemaVersion 2) describing the
-package, the model config source, the no-model flag, and the rendered
-profiles. Build output must not target the repository root or a source
-directory. Disposable `dist/` artifacts are ignored and never edited by hand.
+The build writes `.agenticale-build.json` (schemaVersion 3) describing the
+package, the model config source, the no-model flag, the rendered profiles,
+and the Qwen Code render modes (including a `coordinatorSkipped` record when
+the coordinator value is codex-routed). Build output must not target the
+repository root or a source directory. Disposable `dist/` artifacts are
+ignored and never edited by hand.
 
 ## Installers
 
