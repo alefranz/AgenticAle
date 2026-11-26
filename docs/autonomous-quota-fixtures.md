@@ -1,10 +1,10 @@
 # Autonomous quota recovery examples
 
 These examples are acceptance cases for interpreting the provider-quota rules
-in the [Autonomous skill](../skills/autonomous/SKILL.md#provider-quota-recovery).
+in the [Autonomous skill](../skills/autonomous/references/recovery.md#provider-quota-recovery).
 They describe expected coordinator behavior; they are not live host tests.
 Charge retention and removal follow the skill's
-[state protocol](../skills/autonomous/SKILL.md#state-protocol) settle event.
+[state protocol](../skills/autonomous/references/state-protocol.md#state-protocol) settle event.
 
 ## Quota interrupts a worker after partial progress
 
