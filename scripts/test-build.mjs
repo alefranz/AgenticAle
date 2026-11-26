@@ -87,11 +87,11 @@ try {
   const standaloneRel = await listRelative(fixture.standaloneRoot);
   const openCodeRel = await listRelative(fixture.openCodeRoot);
 
-  check(pluginRel.length === 43, "plugin bundle has 43 files");
-  check(standaloneRel.length === 42, "standalone bundle has 42 files");
-  check(openCodeRel.length === 53, "OpenCode bundle has 53 files (7 profiles + 4 commands + 42 skills)");
+  check(pluginRel.length === 45, "plugin bundle has 45 files (manifest + 44 skills)");
+  check(standaloneRel.length === 44, "standalone bundle has 44 files");
+  check(openCodeRel.length === 55, "OpenCode bundle has 55 files (7 profiles + 4 commands + 44 skills)");
   const qwenRel = await listRelative(fixture.qwenCodeRoot);
-  check(qwenRel.length === 49, "Qwen Code bundle has 49 files (7 flat profiles + 42 skills)");
+  check(qwenRel.length === 51, "Qwen Code bundle has 51 files (7 flat profiles + 44 skills)");
   check(JSON.stringify(await listRelative(join(fixture.qwenCodeRoot, "skills"))) === JSON.stringify(standaloneRel), "Qwen Code bundle ships the exact six-skill inventory (file set identical to the standalone bundle)");
 
   // No routing artifact ships in any output root (the flat model config is a
@@ -270,7 +270,7 @@ try {
     check(text.includes("maxTurns:") && text.includes("disallowedTools:"), `${name} Qwen profile keeps the direct-form shape under --no-model`);
   }
   const noModelQwenRel = await listRelative(noModel.qwenCodeRoot);
-  check(noModelQwenRel.length === 49, "--no-model Qwen Code bundle has 49 files (same file set as the default build)");
+  check(noModelQwenRel.length === 51, "--no-model Qwen Code bundle has 51 files (same file set as the default build)");
   check(!noModelQwenRel.some((path) => path.endsWith("agenticale-coordinator.md")), "--no-model Qwen Code bundle generates no coordinator profile");
   check(noModelState.qwenCode.profiles.every((p) => p.mode === "inherit" && p.model === undefined), "--no-model build state qwenCode profiles all inherit");
   for (const name of ["work", "review", "autonomous", "configure"]) {
@@ -311,14 +311,14 @@ try {
   const callerRel = await listRelative(callerFixture.openCodeRoot);
   check(!callerRel.some((path) => path.endsWith("coordinator.md") || path.endsWith("implement-easy.md") || path.endsWith("consult-hard.md")), "caller file: unlisted optional roles and the coordinator do not render");
 
-  // The exact example preset: 1 primary coordinator + 9 workers (56 files),
+  // The exact example preset: 1 primary coordinator + 9 workers (58 files),
   // exact model values, and the workflow commands bound to the coordinator in
   // the current session with the skill load and $ARGUMENTS retained; the
   // configure command stays a caller-session launcher even with a coordinator.
   {
     const exampleFixture = await buildFixture("example-preset", ["--models", "example"]);
     const exampleRel = await listRelative(exampleFixture.openCodeRoot);
-    check(exampleRel.length === 56, "example preset OpenCode bundle has 56 files (10 profiles + 4 commands + 42 skills)");
+    check(exampleRel.length === 58, "example preset OpenCode bundle has 58 files (10 profiles + 4 commands + 44 skills)");
     const exampleProfiles = exampleRel.filter((path) => path.startsWith("agents/agenticale/")).map((path) => path.split("/").pop().replace(".md", ""));
     check(JSON.stringify(exampleProfiles.sort()) === JSON.stringify([...ALL_ROLES, "coordinator"].sort()), "example preset renders exactly 1 primary + 9 worker profiles");
     for (const role of ALL_ROLES) {
@@ -344,7 +344,7 @@ try {
     // coordinator value is skipped (it cannot be a Qwen session model) and
     // recorded as such.
     const exampleQwenRel = await listRelative(exampleFixture.qwenCodeRoot);
-    check(exampleQwenRel.length === 51, "example preset Qwen Code bundle has 51 files (9 flat profiles + 42 skills)");
+    check(exampleQwenRel.length === 53, "example preset Qwen Code bundle has 53 files (9 flat profiles + 44 skills)");
     const exampleQwenProfiles = exampleQwenRel.filter((path) => path.startsWith("agents/agenticale-")).map((path) => path.slice("agents/agenticale-".length).replace(".md", ""));
     check(JSON.stringify(exampleQwenProfiles.sort()) === JSON.stringify([...ALL_ROLES].sort()), "example preset Qwen Code bundle renders exactly the nine worker profiles");
     check(!exampleQwenRel.some((path) => path.endsWith("agenticale-coordinator.md")), "example preset Qwen Code bundle has no coordinator profile (codex-routed value skipped)");
@@ -369,7 +369,7 @@ try {
     const qwenDefaultState = JSON.parse(await readText(qwenDefaultFixture.buildState));
     check(qwenDefaultState.modelsSource === "--models adapters/qwen-code/models.json", "qwen-code default config build state records the --models path");
     const qwenDefaultRel = await listRelative(qwenDefaultFixture.qwenCodeRoot);
-    check(qwenDefaultRel.length === 52, "qwen-code default config bundle has 52 files (10 flat profiles + 42 skills)");
+    check(qwenDefaultRel.length === 54, "qwen-code default config bundle has 54 files (10 flat profiles + 44 skills)");
     check(qwenDefaultRel.includes("agents/agenticale-coordinator.md"), "qwen-code default config renders the flat coordinator agent");
     const qwenCoordinator = await readText(join(qwenDefaultFixture.qwenCodeRoot, "agents", "agenticale-coordinator.md"));
     check(qwenCoordinator.includes("name: agenticale-coordinator") && qwenCoordinator.includes("model: qwen4-max-preview"), "qwen-code coordinator renders the bare alibaba-token-plan model id");

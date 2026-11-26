@@ -5,10 +5,11 @@ Before dispatching any round, select the actual runtime binding from
 exposes; never infer the runtime from a selected model name. Do this at start and on
 every fresh resume.
 
-The workflow never selects a model: on OpenCode the model and effort are baked into the
-installed `agenticale/<role>` profiles at install time; on other surfaces the binding's
-native fields carry a role assignment only where the host supports it and the
-installation's preference file provides one. When the installation configures a
+The workflow never selects a model: on OpenCode and Qwen Code the model is
+baked into the installed agent profile for the role at install time; on
+other surfaces the binding's native fields carry a role assignment only
+where the host supports it and the installation's preference file provides
+one. When the installation configures a
 coordinator, the OpenCode command entry runs this workflow in the current session on the
 `agenticale/coordinator` profile from the first turn, including on a fresh resume;
 without one, the caller session's own model coordinates. A role whose installed profile

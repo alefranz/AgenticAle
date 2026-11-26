@@ -1,9 +1,11 @@
 # Qwen Code adapter — backlog
 
-Branch: `feat/qwen-code-adapter`. Status: increments 1–3 done (research +
-adapter source, spike, build path with tests); codex-deep-review gate run
-once and findings fixed; second review gate pending over build + tests;
-runtime binding and installer not started.
+Branch: `feat/qwen-code-adapter`. Status: increments 1–4 done (research +
+adapter source, spike, build path with tests, runtime binding + configure
+discovery); two codex-deep-review gates run, findings fixed; the installer
+entry (increment 5) is the remaining step before the PR; note the binding's
+installer-rerun line becomes real only once increment 5 adds the qwen-code
+install path to `scripts/install.mjs` (currently OpenCode-only).
 
 Goal: an installation method for Qwen Code mirroring the OpenCode adapter
 (`adapters/opencode/`), so the flat model config (roles → `provider/model#effort`,
@@ -197,11 +199,19 @@ Nothing else is wired up.
   root refuses the run, a malformed (newline-joined) schema-3 state is
   rejected, and the qwen-code root is covered by the symlink-confinement
   cases.
-- [ ] **4. Runtime binding.** `skills/work/references/runtimes/qwen-code.md`
+- [x] **4. Runtime binding.** `skills/work/references/runtimes/qwen-code.md`
   (invocation surface, dispatch = Agent tool with `subagent_type:
-  agenticale-<role>`, approval/sandbox semantics, refresh procedure,
-  requested-vs-effective model, limitations) and the minimal skill-side
-  reference that routes this host to the binding.
+  agenticale-<role>`, the two materialization forms, coordinator adoption,
+  manifest-based configured-route intent, refresh procedure,
+  requested-vs-effective model incl. the silent fallback, one-shot codex
+  children, `--stats` unsupported, limitations) plus the configure discovery
+  reference (`skills/configure/references/discovery/qwen-code.md`), the
+  configure SKILL.md host wiring, and the work/autonomous dispatch
+  sentences that name Qwen Code as an agent-file host. `validate.mjs` pins
+  both new files and the configure host list. NOTE: the binding's
+  installer-rerun line is real only once increment 5 lands; until then a
+  Qwen Code install is manual (copy the `qwen-code/` build root into the
+  install root) and there is no ownership manifest yet.
 - [ ] **5. Install.** Installer entry (target: project `.qwen/` or
   `~/.qwen/`), ownership manifest for configured-route intent, install docs.
 - [x] **Review gate 2** (after increment 3): codex-deep-review over build +

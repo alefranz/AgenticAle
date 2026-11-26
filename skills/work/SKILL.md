@@ -284,8 +284,8 @@ requested role the binding cannot honour.
 Select the actual runtime from the host's tool surface — never from a
 selected model name — and its binding under `references/runtimes/`; the
 binding defines how to spawn a fresh child for each role. The workflow never
-selects a model: on OpenCode the model and effort are baked into the
-installed `agenticale/<role>` agent profiles at install time; on other
+selects a model: on OpenCode and Qwen Code the model is baked into the
+installed agent profile for the role at install time; on other
 surfaces the binding's native fields carry a role assignment only where the
 host supports it and the installation's preference file — its "Model
 configuration (this installation)" section, when present — provides one.

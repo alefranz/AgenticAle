@@ -64,6 +64,7 @@ const requiredPaths = [
   "skills/work/references/runtimes/copilot-local.md",
   "skills/work/references/runtimes/codex.md",
   "skills/work/references/runtimes/opencode.md",
+  "skills/work/references/runtimes/qwen-code.md",
   "skills/work/references/runtimes/antigravity.md",
   ...taskContracts.map((name) => `skills/work/references/tasks/${name}.md`),
   "skills/work/scripts/session-stats.mjs",
@@ -87,6 +88,7 @@ const requiredPaths = [
   "skills/configure/SKILL.md",
   "skills/configure/agents/openai.yaml",
   "skills/configure/references/discovery/opencode.md",
+  "skills/configure/references/discovery/qwen-code.md",
   "skills/configure/references/discovery/copilot.md",
   "skills/configure/references/discovery/copilot-local.md",
   "skills/configure/references/discovery/codex.md",
@@ -361,7 +363,7 @@ function validateSkillConfigure() {
     fail(path, "disable-model-invocation must be true (explicit-only)", "set disable-model-invocation: true");
   }
   requireMetadataFlags(path, metadata);
-  for (const host of ["opencode", "copilot", "copilot-local", "codex", "antigravity"]) {
+  for (const host of ["opencode", "qwen-code", "copilot", "copilot-local", "codex", "antigravity"]) {
     if (!body.includes(`](references/discovery/${host}.md)`)) {
       fail(path, `body must link the ${host} discovery reference`, "keep the per-host discovery links");
     }
