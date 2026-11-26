@@ -259,10 +259,15 @@ skills/` for install into `.qwen/skills/` (project) or `~/.qwen/skills/`
 
 ## 8. Status
 
-The adapter data and the build path (`qwen-code/` rendering, validated by
+The adapter data, the build path (`qwen-code/` rendering, validated by
 `scripts/validate.mjs` and the render fixtures in
-`scripts/test-build.mjs`) are implemented (BACKLOG increments 1–3). The
-runtime binding (`skills/work/references/runtimes/qwen-code.md`) and the
-installer entry are not yet implemented (BACKLOG increments 4–5); live Qwen
-Code rendering and dispatch are verified only by the spike probes recorded in
-BACKLOG.md, not by this branch's test suite.
+`scripts/test-build.mjs`), and the runtime binding
+(`skills/work/references/runtimes/qwen-code.md`, plus the configure
+discovery reference `skills/configure/references/discovery/qwen-code.md`)
+are implemented (BACKLOG increments 1–4). The installer entry is not yet
+implemented (BACKLOG increment 5): until it lands, the install is manual
+(copy the `qwen-code/` build root into the project `.qwen/` directory or
+`~/.qwen/`), no ownership manifest is written, and configured-route intent
+for the optional routes cannot be established. Live Qwen Code rendering and
+dispatch are verified only by the spike probes recorded in BACKLOG.md, not
+by this branch's test suite.

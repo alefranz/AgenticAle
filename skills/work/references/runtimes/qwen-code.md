@@ -55,9 +55,11 @@ different dispatch context; `consult` and `consult-hard` likewise share the
 consult contract. The difference is dispatch, not instructions. The seven
 base worker profiles are always installed, one per role; the two optional
 worker profiles are installed only when the model config lists them. When
-the config assigns the coordinator key, the build also generates the flat
-`agenticale-coordinator` agent file — it is not a worker role and never
-dispatches as a child.
+the config assigns the coordinator key a Qwen-direct value, the build also
+generates the flat `agenticale-coordinator` agent file — it is not a worker
+role and never dispatches as a child; a codex-routed coordinator value is
+skipped instead (see [Coordinator adoption](#coordinator-adoption)), and
+that install carries no coordinator file.
 
 The optional routes follow the shared routing policy: when `implement-easy`
 or `consult-hard` is not configured, the workflow dispatches the base route
@@ -88,13 +90,24 @@ value's provider:
   form carries the model only: the config value's `#effort` suffix has no
   direct-profile rendering on this host.
 - **The codex external executor.** For values under the `openai` provider
-  prefix, the profile carries the `executor:` block **only** — the host
-  rejects (invalid config, refusing launch) an external agent that supplies
-  `model` (other than `inherit`), `maxTurns`, `tools`, `disallowedTools`, or
-  related overrides, so none of those renders. The executor spawns the
-  installed Codex CLI on its app-server stdio interface with `-c` TOML
-  overrides pinning the bare model and, when the value carries one, the
-  reasoning effort verbatim (no clamping).
+  prefix, the profile carries `name`, `description`, `background: false`,
+  and the `executor:` block — nothing else: the host rejects (invalid
+  config, refusing launch) an external agent that supplies `model` (other
+  than `inherit`), `maxTurns`, `tools`, `disallowedTools`, or related
+  overrides, so none of those renders. The executor spawns the installed
+  Codex CLI on its app-server stdio interface with `-c` TOML overrides
+  pinning the bare model and, when the value carries one, the reasoning
+  effort verbatim (no clamping).
+
+Before dispatching a codex-routed role, the host-side prerequisites must
+hold or the dispatch is not available: the session is not in safe mode or
+container execution mode (external executors do not run there), the
+workspace is trusted by Qwen Code itself (the host checks its own folder
+trust before launching a project-level external agent), and the folder is
+trusted in the Codex CLI's own configuration. When one does not hold,
+report the codex-routed role as unavailable with the missing prerequisite
+named — there is no direct agent to substitute — and continue the roles
+that can dispatch.
 
 A role unlisted in the model config (or an install under `--no-model`)
 renders the direct form with no `model:` line at all and no executor, so
@@ -181,15 +194,23 @@ When the model config assigns the `coordinator` key a Qwen-direct value,
 the install carries `agents/agenticale-coordinator.md`: its `model:` line is
 the **requested** coordinator model and its body is the coordinating
 posture. The coordinating session is the caller session — there is no
-session-primary agent to switch it on. To make the requested model
-effective, the user selects it in the session, `/model <id>` before or at
-workflow start (a session-scoped switch) or a session default — never a
-global `settings.json` rewrite by the workflow. The effective coordinator
-model is the session's current model, from native session metadata; record
-requested versus effective when both are available. The workflow may read
-the installed coordinator file read-only to obtain the posture body and to
-establish that a coordinator is configured; it never writes it and never
-dispatches it as a child.
+session-primary agent to switch it on. When the file is present and
+readable, the workflow reads it at activation (at most once, read-only)
+and **adopts** its posture body for the coordinating session: that read is
+a required adoption step, not optional, and it is the only configuration
+evidence this surface offers besides the install-ownership manifest the
+binding documents. The workflow never writes the file and never dispatches
+it as a child. To make the requested model effective, the user selects it
+in the session — `/model <id>` before or at workflow start or a session
+default — never a global `settings.json` rewrite by the workflow. Two host
+behaviors shape that selection: `/model` searches the session's current
+auth bucket first, so a coordinator model registered under a different
+provider is only reachable when that provider is the session's bucket (or
+resolvable from it); and a user-driven `/model` selection may persist the
+choice to `settings.json` — a host behavior the workflow neither triggers
+nor reverts. The effective coordinator model is the session's current
+model, from native session metadata; record requested versus effective
+when both are available.
 
 A codex-routed coordinator value can never be a session model: the shared
 build skips it with a console note and a `qwenCode.coordinatorSkipped`
@@ -199,28 +220,34 @@ coordinating session simply runs on its own session model.
 
 ## When a role's agent file is missing or not what you need
 
-Rerun the checkout-based installer with the flat model config you want. This
-is the only step that needs the AgenticAle source checkout (obtain one by
-cloning `https://github.com/alefranz/AgenticAle`); preference reading and
-task resources stay install-relative:
+This host has no installer entry yet, so the refresh is manual (a
+checkout-based installer entry is planned work; `scripts/install.mjs`
+currently installs only the OpenCode binding). From an AgenticAle source
+checkout (obtain one by cloning `https://github.com/alefranz/AgenticAle`),
+run the shared build with the flat model config you want and copy the
+generated `qwen-code/` build root into the effective install root — the
+project `.qwen/` directory or `~/.qwen/`, whichever one supplies the
+installed `agenticale-*` agents and skills:
 
 ```sh
-node <AgenticAle-checkout>/scripts/install.mjs install --models <path|preset> [--target PATH]
+node <AgenticAle-checkout>/scripts/build.mjs --models <path|preset>
 ```
 
-(or `--no-model` to make every role inherit the session model), under the
-installer's normal ownership, backup, collision, and rollback safeguards: an
-agent file you have modified is reported (`preserve-modified`) and left in
-place. While the install still lists that route, re-running with
-`--replace` backs the modification up first and replaces the file. A
-reinstall that omits the route leaves a modified file behind unowned:
-`--replace` replaces only what the new install generates — it is not a
-broad cleanup — so removing such a leftover is a manual step, and the route
-stays omitted with or without it. Do not treat refreshed agent files as
-effective until a session that has read the agents root dispatches them; the
-next fresh workflow activation dispatches with the refreshed agents.
-`--profile` is not an option on this surface — models are selected at
-install time.
+(or `--no-model` to make every role inherit the session model). Copy
+`agents/agenticale-*.md` over the install root's `agents/` directory and
+the skill directories over its `skills/` directory; leave every other
+agent, skill, command, and setting in the install root untouched. An agent
+file you have modified is yours, not the install's: back it up before
+replacing it, and never let a refresh delete a file the refresh did not
+itself generate. Because the install is manual, no ownership manifest is
+written at the install root, so configured-route intent cannot be
+established on this host for now: the conservative decision in
+[Establishing configured-route intent](#establishing-configured-route-intent-from-install-evidence)
+applies, and an optional route whose agent file is present but whose
+configuration cannot be shown is not dispatched. Do not treat refreshed
+agent files as effective until a session that has read the agents root
+dispatches them; the next fresh workflow activation dispatches with the
+refreshed agents.
 
 ## Requested versus effective settings
 
@@ -233,9 +260,11 @@ effective and the host does not surface the fallback. Keep an unknown
 effective setting unknown, and never let a child's self-reported model name
 establish the effective model. Establish the effective selection only from
 native host evidence — the session and assistant metadata the host records
-(provider/model, native response identifiers, and usage), or the codex
-thread metadata the host records for an executor child — and record
-requested versus effective when both are available.
+(provider/model, native response identifiers, and usage). For an executor
+child the host records only its own label (`external-codex:codex`), not the
+model or effort Codex itself resolves: the requested codex value stands as
+requested, and the effective codex model is not host-native evidence on
+this surface. Record requested versus effective when both are available.
 
 ## How `inherit` is realized
 
@@ -273,11 +302,17 @@ session usage section.
   follow-up messages: one round dispatch is one codex task, and anything
   needing iteration is a new dispatch.
 - **Codex profiles carry no permission fields.** The host rejects them on
-  external agents, so the read-only guarantee for codex-routed
-  `explore`/`consult`/`consult-hard` rests on the session approval mode
-  driving the native codex sandbox: the default approval mode keeps the
-  child read-only, while a permissive session (auto-edit or yolo) lets it
-  write.
+  external agents, so every codex-routed role's access rests on the
+  session approval mode driving the native codex sandbox: the default (or
+  plan) approval mode runs the child read-only — which is how the
+  read-only policy of codex-routed `explore`/`consult`/`consult-hard` is
+  honoured — while a permissive session (auto-edit or yolo) gives even
+  those read-only-policy roles write access.
+- **Codex dispatch has host-side prerequisites.** External executors do
+  not run in safe mode or container execution mode, and the host requires
+  its own workspace trust (plus Codex's own trusted-folder setting) before
+  launch. When a prerequisite does not hold, the codex-routed role is
+  unavailable — report it, never substitute.
 - **The direct form carries no effort.** The config value's `#effort`
   suffix is not rendered for direct-routed roles; only codex-routed values
   pass the effort through.

@@ -16,19 +16,23 @@ commands. Never from the session's model name.
 ## Live model evidence — what this host offers
 
 Qwen Code exposes no confirmed read-only model-enumeration tool in the
-agent surface. The host-side evidence available to configure is the user's
-`settings.json` model registry, read-only: its `modelProviders` entries
-(the provider buckets the session and the installed agents' bare `model:`
-lines resolve against) and the session default. That registry establishes
-what a **direct** model line can resolve to on this machine — it is not a
-cost or capability ranking, and enumeration alone establishes no ordering,
-so propose the role mapping as a labelled heuristic and let the user tune
-it. The `openai/*` values are a different family: they never resolve
-against the settings registry; they route to the installed Codex CLI's own
-catalog through the executor, so their names come from the codex side or
-the user. What a child actually runs on is still established only from
-native host evidence at dispatch — and remember the silent fallback: an
-id absent from the registry degrades to the session model with no error.
+agent surface. The host-side evidence available to configure is the
+effective `settings.json` model registry, read-only: its `modelProviders`
+entries (the provider buckets the session and the installed agents' bare
+`model:` lines resolve against) and the session default. Treat it as a
+**candidate source of names, not a resolution guarantee**: the effective
+registry merges multiple settings scopes, a bare id may be registered
+under more than one provider, and resolution searches the session's auth
+type first before other buckets — so a registry hit establishes that an id
+*may* resolve, not which provider a child will actually run against. It
+is not a cost or capability ranking, and enumeration alone establishes no
+ordering, so propose the role mapping as a labelled heuristic and let the
+user tune it. The `openai/*` values are a different family: they never
+resolve against the settings registry; they route to the installed Codex
+CLI's own catalog through the executor, so their names come from the codex
+side or the user. What a child actually runs on is still established only
+from native host evidence at dispatch — and remember the silent fallback:
+an id the host cannot resolve degrades to the session model with no error.
 
 ## What configure proposes here
 
@@ -73,19 +77,26 @@ Write the JSON only on its own explicit confirmation of the exact
 user-chosen path and content; re-read before writing, and treat a content
 change since confirmation as invalidating it.
 
-Then propose the installer rerun (the work binding's refresh procedure):
+Then propose the refresh (the work binding's refresh procedure). This host
+has no installer entry yet — `scripts/install.mjs` currently installs only
+the OpenCode binding — so the refresh is a manual build and copy:
 
 ```sh
-node <AgenticAle-checkout>/scripts/install.mjs install --models <path|preset> [--target PATH]
+node <AgenticAle-checkout>/scripts/build.mjs --models <path|preset>
 ```
 
-Add `--replace` when the installed agent files differ. The installer is
-copy-only under its normal ownership, backup, collision, and rollback
-safeguards: a modified agent file is preserved and reported unless
-`--replace` backs it up and replaces it; `settings.json` stays unchanged.
-Running the installer is a separate explicit consent for its external
-effects — never automatic. A session that reads the agents root at start
-picks up the refreshed files; do not promise a running session hot reload.
+and copy the generated `qwen-code/` build root's `agents/agenticale-*.md`
+and skill directories into the effective install root (the project
+`.qwen/` directory or `~/.qwen/`). The copy is the only effect on the
+user's machine: `settings.json` stays unchanged, an agent file the user
+has modified is backed up before being replaced, and nothing outside the
+`agenticale-*` agents and the AgenticAle skill files is touched. Running
+the build and copy is a separate explicit consent for its effects — never
+automatic. A session that reads the agents root at start picks up the
+refreshed files; do not promise a running session hot reload. Because a
+manual install writes no ownership manifest, configured-route intent for
+the optional routes cannot be established until an installer entry lands;
+state that as a limitation when the user asks.
 
 The bundled `--models` presets remain an explicit user option — they are
 example inventories, not verified machine mappings. Configure's own
@@ -104,17 +115,21 @@ Whether an optional route is configured comes from the installer's
 ownership manifest (`.autonomous-mode-install.json`) at the effective
 install root, exactly as the work binding documents — read-only. Configure
 may read it to report current intent; it never writes the manifest, and
-never resolves models from it.
+never resolves models from it. A manually copied install writes no
+manifest, so intent is not established there and the conservative
+decision applies.
 
 ## Verification
 
 `--stats` is not supported on this surface — state that rather than
 promising it. Offer a small user-invoked `/work` run and read the native
-session metadata (provider/model per dispatch, codex thread metadata for
-executor children) as native host evidence. Record requested versus
-effective; the silent fallback means an unknown effective setting stays
-unknown, and a child's self-reported model name never establishes what it
-ran on. A successful install is not routing verification.
+session metadata (provider/model per direct dispatch) as native host
+evidence; for an executor child the host records only its own label
+(`external-codex:codex`), so the pinned codex model stands as requested
+and cannot be verified host-side. Record requested versus effective; the
+silent fallback means an unknown effective setting stays unknown, and a
+child's self-reported model name never establishes what it ran on. A
+successful install is not routing verification.
 
 ## Limitations
 

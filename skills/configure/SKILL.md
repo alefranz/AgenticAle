@@ -11,7 +11,7 @@ metadata:
 
 A user-initiated setup skill. Its output is configuration the user has
 confirmed: the optional preference file on per-spawn hosts, or a flat
-`--models` JSON plus an installer rerun on OpenCode and Qwen Code — and,
+`--models` JSON plus an install refresh on OpenCode and Qwen Code — and,
 on every host, the preference file's `## Work` worker-round allowance. It adds no scaffold
 command, no automatic setup, no packaged model inventory, and no
 profile-management feature, and it keeps no persistent state of its own.
@@ -149,7 +149,7 @@ unrelated. Then apply the safety rules: explicit confirmation of path and
 content, re-read before the write, stale confirmation invalid, no writes on
 cancellation or remaining placeholders.
 
-## OpenCode and Qwen Code: --models JSON and installer rerun
+## OpenCode and Qwen Code: --models JSON and install refresh
 
 On OpenCode the models are baked into the generated `agenticale/<role>`
 profiles at install time; preference-file role lines do not apply. Never
@@ -163,7 +163,8 @@ On Qwen Code the same flat `--models` JSON is baked into the installed flat
 id (which must exist in the user's `settings.json` registry — a mistyped id
 silently inherits the session model), and `openai/` values render the pinned
 codex executor. The `coordinator` key must be Qwen-direct; an `openai/`
-coordinator value is skipped by the build and rejected by the installer.
+coordinator value is skipped by the build, so the install simply carries
+no coordinator file.
 Never edit the installed agent files or `settings.json` directly. Read
 [the Qwen Code discovery reference](references/discovery/qwen-code.md) for
 the per-host discovery notes and the flat-config contract.
@@ -176,7 +177,8 @@ Write the JSON only on its own explicit confirmation of the exact
 user-chosen path and content (re-read before writing; stale confirmation
 invalid).
 
-Then propose the installer rerun — the work binding's refresh procedure:
+Then propose the refresh — the work binding's refresh procedure. On
+OpenCode that is the installer rerun:
 
 ```sh
 node <AgenticAle-checkout>/scripts/install.mjs install --models <path|preset> [--target PATH]
@@ -188,7 +190,12 @@ profile is otherwise preserved and reported. Running the installer is a
 separate explicit consent for its external effects on the installation —
 never automatic; the user may run the command themselves. OpenCode reloads
 refreshed profiles without an app restart, and the next fresh workflow
-activation dispatches with them.
+activation dispatches with them. On Qwen Code there is no installer entry
+yet: the refresh is the manual build-and-copy procedure the discovery
+reference documents (build with `--models`, copy the `qwen-code/` build
+root's agents and skills into the install root), under the same explicit
+consent rule, and the next fresh workflow activation dispatches with the
+refreshed files.
 
 The `## Work` allowance remains editable through the preference file on
 OpenCode (below); it is the only preference-file section that applies there.
@@ -241,10 +248,11 @@ the host's verification path and let the user drive it:
 - **Qwen Code**: no binding documents a `--stats` procedure — state that
   the option is unsupported there rather than promising it. Use a small
   user-invoked `/work` run and the native session metadata (per-dispatch
-  provider/model, codex thread metadata for executor children) as native
-  host evidence; a direct model id that resolves to nothing silently
-  inherits the session model, so an unknown effective setting stays
-  unknown.
+  provider/model) as native host evidence; for an executor child the host
+  records only its own label (`external-codex:codex`), so the pinned codex
+  model stands as requested. A direct model id that resolves to nothing
+  silently inherits the session model, so an unknown effective setting
+  stays unknown.
 - **Other hosts**: no binding documents a `--stats` procedure — state that
   the option is unsupported there rather than promising it. Use native
   runtime metadata or local traces where the host exposes them. On

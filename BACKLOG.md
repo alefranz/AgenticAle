@@ -2,10 +2,11 @@
 
 Branch: `feat/qwen-code-adapter`. Status: increments 1–4 done (research +
 adapter source, spike, build path with tests, runtime binding + configure
-discovery); two codex-deep-review gates run, findings fixed; the installer
-entry (increment 5) is the remaining step before the PR; note the binding's
-installer-rerun line becomes real only once increment 5 adds the qwen-code
-install path to `scripts/install.mjs` (currently OpenCode-only).
+discovery); three codex-deep-review gates run, findings fixed; the
+installer entry (increment 5) is the remaining step before the PR; note
+the qwen-code install is manual (build + copy) until increment 5 adds a
+qwen-code path to `scripts/install.mjs` (currently OpenCode-only), and the
+binding, configure discovery, and README all state that.
 
 Goal: an installation method for Qwen Code mirroring the OpenCode adapter
 (`adapters/opencode/`), so the flat model config (roles → `provider/model#effort`,
@@ -224,8 +225,32 @@ Nothing else is wired up.
   test suite gained exact-shape assertions, the skill-inventory check, and
   schema-2 migration / unowned-qwen-root / malformed-state fixtures; README
   and docs were aligned with the actual build behavior.
-- [ ] **6b. Review gate 3.** After increment 4: codex-deep-review over the
-  runtime binding.
+- [x] **6b. Review gate 3** (after increment 4): codex-deep-review over
+  the runtime binding reported 4×P1, 4×P2, 1×P3. Fixed in the same pass:
+  (P1) the binding's refresh procedure was the OpenCode installer command —
+  it is now a manual `build.mjs --models` + copy of the `qwen-code/` build
+  root, and both the binding and the configure discovery state that no
+  ownership manifest exists for a manual install, so configured-route
+  intent is not established and the conservative decision applies; (P1)
+  coordinator posture adoption is now a required activation step, and the
+  work/autonomous dispatch sentences permit reading the flat coordinator
+  agent file as the one non-manifest evidence; (P1) the `/model` guidance
+  names the auth-bucket search and the fact that a user-driven selection
+  may persist to `settings.json`; (P1) codex dispatch readiness is stated
+  (safe mode and container mode unavailable; Qwen's own workspace trust +
+  Codex's trusted-folder required) and the sandbox limitation covers every
+  codex-routed role, not only the read-only-policy ones. (P2) verification
+  no longer points at codex thread metadata Qwen does not expose — the
+  host records only the `external-codex:codex` label; (P2) the discovery
+  reference frames the settings registry as a candidate source of names,
+  not a resolution guarantee (scope merge, duplicate ids, auth-bucket
+  ladder); (P2) the two rendering contradictions fixed (coordinator file
+  generated only for a Qwen-direct value; the codex profile carries
+  `name`/`description`/`background: false`/`executor:` — nothing else);
+  (P3) the adapter README status now says the runtime binding is
+  implemented and the install is manual. The installer fixture counts in
+  `scripts/test-installer.mjs` moved with the two new skill files
+  (53→55 fresh, 42→44 skills, 56→58 example).
 
 ## Open questions
 
