@@ -1,8 +1,9 @@
 # Qwen Code adapter — backlog
 
-Branch: `feat/qwen-code-adapter`. Status: increment 1 done (research +
-adapter source), codex-deep-review gate run once and findings fixed; build
-integration and runtime binding not started.
+Branch: `feat/qwen-code-adapter`. Status: increments 1–3 done (research +
+adapter source, spike, build path with tests); codex-deep-review gate run
+once and findings fixed; second review gate pending over build + tests;
+runtime binding and installer not started.
 
 Goal: an installation method for Qwen Code mirroring the OpenCode adapter
 (`adapters/opencode/`), so the flat model config (roles → `provider/model#effort`,
@@ -85,7 +86,29 @@ Nothing else is wired up.
 | `<provider>/<model>` (provider ≠ openai) | `maxTurns`, `background: false`, `disallowedTools` + `model: <model>` (bare model id) |
 | `<provider>/<model>#<effort>` (provider ≠ openai) | same; effort **not materialized** (gap G1 — runs at the session's `/effort` selection) |
 | role unlisted | direct form with no model line, no executor → inherits the session model |
-| `coordinator: openai/...` | **rejected by the build** on this host (the coordinating session must run on a model in Qwen's own provider registry) |
+| `coordinator: openai/...` | shared build **skips** the qwen-code coordinator with a console note + state record (the coordinating session must run on a model in Qwen's own provider registry); the installer enforces the strict rejection |
+
+### Spike results (increment 2, all four resolved)
+
+- **S1 — Flat definition loads and dispatches.** A scratch
+  `agenticale-ping` definition at the agents root loaded and dispatched
+  through the Agent tool; the reply came back ("pong"). Flat layout + name
+  rule confirmed end-to-end.
+- **S2 — Bare model-id resolution.** With the provider registered in
+  `settings.json`, a bare model id resolves as expected. **Surprise,
+  now a documented limitation:** an *unresolvable* `model:` value does
+  **not** fail — Qwen Code 0.28.6 silently falls back to the session model
+  (the scratch profile returned "pong" with `model: no-such-model-zxq9`).
+  The install docs and runtime binding must state that a mistyped model id
+  degrades silently to the session model.
+- **S3 — Skill slash invocation passes arguments.** `/work <args>` (and
+  friends) appends the arguments to the skill body; the skill receives them.
+  Decision D6 (no command entries) is sufficient.
+- **S4 — `xhigh` on a codex profile.** A codex executor profile with
+  `-c model_reasoning_effort="xhigh"` for `gpt-6.2-sol` launches and the
+  `thread/start` response reports `reasoningEffort: xhigh`. Effort
+  passthrough (D9) confirmed for at least xhigh; `max` also accepted by the
+  0.172.0 catalog for the GPT-6.2 models.
 
 ## Design decisions
 
@@ -120,9 +143,11 @@ Nothing else is wired up.
   rule as OpenCode) and the runtime binding instructs the coordinating session
   to run on the coordinator's model (session-scoped model switch, never a
   global settings rewrite) and adopt the installed coordinator body. The
-  coordinator value must be Qwen-direct; a codex-routed value is a build error
-  (the session cannot switch to a model that only exists behind the codex
-  executor).
+  coordinator value must be Qwen-direct (the session cannot switch to a
+  model that only exists behind the codex executor). In the shared build a
+  codex-routed coordinator value is skipped with a console note and a
+  `qwenCode.coordinatorSkipped` state record rather than failing the run;
+  the installer enforces the strict rejection.
 - **D8 — Codex routing key `codex.providerPrefix`** (`"openai"`) in
   `adapter.json`: model values whose provider equals it render as executor
   blocks; every other provider renders a direct profile.
@@ -153,17 +178,20 @@ Nothing else is wired up.
   agents scan; built-in-only selector auth types; hard rejection of
   model/maxTurns/tools on external agents; 6-skill build list) and fixed in
   the adapter source. Residual: live dispatch unverified (S1–S4 below).
-- [ ] **2. Spike (empirical, cheap).** S1: a scratch `agenticale-ping`
-  definition loads and dispatches (flat layout, name rule). S2: bare model-id
-  resolution with the provider registered vs not (document the failure shape).
-  S3: skill slash invocation passes arguments (`/work <args>` reaches the
-  skill). S4: a codex profile with `xhigh` actually accepts the effort level.
-- [ ] **3. Build path.** Render `dist/qwen-code/` (flat worker profiles,
-  conditional coordinator, six skills) from
-  `adapters/qwen-code/adapter.json` using the shared `scripts/model-config.mjs`
-  (including the codex-routed-coordinator rejection); extend
-  `scripts/validate.mjs` for the new adapter (budget, links) and add render
-  tests mirroring the opencode ones.
+- [x] **2. Spike (empirical, cheap).** S1–S4 resolved; results and the
+  S2 silent-fallback finding are recorded in the spike section above.
+- [x] **3. Build path.** `scripts/build.mjs` renders the `qwen-code/` output
+  root (flat worker profiles from `adapters/qwen-code/adapter.json`,
+  conditional coordinator, six skills) through the shared
+  `scripts/model-config.mjs`; a codex-routed coordinator value is skipped
+  with a console note and a `qwenCode.coordinatorSkipped` state record.
+  `scripts/validate.mjs` gained `validateQwenCodeAdapter()` (exact
+  profile/coordinator/codex/permissionToolNames/skillDiscovery metadata,
+  flat output paths, maxTurns ceilings, deny sets) plus the qwen-code
+  packaged default in the model-config checks. `scripts/test-build.mjs`
+  covers both profile shapes, the no-coordinator and coordinator variants,
+  `--no-model` inheritance, the skip record, state records, file counts,
+  and the new ownership/schema-3 upgrade paths.
 - [ ] **4. Runtime binding.** `skills/work/references/runtimes/qwen-code.md`
   (invocation surface, dispatch = Agent tool with `subagent_type:
   agenticale-<role>`, approval/sandbox semantics, refresh procedure,
@@ -199,6 +227,10 @@ Nothing else is wired up.
   invasive, ship the adapter source + runtime binding as a documentation-only
   pass (as the OpenCode adapter originally was) and leave the build for a
   follow-up.
+- **G6 — Unresolvable `model:` values fail silently.** Verified in S2: a
+  `model:` id that resolves to nothing falls back to the session model with
+  no error (Qwen Code 0.28.6). The install docs and runtime binding must
+  document this; a strict resolver is an upstream feature, not a local one.
 
 ## Review notes
 

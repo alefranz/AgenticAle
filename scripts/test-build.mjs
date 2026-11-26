@@ -57,6 +57,7 @@ async function buildFixture(name, args = [], { env, cwd } = {}) {
     pluginRoot: join(root, "plugin", "agenticale"),
     standaloneRoot: join(root, "standalone", ".agents", "skills"),
     openCodeRoot: join(root, "opencode"),
+    qwenCodeRoot: join(root, "qwen-code"),
     buildState: join(root, ".agenticale-build.json"),
   };
 }
@@ -89,12 +90,14 @@ try {
   check(pluginRel.length === 43, "plugin bundle has 43 files");
   check(standaloneRel.length === 42, "standalone bundle has 42 files");
   check(openCodeRel.length === 53, "OpenCode bundle has 53 files (7 profiles + 4 commands + 42 skills)");
+  const qwenRel = await listRelative(fixture.qwenCodeRoot);
+  check(qwenRel.length === 49, "Qwen Code bundle has 49 files (7 flat profiles + 42 skills)");
 
   // No routing artifact ships in any output root (the flat model config is a
   // build-time input only; nothing routing-shaped is materialized). The
   // retired starter location stays banned; the current preferences starter
   // ships only under configure/references/ (asserted positively below).
-  for (const [label, rel, prefix] of [["plugin", pluginRel, "skills/"], ["standalone", standaloneRel, ""], ["opencode", openCodeRel, "skills/"]]) {
+  for (const [label, rel, prefix] of [["plugin", pluginRel, "skills/"], ["standalone", standaloneRel, ""], ["opencode", openCodeRel, "skills/"], ["qwen-code", qwenRel, "skills/"]]) {
     check(!rel.some((path) => path.endsWith("routing.json")), `${label} bundle ships no routing.json`);
     check(!rel.includes(`${prefix}work/references/preferences.example.md`), `${label} bundle ships no retired work/references/preferences.example.md`);
     check(!rel.some((path) => path.endsWith("scripts/routing.mjs")), `${label} bundle ships no routing.mjs`);
@@ -185,14 +188,62 @@ try {
   const reviewProfile = await readText(join(fixture.openCodeRoot, "agents", "agenticale", "review.md"));
   check(stripFrontmatter(reviewProfile).trim() === reviewContract.trim(), "review profile body is verbatim the review task contract");
 
+  // Qwen Code root: flat agents/agenticale-<role>.md, one per base role, no
+  // coordinator and no optional workers by default; each body is the same
+  // neutral task contract as the OpenCode profile.
+  const qwenProfileNames = qwenRel.filter((path) => path.startsWith("agents/agenticale-")).map((path) => path.slice("agents/agenticale-".length).replace(".md", ""));
+  check(JSON.stringify([...qwenProfileNames].sort()) === JSON.stringify([...BASE_ROLES].sort()), "Qwen Code bundle has exactly the seven base flat profiles, one per base role");
+  check(!qwenRel.some((path) => path.endsWith("agenticale-coordinator.md")), "default Qwen Code bundle has no coordinator profile");
+  check(!qwenRel.some((path) => path.includes("agenticale-implement-easy") || path.includes("agenticale-consult-hard")), "default Qwen Code bundle has no optional worker profiles");
+  const qwenReviewProfile = await readText(join(fixture.qwenCodeRoot, "agents", "agenticale-review.md"));
+  check(stripFrontmatter(qwenReviewProfile).trim() === reviewContract.trim(), "Qwen Code review profile body is verbatim the review task contract");
+
+  // Qwen Code model routing from the packaged flat config: local-llama values
+  // render the direct form (maxTurns, disallowedTools, one bare-model-id model
+  // line — the provider component is routing info, never rendered), openai/
+  // values render ONLY the codex executor block with the model and effort
+  // pinned as -c TOML overrides (the host rejects model/maxTurns/tools on
+  // external agents).
+  const qwenDirect = ["explore", "implement", "implement-hard", "fix"];
+  const qwenCodex = ["review", "review-deep", "consult"];
+  for (const role of qwenDirect) {
+    const text = await readText(join(fixture.qwenCodeRoot, "agents", `agenticale-${role}.md`));
+    check(text.includes("background: false"), `${role} Qwen profile declares background: false`);
+    const bare = defaultModels[role].split("#")[0].split("/").slice(1).join("/");
+    check(text.includes(`model: ${bare}`), `${role} Qwen profile renders the bare model id (provider and effort stripped) from ${defaultModels[role]}`);
+    check(!text.includes("executor:"), `${role} Qwen profile has no executor block for a direct value`);
+  }
+  const qwenExplore = await readText(join(fixture.qwenCodeRoot, "agents", "agenticale-explore.md"));
+  check(qwenExplore.includes("maxTurns: 24"), "explore Qwen profile carries its maxTurns ceiling in the direct form");
+  check(qwenExplore.includes("disallowedTools:") && qwenExplore.includes("  - agent") && qwenExplore.includes("  - write_file") && qwenExplore.includes("  - edit") && qwenExplore.includes("  - notebook_edit"), "explore Qwen profile (read-only) denies the subagent and edit tools");
+  const qwenImplement = await readText(join(fixture.qwenCodeRoot, "agents", "agenticale-implement.md"));
+  check(qwenImplement.includes("disallowedTools:") && qwenImplement.includes("  - agent") && !qwenImplement.includes("write_file"), "implement Qwen profile (standard) denies only the subagent tool");
+  for (const role of qwenCodex) {
+    const text = await readText(join(fixture.qwenCodeRoot, "agents", `agenticale-${role}.md`));
+    check(text.includes("executor:") && text.includes("  kind: codex") && text.includes("  command: codex"), `${role} Qwen profile renders the codex executor for an openai/ value`);
+    check(text.includes('    - "app-server"') && text.includes('    - "--stdio"'), `${role} Qwen profile keeps the pinned app-server stdio base args`);
+    check(!/^maxTurns:/m.test(text) && !text.includes("disallowedTools:") && !/^model:/m.test(text), `${role} Qwen profile renders ONLY the executor for a codex-routed value (no maxTurns/tools/model line)`);
+  }
+  check(qwenReviewProfile.includes('    - "model=\\"gpt-6.2-sol\\""' ), "review Qwen executor pins the bare model as a -c TOML override");
+  check(qwenReviewProfile.includes('    - "model_reasoning_effort=\\"high\\""'), "review Qwen executor passes the effort through verbatim");
+  const qwenReviewDeep = await readText(join(fixture.qwenCodeRoot, "agents", "agenticale-review-deep.md"));
+  check(qwenReviewDeep.includes('    - "model_reasoning_effort=\\"xhigh\\""'), "review-deep Qwen executor passes its xhigh effort through");
+
   // Build state records the bundle shape and the flat model config source.
   const state = JSON.parse(await readText(fixture.buildState));
-  check(state.schemaVersion === 2, "build state schemaVersion is 2");
+  check(state.schemaVersion === 3, "build state schemaVersion is 3");
   check(state.modelsSource === "adapters/opencode/models.json", "build state modelsSource is the packaged flat model config");
   check(state.noModel === false, "build state noModel is false for the default build");
   check(JSON.stringify(state.profiles.map((p) => p.name).sort()) === JSON.stringify([...BASE_ROLES].sort()), "build state records the seven base profiles");
   check(state.profiles.every((p) => p.mode === "explicit" && typeof p.model === "string" && p.model.includes("#") && p.reasoningEffort === undefined), "build state profiles all carry one explicit provider/model#variant value for the packaged defaults");
   check(state.coordinator === null, "default build state records no coordinator");
+  check(state.outputs.includes("qwen-code"), "build state outputs include the qwen-code root");
+  const qwenStateModes = Object.fromEntries(state.qwenCode.profiles.map((p) => [p.name, p.mode]));
+  check(JSON.stringify(state.qwenCode.profiles.map((p) => p.name).sort()) === JSON.stringify([...BASE_ROLES].sort()), "build state qwenCode profiles record the seven base roles");
+  check(state.qwenCode.profiles.every((p) => typeof p.maxTurns === "number" && p.mode !== "inherit"), "build state qwenCode profiles carry maxTurns and an explicit or codex mode");
+  check(qwenStateModes.explore === "explicit" && qwenStateModes.implement === "explicit" && qwenStateModes["implement-hard"] === "explicit" && qwenStateModes.fix === "explicit", "build state qwenCode direct roles are explicit");
+  check(qwenStateModes.review === "codex" && qwenStateModes["review-deep"] === "codex" && qwenStateModes.consult === "codex", "build state qwenCode openai/-routed roles are codex");
+  check(state.qwenCode.coordinator === null && state.qwenCode.coordinatorSkipped === null, "default build state records no qwenCode coordinator or skip");
 
   // --no-model renders profiles without model/effort lines and records the
   // model-neutral source in the build state.
@@ -208,6 +259,15 @@ try {
   check(noModelState.coordinator === null, "--no-model build state records no coordinator");
   const noModelRel = await listRelative(noModel.openCodeRoot);
   check(!noModelRel.some((path) => path.endsWith("coordinator.md")), "--no-model bundle generates no coordinator profile");
+  for (const name of BASE_ROLES) {
+    const text = await readText(join(noModel.qwenCodeRoot, "agents", `agenticale-${name}.md`));
+    check(!/^model:/m.test(text) && !text.includes("executor:"), `${name} Qwen profile inherits (no model line, no executor) under --no-model`);
+    check(text.includes("maxTurns:") && text.includes("disallowedTools:"), `${name} Qwen profile keeps the direct-form shape under --no-model`);
+  }
+  const noModelQwenRel = await listRelative(noModel.qwenCodeRoot);
+  check(noModelQwenRel.length === 49, "--no-model Qwen Code bundle has 49 files (same file set as the default build)");
+  check(!noModelQwenRel.some((path) => path.endsWith("agenticale-coordinator.md")), "--no-model Qwen Code bundle generates no coordinator profile");
+  check(noModelState.qwenCode.profiles.every((p) => p.mode === "inherit" && p.model === undefined), "--no-model build state qwenCode profiles all inherit");
   for (const name of ["work", "review", "autonomous", "configure"]) {
     const text = await readText(join(noModel.openCodeRoot, "commands", `${name}.md`));
     check(!/^agent:/m.test(text) && !/^subagent:/m.test(text), `--no-model ${name} command stays a caller-session launcher`);
@@ -275,10 +335,43 @@ try {
     const exampleState = JSON.parse(await readText(exampleFixture.buildState));
     check(exampleState.coordinator !== null && exampleState.coordinator.model === EXAMPLE_ASSIGNMENTS.coordinator, "example preset build state records the coordinator assignment");
     check(exampleState.profiles.length === 9 && exampleState.profiles.every((p) => p.mode === "explicit"), "example preset build state records nine explicit worker profiles");
+    // Qwen Code: the same nine workers render flat; the openai/-routed
+    // coordinator value is skipped (it cannot be a Qwen session model) and
+    // recorded as such.
+    const exampleQwenRel = await listRelative(exampleFixture.qwenCodeRoot);
+    check(exampleQwenRel.length === 51, "example preset Qwen Code bundle has 51 files (9 flat profiles + 42 skills)");
+    const exampleQwenProfiles = exampleQwenRel.filter((path) => path.startsWith("agents/agenticale-")).map((path) => path.slice("agents/agenticale-".length).replace(".md", ""));
+    check(JSON.stringify(exampleQwenProfiles.sort()) === JSON.stringify([...ALL_ROLES].sort()), "example preset Qwen Code bundle renders exactly the nine worker profiles");
+    check(!exampleQwenRel.some((path) => path.endsWith("agenticale-coordinator.md")), "example preset Qwen Code bundle has no coordinator profile (codex-routed value skipped)");
+    const exampleQwenModes = Object.fromEntries(exampleState.qwenCode.profiles.map((p) => [p.name, p.mode]));
+    check(exampleState.qwenCode.profiles.length === 9, "example preset build state qwenCode profiles record nine workers");
+    check(exampleQwenModes.review === "codex" && exampleQwenModes["review-deep"] === "codex" && exampleQwenModes.consult === "codex" && exampleQwenModes["consult-hard"] === "codex", "example preset qwenCode openai/-routed workers are codex");
+    check(exampleQwenModes.explore === "explicit" && exampleQwenModes["implement-easy"] === "explicit" && exampleQwenModes.implement === "explicit" && exampleQwenModes["implement-hard"] === "explicit" && exampleQwenModes.fix === "explicit", "example preset qwenCode non-openai workers are explicit");
+    check(exampleState.qwenCode.coordinator === null && typeof exampleState.qwenCode.coordinatorSkipped === "string" && exampleState.qwenCode.coordinatorSkipped.length > 0, "example preset build state records the qwenCode coordinator skip");
+    const exampleQwenImplement = await readText(join(exampleFixture.qwenCodeRoot, "agents", "agenticale-implement.md"));
+    check(exampleQwenImplement.includes("model: qwen4-max-preview"), "example preset Qwen implement profile renders the bare alibaba-token-plan model id");
     // The plugin and standalone outputs are model-agnostic: identical file
     // sets with and without the coordinator config.
     check(JSON.stringify(await listRelative(exampleFixture.pluginRoot)) === JSON.stringify(pluginRel), "example preset plugin bundle file set matches the default build");
     check(JSON.stringify(await listRelative(exampleFixture.standaloneRoot)) === JSON.stringify(standaloneRel), "example preset standalone bundle file set matches the default build");
+  }
+
+  // The Qwen Code packaged default config: the coordinator value is
+  // Qwen-direct, so the flat coordinator agent renders alongside the nine
+  // workers (it carries the posture body but no worker ceilings).
+  {
+    const qwenDefaultFixture = await buildFixture("qwen-default-config", ["--models", "adapters/qwen-code/models.json"]);
+    const qwenDefaultState = JSON.parse(await readText(qwenDefaultFixture.buildState));
+    check(qwenDefaultState.modelsSource === "--models adapters/qwen-code/models.json", "qwen-code default config build state records the --models path");
+    const qwenDefaultRel = await listRelative(qwenDefaultFixture.qwenCodeRoot);
+    check(qwenDefaultRel.length === 52, "qwen-code default config bundle has 52 files (10 flat profiles + 42 skills)");
+    check(qwenDefaultRel.includes("agents/agenticale-coordinator.md"), "qwen-code default config renders the flat coordinator agent");
+    const qwenCoordinator = await readText(join(qwenDefaultFixture.qwenCodeRoot, "agents", "agenticale-coordinator.md"));
+    check(qwenCoordinator.includes("name: agenticale-coordinator") && qwenCoordinator.includes("model: qwen4-max-preview"), "qwen-code coordinator renders the bare alibaba-token-plan model id");
+    check(!/^maxTurns:/m.test(qwenCoordinator) && !qwenCoordinator.includes("disallowedTools:") && !qwenCoordinator.includes("executor:"), "qwen-code coordinator carries the posture body without worker ceilings or an executor");
+    check(qwenDefaultState.qwenCode.coordinator !== null && qwenDefaultState.qwenCode.coordinator.model === "alibaba-token-plan/qwen4-max-preview#medium", "qwen-code default config build state records the qwenCode coordinator");
+    check(qwenDefaultState.qwenCode.coordinatorSkipped === null, "qwen-code default config build state records no qwenCode coordinator skip");
+    check(qwenDefaultState.profiles.every((p) => p.mode === "explicit"), "qwen-code default config renders every OpenCode worker explicitly as well");
   }
 
   // Error handling: retired/unknown arguments, conflicts, and bad flat configs.
@@ -325,6 +418,7 @@ try {
       ...(await listFiles(iso.pluginRoot)),
       ...(await listFiles(iso.standaloneRoot)),
       ...(await listFiles(iso.openCodeRoot)),
+      ...(await listFiles(iso.qwenCodeRoot)),
       iso.buildState,
     ].map((path) => readFile(path, "utf8")));
     check(!builtContents.some((text) => text.includes("SENTINEL-HOME-PREFERENCE-ZXQ9")), "default build does not embed the home preferences sentinel");
@@ -346,7 +440,7 @@ try {
   await mkdir(external, { recursive: true });
   const sentinel = join(external, "sentinel.txt");
   await writeFile(sentinel, "keep", "utf8");
-  for (const [caseName, linkName] of [["linked parent (plugin)", "plugin"], ["linked root (opencode)", "opencode"]]) {
+  for (const [caseName, linkName] of [["linked parent (plugin)", "plugin"], ["linked root (opencode)", "opencode"], ["linked root (qwen-code)", "qwen-code"]]) {
     const out = join(scratch, `f1-${linkName}`);
     await mkdir(out, { recursive: true });
     await symlink(external, join(out, linkName), "junction");
@@ -402,7 +496,7 @@ try {
   check(legacyMigrate.status === 0, "F3 schema-1 baseline state is accepted and migrated");
   if (legacyMigrate.status !== 0) console.error(legacyMigrate.stdout, legacyMigrate.stderr);
   const migratedState = JSON.parse(await readText(join(legacyOut, ".agenticale-build.json")));
-  check(migratedState.schemaVersion === 2 && migratedState.package.name === "agenticale", "F3 migrated state is schema 2");
+  check(migratedState.schemaVersion === 3 && migratedState.package.name === "agenticale", "F3 migrated state is schema 3");
 
   // F3: a legacy-state output that already holds content in a not-yet-owned new
   // root must be refused (the build would otherwise delete unowned content).

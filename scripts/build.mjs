@@ -23,12 +23,14 @@ const buildStateName = ".agenticale-build.json";
 const modelConfigFragmentPath = join(repositoryRoot, "adapters", "plugin", "model-configuration.md");
 const workflowSkillNames = ["work", "review", "autonomous"];
 
-// The three output roots (relative to the build output directory) that the
+// The four output roots (relative to the build output directory) that the
 // build owns and regenerates on every run.
-const OUTPUT_ROOTS = ["plugin/agenticale", "standalone/.agents/skills", "opencode"];
-const CURRENT_BUILD_STATE_VERSION = 2;
+const OUTPUT_ROOTS = ["plugin/agenticale", "standalone/.agents/skills", "opencode", "qwen-code"];
+const CURRENT_BUILD_STATE_VERSION = 3;
 // The schema-1 baseline build owned the retired copilot package output.
 const LEGACY_OUTPUT_ROOTS = ["opencode", "copilot/agenticale"];
+// The schema-2 build predated the qwen-code output root.
+const SCHEMA_2_OUTPUT_ROOTS = ["plugin/agenticale", "standalone/.agents/skills", "opencode"];
 
 // The six public skills that ship in every output root.
 const SKILL_NAMES = ["work", "review", "autonomous", "pull-request-description", "source-code-lookup", "configure"];
@@ -60,10 +62,11 @@ function usage() {
                         [--models PATH|PRESET | --no-model]
                         [--source-root PATH]
 
-Builds the skills-first bundle from the common core and the OpenCode adapter:
+Builds the skills-first bundle from the common core and the host adapters:
   <output>/plugin/agenticale            Agent Plugins 1.0 package (skills + plugin.json)
   <output>/standalone/.agents/skills    standalone (project) skill binding
   <output>/opencode                     OpenCode V2 binding (skills + generated profiles + command entries)
+  <output>/qwen-code                    Qwen Code binding (skills + flat generated agent profiles)
 
 Options:
   --output PATH         Build root (default: dist)
@@ -173,6 +176,58 @@ function renderOpenCodeProfile(profile, assignment, body) {
   }
   lines.push("---", "", body);
   return `${lines.join("\n").trimEnd()}\n`;
+}
+
+// Qwen Code binding: one flat agents/agenticale-<role>.md per worker profile.
+// Qwen Code has no per-call model parameter and scans only the flat agents
+// root, so the model is materialized in the definition at install time,
+// exactly like the OpenCode profiles. A value whose provider equals the
+// adapter's codex provider prefix renders the Codex external executor
+// (background + executor only: the host rejects model/maxTurns/tools/
+// disallowedTools on external agents); any other value — and every unlisted
+// role — renders the direct form (maxTurns, background, disallowedTools, and
+// one bare-model-id model line when listed). The bare id, not
+// "provider:model", because the host's authType:modelId selector parses
+// built-in auth types only.
+function renderQwenCodeProfile(profile, agentName, assignment, codex, permissionToolNames, body) {
+  const codexRouted = assignment !== null && assignment.model.startsWith(`${codex.providerPrefix}/`);
+  const lines = ["---"];
+  lines.push(`name: ${agentName}`);
+  lines.push(`description: ${profile.description}`);
+  lines.push("background: false");
+  if (codexRouted) {
+    lines.push("executor:");
+    lines.push(`  kind: ${codex.kind ?? "codex"}`);
+    lines.push(`  command: ${codex.command}`);
+    lines.push("  args:");
+    for (const arg of codex.baseArgs) lines.push(`    - ${JSON.stringify(arg)}`);
+    lines.push(`    - ${JSON.stringify("-c")}`);
+    lines.push(`    - ${JSON.stringify(`model="${assignment.model.slice(providerLength(assignment))}"`)}`);
+    if (assignment.effort) {
+      lines.push(`    - ${JSON.stringify("-c")}`);
+      lines.push(`    - ${JSON.stringify(`model_reasoning_effort="${assignment.effort}"`)}`);
+    }
+  } else {
+    if (profile.maxTurns !== undefined) lines.push(`maxTurns: ${profile.maxTurns}`);
+    const tools = [];
+    for (const permission of profile.permissions) {
+      if (permission.effect !== "deny") continue;
+      for (const tool of permissionToolNames[permission.action] ?? []) tools.push(tool);
+    }
+    if (tools.length > 0) {
+      lines.push("disallowedTools:");
+      for (const tool of tools) lines.push(`  - ${tool}`);
+    }
+    if (assignment) lines.push(`model: ${assignment.model.slice(providerLength(assignment))}`);
+  }
+  lines.push("---", "", body);
+  return `${lines.join("\n").trimEnd()}\n`;
+}
+
+// The length of the "provider/" prefix of a parsed assignment (the provider
+// component never contains a slash in the shared loader's validation).
+function providerLength(assignment) {
+  return assignment.model.indexOf("/") + 1;
 }
 
 async function copyDirTree(srcDir, destDir) {
@@ -403,8 +458,8 @@ async function assertBuildOutputOwned(output) {
     }
   }
 
-  // Recognize the current (schema 2) build state, which uses `schemaVersion`
-  // and a `package.name` object and owns the three current roots.
+  // Recognize the current (schema 3) build state, which uses `schemaVersion`
+  // and a `package.name` object and owns the four current roots.
   const isCurrent = state
     && state.schemaVersion === CURRENT_BUILD_STATE_VERSION
     && state.package?.name === "agenticale"
@@ -418,16 +473,24 @@ async function assertBuildOutputOwned(output) {
     && state.package === "agenticale"
     && Array.isArray(state.outputs)
     && state.outputs.join("\n") === LEGACY_OUTPUT_ROOTS.join("\n");
-  if (state && !isCurrent && !isLegacy) {
+  // Recognize the schema-2 state (pre-qwen-code root) so an upgrade deletes
+  // only the roots that version owned; the new qwen-code root is then treated
+  // as newly introduced and content-conflict protected like any other.
+  const isSchema2 = state
+    && state.schemaVersion === 2
+    && state.package?.name === "agenticale"
+    && Array.isArray(state.outputs)
+    && state.outputs.join("\n") === SCHEMA_2_OUTPUT_ROOTS.join("\n");
+  if (state && !isCurrent && !isLegacy && !isSchema2) {
     throw new Error(`Build state is invalid: ${statePath}.`);
   }
 
   // Roots this run may delete are only those the existing state actually
-  // owns. A current state owns all three current roots. The schema-1 baseline
+  // owns. A current state owns all four current roots. The schema-1 baseline
   // owned only the older two-root layout (opencode + the now-retired copilot
-  // package), so on upgrade the current roots are NOT owned by it and must not
-  // be deleted if they already hold content.
-  const ownedRoots = isCurrent ? [...OUTPUT_ROOTS] : isLegacy ? [...LEGACY_OUTPUT_ROOTS] : [];
+  // package) and schema-2 owned the three-root layout, so on upgrade the
+  // roots a version did not own are NOT deleted if they already hold content.
+  const ownedRoots = isCurrent ? [...OUTPUT_ROOTS] : isLegacy ? [...LEGACY_OUTPUT_ROOTS] : isSchema2 ? [...SCHEMA_2_OUTPUT_ROOTS] : [];
   // Current roots the existing state does not own are newly introduced this
   // run. If any already holds content, deleting it would remove unmanaged
   // files, so refuse instead of overwriting.
@@ -488,6 +551,55 @@ export async function buildBundles(options) {
     coordinatorProfile = { meta, assignment: coordinator, text: renderOpenCodeProfile(meta, coordinator, body) };
   }
 
+  // Qwen Code V2 binding: the same nine-profile surface rendered from the
+  // qwen-code adapter. The flat install layout and the executor/direct model
+  // routing are host constraints, so the profile set is derived from this
+  // adapter's own metadata, not the OpenCode adapter's.
+  const qwenAdapter = JSON.parse(
+    await readFile(join(repositoryRoot, "adapters", "qwen-code", "adapter.json"), "utf8"),
+  );
+  if (qwenAdapter.runtime !== "qwen-code") throw new Error("Qwen Code adapter must declare runtime 'qwen-code'.");
+  if (qwenAdapter.codex?.providerPrefix !== "openai" || qwenAdapter.codex?.command !== "codex"
+      || JSON.stringify(qwenAdapter.codex?.baseArgs ?? null) !== JSON.stringify(["app-server", "--stdio"])) {
+    throw new Error("Qwen Code adapter must keep codex routing pinned to the openai prefix and the codex app-server stdio launch: adapters/qwen-code/adapter.json");
+  }
+  const qwenProfiles = [];
+  for (const profile of qwenAdapter.profiles) {
+    const route = profile.name;
+    const assignment = config[route] ?? null;
+    if (profile.optional && !assignment) continue;
+    const bodySource = await readFile(
+      join(repositoryRoot, "skills", "work", "references", "tasks", `${taskContractFor(route)}.md`),
+      "utf8",
+    );
+    const body = bodySource.replace(/\r\n?/g, "\n").trim();
+    const agentName = `agenticale-${route}`;
+    qwenProfiles.push({ profile, route, assignment, text: renderQwenCodeProfile(profile, agentName, assignment, qwenAdapter.codex, qwenAdapter.permissionToolNames, body) });
+  }
+  // The qwen-code coordinator renders only for Qwen-direct values: the
+  // coordinating session switches models within Qwen's own provider registry,
+  // and a codex-routed value is unreachable from a session. A shared build
+  // (one config feeding every root) skips it with a state record rather than
+  // failing the run; the installer enforces the strict rule.
+  let qwenCoordinatorProfile = null;
+  let qwenCoordinatorSkipped = null;
+  if (coordinator) {
+    if (coordinator.model.startsWith(`${qwenAdapter.codex.providerPrefix}/`)) {
+      qwenCoordinatorSkipped = "codex-routed coordinator values cannot run as a Qwen Code session model";
+    } else {
+      const meta = qwenAdapter.coordinator;
+      const adapterDirectory = join(repositoryRoot, "adapters", "qwen-code");
+      const bodyPath = resolve(adapterDirectory, meta.body);
+      if (bodyPath !== adapterDirectory && !bodyPath.startsWith(adapterDirectory + sep)) {
+        throw new Error(`Qwen Code coordinator body must stay inside the adapter directory: ${meta.body}`);
+      }
+      const bodySource = await readFile(bodyPath, "utf8");
+      const body = bodySource.replace(/\r\n?/g, "\n").trim();
+      const text = renderQwenCodeProfile({ name: meta.name, description: meta.description, permissions: [] }, "agenticale-coordinator", coordinator, qwenAdapter.codex, qwenAdapter.permissionToolNames, body);
+      qwenCoordinatorProfile = { meta, assignment: coordinator, text };
+    }
+  }
+
   // Remove only the roots this build owns (including the retired baseline
   // copilot output when upgrading), leaving any other content under --output.
   for (const root of ownedRoots) {
@@ -501,8 +613,21 @@ export async function buildBundles(options) {
     return record;
   });
 
+  // Qwen Code profiles record their render mode: "codex" (executor block),
+  // "explicit" (direct model line), or "inherit" (unlisted).
+  const qwenProfileRecords = qwenProfiles.map(({ profile, route, assignment }) => {
+    const record = {
+      name: profile.name,
+      route,
+      maxTurns: profile.maxTurns,
+      mode: assignment && assignment.model.startsWith(`${qwenAdapter.codex.providerPrefix}/`) ? "codex" : assignment ? "explicit" : "inherit",
+    };
+    if (assignment) record.model = formatModelValue(assignment);
+    return record;
+  });
+
   await writeFile(statePath, `${JSON.stringify({
-    schemaVersion: 2,
+    schemaVersion: 3,
     package: { name: pluginManifest.name, version: pluginManifest.version },
     modelsSource,
     noModel: options.noModel,
@@ -510,6 +635,11 @@ export async function buildBundles(options) {
     outputs: OUTPUT_ROOTS,
     profiles: profileRecords,
     coordinator: coordinatorProfile ? { name: coordinatorProfile.meta.name, model: formatModelValue(coordinatorProfile.assignment) } : null,
+    qwenCode: {
+      profiles: qwenProfileRecords,
+      coordinator: qwenCoordinatorProfile ? { name: qwenCoordinatorProfile.meta.name, model: formatModelValue(qwenCoordinatorProfile.assignment) } : null,
+      coordinatorSkipped: qwenCoordinatorSkipped,
+    },
   }, null, 2)}\n`, "utf8");
 
   const modelConfigSection = await readFile(modelConfigFragmentPath, "utf8");
@@ -531,15 +661,28 @@ export async function buildBundles(options) {
   await populateCommandEntries(openCodeRoot, adapter, coordinator);
   await populateSkillsRoot(join(openCodeRoot, "skills"), options.sourceRoot, null);
 
+  // 4. Qwen Code binding (flat generated agent profiles + skills).
+  const qwenCodeRoot = join(options.output, "qwen-code");
+  for (const { profile, text } of qwenProfiles) {
+    await writeText(join(qwenCodeRoot, profile.outputPath), text);
+  }
+  if (qwenCoordinatorProfile) {
+    await writeText(join(qwenCodeRoot, qwenCoordinatorProfile.meta.outputPath), qwenCoordinatorProfile.text);
+  }
+  await populateSkillsRoot(join(qwenCodeRoot, "skills"), options.sourceRoot, null);
+
   const explicitCount = profileRecords.filter((record) => record.mode === "explicit").length;
   return {
     openCodeRoot,
+    qwenCodeRoot,
     pluginRoot,
     standaloneRoot: standaloneSkillsRoot,
     copilotRoot: pluginRoot,
     modelCount: explicitCount,
     profileCount: profileRecords.length,
     coordinator: coordinatorProfile !== null,
+    qwenCoordinator: qwenCoordinatorProfile !== null,
+    qwenCoordinatorSkipped: qwenCoordinatorSkipped,
   };
 }
 
@@ -554,12 +697,16 @@ async function main() {
     console.log(`Built Agent Plugins package: ${result.pluginRoot}`);
     console.log(`Built standalone skills: ${result.standaloneRoot}`);
     console.log(`Built OpenCode binding: ${result.openCodeRoot}`);
+    console.log(`Built Qwen Code binding: ${result.qwenCodeRoot}`);
     if (options.noModel) {
-      console.log("Built model-neutral bundles; every OpenCode profile inherits the session model and effort, and no coordinator profile is generated.");
+      console.log("Built model-neutral bundles; every OpenCode and Qwen Code profile inherits the session model and effort, and no coordinator profile is generated.");
     } else {
       console.log(`${result.modelCount} of ${result.profileCount} OpenCode worker profiles carry explicit model routes; the rest inherit the session model.`);
       if (result.coordinator) {
         console.log("Coordinator profile generated; the /work, /review, and /autonomous commands bind agenticale/coordinator in the current session.");
+      }
+      if (result.qwenCoordinatorSkipped) {
+        console.log(`Qwen Code coordinator skipped: ${result.qwenCoordinatorSkipped}.`);
       }
     }
   } catch (error) {
