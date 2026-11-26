@@ -86,9 +86,9 @@ try {
   const standaloneRel = await listRelative(fixture.standaloneRoot);
   const openCodeRel = await listRelative(fixture.openCodeRoot);
 
-  check(pluginRel.length === 31, "plugin bundle has 31 files");
-  check(standaloneRel.length === 30, "standalone bundle has 30 files");
-  check(openCodeRel.length === 41, "OpenCode bundle has 41 files (7 profiles + 4 commands + 30 skills)");
+  check(pluginRel.length === 43, "plugin bundle has 43 files");
+  check(standaloneRel.length === 42, "standalone bundle has 42 files");
+  check(openCodeRel.length === 53, "OpenCode bundle has 53 files (7 profiles + 4 commands + 42 skills)");
 
   // No routing artifact ships in any output root (the flat model config is a
   // build-time input only; nothing routing-shaped is materialized). The
@@ -246,14 +246,14 @@ try {
   const callerRel = await listRelative(callerFixture.openCodeRoot);
   check(!callerRel.some((path) => path.endsWith("coordinator.md") || path.endsWith("implement-easy.md") || path.endsWith("consult-hard.md")), "caller file: unlisted optional roles and the coordinator do not render");
 
-  // The exact example preset: 1 primary coordinator + 9 workers (44 files),
+  // The exact example preset: 1 primary coordinator + 9 workers (56 files),
   // exact model values, and the workflow commands bound to the coordinator in
   // the current session with the skill load and $ARGUMENTS retained; the
   // configure command stays a caller-session launcher even with a coordinator.
   {
     const exampleFixture = await buildFixture("example-preset", ["--models", "example"]);
     const exampleRel = await listRelative(exampleFixture.openCodeRoot);
-    check(exampleRel.length === 44, "example preset OpenCode bundle has 44 files (10 profiles + 4 commands + 30 skills)");
+    check(exampleRel.length === 56, "example preset OpenCode bundle has 56 files (10 profiles + 4 commands + 42 skills)");
     const exampleProfiles = exampleRel.filter((path) => path.startsWith("agents/agenticale/")).map((path) => path.split("/").pop().replace(".md", ""));
     check(JSON.stringify(exampleProfiles.sort()) === JSON.stringify([...ALL_ROLES, "coordinator"].sort()), "example preset renders exactly 1 primary + 9 worker profiles");
     for (const role of ALL_ROLES) {

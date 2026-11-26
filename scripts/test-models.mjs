@@ -616,7 +616,13 @@ try {
     check(rounds.includes("when that evidence is unavailable or ambiguous, the binding's conservative limitation handling applies"), "intent lookup: the shared policy defers unavailable/ambiguous evidence to the binding");
 
     for (const skill of ["work", "review", "autonomous"]) {
-      const text = await prose(join(repository, "skills", skill, "SKILL.md"));
+      let text = await prose(join(repository, "skills", skill, "SKILL.md"));
+      // The split moved the autonomous dispatch paragraph (including the
+      // manifest-read permission) from the entry to its mandatory pre-dispatch
+      // reference; check the entry together with that reference.
+      if (skill === "autonomous") {
+        text += " " + await prose(join(repository, "skills", "autonomous", "references", "dispatch.md"));
+      }
       check(text.includes("install-ownership manifest the active runtime binding documents"), `intent lookup: the ${skill} skill permits the binding-documented install-ownership manifest`);
       check(text.includes("read-only at most once at activation"), `intent lookup: the ${skill} skill's manifest read is read-only and activation-fixed`);
       check(text.includes("solely to establish whether a needed optional route was configured in the current install inventory"), `intent lookup: the ${skill} skill limits the manifest read to configured-intent evidence for a needed optional route`);
