@@ -77,26 +77,24 @@ Write the JSON only on its own explicit confirmation of the exact
 user-chosen path and content; re-read before writing, and treat a content
 change since confirmation as invalidating it.
 
-Then propose the refresh (the work binding's refresh procedure). This host
-has no installer entry yet — `scripts/install.mjs` currently installs only
-the OpenCode binding — so the refresh is a manual build and copy:
+Then propose the refresh (the work binding's refresh procedure): re-run the
+installer against the effective install root (the project `.qwen/`
+directory or `~/.qwen/`):
 
 ```sh
-node <AgenticAle-checkout>/scripts/build.mjs --models <path|preset>
+node <AgenticAle-checkout>/scripts/install.mjs qwen-install --models <path|preset> --target <install root>
 ```
 
-and copy the generated `qwen-code/` build root's `agents/agenticale-*.md`
-and skill directories into the effective install root (the project
-`.qwen/` directory or `~/.qwen/`). The copy is the only effect on the
-user's machine: `settings.json` stays unchanged, an agent file the user
-has modified is backed up before being replaced, and nothing outside the
-`agenticale-*` agents and the AgenticAle skill files is touched. Running
-the build and copy is a separate explicit consent for its effects — never
+The install is the only effect on the user's machine: `settings.json` stays
+unchanged, and nothing outside the `agenticale-*` agents and the AgenticAle
+skill files is touched. The installer refuses differing files by default
+(`--replace` backs up and replaces), preserves a modified owned file, and
+retires owned, unmodified files no longer listed — a manually copied
+leftover agent is never owned, so it is never touched. It also writes the
+ownership manifest the workflow reads for configured-route intent. Running
+the installer is a separate explicit consent for its effects — never
 automatic. A session that reads the agents root at start picks up the
-refreshed files; do not promise a running session hot reload. Because a
-manual install writes no ownership manifest, configured-route intent for
-the optional routes cannot be established until an installer entry lands;
-state that as a limitation when the user asks.
+refreshed files; do not promise a running session hot reload.
 
 The bundled `--models` presets remain an explicit user option — they are
 example inventories, not verified machine mappings. Configure's own

@@ -377,7 +377,7 @@ try {
     const statePath = join(valid, STATE);
     const cases = [
       ["wrong top-level keys", (s) => { s.extra = 1; }, "Install state is invalid:"],
-      ["wrong package", (s) => { s.package = "nope"; }, "Install state is invalid:"],
+      ["wrong package", (s) => { s.package = "nope"; }, "is owned by another AgenticAle package ('nope')"],
       ["schema 7 link mode", (s) => { s.mode = "link"; }, `Schema ${STATE_VERSION} install state must be a copy install:`],
       ["path outside bundle", (s) => { s.entries.push({ path: "commands/extra.md", kind: "file", digest: digest(Buffer.from("x")) }); }, "Install state has a generated path outside the bundle:"],
       ["unexpected profile", (s) => { s.entries = s.entries.filter((e) => e.path !== "agents/agenticale/consult.md"); s.entries.push({ path: "agents/agenticale/implhard.md", kind: "file", digest: digest(Buffer.from("x")) }); s.entries.push({ path: "agents/agenticale/consult.md", kind: "file", digest: digest(Buffer.from("y")) }); }, "Install state has an unexpected generated profile:"],
@@ -1760,6 +1760,135 @@ try {
     for (const entry of optionalWorkerEntries(legacyState)) {
       check(!legacyState.entries.some((e) => e.path === entry), `intent evidence: a schema-6 inventory carries no ${entry} (legacy absence means omitted)`);
     }
+  }
+
+  // ------------------------------------------------------------------
+  // Qwen Code installs (qwen-install / qwen-uninstall): the flat generated
+  // output, its own package identifier and state schema, and the same
+  // ownership, backup, and rollback contract as the OpenCode install.
+  {
+    const QWEN_PACKAGE = "qwen-code-autonomous-mode";
+    const readQwenState = async (target) => JSON.parse(await readFile(join(target, STATE), "utf8"));
+    const qwenAgents = (state) => state.entries.filter((e) => e.path.startsWith("agents/")).map((e) => e.path.split("/")[1]);
+
+    // Fresh install: the packaged Qwen Code install default
+    // (adapters/qwen-code/models.json) — nine worker roles plus the
+    // Qwen-direct coordinator, plus the walked six-skill inventory (44 files).
+    const t = join(scratch, "q-default");
+    const r = run("install.mjs", ["qwen-install", "--target", t]);
+    check(r.exit === 0, "qwen fresh install: exits 0");
+    check(r.out.includes("Installation complete."), "qwen fresh install: Installation complete");
+    const state = await readQwenState(t);
+    check(state.schema === 1, "qwen fresh install: state schema 1");
+    check(state.package === QWEN_PACKAGE, "qwen fresh install: the qwen package identifier");
+    check(state.mode === "copy", "qwen fresh install: copy mode");
+    check(state.entries.length === 54, "qwen fresh install: 54 entries (10 profiles + 44 skills)");
+    const agents = qwenAgents(state);
+    check(agents.length === 10, "qwen fresh install: ten flat profiles");
+    check(agents.every((a) => a.startsWith("agenticale-") && a.endsWith(".md")), "qwen fresh install: flat agenticale-<name>.md names");
+    check(agents.includes("agenticale-coordinator.md"), "qwen fresh install: the Qwen-direct coordinator renders");
+    for (const role of PROFILES) check(agents.includes(`agenticale-${role}.md`), `qwen fresh install: base profile ${role}`);
+    const files = (await relFiles(t)).filter((f) => f !== STATE && !f.startsWith(".autonomous-mode-backups/"));
+    check(files.length === 54, "qwen fresh install: 54 files on disk");
+    check(files.every((f) => f.startsWith("agents/") || f.startsWith("skills/")), "qwen fresh install: only the agents and skills roots");
+
+    // Profile shapes: the direct role carries the bare model id; the codex
+    // role carries the pinned executor and none of the rejected keys.
+    const explore = await readFile(join(t, "agents", "agenticale-explore.md"), "utf8");
+    check(explore.includes("model: qwen3.8-27b"), "qwen fresh install: explore renders the bare model id");
+    check(!/executor:/.test(explore), "qwen fresh install: the direct profile has no executor block");
+    const review = await readFile(join(t, "agents", "agenticale-review.md"), "utf8");
+    check(/executor:/.test(review), "qwen fresh install: review renders the codex executor");
+    check(review.includes('model=\\"gpt-6.2-sol\\"'), "qwen fresh install: review pins the bare codex model");
+    check(review.includes('model_reasoning_effort=\\"high\\"'), "qwen fresh install: review pins the codex effort");
+    check(!/^model: /m.test(review), "qwen fresh install: the codex profile carries no model line");
+    check(!/maxTurns:/.test(review), "qwen fresh install: the codex profile carries no maxTurns");
+    check(!/disallowedTools:/.test(review), "qwen fresh install: the codex profile carries no disallowedTools");
+
+    // Idempotent rerun: up to date.
+    const r2 = run("install.mjs", ["qwen-install", "--target", t]);
+    check(r2.exit === 0, "qwen up-to-date: exits 0");
+    check(r2.out.includes("Already up to date."), "qwen up-to-date: reports up to date");
+
+    // Reinstall with the example config: its codex-routed coordinator is
+    // skipped, so the owned coordinator file is retired and its entry drops.
+    const r3 = run("install.mjs", ["qwen-install", "--target", t, "--models", "example"]);
+    check(r3.exit === 0, "qwen example install: exits 0");
+    check(r3.out.includes("migrate-remove: agents/agenticale-coordinator.md"), "qwen example install: the codex-routed coordinator retires the owned file");
+    const state3 = await readQwenState(t);
+    check(state3.entries.length === 53, "qwen example install: 53 entries (9 profiles + 44 skills)");
+    check(!qwenAgents(state3).includes("agenticale-coordinator.md"), "qwen example install: no coordinator entry in the state");
+    check(!(await exists(join(t, "agents", "agenticale-coordinator.md"))), "qwen example install: the coordinator file is gone");
+
+    // --no-model: every role inherits; the configured optional routes retire.
+    const r4 = run("install.mjs", ["qwen-install", "--target", t, "--no-model"]);
+    check(r4.exit === 0, "qwen no-model install: exits 0");
+    const state4 = await readQwenState(t);
+    check(state4.entries.length === 51, "qwen no-model install: 51 entries (7 profiles + 44 skills)");
+    const agents4 = qwenAgents(state4);
+    check(agents4.length === 7 && agents4.every((a) => PROFILES.includes(a.slice("agenticale-".length, -3))), "qwen no-model install: the seven base profiles only");
+    const explore4 = await readFile(join(t, "agents", "agenticale-explore.md"), "utf8");
+    check(!/^model: /m.test(explore4) && !/executor:/.test(explore4), "qwen no-model install: every profile inherits (no model line, no executor)");
+
+    // A modified owned file refuses the install without --replace and is
+    // left in place; --replace backs it up and replaces it.
+    const modified = join(t, "agents", "agenticale-fix.md");
+    await writeFile(modified, "user-modified\n", "utf8");
+    const r5 = run("install.mjs", ["qwen-install", "--target", t]);
+    check(r5.exit !== 0, "qwen collision: a modified file refuses the install without --replace");
+    check(r5.err.includes("Differing content already exists at:"), "qwen collision: names the collision");
+    check((await readFile(modified, "utf8")) === "user-modified\n", "qwen collision: the modified file is left in place");
+    const r6 = run("install.mjs", ["qwen-install", "--target", t, "--replace"]);
+    check(r6.exit === 0, "qwen replace: --replace exits 0");
+    check(r6.out.includes("backup created"), "qwen replace: backs up before replacing");
+    check((await readFile(modified, "utf8")) !== "user-modified\n", "qwen replace: the modified file is replaced");
+
+    // Uninstall removes owned, unmodified files and the state; a modified
+    // owned file and user files survive.
+    await writeFile(modified, "user-modified again\n", "utf8");
+    const userAgent = join(t, "agents", "my-own-agent.md");
+    await writeFile(userAgent, "mine\n", "utf8");
+    const r7 = run("install.mjs", ["qwen-uninstall", "--target", t, "--dry-run"]);
+    check(r7.exit === 0, "qwen uninstall dry-run: exits 0");
+    check(r7.out.includes("preserve-modified: agents/agenticale-fix.md"), "qwen uninstall dry-run: reports the modified file");
+    check(await exists(join(t, STATE)), "qwen uninstall dry-run: changes nothing");
+    const r8 = run("install.mjs", ["qwen-uninstall", "--target", t]);
+    check(r8.exit === 0, "qwen uninstall: exits 0");
+    check(!await exists(join(t, STATE)), "qwen uninstall: removes the state");
+    check(!await exists(join(t, "agents", "agenticale-explore.md")), "qwen uninstall: removes owned agent files");
+    check((await readFile(modified, "utf8")) === "user-modified again\n", "qwen uninstall: preserves the modified file");
+    check((await readFile(userAgent, "utf8")) === "mine\n", "qwen uninstall: leaves user agents untouched");
+    check(!await exists(join(t, "skills", "work", "SKILL.md")), "qwen uninstall: removes owned skill files");
+
+    // Uninstall with no (or foreign, or malformed) state refuses.
+    const r9 = run("install.mjs", ["qwen-uninstall", "--target", t]);
+    check(r9.exit !== 0, "qwen uninstall without state: refuses");
+    const foreign = join(scratch, "q-foreign");
+    await mkdir(join(foreign, "agents"), { recursive: true });
+    await writeFile(join(foreign, STATE), JSON.stringify({ schema: 7, package: PACKAGE, mode: "copy", installedAt: new Date().toISOString(), entries: [] }, null, 2));
+    const rf1 = run("install.mjs", ["qwen-install", "--target", foreign]);
+    check(rf1.exit !== 0, "qwen foreign state: install refuses another package's state");
+    const rf2 = run("install.mjs", ["qwen-uninstall", "--target", foreign]);
+    check(rf2.exit !== 0, "qwen foreign state: uninstall refuses another package's state");
+    const malformed = join(scratch, "q-malformed");
+    await mkdir(malformed, { recursive: true });
+    await writeFile(join(malformed, STATE), "{ not json", "utf8");
+    const rm1 = run("install.mjs", ["qwen-uninstall", "--target", malformed]);
+    check(rm1.exit !== 0, "qwen malformed state: uninstall refuses");
+
+    // A qwen state carrying an unexpected agent entry is refused.
+    const bad = join(scratch, "q-bad-entry");
+    const rb0 = run("install.mjs", ["qwen-install", "--target", bad, "--no-model"]);
+    check(rb0.exit === 0, "qwen bad-entry fixture: the fresh install exits 0");
+    const badState = await readQwenState(bad);
+    badState.entries.push({ path: "agents/agenticale-rogue.md", kind: "file", digest: digest(Buffer.from("x")) });
+    await writeFile(join(bad, STATE), JSON.stringify(badState, null, 2), "utf8");
+    const rb1 = run("install.mjs", ["qwen-install", "--target", bad]);
+    check(rb1.exit !== 0, "qwen state with an unexpected profile: refused");
+
+    // A target inside this checkout is refused (no files are created).
+    const rIn = run("install.mjs", ["qwen-install", "--target", join(repo, ".qwen")]);
+    check(rIn.exit !== 0, "qwen target inside the checkout: refused");
   }
 
   console.log(`Installer tests passed: ${assertions} assertions.`);

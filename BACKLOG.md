@@ -1,12 +1,10 @@
 # Qwen Code adapter — backlog
 
-Branch: `feat/qwen-code-adapter`. Status: increments 1–4 done (research +
+Branch: `feat/qwen-code-adapter`. Status: increments 1–5 done (research +
 adapter source, spike, build path with tests, runtime binding + configure
-discovery); three codex-deep-review gates run, findings fixed; the
-installer entry (increment 5) is the remaining step before the PR; note
-the qwen-code install is manual (build + copy) until increment 5 adds a
-qwen-code path to `scripts/install.mjs` (currently OpenCode-only), and the
-binding, configure discovery, and README all state that.
+discovery, and the `qwen-install`/`qwen-uninstall` installer entry);
+three codex-deep-review gates run so far with findings fixed (gate 4 runs
+over increment 5), after which the remaining step is the PR (G5).
 
 Goal: an installation method for Qwen Code mirroring the OpenCode adapter
 (`adapters/opencode/`), so the flat model config (roles → `provider/model#effort`,
@@ -209,12 +207,28 @@ Nothing else is wired up.
   reference (`skills/configure/references/discovery/qwen-code.md`), the
   configure SKILL.md host wiring, and the work/autonomous dispatch
   sentences that name Qwen Code as an agent-file host. `validate.mjs` pins
-  both new files and the configure host list. NOTE: the binding's
-  installer-rerun line is real only once increment 5 lands; until then a
-  Qwen Code install is manual (copy the `qwen-code/` build root into the
-  install root) and there is no ownership manifest yet.
-- [ ] **5. Install.** Installer entry (target: project `.qwen/` or
-  `~/.qwen/`), ownership manifest for configured-route intent, install docs.
+  both new files and the configure host list. (The manual-refresh wording
+  this increment wrote into the binding and configure discovery was
+  superseded by increment 5's installer entry.)
+- [x] **5. Install.** `scripts/install.mjs` gained the `qwen-install` and
+  `qwen-uninstall` subcommands: a copy-only install of the generated
+  `qwen-code/` build root (default config `adapters/qwen-code/models.json`;
+  `--models PATH|PRESET`, `--no-model`, `--target PATH` default `~/.qwen`,
+  `--replace`, `--dry-run`) into the Qwen Code configuration directory.
+  Reuses the OpenCode ownership/backup/rollback/collision mechanics under a
+  distinct package identifier (`qwen-code-autonomous-mode`, state schema 1,
+  `.autonomous-mode-install.json`), with the ownership manifest written so
+  configured-route intent is established by the work binding; a state file
+  owned by another AgenticAle package (or malformed) is refused, and
+  reconciliation retires owned-unmodified files no longer listed while
+  preserving modified ones. No legacy migrations (nothing older exists).
+  `scripts/test-installer.mjs` gained the Qwen install block (fresh/up-to-date/
+  example/no-model/collision/replace/uninstall/foreign-state/malformed-state/
+  unexpected-profile/target-confined; 723 assertions total). Docs converged
+  on the real command: `docs/setup.md` (new Qwen Code section + preview/
+  update/uninstall lines), `docs/architecture.md` (installer table row),
+  the runtime binding and configure discovery refresh procedures, the
+  configure SKILL.md refresh paragraph, and the adapter README §8.
 - [x] **Review gate 2** (after increment 3): codex-deep-review over build +
   tests reported 1×P1 (TOML-breaking chars in model ids), 9×P2, 1×P3.
   Fixed in the same pass: the shared loader now rejects quotes/backslashes

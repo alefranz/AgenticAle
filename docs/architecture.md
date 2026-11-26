@@ -541,6 +541,7 @@ reported; replacements are backed up.
 | `codex plugin marketplace add` + `codex plugin add` | the shared plugin from `.agents/plugins/marketplace.json` | managed by the Codex plugin store |
 | `scripts/install-standalone.mjs` | the six standalone skills to project scope (`<cwd>/.agents/skills`, default) or user scope (`~/.agents/skills`) | `.agenticale-standalone-install.json` (schema 1) |
 | `scripts/install.mjs` | the generated OpenCode output (skills + seven base worker profiles + optional profiles + four command entries) | `.autonomous-mode-install.json` (schema 7, 55-file inventory by default, up to 58) |
+| `scripts/install.mjs qwen-install` | the generated Qwen Code output (skills + flat `agenticale-*` agent profiles) | `.autonomous-mode-install.json` (schema 1, package `qwen-code-autonomous-mode`, 54 files with all roles and the coordinator) |
 
 The OpenCode installer is copy-only. It builds to a temporary root and copies the
 generated output into the OpenCode configuration directory; it does not link to
@@ -554,6 +555,10 @@ entries) validates and gains the configure skill and command entry without
 five-skill `sourceLayout` the same way.
 The standalone installer provides an alternative local skill install for Codex
 CLI, the VS Code extension, and Codex in the ChatGPT desktop app.
+The Qwen Code installer is copy-only with no legacy migrations. It reuses the
+OpenCode ownership, backup, and rollback mechanics but records its own package
+identifier in the shared state file name, so it refuses to manage a state file
+written by a different AgenticAle package.
 
 ## Safety and state boundaries
 

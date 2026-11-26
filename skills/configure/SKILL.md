@@ -190,12 +190,18 @@ profile is otherwise preserved and reported. Running the installer is a
 separate explicit consent for its external effects on the installation —
 never automatic; the user may run the command themselves. OpenCode reloads
 refreshed profiles without an app restart, and the next fresh workflow
-activation dispatches with them. On Qwen Code there is no installer entry
-yet: the refresh is the manual build-and-copy procedure the discovery
-reference documents (build with `--models`, copy the `qwen-code/` build
-root's agents and skills into the install root), under the same explicit
-consent rule, and the next fresh workflow activation dispatches with the
-refreshed files.
+activation dispatches with them. On Qwen Code the refresh is its own
+installer subcommand:
+
+```sh
+node <AgenticAle-checkout>/scripts/install.mjs qwen-install --models <path|preset> [--target PATH]
+```
+
+The same explicit consent rule applies, and its ownership, backup,
+collision, rollback, and reconciliation safeguards mirror the OpenCode
+installer (it writes its own ownership manifest, preserves a modified owned
+file, and refuses a state file owned by another AgenticAle package); the
+next fresh workflow activation dispatches with the refreshed agents.
 
 The `## Work` allowance remains editable through the preference file on
 OpenCode (below); it is the only preference-file section that applies there.

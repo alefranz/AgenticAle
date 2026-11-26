@@ -220,34 +220,30 @@ coordinating session simply runs on its own session model.
 
 ## When a role's agent file is missing or not what you need
 
-This host has no installer entry yet, so the refresh is manual (a
-checkout-based installer entry is planned work; `scripts/install.mjs`
-currently installs only the OpenCode binding). From an AgenticAle source
-checkout (obtain one by cloning `https://github.com/alefranz/AgenticAle`),
-run the shared build with the flat model config you want and copy the
-generated `qwen-code/` build root into the effective install root — the
-project `.qwen/` directory or `~/.qwen/`, whichever one supplies the
-installed `agenticale-*` agents and skills:
+Re-run the installer from an AgenticAle source checkout (obtain one by
+cloning `https://github.com/alefranz/AgenticAle`) with the flat model
+config you want, pointing it at the effective install root — the project
+`.qwen/` directory or `~/.qwen/`, whichever one supplies the installed
+`agenticale-*` agents and skills:
 
 ```sh
-node <AgenticAle-checkout>/scripts/build.mjs --models <path|preset>
+node <AgenticAle-checkout>/scripts/install.mjs qwen-install --models <path|preset> --target <install root>
 ```
 
-(or `--no-model` to make every role inherit the session model). Copy
-`agents/agenticale-*.md` over the install root's `agents/` directory and
-the skill directories over its `skills/` directory; leave every other
-agent, skill, command, and setting in the install root untouched. An agent
-file you have modified is yours, not the install's: back it up before
-replacing it, and never let a refresh delete a file the refresh did not
-itself generate. Because the install is manual, no ownership manifest is
-written at the install root, so configured-route intent cannot be
-established on this host for now: the conservative decision in
-[Establishing configured-route intent](#establishing-configured-route-intent-from-install-evidence)
-applies, and an optional route whose agent file is present but whose
-configuration cannot be shown is not dispatched. Do not treat refreshed
-agent files as effective until a session that has read the agents root
-dispatches them; the next fresh workflow activation dispatches with the
-refreshed agents.
+(or `--no-model` to make every role inherit the session model; with neither
+flag the packaged Qwen Code install default applies). The installer is
+copy-only and owns only the `agenticale-*` agent files and the AgenticAle
+skill files: every other agent, skill, and setting in the install root is
+left untouched, and the ownership manifest it writes is the evidence source
+for [Establishing configured-route intent](#establishing-configured-route-intent-from-install-evidence).
+It refuses to overwrite a differing file by default (`--replace` backs up
+and replaces), and it refuses a state file written by another AgenticAle
+package or an unrecognized hand-edited state. Reconciliation retires owned,
+unmodified agent files the new inventory no longer lists — a manually
+copied leftover agent is never touched, because it is not owned — while a
+modified owned file is preserved and reported. Rerunning the installer
+restores both the agent files and the manifest evidence; the next fresh
+workflow activation dispatches with the refreshed agents.
 
 ## Requested versus effective settings
 

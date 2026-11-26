@@ -1,9 +1,8 @@
 # Qwen Code adapter
 
 This adapter is the machine-readable metadata the build reads to render the
-Qwen Code binding. It lives at `adapters/qwen-code/` and (once the build path
-exists — see the BACKLOG increment list) produces the generated output under
-`dist/qwen-code/`.
+Qwen Code binding. It lives at `adapters/qwen-code/` and produces the
+generated output under `dist/qwen-code/`.
 
 ## 1. What the Qwen Code binding is, and why it is a shim
 
@@ -264,10 +263,17 @@ The adapter data, the build path (`qwen-code/` rendering, validated by
 `scripts/test-build.mjs`), and the runtime binding
 (`skills/work/references/runtimes/qwen-code.md`, plus the configure
 discovery reference `skills/configure/references/discovery/qwen-code.md`)
-are implemented (BACKLOG increments 1–4). The installer entry is not yet
-implemented (BACKLOG increment 5): until it lands, the install is manual
-(copy the `qwen-code/` build root into the project `.qwen/` directory or
-`~/.qwen/`), no ownership manifest is written, and configured-route intent
-for the optional routes cannot be established. Live Qwen Code rendering and
-dispatch are verified only by the spike probes recorded in BACKLOG.md, not
-by this branch's test suite.
+are implemented (BACKLOG increments 1–4). The installer entry
+(BACKLOG increment 5) is implemented as `scripts/install.mjs
+qwen-install` / `qwen-uninstall`: a copy-only install of the generated
+`qwen-code/` build root into the Qwen Code configuration directory
+(`--target PATH`, default `~/.qwen`), reusing the OpenCode installer's
+ownership, backup, collision, rollback, and reconciliation mechanics under
+its own package identifier (`qwen-code-autonomous-mode`, state schema 1,
+`.autonomous-mode-install.json`), so the ownership manifest it writes is
+the configured-route intent evidence the work binding reads. The default
+model config is this adapter's `models.json`; `--models PATH|PRESET` and
+`--no-model` override it, and a codex-routed `coordinator` value is
+rejected at install time. Live Qwen Code rendering and dispatch are
+verified only by the spike probes recorded in BACKLOG.md, not by this
+branch's test suite.
