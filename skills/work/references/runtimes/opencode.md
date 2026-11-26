@@ -255,6 +255,11 @@ the remaining delivery.
 - Do not change global model configuration mid-task. Model changes go through
   reinstalling with a different `--models` config, not by editing a global
   setting while a task runs.
+- Skill loads and whole-file reads are truncated at 50 KiB (51,200 bytes),
+  cut at line boundaries. Every file a workflow must ingest whole is kept
+  at or under a 45 KiB (46,080-byte) authored budget, and the installed skill file
+  (entry plus appended preference fragment) stays under the band;
+  `scripts/validate.mjs` enforces both limits.
 
 The skill selects this binding from the actual runtime/tool surface, not from the
 chosen language model. A surface that is not OpenCode V2 does not use this

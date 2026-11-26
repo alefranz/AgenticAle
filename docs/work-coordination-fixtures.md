@@ -6,7 +6,7 @@ the [work skill](../skills/work/SKILL.md), the
 [autonomous skill](../skills/autonomous/SKILL.md). They describe expected
 coordinator decisions; they are source-interpretation examples, not live host
 tests. The counter, switching, and recovery cases interpret the autonomous
-skill's [state protocol](../skills/autonomous/SKILL.md#state-protocol), the
+skill's [state protocol](../skills/autonomous/references/state-protocol.md#state-protocol), the
 single authority for the charge, settle, switch, reconcile, and finalize
 events. The autonomous state is the compact snapshot `.agenticale/active.md`
 plus `BACKLOG.md`; the snapshot is the single counter authority, the

@@ -47,6 +47,12 @@ Prefer extending existing workflows around user outcomes. Add commands, flags,
 roles, or persistent state only when they provide a distinct capability that
 existing concepts cannot express clearly.
 
+Every Markdown file under `skills/` that a workflow reads whole in one
+operation must stay ≤ 45 KiB (46,080 bytes) — OpenCode truncates skill loads
+and whole-file reads at 50 KiB — and the installed skill file (entry plus
+appended preference fragment) stays under that band; `scripts/validate.mjs`
+enforces the budget and the skills' link and anchor integrity.
+
 ## Public and repository-only documentation
 
 Public documentation is the explicit allowlist in

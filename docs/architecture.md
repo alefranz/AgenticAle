@@ -45,6 +45,12 @@ coordinator the invoking session coordinates on its own model. The session
 owns its own model and effort, and it dispatches fresh children using the
 task-specific instructions; it never selects a model.
 
+Each workflow skill splits into an entry plus reference files with explicit
+load points because OpenCode truncates skill loads and whole-file reads at
+50 KiB (51,200 bytes): every file a workflow reads whole stays at or under a
+45 KiB (46,080-byte) authored budget; `scripts/validate.mjs` enforces the
+budget and the skills' link and anchor integrity.
+
 The standalone review skill covers the current branch's net changes from the
 merge base to the current working-tree result — the committed branch review on
 a clean tree — and returns findings without fixing. Work can start from a
