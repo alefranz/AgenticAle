@@ -310,11 +310,10 @@ Nothing else is wired up.
   trusted by Qwen Code itself (the host checks its own folder trust before
   launching a project-level external agent). The install docs state both; the
   installer never rewrites external global config or trust lists.
-- **G5 — PR shape.** If increments 3–5 land cleanly this can be one PR
-  (adapter + build + binding + install). If the build/install coupling proves
-  invasive, ship the adapter source + runtime binding as a documentation-only
-  pass (as the OpenCode adapter originally was) and leave the build for a
-  follow-up.
+- [x] **G5 — PR shape.** One PR: adapter + build + binding + install +
+  plugin 0.33.1 → 0.34.0 (the distributed skills changed, so the bump is
+  required). Opened as #62 (`feat/qwen-code-adapter` → `main`); the full
+  CONTRIBUTING verification sequence passes on the branch.
 - **G6 — Unresolvable `model:` values fail silently.** Verified in S2: a
   `model:` id that resolves to nothing falls back to the session model with
   no error (Qwen Code 0.28.6). The install docs and runtime binding must
