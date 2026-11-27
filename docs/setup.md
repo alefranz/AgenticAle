@@ -460,8 +460,10 @@ branches.
 
 ## Preview, update, and uninstall
 
-Preview an OpenCode, Qwen Code, or standalone install without touching the
-filesystem:
+Preview an install without touching the install target. The dry runs report
+the planned changes; the Qwen Code dry run additionally builds the bundle in
+a temporary tree (removed again afterwards) because it validates the same
+generated content a real install would copy:
 
 ```sh
 node scripts/install.mjs --dry-run --no-model
@@ -475,8 +477,9 @@ Update an existing install after fetching a newer version:
 # OpenCode (explicit session-model inheritance shown here)
 node scripts/install.mjs --replace --no-model
 
-# Qwen Code
-node scripts/install.mjs qwen-install --replace --no-model
+# Qwen Code (without --models or --no-model the packaged default model
+# config applies; pass one only to change the model routing)
+node scripts/install.mjs qwen-install --replace
 
 # Antigravity (re-run install from the updated local checkout)
 git pull

@@ -194,11 +194,15 @@ activation dispatches with them. On Qwen Code the refresh is its own
 installer subcommand:
 
 ```sh
-node <AgenticAle-checkout>/scripts/install.mjs qwen-install --models <path|preset> [--target PATH]
+node <AgenticAle-checkout>/scripts/install.mjs qwen-install --models <path|preset> --target <install root>
 ```
 
-The same explicit consent rule applies, and its ownership, backup,
-collision, rollback, and reconciliation safeguards mirror the OpenCode
+`--target` names the install root that supplies the installed `agenticale-*`
+agents (the project `.qwen/` directory or `~/.qwen/`; the flag's own default
+is `~/.qwen/`), so a project-scoped install must pass the project target
+explicitly. The same explicit consent rule applies, and its ownership,
+backup, collision, rollback, and reconciliation safeguards mirror the
+OpenCode
 installer (it writes its own ownership manifest, preserves a modified owned
 file, and refuses a state file owned by another AgenticAle package); the
 next fresh workflow activation dispatches with the refreshed agents.

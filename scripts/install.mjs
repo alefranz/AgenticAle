@@ -7,6 +7,7 @@ import {
   lstat,
   mkdir,
   mkdtemp,
+  open,
   readFile,
   readdir,
   readlink,
@@ -339,13 +340,16 @@ async function readGeneratedEntries(openCodeRoot) {
 async function buildQwenEntries(options) {
   const tempRoot = await mkdtemp(join(tmpdir(), "agenticale-qwen-code-"));
   try {
-    await buildBundles({
+    const result = await buildBundles({
       output: tempRoot,
       models: options.models ?? join(repositoryRoot, qwenDefaultModelsConfig),
       noModel: options.noModel,
       sourceRoot: options.sourceRoot,
     });
-    return await readWalkedEntries(join(tempRoot, "qwen-code"), qwenGeneratedRoots, "Qwen Code");
+    return {
+      entries: await readWalkedEntries(join(tempRoot, "qwen-code"), qwenGeneratedRoots, "Qwen Code"),
+      coordinatorSkipped: result.qwenCoordinatorSkipped ?? null,
+    };
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
   }
@@ -475,6 +479,21 @@ async function assertManagedParentSafe(target, path, allowedLinkedAncestors = nu
   }
 }
 
+// Collect the normalized path of `path` and every ancestor down to (and
+// including) `target`. Used to exempt the retirement of an owned link: once
+// the link is removed, a real directory replaces it, so a plan writing
+// THROUGH it is safe as long as the run removes that link first.
+async function linkedAncestorExemptions(target, path) {
+  const exemptions = new Set();
+  let current = target;
+  const difference = relative(target, path);
+  for (const component of difference.split(/[\\/]/)) {
+    current = join(current, component);
+    exemptions.add(normalizedPath(current));
+  }
+  return exemptions;
+}
+
 async function assertPhysicalTargetStable(target) {
   const status = await pathStatus(target);
   if (!status?.isDirectory() || status.isSymbolicLink() || normalizedPath(await realpath(target)) !== normalizedPath(target)) {
@@ -510,6 +529,30 @@ function storedEntry(entry) {
   return entry.kind === "file"
     ? { path: entry.path, kind: entry.kind, digest: entry.digest }
     : { path: entry.path, kind: entry.kind, linkTarget: entry.linkTarget };
+}
+
+// Write a generated file exclusively (O_EXCL). A destination that reappears
+// between the plan and the write fails WITHOUT being registered as mutated,
+// so a concurrent writer's file can never be deleted by a rollback; a
+// partially written file created by this run is removed before rethrowing.
+async function writeEntryFile(target, destination, content) {
+  let handle;
+  try {
+    handle = await open(destination, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL, 0o644);
+  } catch (error) {
+    if (error.code === "EEXIST") {
+      throw new Error(`A file appeared at ${destination} after this install planned it (concurrent install or manual edit?). It was left untouched; re-run the install.`);
+    }
+    throw error;
+  }
+  try {
+    await handle.writeFile(content);
+  } catch (error) {
+    try { await unlink(destination); } catch { /* best-effort partial-file cleanup */ }
+    throw error;
+  } finally {
+    await handle.close();
+  }
 }
 
 function safeStatePath(path) {
@@ -654,6 +697,8 @@ function validateQwenState(value, statePath) {
   }
   const profiles = new Set();
   const skills = new Set();
+  const skillFiles = new Map();
+  const seen = new Set();
   for (const entry of value.entries) {
     const validPayload = entry?.kind === "file"
       && typeof entry?.digest === "string" && /^[0-9a-f]{64}$/.test(entry.digest);
@@ -662,6 +707,10 @@ function validateQwenState(value, statePath) {
         || !safeStatePath(entry.path) || !validPayload) {
       throw new Error(`Install state contains an invalid entry: ${statePath}. Move it aside and retry, or restore a valid package state file.`);
     }
+    if (seen.has(entry.path)) {
+      throw new Error(`Install state duplicates a generated path: ${statePath}. Move it aside and retry, or restore a valid package state file.`);
+    }
+    seen.add(entry.path);
     const parts = entry.path.split("/");
     if (parts[0] === "agents") {
       const profileName = parts[1]?.replace(/\.md$/, "");
@@ -677,6 +726,12 @@ function validateQwenState(value, statePath) {
         throw new Error(`Install state has an unexpected generated skill: ${statePath}. Move it aside and retry.`);
       }
       skills.add(parts[1]);
+      if (!parts[2]) {
+        throw new Error(`Install state has a skill entry with no file under the skill directory: ${statePath}. Move it aside and retry.`);
+      }
+      const files = skillFiles.get(parts[1]) ?? new Set();
+      files.add(entry.path);
+      skillFiles.set(parts[1], files);
     } else {
       throw new Error(`Install state has a generated path outside the bundle: ${statePath}.`);
     }
@@ -688,6 +743,11 @@ function validateQwenState(value, statePath) {
   }
   if (skills.size !== skillNames.size) {
     throw new Error(`Install state does not contain the complete generated skill set (the current six skills): ${statePath}. Move it aside and retry.`);
+  }
+  for (const name of skillNames) {
+    if (!skillFiles.get(name)?.has(`skills/${name}/SKILL.md`)) {
+      throw new Error(`Install state is missing the ${name} skill's SKILL.md entry: ${statePath}. Move it aside and retry.`);
+    }
   }
   return value;
 }
@@ -916,6 +976,30 @@ async function installBundle(options) {
     throw new Error(`Differing content already exists at:\n${paths}\nNo changes were made. Re-run with --replace to back it up and replace it.`);
   }
 
+  // F11: validate every planned destination's existing ancestors BEFORE any
+  // output-side decision, so a foreign linked ancestor refuses the whole run
+  // before the first mutation (and before a dry run reports success). Keep
+  // entries are included: a kept file under a linked ancestor would be
+  // recorded into the ownership manifest as owned. An owned link the
+  // migration removes is exempt: it is replaced by a real directory in the
+  // profile, so a plan writing through it is safe (it is removed first).
+  const allowedLinkedAncestors = new Set();
+  for (const { destination, link } of migration.removes) {
+    // An owned LINK this run retires: the link itself and every ancestor up
+    // to the target are exempt, because the removal loop replaces the link
+    // with a real directory before any plan writes through it. A retired
+    // file exempts nothing (it is not an ancestor of anything).
+    if (link) {
+      for (const exemption of await linkedAncestorExemptions(options.target, destination)) {
+        allowedLinkedAncestors.add(exemption);
+      }
+    }
+    await assertManagedParentSafe(options.target, destination);
+  }
+  for (const { entry } of plans) {
+    await assertManagedParentSafe(options.target, entry.destination, allowedLinkedAncestors);
+  }
+
   console.log(`${options.dryRun ? "Dry-run " : ""}Install (copy, generated) -> ${options.target}`);
   if (migrated) console.log(`  migrating from schema ${existingState.schema} ${existingState.mode} install`);
   if (migration.linkConverted) {
@@ -979,20 +1063,6 @@ async function installBundle(options) {
   // calls in the loop below; on failure we roll back and restore this state.
   const originalStateBytes = statePreExisted ? await readFile(statePath) : null;
 
-  // F11: validate every planned mutation's existing ancestors BEFORE backing up
-  // or changing any content. A foreign linked ancestor must reject the whole run
-  // before the first mutation so there is nothing for rollback to undo. An owned
-  // link the migration removes is exempt: it is replaced by a real directory in
-  // the profile, so a plan writing through it is safe (it is removed first).
-  const allowedLinkedAncestors = new Set(migration.removes.map(({ destination }) => normalizedPath(destination)));
-  for (const { destination } of migration.removes) {
-    await assertManagedParentSafe(options.target, destination);
-  }
-  for (const { action, entry } of plans) {
-    if (action === "keep") continue;
-    await assertManagedParentSafe(options.target, entry.destination, allowedLinkedAncestors);
-  }
-
   let backupDirectory = null;
   if (preExisting.size > 0) {
     backupDirectory = await createUniqueBackupDirectory(options.target);
@@ -1008,14 +1078,30 @@ async function installBundle(options) {
     console.log(`  backup created: ${backupDirectory}`);
   }
 
-  // F11: only paths actually mutated by this run are rolled back; a planned path
-  // whose parent check refused the operation is never added, so rollback can
-  // never delete or rewrite a file the run itself refused to touch.
+  // F11: only paths actually mutated by this run are rolled back; a planned
+  // path whose parent check refused the operation is never added, so rollback
+  // can never delete or rewrite a file the run itself refused to touch.
   const mutatedPaths = new Set();
+  // Replace removes are staged aside by a same-filesystem rename (never a
+  // recursive delete before commit): a failed run can put the intact
+  // pre-replacement content back, and the aside copy is deleted only after the
+  // install (including the state write) has committed. The aside subdirectory
+  // sits inside the backup directory so a staged copy is always recoverable
+  // there; it never collides with the per-entry backup copies.
+  const asidePaths = new Set();
+  const stagedRoot = backupDirectory ? join(backupDirectory, "aside") : null;
+  let stateWritten = false;
   try {
     for (const { path, destination } of migration.removes) {
       await assertManagedParentSafe(options.target, destination);
-      await removeDestination(destination);
+      // Only a regular file or the owned link being retired is removed, by
+      // unlink — never a recursive delete. A directory where a tracked entry
+      // was cannot be proven owned (the reconciliation preserves those).
+      const retiredStatus = await pathStatus(destination);
+      if (!retiredStatus || (!retiredStatus.isFile() && !retiredStatus.isSymbolicLink())) {
+        throw new Error(`Refusing to retire ${destination}: it is not the file or owned link the install state records.`);
+      }
+      await unlink(destination);
       mutatedPaths.add(path);
     }
     for (const { action, entry } of plans) {
@@ -1023,16 +1109,39 @@ async function installBundle(options) {
       await assertManagedParentSafe(options.target, entry.destination);
       await mkdir(dirname(entry.destination), { recursive: true });
       await assertManagedParentSafe(options.target, entry.destination);
-      if (action === "replace") await removeDestination(entry.destination);
-      // F13: register the path before the write. A replace has already removed
-      // the destination, and a create/replace write can leave a partial file
+      if (action === "replace") {
+        // Stage the pre-replacement content aside BEFORE the new write: the
+        // rename is atomic, so a failure at any later point can restore the
+        // intact original instead of leaving a partially deleted one.
+        await mkdir(dirname(join(stagedRoot, entry.path)), { recursive: true });
+        await rename(entry.destination, join(stagedRoot, entry.path));
+        asidePaths.add(entry.path);
+      }
+      // F13: register the path before the write. A replace has already staged
+      // the destination aside, and a create write can leave a partial file
       // before failing; either way the path must be rolled back.
       mutatedPaths.add(entry.path);
-      await writeFile(entry.destination, entry.content, { flag: "wx" });
+      await writeEntryFile(options.target, entry.destination, entry.content);
     }
 
     if (!equivalentState(existingState, "copy", entries)) {
       await mkdir(options.target, { recursive: true });
+      if ((await pathStatus(statePath)) !== null) {
+        if (!statePreExisted) {
+          // A state file no install of ours planned for appeared after the
+          // pre-existing scan (a concurrent installer): refuse instead of
+          // overwriting or removing it.
+          throw new Error(`Refusing to write ${statePath}: the state file appeared after this install started (concurrent install?). Re-run the install.`);
+        }
+        if (stagedRoot) {
+          // Stage the pre-update state aside with the other replaced content;
+          // without a backup directory the in-memory copy (restored by
+          // rollback on failure) is the recovery source instead.
+          await mkdir(stagedRoot, { recursive: true });
+          await rename(statePath, join(stagedRoot, stateName));
+          asidePaths.add(stateName);
+        }
+      }
       await writeState(options.target, {
         schema: stateVersion,
         package: packageName,
@@ -1040,6 +1149,7 @@ async function installBundle(options) {
         installedAt: new Date().toISOString(),
         entries: entries.map(storedEntry),
       });
+      stateWritten = true;
     }
   } catch (error) {
     let rollbackError = null;
@@ -1049,33 +1159,48 @@ async function installBundle(options) {
       for (const path of mutatedPaths) {
         const destination = join(options.target, path);
         await assertManagedParentSafe(options.target, destination);
+        if (asidePaths.has(path)) {
+          // Pre-existing content was staged aside: put the intact original
+          // back, deleting the staged copy only once the rename has landed.
+          if (await pathStatus(destination)) await removeDestination(destination);
+          const staged = join(stagedRoot, path);
+          await assertManagedParentSafe(options.target, destination);
+          await rename(staged, destination);
+          asidePaths.delete(path);
+          continue;
+        }
         if (!preExisting.has(path)) {
           // Created or removed by this run: undo by deleting it again.
           if (await pathStatus(destination)) await removeDestination(destination);
           continue;
         }
-        // Pre-existing and differing: remove, then restore the backed-up copy
-        // (a backup directory exists whenever any pre-existing path was touched).
-        if (await pathStatus(destination)) await removeDestination(destination);
-        if (backupDirectory) {
-          const backup = join(backupDirectory, path);
-          if (await pathStatus(backup)) {
-            await assertManagedParentSafe(options.target, destination);
-            await copyForBackup(backup, destination);
+        // Pre-existing and the run deleted it (retired file) without staging:
+        // restore the backed-up copy when the destination is gone.
+        if (!await pathStatus(destination)) {
+          if (backupDirectory) {
+            const backup = join(backupDirectory, path);
+            if (await pathStatus(backup)) {
+              await assertManagedParentSafe(options.target, destination);
+              await copyForBackup(backup, destination);
+            }
           }
         }
       }
-      // F2: restore the pre-update state from memory (not the backup directory),
-      // and only when it changed, so a missing-file repair still keeps ownership.
-      if (await pathStatus(statePath)) {
-        const currentStateBytes = await readFile(statePath);
-        if (originalStateBytes === null) {
-          await removeDestination(statePath);
-        } else if (currentStateBytes.compare(originalStateBytes) !== 0) {
+      // F2: restore the pre-update state from memory (not the backup
+      // directory), and only when it changed, so a missing-file repair still
+      // keeps ownership. A state this run never wrote is never touched: if
+      // one appeared after the start it belongs to a concurrent installer.
+      if (stateWritten) {
+        if (await pathStatus(statePath)) {
+          const currentStateBytes = await readFile(statePath);
+          if (originalStateBytes === null) {
+            await removeDestination(statePath);
+          } else if (currentStateBytes.compare(originalStateBytes) !== 0) {
+            await writeFile(statePath, originalStateBytes, { encoding: "utf8" });
+          }
+        } else if (originalStateBytes !== null) {
           await writeFile(statePath, originalStateBytes, { encoding: "utf8" });
         }
-      } else if (originalStateBytes !== null) {
-        await writeFile(statePath, originalStateBytes, { encoding: "utf8" });
       }
     } catch (rollbackFailure) {
       rollbackError = rollbackFailure;
@@ -1087,6 +1212,18 @@ async function installBundle(options) {
       ? ` Automatic rollback also failed: ${rollbackError.message}.`
       : " Partial install changes were rolled back.";
     throw new Error(`Installation did not complete: ${error.message}.${rollback}${recovery}`);
+  }
+
+  // Commit succeeded: delete the staged-aside pre-replacement content. A
+  // leftover aside copy here is a cleanup failure, not an install failure —
+  // the destination already carries the new content and the backup directory
+  // retains a copy either way.
+  for (const path of [...asidePaths]) {
+    try {
+      await rm(join(stagedRoot, path), { recursive: true, force: true });
+    } catch {
+      // retained for manual recovery
+    }
   }
 
   // Sweep empty retired package directories after a successful install, not
@@ -1112,13 +1249,19 @@ async function installQwenCode(options) {
     expectedPackage: qwenPackageName,
     validate: validateQwenState,
   });
-  const entries = await buildQwenEntries(options);
+  const { entries, coordinatorSkipped } = await buildQwenEntries(options);
+  if (coordinatorSkipped) {
+    // The shared build skips a codex-routed coordinator value; the install
+    // refuses it outright: a silent skip would drop the coordinator profile
+    // from the ownership manifest and present it as an omission.
+    throw new Error(`Qwen Code install rejected: ${coordinatorSkipped}. Use a Qwen-direct coordinator value (a model from a provider registered in your settings.json) or omit the coordinator key; openai/ values route through the Codex executor and can never be a Qwen Code session model.`);
+  }
   for (const entry of entries) entry.destination = join(options.target, entry.path);
 
   // Same-schema reconciliation: an owned, UNMODIFIED file no longer present
-  // in the new inventory is retired (e.g. the coordinator file after a
-  // reinstall with a codex-routed coordinator value, or an optional route
-  // dropped from the config); a modified one is preserved and reported.
+  // in the new inventory is retired (e.g. an optional route dropped from the
+  // config, or a coordinator file after a coordinatorless reinstall); a
+  // modified one is preserved and reported.
   const migration = existingState !== null
     ? await planMigration(options, existingState, entries)
     : { removes: [], preserved: [], linkConverted: false };
@@ -1141,6 +1284,30 @@ async function installQwenCode(options) {
   if (collisions.length > 0 && !options.replace) {
     const paths = collisions.map(({ entry }) => `  - ${entry.destination}`).join("\n");
     throw new Error(`Differing content already exists at:\n${paths}\nNo changes were made. Re-run with --replace to back it up and replace it.`);
+  }
+
+  // Validate every planned destination's existing ancestors BEFORE any
+  // output-side decision, so a foreign linked ancestor refuses the whole run
+  // before the first mutation (and before a dry run reports success). Keep
+  // entries are included: a kept file under a linked ancestor would be
+  // recorded into the ownership manifest as owned. An owned link this run's
+  // reconciliation removes is exempt: it is replaced by a real directory, so
+  // a plan writing through it is safe (it is removed first).
+  const allowedLinkedAncestors = new Set();
+  for (const { destination, link } of migration.removes) {
+    // An owned LINK this run retires: the link itself and every ancestor up
+    // to the target are exempt, because the removal loop replaces the link
+    // with a real directory before any plan writes through it. A retired
+    // file exempts nothing (it is not an ancestor of anything).
+    if (link) {
+      for (const exemption of await linkedAncestorExemptions(options.target, destination)) {
+        allowedLinkedAncestors.add(exemption);
+      }
+    }
+    await assertManagedParentSafe(options.target, destination);
+  }
+  for (const { entry } of plans) {
+    await assertManagedParentSafe(options.target, entry.destination, allowedLinkedAncestors);
   }
 
   console.log(`${options.dryRun ? "Dry-run " : ""}Install (copy, generated, Qwen Code) -> ${options.target}`);
@@ -1184,15 +1351,6 @@ async function installQwenCode(options) {
   const statePreExisted = (await pathStatus(statePath)) !== null;
   const originalStateBytes = statePreExisted ? await readFile(statePath) : null;
 
-  const allowedLinkedAncestors = new Set(migration.removes.map(({ destination }) => normalizedPath(destination)));
-  for (const { destination } of migration.removes) {
-    await assertManagedParentSafe(options.target, destination);
-  }
-  for (const { action, entry } of plans) {
-    if (action === "keep") continue;
-    await assertManagedParentSafe(options.target, entry.destination, allowedLinkedAncestors);
-  }
-
   let backupDirectory = null;
   if (preExisting.size > 0) {
     backupDirectory = await createUniqueBackupDirectory(options.target);
@@ -1208,11 +1366,28 @@ async function installQwenCode(options) {
     console.log(`  backup created: ${backupDirectory}`);
   }
 
+  // Only paths actually mutated by this run are rolled back; a planned path
+  // whose parent check refused the operation is never added, so rollback can
+  // never delete or rewrite a file the run itself refused to touch. Replace
+  // removes are staged aside by a same-filesystem rename (never a recursive
+  // delete before commit) so a failed run can put the intact pre-replacement
+  // content back; the aside copy lives in the backup directory's aside/
+  // subdirectory and is deleted only after the state write commits.
   const mutatedPaths = new Set();
+  const asidePaths = new Set();
+  const stagedRoot = backupDirectory ? join(backupDirectory, "aside") : null;
+  let stateWritten = false;
   try {
     for (const { path, destination } of migration.removes) {
       await assertManagedParentSafe(options.target, destination);
-      await removeDestination(destination);
+      // A directory or link where a retired file was tracked cannot be proven
+      // owned (the reconciliation preserves those); only a regular file is
+      // retired, by unlink, never recursive delete.
+      const retiredStatus = await pathStatus(destination);
+      if (!retiredStatus?.isFile() || retiredStatus.isSymbolicLink()) {
+        throw new Error(`Refusing to retire ${destination}: it is not the regular file the install state records.`);
+      }
+      await unlink(destination);
       mutatedPaths.add(path);
     }
     for (const { action, entry } of plans) {
@@ -1220,13 +1395,36 @@ async function installQwenCode(options) {
       await assertManagedParentSafe(options.target, entry.destination);
       await mkdir(dirname(entry.destination), { recursive: true });
       await assertManagedParentSafe(options.target, entry.destination);
-      if (action === "replace") await removeDestination(entry.destination);
+      if (action === "replace") {
+        await mkdir(dirname(join(stagedRoot, entry.path)), { recursive: true });
+        await rename(entry.destination, join(stagedRoot, entry.path));
+        asidePaths.add(entry.path);
+      }
+      // Register the path before the write. A replace has already staged the
+      // destination aside, and a create write can leave a partial file before
+      // failing; either way the path must be rolled back.
       mutatedPaths.add(entry.path);
-      await writeFile(entry.destination, entry.content, { flag: "wx" });
+      await writeEntryFile(options.target, entry.destination, entry.content);
     }
 
     if (!equivalentState(existingState, "copy", entries)) {
       await mkdir(options.target, { recursive: true });
+      if ((await pathStatus(statePath)) !== null) {
+        if (!statePreExisted) {
+          // A state file no install of ours planned for appeared after the
+          // pre-existing scan (a concurrent installer): refuse instead of
+          // overwriting or removing it.
+          throw new Error(`Refusing to write ${statePath}: the state file appeared after this install started (concurrent install?). Re-run the install.`);
+        }
+        if (stagedRoot) {
+          // Stage the pre-update state aside with the other replaced content;
+          // without a backup directory the in-memory copy (restored by
+          // rollback on failure) is the recovery source instead.
+          await mkdir(stagedRoot, { recursive: true });
+          await rename(statePath, join(stagedRoot, stateName));
+          asidePaths.add(stateName);
+        }
+      }
       await writeState(options.target, {
         schema: qwenStateVersion,
         package: qwenPackageName,
@@ -1234,6 +1432,7 @@ async function installQwenCode(options) {
         installedAt: new Date().toISOString(),
         entries: entries.map(storedEntry),
       });
+      stateWritten = true;
     }
   } catch (error) {
     let rollbackError = null;
@@ -1241,28 +1440,46 @@ async function installQwenCode(options) {
       for (const path of mutatedPaths) {
         const destination = join(options.target, path);
         await assertManagedParentSafe(options.target, destination);
+        if (asidePaths.has(path)) {
+          // Pre-existing content was staged aside: put the intact original
+          // back, deleting the staged copy only once the rename has landed.
+          if (await pathStatus(destination)) await removeDestination(destination);
+          const staged = join(stagedRoot, path);
+          await assertManagedParentSafe(options.target, destination);
+          await rename(staged, destination);
+          asidePaths.delete(path);
+          continue;
+        }
         if (!preExisting.has(path)) {
+          // Created or removed by this run: undo by deleting it again.
           if (await pathStatus(destination)) await removeDestination(destination);
           continue;
         }
-        if (await pathStatus(destination)) await removeDestination(destination);
-        if (backupDirectory) {
-          const backup = join(backupDirectory, path);
-          if (await pathStatus(backup)) {
-            await assertManagedParentSafe(options.target, destination);
-            await copyForBackup(backup, destination);
+        // Pre-existing and the run deleted it (retired file) without staging:
+        // restore the backed-up copy when the destination is gone.
+        if (!await pathStatus(destination)) {
+          if (backupDirectory) {
+            const backup = join(backupDirectory, path);
+            if (await pathStatus(backup)) {
+              await assertManagedParentSafe(options.target, destination);
+              await copyForBackup(backup, destination);
+            }
           }
         }
       }
-      if (await pathStatus(statePath)) {
-        const currentStateBytes = await readFile(statePath);
-        if (originalStateBytes === null) {
-          await removeDestination(statePath);
-        } else if (currentStateBytes.compare(originalStateBytes) !== 0) {
+      // A state this run never wrote is never touched: if one appeared after
+      // the start it belongs to a concurrent installer.
+      if (stateWritten) {
+        if (await pathStatus(statePath)) {
+          const currentStateBytes = await readFile(statePath);
+          if (originalStateBytes === null) {
+            await removeDestination(statePath);
+          } else if (currentStateBytes.compare(originalStateBytes) !== 0) {
+            await writeFile(statePath, originalStateBytes, { encoding: "utf8" });
+          }
+        } else if (originalStateBytes !== null) {
           await writeFile(statePath, originalStateBytes, { encoding: "utf8" });
         }
-      } else if (originalStateBytes !== null) {
-        await writeFile(statePath, originalStateBytes, { encoding: "utf8" });
       }
     } catch (rollbackFailure) {
       rollbackError = rollbackFailure;
@@ -1274,6 +1491,18 @@ async function installQwenCode(options) {
       ? ` Automatic rollback also failed: ${rollbackError.message}.`
       : " Partial install changes were rolled back.";
     throw new Error(`Installation did not complete: ${error.message}.${rollback}${recovery}`);
+  }
+
+  // Commit succeeded: delete the staged-aside pre-replacement content. A
+  // leftover aside copy here is a cleanup failure, not an install failure —
+  // the destination already carries the new content and the backup directory
+  // retains a copy either way.
+  for (const path of [...asidePaths]) {
+    try {
+      await rm(join(stagedRoot, path), { recursive: true, force: true });
+    } catch {
+      // retained for manual recovery
+    }
   }
 
   await removeEmptyPackageDirectories(options.target, qwenPackageDirectories);

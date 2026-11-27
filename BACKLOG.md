@@ -3,8 +3,8 @@
 Branch: `feat/qwen-code-adapter`. Status: increments 1–5 done (research +
 adapter source, spike, build path with tests, runtime binding + configure
 discovery, and the `qwen-install`/`qwen-uninstall` installer entry);
-three codex-deep-review gates run so far with findings fixed (gate 4 runs
-over increment 5), after which the remaining step is the PR (G5).
+four codex-deep-review gates run so far, all findings fixed, after which
+the remaining step is the PR (G5).
 
 Goal: an installation method for Qwen Code mirroring the OpenCode adapter
 (`adapters/opencode/`), so the flat model config (roles → `provider/model#effort`,
@@ -265,6 +265,30 @@ Nothing else is wired up.
   implemented and the install is manual. The installer fixture counts in
   `scripts/test-installer.mjs` moved with the two new skill files
   (53→55 fresh, 42→44 skills, 56→58 example).
+- [x] **7. Review gate 4** (after increment 5): codex-deep-review over the
+  installer + docs reported 3×P1, 4×P2, 2×P3; all fixed. (P1) race on
+  replacement writes — entry files are now written via exclusive create
+  (`O_EXCL`) and a file appearing under a planned path aborts the install
+  instead of clobbering it; (P1) a codex-routed `coordinator` value no
+  longer installs silently — `qwen-install` refuses it with an actionable
+  message (the coordinating session must run a Qwen-direct model); (P1)
+  replaces no longer `rm -rf` the old files before the new writes succeed —
+  they are staged aside and restored on rollback, removed only after the
+  new tree is committed; state is staged the same way. (P2) symlinked
+  ancestors are validated before the dry-run return, not only before
+  mutation; (P2) the Qwen state validator rejects duplicate paths and
+  requires each skill's `SKILL.md` entry; (P2) the runtime binding now gates
+  manifest reads and coordinator posture adoption on a valid
+  `qwen-code-autonomous-mode` state (a foreign/stale manifest or an
+  unowned coordinator file is not adopted); (P2) docs: the Qwen update
+  example no longer forces `--no-model` (which resets the routing), and the
+  configure SKILL.md shows `--target` as effectively required. (P3)
+  `docs/guides/model-routing.md` gains a Qwen coordinator paragraph
+  (posture adoption + in-session model selection; codex-routed values are
+  refused by `qwen-install`); (P3) the preview wording no longer overstates
+  the Qwen dry-run guarantee (it builds and removes a temp tree).
+  `scripts/test-installer.mjs` gained the rejection, state-hardening, and
+  symlinked-agents-root fixtures (736 assertions total).
 
 ## Open questions
 

@@ -1091,20 +1091,29 @@ try {
   // the rollback set before the write, so a failing write leaves the pre-existing
   // content restored and the ownership state untouched, never a missing/partial
   // destination. A one-shot write failure is injected via a --require hook that
-  // wraps fs.promises.writeFile for a single destination path.
+  // wraps both write primitives for a single destination path:
+  // fs.promises.writeFile (the standalone installer) and the exclusive-open
+  // path (install.mjs opens with O_EXCL and then writes through the handle).
   const f13Hook = join(scratch, "f13-fail-write.cjs");
   await writeFile(f13Hook,
     'const fs = require("fs");\n' +
-    'const orig = fs.promises.writeFile;\n' +
+    'const target = process.env.F13_FAIL_WRITE;\n' +
+    'const matches = (path) => Boolean(target) && String(path).replace(/\\\\/g, "/").endsWith("/" + target);\n' +
+    'const enospc = (path) => {\n' +
+    '  const err = new Error("ENOSPC: no space left on device, open \'" + path + "\'");\n' +
+    '  err.code = "ENOSPC";\n' +
+    '  return err;\n' +
+    '};\n' +
+    'const origWriteFile = fs.promises.writeFile;\n' +
     'fs.promises.writeFile = async function (path, ...args) {\n' +
-    '  const target = process.env.F13_FAIL_WRITE;\n' +
-    '  const normalizedPath = String(path).replace(/\\\\/g, "/");\n' +
-    '  if (target && normalizedPath.endsWith("/" + target)) {\n' +
-    '    const err = new Error("ENOSPC: no space left on device, open \'" + path + "\'");\n' +
-    '    err.code = "ENOSPC";\n' +
-    '    throw err;\n' +
-    '  }\n' +
-    '  return orig(path, ...args);\n' +
+    '  if (matches(path)) throw enospc(path);\n' +
+    '  return origWriteFile(path, ...args);\n' +
+    '};\n' +
+    'const origOpen = fs.promises.open;\n' +
+    'fs.promises.open = async function (path, ...args) {\n' +
+    '  const handle = await origOpen(path, ...args);\n' +
+    '  if (matches(path)) handle.writeFile = async () => { throw enospc(path); };\n' +
+    '  return handle;\n' +
     '};\n');
   async function f13Fixture(script, skillRel, stateName, label) {
     const t = join(scratch, label);
@@ -1810,15 +1819,28 @@ try {
     check(r2.exit === 0, "qwen up-to-date: exits 0");
     check(r2.out.includes("Already up to date."), "qwen up-to-date: reports up to date");
 
-    // Reinstall with the example config: its codex-routed coordinator is
-    // skipped, so the owned coordinator file is retired and its entry drops.
-    const r3 = run("install.mjs", ["qwen-install", "--target", t, "--models", "example"]);
-    check(r3.exit === 0, "qwen example install: exits 0");
-    check(r3.out.includes("migrate-remove: agents/agenticale-coordinator.md"), "qwen example install: the codex-routed coordinator retires the owned file");
+    // The example config routes its coordinator through the Codex executor:
+    // the install refuses it (a silent skip would misreport the coordinator
+    // as omitted) and writes nothing to the target.
+    const tex = join(scratch, "q-example");
+    const rex = run("install.mjs", ["qwen-install", "--target", tex, "--models", "example"]);
+    check(rex.exit !== 0, "qwen example install: a codex-routed coordinator is refused");
+    check(rex.err.includes("Qwen Code install rejected"), "qwen example install: names the rejection");
+    check(rex.err.includes("coordinator"), "qwen example install: the message names the coordinator");
+    check(!await exists(join(tex, STATE)), "qwen example install: no state is written");
+    check((await relFiles(tex)).length === 0, "qwen example install: nothing is written to the target");
+
+    // Reinstall with the local preset (no coordinator, no optional routes):
+    // the owned coordinator and optional files retire and their entries drop.
+    const r3 = run("install.mjs", ["qwen-install", "--target", t, "--models", "local"]);
+    check(r3.exit === 0, "qwen local reinstall: exits 0");
+    check(r3.out.includes("migrate-remove: agents/agenticale-coordinator.md"), "qwen local reinstall: the coordinator file retires");
+    check(r3.out.includes("migrate-remove: agents/agenticale-implement-easy.md"), "qwen local reinstall: the optional implement-easy retires");
+    check(r3.out.includes("migrate-remove: agents/agenticale-consult-hard.md"), "qwen local reinstall: the optional consult-hard retires");
     const state3 = await readQwenState(t);
-    check(state3.entries.length === 53, "qwen example install: 53 entries (9 profiles + 44 skills)");
-    check(!qwenAgents(state3).includes("agenticale-coordinator.md"), "qwen example install: no coordinator entry in the state");
-    check(!(await exists(join(t, "agents", "agenticale-coordinator.md"))), "qwen example install: the coordinator file is gone");
+    check(state3.entries.length === 51, "qwen local reinstall: 51 entries (7 profiles + 44 skills)");
+    check(!qwenAgents(state3).includes("agenticale-coordinator.md"), "qwen local reinstall: no coordinator entry in the state");
+    check(!(await exists(join(t, "agents", "agenticale-coordinator.md"))), "qwen local reinstall: the coordinator file is gone");
 
     // --no-model: every role inherits; the configured optional routes retire.
     const r4 = run("install.mjs", ["qwen-install", "--target", t, "--no-model"]);
@@ -1885,6 +1907,36 @@ try {
     await writeFile(join(bad, STATE), JSON.stringify(badState, null, 2), "utf8");
     const rb1 = run("install.mjs", ["qwen-install", "--target", bad]);
     check(rb1.exit !== 0, "qwen state with an unexpected profile: refused");
+
+    // State hardening: a duplicate path and a missing skill SKILL.md entry
+    // are both refused.
+    const tdup = join(scratch, "q-dup");
+    const rd0 = run("install.mjs", ["qwen-install", "--target", tdup, "--no-model"]);
+    check(rd0.exit === 0, "qwen duplicate fixture: the fresh install exits 0");
+    const dupState = await readQwenState(tdup);
+    dupState.entries.push({ path: "skills/work/SKILL.md", kind: "file", digest: digest(Buffer.from("x")) });
+    await writeFile(join(tdup, STATE), JSON.stringify(dupState, null, 2), "utf8");
+    const rd1 = run("install.mjs", ["qwen-uninstall", "--target", tdup]);
+    check(rd1.exit !== 0, "qwen state with a duplicate path: uninstall refuses");
+    const tsk = join(scratch, "q-noskill");
+    const rs0 = run("install.mjs", ["qwen-install", "--target", tsk, "--no-model"]);
+    check(rs0.exit === 0, "qwen SKILL.md fixture: the fresh install exits 0");
+    const skillState = await readQwenState(tsk);
+    skillState.entries = skillState.entries.filter((e) => e.path !== "skills/work/SKILL.md");
+    await writeFile(join(tsk, STATE), JSON.stringify(skillState, null, 2), "utf8");
+    const rs1 = run("install.mjs", ["qwen-uninstall", "--target", tsk]);
+    check(rs1.exit !== 0, "qwen state missing a skill SKILL.md: uninstall refuses");
+
+    // A symlinked agents root is refused even by a dry run: a kept or
+    // planned file under a linked ancestor would be recorded as owned.
+    const tlink = join(scratch, "q-link");
+    const linkTarget = join(scratch, "q-link-ext");
+    await mkdir(linkTarget, { recursive: true });
+    await mkdir(tlink, { recursive: true });
+    await symlink(linkTarget, join(tlink, "agents"), "dir");
+    const rl1 = run("install.mjs", ["qwen-install", "--target", tlink, "--dry-run", "--no-model"]);
+    check(rl1.exit !== 0, "qwen symlinked agents root: the dry run refuses");
+    check(rl1.err.includes("linked ancestor"), "qwen symlinked agents root: names the linked ancestor");
 
     // A target inside this checkout is refused (no files are created).
     const rIn = run("install.mjs", ["qwen-install", "--target", join(repo, ".qwen")]);

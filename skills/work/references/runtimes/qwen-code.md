@@ -159,7 +159,11 @@ from digest matches or current file content.
   omitted.
 - Manifest absent (for example a manually copied install), not valid JSON,
   failing validation, or ambiguous in ownership: configured intent is not
-  established.
+  established. This includes a state whose `package` is not
+  `qwen-code-autonomous-mode` (another AgenticAle package owns this root —
+  its entries describe a different install surface) or whose schema the
+  workflow does not recognize: an entry in a foreign or stale state says
+  nothing about this surface's install.
 
 **Decisions.** A configured route whose agent file is present and readable
 dispatches normally. A configured route whose agent file is missing or
@@ -194,12 +198,17 @@ When the model config assigns the `coordinator` key a Qwen-direct value,
 the install carries `agents/agenticale-coordinator.md`: its `model:` line is
 the **requested** coordinator model and its body is the coordinating
 posture. The coordinating session is the caller session — there is no
-session-primary agent to switch it on. When the file is present and
-readable, the workflow reads it at activation (at most once, read-only)
-and **adopts** its posture body for the coordinating session: that read is
-a required adoption step, not optional, and it is the only configuration
-evidence this surface offers besides the install-ownership manifest the
-binding documents. The workflow never writes the file and never dispatches
+session-primary agent to switch it on. Adoption is gated on the same
+evidence as configured-route intent: the file's entry
+(`agents/agenticale-coordinator.md`) must be present in a valid
+`qwen-code-autonomous-mode` state at the effective root. When it is, the
+workflow reads the file at activation (at most once, read-only) and
+**adopts** its posture body for the coordinating session: that read is a
+required adoption step, not optional, and the file plus the state entry are
+the only configuration evidence this surface offers. A coordinator file
+without that owned entry — a manually copied leftover or a file owned by
+another package — is not adopted: the coordinating session runs on its own
+session model and the file is left untouched. The workflow never writes the file and never dispatches
 it as a child. To make the requested model effective, the user selects it
 in the session — `/model <id>` before or at workflow start or a session
 default — never a global `settings.json` rewrite by the workflow. Two host
