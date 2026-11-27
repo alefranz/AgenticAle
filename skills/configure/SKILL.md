@@ -1,6 +1,6 @@
 ---
 name: configure
-description: "Configure AgenticAle's per-role model routing and the Work worker-round allowance on explicit user request: discover what the host actually exposes, propose exact preference-file content (or an OpenCode --models config and installer rerun), and write only after exact confirmation. Explicit-only: runs when the user asks to configure AgenticAle (on OpenCode, the /configure command); the model does not start this skill on its own."
+description: "Configure AgenticAle's per-role model routing and the Work worker-round allowance on explicit user request: discover what the host actually exposes, propose exact preference-file content (or an OpenCode or Qwen Code --models config and installer rerun), and write only after exact confirmation. Explicit-only: runs when the user asks to configure AgenticAle (on OpenCode or Qwen Code, the /configure command); the model does not start this skill on its own."
 slash: true
 disable-model-invocation: true
 metadata:
@@ -11,8 +11,8 @@ metadata:
 
 A user-initiated setup skill. Its output is configuration the user has
 confirmed: the optional preference file on per-spawn hosts, or a flat
-`--models` JSON plus an installer rerun on OpenCode — and, on every host,
-the preference file's `## Work` worker-round allowance. It adds no scaffold
+`--models` JSON plus an install refresh on OpenCode and Qwen Code — and,
+on every host, the preference file's `## Work` worker-round allowance. It adds no scaffold
 command, no automatic setup, no packaged model inventory, and no
 profile-management feature, and it keeps no persistent state of its own.
 
@@ -60,6 +60,7 @@ These bind every step below:
 Select the actual runtime from the host's tool surface — never from the
 session's model name — and read the matching discovery reference:
 [OpenCode](references/discovery/opencode.md),
+[Qwen Code](references/discovery/qwen-code.md),
 [Copilot](references/discovery/copilot.md),
 [Copilot Local](references/discovery/copilot-local.md),
 [Codex](references/discovery/codex.md),
@@ -148,7 +149,7 @@ unrelated. Then apply the safety rules: explicit confirmation of path and
 content, re-read before the write, stale confirmation invalid, no writes on
 cancellation or remaining placeholders.
 
-## OpenCode: --models JSON and installer rerun
+## OpenCode and Qwen Code: --models JSON and install refresh
 
 On OpenCode the models are baked into the generated `agenticale/<role>`
 profiles at install time; preference-file role lines do not apply. Never
@@ -156,6 +157,17 @@ propose role lines for OpenCode routing, and never edit the generated
 profiles, `opencode.jsonc`, or `default_agent` directly. Read
 [the OpenCode discovery reference](references/discovery/opencode.md) for the
 confirmed live model listing and the flat-config contract.
+
+On Qwen Code the same flat `--models` JSON is baked into the installed flat
+`agenticale-<role>` agent files: direct provider values render a bare model
+id (which must exist in the user's `settings.json` registry — a mistyped id
+silently inherits the session model), and `openai/` values render the pinned
+codex executor. The `coordinator` key must be Qwen-direct; an `openai/`
+coordinator value is skipped by the build, so the install simply carries
+no coordinator file.
+Never edit the installed agent files or `settings.json` directly. Read
+[the Qwen Code discovery reference](references/discovery/qwen-code.md) for
+the per-host discovery notes and the flat-config contract.
 
 Propose a flat `--models` JSON built from live listing evidence or user
 names: role → `"provider/model[#variant]"`, omitted roles inherit, the
@@ -165,7 +177,8 @@ Write the JSON only on its own explicit confirmation of the exact
 user-chosen path and content (re-read before writing; stale confirmation
 invalid).
 
-Then propose the installer rerun — the work binding's refresh procedure:
+Then propose the refresh — the work binding's refresh procedure. On
+OpenCode that is the installer rerun:
 
 ```sh
 node <AgenticAle-checkout>/scripts/install.mjs install --models <path|preset> [--target PATH]
@@ -177,7 +190,22 @@ profile is otherwise preserved and reported. Running the installer is a
 separate explicit consent for its external effects on the installation —
 never automatic; the user may run the command themselves. OpenCode reloads
 refreshed profiles without an app restart, and the next fresh workflow
-activation dispatches with them.
+activation dispatches with them. On Qwen Code the refresh is its own
+installer subcommand:
+
+```sh
+node <AgenticAle-checkout>/scripts/install.mjs qwen-install --models <path|preset> --target <install root>
+```
+
+`--target` names the install root that supplies the installed `agenticale-*`
+agents (the project `.qwen/` directory or `~/.qwen/`; the flag's own default
+is `~/.qwen/`), so a project-scoped install must pass the project target
+explicitly. The same explicit consent rule applies, and its ownership,
+backup, collision, rollback, and reconciliation safeguards mirror the
+OpenCode
+installer (it writes its own ownership manifest, preserves a modified owned
+file, and refuses a state file owned by another AgenticAle package); the
+next fresh workflow activation dispatches with the refreshed agents.
 
 The `## Work` allowance remains editable through the preference file on
 OpenCode (below); it is the only preference-file section that applies there.
@@ -227,6 +255,14 @@ the host's verification path and let the user drive it:
   its per-session agent/model table. Record requested versus effective;
   unknown stays unknown; a child's self-reported model name never
   establishes what it ran on.
+- **Qwen Code**: no binding documents a `--stats` procedure — state that
+  the option is unsupported there rather than promising it. Use a small
+  user-invoked `/work` run and the native session metadata (per-dispatch
+  provider/model) as native host evidence; for an executor child the host
+  records only its own label (`external-codex:codex`), so the pinned codex
+  model stands as requested. A direct model id that resolves to nothing
+  silently inherits the session model, so an unknown effective setting
+  stays unknown.
 - **Other hosts**: no binding documents a `--stats` procedure — state that
   the option is unsupported there rather than promising it. Use native
   runtime metadata or local traces where the host exposes them. On

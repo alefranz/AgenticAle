@@ -104,8 +104,16 @@ caller-session launcher, even with a configured coordinator: setup is a user
 conversation, not a workflow round. Without a configured coordinator (or under
 `--no-model`) the commands stay caller-session launchers: the session you
 invoke them in coordinates on its own model. The installer never changes
-`default_agent` or `opencode.jsonc`, and the coordinator is OpenCode-only —
-the other hosts keep the invoking session as the coordinator.
+`default_agent` or `opencode.jsonc`; the other hosts keep the invoking
+session as the coordinator. On Qwen Code the coordinator works differently
+than on OpenCode: a Qwen-direct value generates the flat
+`agenticale-coordinator` agent file whose body the workflow adopts as the
+coordinating session's posture, but the requested model only becomes
+effective when the user selects it in the session (`/model <id>` or a
+session default) — never a global `settings.json` rewrite. A codex-routed
+coordinator value can never be a session model, so `qwen-install` refuses
+such a config outright; the coordinating session then runs on its own
+session model.
 
 To change the models on an existing install, rerun the installer with a
 different `--models PATH|PRESET` (or `--no-model`) configuration, adding

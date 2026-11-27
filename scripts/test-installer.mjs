@@ -206,7 +206,7 @@ try {
     check(state.schema === STATE_VERSION, "install fresh: state schema 7");
     check(state.mode === "copy", "install fresh: state mode copy");
     check(state.package === PACKAGE, "install fresh: state package");
-    check(state.entries.length === 53, "install fresh: 53 entries");
+    check(state.entries.length === 55, "install fresh: 55 entries");
     const profiles = state.entries.filter((e) => e.path.startsWith("agents/agenticale/"));
     check(profiles.length === 7, "install fresh: 7 generated profiles");
     check(state.entries.some((e) => e.path === "agents/agenticale/implement-hard.md"), "install fresh: implements implement-hard.md profile");
@@ -215,7 +215,7 @@ try {
     check(!state.entries.some((e) => OPTIONAL_PROFILES.some((name) => e.path === `agents/agenticale/${name}.md`)), "install fresh: no optional profiles under --no-model");
     check(state.entries.some((e) => e.path === "commands/work.md") && state.entries.some((e) => e.path === "commands/review.md") && state.entries.some((e) => e.path === "commands/autonomous.md") && state.entries.some((e) => e.path === "commands/configure.md"), "install fresh: four command entries in state");
     const files = (await relFiles(t)).filter((f) => f !== STATE);
-    check(files.length === 53, "install fresh: 53 files on disk");
+    check(files.length === 55, "install fresh: 55 files on disk");
     const workCommand = await readFile(join(t, "commands", "work.md"), "utf8");
     check(workCommand.includes("`work`") && workCommand.includes("$ARGUMENTS"), "install fresh: work command loads the skill by exact ID");
     const reviewCommand = await readFile(join(t, "commands", "review.md"), "utf8");
@@ -377,7 +377,7 @@ try {
     const statePath = join(valid, STATE);
     const cases = [
       ["wrong top-level keys", (s) => { s.extra = 1; }, "Install state is invalid:"],
-      ["wrong package", (s) => { s.package = "nope"; }, "Install state is invalid:"],
+      ["wrong package", (s) => { s.package = "nope"; }, "is owned by another AgenticAle package ('nope')"],
       ["schema 7 link mode", (s) => { s.mode = "link"; }, `Schema ${STATE_VERSION} install state must be a copy install:`],
       ["path outside bundle", (s) => { s.entries.push({ path: "commands/extra.md", kind: "file", digest: digest(Buffer.from("x")) }); }, "Install state has a generated path outside the bundle:"],
       ["unexpected profile", (s) => { s.entries = s.entries.filter((e) => e.path !== "agents/agenticale/consult.md"); s.entries.push({ path: "agents/agenticale/implhard.md", kind: "file", digest: digest(Buffer.from("x")) }); s.entries.push({ path: "agents/agenticale/consult.md", kind: "file", digest: digest(Buffer.from("y")) }); }, "Install state has an unexpected generated profile:"],
@@ -413,7 +413,7 @@ try {
     check(r.out.includes("preserve-modified: commands/autonomous.md"), `migration copy schema ${schema}: modified command entry reported`);
     const state = await readState(t);
     check(state.schema === STATE_VERSION, `migration copy schema ${schema}: advanced to schema ${STATE_VERSION}`);
-    check(state.entries.length === 53, `migration copy schema ${schema}: 53 entries`);
+    check(state.entries.length === 55, `migration copy schema ${schema}: 55 entries`);
     check(r.out.includes("backup created:"), `migration copy schema ${schema}: replaced command entry backed up`);
     check((await readFile(modPath, "utf8")).includes("$ARGUMENTS"), `migration copy schema ${schema}: commands/autonomous.md now carries the generated entry`);
     check((await readFile(join(t, "commands", "work.md"), "utf8")).includes("$ARGUMENTS"), `migration copy schema ${schema}: commands/work.md now carries the generated entry`);
@@ -430,7 +430,7 @@ try {
     check(r.out.includes(`  migrating from schema ${LEGACY_GENERATED_SCHEMA} copy install`), "migration generated schema 5: migrating message");
     const state = await readState(t);
     check(state.schema === STATE_VERSION, "migration generated schema 5: advanced to schema 7");
-    check(state.entries.length === 53, "migration generated schema 5: 53 entries");
+    check(state.entries.length === 55, "migration generated schema 5: 55 entries");
     check(await exists(join(t, "agents", "agenticale", "implement-hard.md")), "migration generated schema 5: implement-hard profile now present");
     check(state.entries.some((e) => e.path === "agents/agenticale/implement-hard.md"), "migration generated schema 5: implement-hard in state");
     check(r.out.includes("migrate-remove: agents/agenticale/deep-review.md"), "migration generated schema 5: the owned deep-review profile is retired");
@@ -452,7 +452,7 @@ try {
     check(!r.out.includes("Already up to date"), "migration current-release schema 6: reconciles instead of reporting up-to-date");
     const state2 = await readState(t);
     check(state2.schema === STATE_VERSION, "migration current-release schema 6: advanced to schema 7");
-    check(state2.entries.length === 53, "migration current-release schema 6: 53 entries");
+    check(state2.entries.length === 55, "migration current-release schema 6: 55 entries");
     check(r.out.includes("migrate-remove: agents/agenticale/deep-review.md"), "migration current-release schema 6: deep-review retired");
     check(state2.entries.some((e) => e.path === "agents/agenticale/review-deep.md"), "migration current-release schema 6: review-deep added");
     check((await readFile(join(t, "commands", "autonomous.md"), "utf8")).includes("$ARGUMENTS"), "migration current-release schema 6: command entries added");
@@ -472,7 +472,7 @@ try {
     check(!r.out.includes("Already up to date"), "migration pre-review schema 6: reconciles instead of reporting up-to-date");
     const state2 = await readState(t);
     check(state2.schema === STATE_VERSION, "migration pre-review schema 6: advanced to schema 7");
-    check(state2.entries.length === 53, "migration pre-review schema 6: 53 entries");
+    check(state2.entries.length === 55, "migration pre-review schema 6: 55 entries");
     check(state2.entries.some((e) => e.path === "skills/review/SKILL.md"), "migration pre-review schema 6: the review skill is added");
     check((await readFile(join(t, "commands", "review.md"), "utf8")).includes("$ARGUMENTS"), "migration pre-review schema 6: the review command entry is added");
     check(r.out.includes("migrate-remove: agents/agenticale/deep-review.md"), "migration pre-review schema 6: deep-review retired");
@@ -492,7 +492,7 @@ try {
     check(!r.out.includes("Already up to date"), "migration pre-configure schema 7: reconciles instead of reporting up-to-date");
     const state = await readState(t);
     check(state.schema === STATE_VERSION, "migration pre-configure schema 7: stays schema 7");
-    check(state.entries.length === 53, "migration pre-configure schema 7: 53 entries");
+    check(state.entries.length === 55, "migration pre-configure schema 7: 55 entries");
     check(state.entries.some((e) => e.path === "skills/configure/SKILL.md"), "migration pre-configure schema 7: the configure skill is added");
     check(state.entries.some((e) => e.path === "commands/configure.md"), "migration pre-configure schema 7: the configure command entry is added");
     const configureCommand = await readFile(join(t, "commands", "configure.md"), "utf8");
@@ -520,7 +520,7 @@ try {
     check(backedUp.length === 1, "schema 6 rename: the backup carries the retired deep-review profile");
     check((await readFile(join(backups, backedUp[0]), "utf8")) === oldContent, "schema 6 rename: the backup preserves the old profile content");
     const state = await readState(t);
-    check(state.schema === STATE_VERSION && state.entries.length === 53, "schema 6 rename: schema 7 with 53 entries");
+    check(state.schema === STATE_VERSION && state.entries.length === 55, "schema 6 rename: schema 7 with 55 entries");
     check(!state.entries.some((e) => e.path === "agents/agenticale/deep-review.md"), "schema 6 rename: deep-review no longer in state");
     check(state.entries.some((e) => e.path === "agents/agenticale/review-deep.md"), "schema 6 rename: review-deep in state");
   }
@@ -542,7 +542,7 @@ try {
     check((await readFile(old, "utf8")) === "USER-EDITED-DEEP-REVIEW\n", "schema 6 rename modified: the user edit is left in place");
     check(await exists(join(t, "agents", "agenticale", "review-deep.md")), "schema 6 rename modified: the renamed review-deep profile is installed");
     const state = await readState(t);
-    check(state.schema === STATE_VERSION && state.entries.length === 53, "schema 6 rename modified: schema 7 with 53 entries");
+    check(state.schema === STATE_VERSION && state.entries.length === 55, "schema 6 rename modified: schema 7 with 55 entries");
     check(!state.entries.some((e) => e.path === "agents/agenticale/deep-review.md"), "schema 6 rename modified: the preserved file is no longer owned state");
     // A fresh fixture under an explicit --replace: the same preservation rule
     // applies (the modified retired file is not a new-inventory collision).
@@ -599,7 +599,7 @@ try {
     check(r.out.includes("  migrating from schema 4 link install"), "migration link schema 4: migrating message");
     check(r.out.includes("  converted: the previous link install was converted to a copy install of the generated bundle."), "migration link schema 4: converted message");
     const state = await readState(t);
-    check(state.schema === STATE_VERSION && state.mode === "copy" && state.entries.length === 53, "migration link schema 4: now schema 7 copy 53 entries");
+    check(state.schema === STATE_VERSION && state.mode === "copy" && state.entries.length === 55, "migration link schema 4: now schema 7 copy 55 entries");
     check((await readFile(join(t, "commands", "work.md"), "utf8")).includes("$ARGUMENTS"), "migration link schema 4: command links replaced by the generated files");
   }
   // Build the link inventory for a schema (the validator requires the exact
@@ -635,7 +635,7 @@ try {
     check(r.out.includes(`  migrating from schema ${schema} link install`), `migration link schema ${schema}: migrating message`);
     check(r.out.includes("  converted: the previous link install was converted to a copy install of the generated bundle."), `migration link schema ${schema}: converted message`);
     const state = await readState(t);
-    check(state.schema === STATE_VERSION && state.mode === "copy" && state.entries.length === 53, `migration link schema ${schema}: now schema 7 copy 53 entries`);
+    check(state.schema === STATE_VERSION && state.mode === "copy" && state.entries.length === 55, `migration link schema ${schema}: now schema 7 copy 55 entries`);
   }
   {
     // R6 + physical boundary: the stored retired profile link (agents/autonomous)
@@ -664,7 +664,7 @@ try {
     check((await readFile(otherTarget, "utf8")) === "other\n", "R6 link repoint: repointed link's target content untouched");
     check(!(await exists(join(t, "agents", "autonomous", "consult.md"))), "R6 link repoint: no profile copies written through the old path");
     const state = await readState(t);
-    check(state.schema === STATE_VERSION && state.mode === "copy" && state.entries.length === 53, "R6 link repoint: converted to schema 7 copy 53 entries");
+    check(state.schema === STATE_VERSION && state.mode === "copy" && state.entries.length === 55, "R6 link repoint: converted to schema 7 copy 55 entries");
     check(await exists(join(t, "agents", "agenticale", "consult.md")), "R6 link repoint: new profiles installed under the renamed namespace");
   }
   {
@@ -689,7 +689,7 @@ try {
     check(r.out.includes("preserve-modified: agents/autonomous"), "R6 link→dir: replaced-by-directory preserved");
     check((await readFile(kept, "utf8")) === "USER-KEPT\n", "R6 link→dir: pre-existing bytes in the preserved directory are not deleted");
     const state = await readState(t);
-    check(state.schema === STATE_VERSION && state.mode === "copy" && state.entries.length === 53, "R6 link→dir: converted to schema 7 copy 53 entries");
+    check(state.schema === STATE_VERSION && state.mode === "copy" && state.entries.length === 55, "R6 link→dir: converted to schema 7 copy 55 entries");
     check(await exists(join(t, "agents", "agenticale", "consult.md")), "R6 link→dir: new profiles installed under the renamed namespace");
     check(!(await exists(join(t, "agents", "autonomous", "consult.md"))), "R6 link→dir: no profile copies written into the preserved directory");
   }
@@ -737,7 +737,7 @@ try {
     check(r.out.includes("create: agents/agenticale/review.md"), "namespace rename: the new profile paths are installed");
     check(r.out.includes("create: agents/agenticale/review-deep.md"), "namespace rename: the renamed review-deep profile is installed");
     const state = await readState(t);
-    check(state.schema === STATE_VERSION && state.entries.length === 53, "namespace rename: 53 entries in the refreshed state");
+    check(state.schema === STATE_VERSION && state.entries.length === 55, "namespace rename: 55 entries in the refreshed state");
     check(state.entries.every((e) => !e.path.startsWith("agents/autonomous/")), "namespace rename: no old-namespace entries remain in state");
     check(state.entries.some((e) => e.path === "agents/agenticale/implement-hard.md"), "namespace rename: the new implement-hard profile is in state");
     check(await exists(join(t, "agents", "agenticale", "implement-hard.md")), "namespace rename: the new implement-hard profile is on disk");
@@ -758,7 +758,7 @@ try {
     check(r.out.includes("create: agents/agenticale/implement-hard.md"), "namespace rename schema 5: the added implement-hard profile is created");
     check(r.out.includes("create: agents/agenticale/review-deep.md"), "namespace rename schema 5: the renamed review-deep profile is created");
     const state = await readState(t);
-    check(state.schema === STATE_VERSION && state.entries.length === 53, "namespace rename schema 5: 53 entries in the refreshed state");
+    check(state.schema === STATE_VERSION && state.entries.length === 55, "namespace rename schema 5: 55 entries in the refreshed state");
     check(state.entries.every((e) => !e.path.startsWith("agents/autonomous/")), "namespace rename schema 5: no old-namespace entries remain in state");
     check(await exists(join(t, "agents", "agenticale", "implement-hard.md")), "namespace rename schema 5: the new implement-hard profile is on disk");
     check(!(await exists(join(t, "agents", "autonomous", "review.md"))), "namespace rename schema 5: the old profile files are removed");
@@ -886,9 +886,9 @@ try {
     check(state.schema === 1, "standalone fresh: schema 1");
     check(state.scope === "project", "standalone fresh: scope project");
     check(state.sourceLayout === "autonomous,configure,pull-request-description,review,source-code-lookup,work", "standalone fresh: sourceLayout string");
-    check(state.entries.length === 42, "standalone fresh: 42 entries");
+    check(state.entries.length === 44, "standalone fresh: 44 entries");
     const files = (await relFiles(t)).filter((f) => f !== STANDALONE_STATE);
-    check(files.length === 42, "standalone fresh: 42 files on disk");
+    check(files.length === 44, "standalone fresh: 44 files on disk");
     check(!files.some((f) => f.startsWith("agents/")), "standalone fresh: no agents/");
     check(!files.some((f) => f.startsWith("commands/")), "standalone fresh: no commands/");
     check(!(await exists(join(t, "work", "references", "routing.json"))), "standalone fresh: materializes no work/references/routing.json");
@@ -920,7 +920,7 @@ try {
     check(r.exit === 0, "standalone pre-review migration: exits 0 without --replace");
     check(!r.out.includes("Already up to date"), "standalone pre-review migration: reconciles instead of reporting up-to-date");
     const state2 = await readStandaloneState(t);
-    check(state2.entries.length === 42, "standalone pre-review migration: 42 entries");
+    check(state2.entries.length === 44, "standalone pre-review migration: 44 entries");
     check(state2.sourceLayout === "autonomous,configure,pull-request-description,review,source-code-lookup,work", "standalone pre-review migration: the review skill is in the source layout");
     check(state2.entries.some((e) => e.path === "review/SKILL.md"), "standalone pre-review migration: the review skill is added");
     check(state2.entries.some((e) => e.path === "configure/SKILL.md"), "standalone pre-review migration: the configure skill is added");
@@ -945,7 +945,7 @@ try {
     check(r.exit === 0, "standalone pre-configure migration: exits 0 without --replace");
     check(!r.out.includes("Already up to date"), "standalone pre-configure migration: reconciles instead of reporting up-to-date");
     const state2 = await readStandaloneState(t);
-    check(state2.entries.length === 42, "standalone pre-configure migration: 42 entries");
+    check(state2.entries.length === 44, "standalone pre-configure migration: 44 entries");
     check(state2.sourceLayout === "autonomous,configure,pull-request-description,review,source-code-lookup,work", "standalone pre-configure migration: the configure skill is in the source layout");
     check(state2.entries.some((e) => e.path === "configure/SKILL.md"), "standalone pre-configure migration: the configure skill is added");
     check(await exists(join(t, "configure", "references", "preferences.example.md")), "standalone pre-configure migration: the packaged starter is added");
@@ -1091,20 +1091,29 @@ try {
   // the rollback set before the write, so a failing write leaves the pre-existing
   // content restored and the ownership state untouched, never a missing/partial
   // destination. A one-shot write failure is injected via a --require hook that
-  // wraps fs.promises.writeFile for a single destination path.
+  // wraps both write primitives for a single destination path:
+  // fs.promises.writeFile (the standalone installer) and the exclusive-open
+  // path (install.mjs opens with O_EXCL and then writes through the handle).
   const f13Hook = join(scratch, "f13-fail-write.cjs");
   await writeFile(f13Hook,
     'const fs = require("fs");\n' +
-    'const orig = fs.promises.writeFile;\n' +
+    'const target = process.env.F13_FAIL_WRITE;\n' +
+    'const matches = (path) => Boolean(target) && String(path).replace(/\\\\/g, "/").endsWith("/" + target);\n' +
+    'const enospc = (path) => {\n' +
+    '  const err = new Error("ENOSPC: no space left on device, open \'" + path + "\'");\n' +
+    '  err.code = "ENOSPC";\n' +
+    '  return err;\n' +
+    '};\n' +
+    'const origWriteFile = fs.promises.writeFile;\n' +
     'fs.promises.writeFile = async function (path, ...args) {\n' +
-    '  const target = process.env.F13_FAIL_WRITE;\n' +
-    '  const normalizedPath = String(path).replace(/\\\\/g, "/");\n' +
-    '  if (target && normalizedPath.endsWith("/" + target)) {\n' +
-    '    const err = new Error("ENOSPC: no space left on device, open \'" + path + "\'");\n' +
-    '    err.code = "ENOSPC";\n' +
-    '    throw err;\n' +
-    '  }\n' +
-    '  return orig(path, ...args);\n' +
+    '  if (matches(path)) throw enospc(path);\n' +
+    '  return origWriteFile(path, ...args);\n' +
+    '};\n' +
+    'const origOpen = fs.promises.open;\n' +
+    'fs.promises.open = async function (path, ...args) {\n' +
+    '  const handle = await origOpen(path, ...args);\n' +
+    '  if (matches(path)) handle.writeFile = async () => { throw enospc(path); };\n' +
+    '  return handle;\n' +
     '};\n');
   async function f13Fixture(script, skillRel, stateName, label) {
     const t = join(scratch, label);
@@ -1486,11 +1495,11 @@ try {
     check(r.out.includes("Installation complete."), "example install: Installation complete");
     const state = await readState(t);
     check(state.schema === STATE_VERSION, "example install: state schema 7");
-    check(state.entries.length === 56, "example install: 56 entries (10 profiles + 4 commands + 42 skills)");
+    check(state.entries.length === 58, "example install: 58 entries (10 profiles + 4 commands + 44 skills)");
     const profiles = state.entries.filter((e) => e.path.startsWith("agents/agenticale/")).map((e) => e.path.split("/").pop().replace(/\.md$/, ""));
     check(JSON.stringify(profiles.sort()) === JSON.stringify([...PROFILES, ...OPTIONAL_PROFILES].sort()), "example install: one primary coordinator plus nine worker profiles");
     const files = (await relFiles(t)).filter((f) => f !== STATE && !f.startsWith(".autonomous-mode-backups/"));
-    check(files.length === 56, "example install: 56 files on disk");
+    check(files.length === 58, "example install: 58 files on disk");
 
     // Every configured role renders its exact provider/model#variant line.
     const example = JSON.parse(await readFile(join(repo, "examples", "example.json"), "utf8"));
@@ -1538,7 +1547,7 @@ try {
     const backedUpCoordinator = (await relFiles(backups)).filter((p) => p.endsWith("agents/agenticale/coordinator.md"));
     check(backedUpCoordinator.length === 1, "example --no-model reinstall: the backup carries the retired coordinator");
     const state2 = await readState(t);
-    check(state2.schema === STATE_VERSION && state2.entries.length === 53, "example --no-model reinstall: schema 7 with the 53-entry base inventory");
+    check(state2.schema === STATE_VERSION && state2.entries.length === 55, "example --no-model reinstall: schema 7 with the 55-entry base inventory");
     check(!state2.entries.some((e) => OPTIONAL_PROFILES.some((name) => e.path === `agents/agenticale/${name}.md`)), "example --no-model reinstall: no optional profiles remain in state");
     for (const name of PROFILES) {
       const text = await readFile(join(t, "agents", "agenticale", `${name}.md`), "utf8");
@@ -1577,7 +1586,7 @@ try {
     const omittedConfigure = await readFile(join(t, "commands", "configure.md"), "utf8");
     check(!/^agent:/m.test(omittedConfigure) && !/^subagent:/m.test(omittedConfigure), "omitted optional: the configure command stays a caller-session launcher");
     const state = await readState(t);
-    check(state.schema === STATE_VERSION && state.entries.length === 54, "omitted optional: 54 entries (8 profiles + 4 commands + 42 skills)");
+    check(state.schema === STATE_VERSION && state.entries.length === 56, "omitted optional: 56 entries (8 profiles + 4 commands + 44 skills)");
 
     // Listing one optional worker on a later update adds exactly that
     // profile; the other omitted optional stays absent.
@@ -1590,7 +1599,7 @@ try {
     check(easy.includes("model: acme/easy#low"), "omitted optional update: implement-easy renders its combined model line");
     check(!(await exists(join(t, "agents", "agenticale", "consult-hard.md"))), "omitted optional update: the still-omitted consult-hard profile stays absent");
     const state2 = await readState(t);
-    check(state2.entries.length === 55, "omitted optional update: 55 entries (9 profiles + 4 commands + 42 skills)");
+    check(state2.entries.length === 57, "omitted optional update: 57 entries (9 profiles + 4 commands + 44 skills)");
   }
 
   // ---------------------------------------------------------------------
@@ -1760,6 +1769,178 @@ try {
     for (const entry of optionalWorkerEntries(legacyState)) {
       check(!legacyState.entries.some((e) => e.path === entry), `intent evidence: a schema-6 inventory carries no ${entry} (legacy absence means omitted)`);
     }
+  }
+
+  // ------------------------------------------------------------------
+  // Qwen Code installs (qwen-install / qwen-uninstall): the flat generated
+  // output, its own package identifier and state schema, and the same
+  // ownership, backup, and rollback contract as the OpenCode install.
+  {
+    const QWEN_PACKAGE = "qwen-code-autonomous-mode";
+    const readQwenState = async (target) => JSON.parse(await readFile(join(target, STATE), "utf8"));
+    const qwenAgents = (state) => state.entries.filter((e) => e.path.startsWith("agents/")).map((e) => e.path.split("/")[1]);
+
+    // Fresh install: the packaged Qwen Code install default
+    // (adapters/qwen-code/models.json) — nine worker roles plus the
+    // Qwen-direct coordinator, plus the walked six-skill inventory (44 files).
+    const t = join(scratch, "q-default");
+    const r = run("install.mjs", ["qwen-install", "--target", t]);
+    check(r.exit === 0, "qwen fresh install: exits 0");
+    check(r.out.includes("Installation complete."), "qwen fresh install: Installation complete");
+    const state = await readQwenState(t);
+    check(state.schema === 1, "qwen fresh install: state schema 1");
+    check(state.package === QWEN_PACKAGE, "qwen fresh install: the qwen package identifier");
+    check(state.mode === "copy", "qwen fresh install: copy mode");
+    check(state.entries.length === 54, "qwen fresh install: 54 entries (10 profiles + 44 skills)");
+    const agents = qwenAgents(state);
+    check(agents.length === 10, "qwen fresh install: ten flat profiles");
+    check(agents.every((a) => a.startsWith("agenticale-") && a.endsWith(".md")), "qwen fresh install: flat agenticale-<name>.md names");
+    check(agents.includes("agenticale-coordinator.md"), "qwen fresh install: the Qwen-direct coordinator renders");
+    for (const role of PROFILES) check(agents.includes(`agenticale-${role}.md`), `qwen fresh install: base profile ${role}`);
+    const files = (await relFiles(t)).filter((f) => f !== STATE && !f.startsWith(".autonomous-mode-backups/"));
+    check(files.length === 54, "qwen fresh install: 54 files on disk");
+    check(files.every((f) => f.startsWith("agents/") || f.startsWith("skills/")), "qwen fresh install: only the agents and skills roots");
+
+    // Profile shapes: the direct role carries the bare model id; the codex
+    // role carries the pinned executor and none of the rejected keys.
+    const explore = await readFile(join(t, "agents", "agenticale-explore.md"), "utf8");
+    check(explore.includes("model: qwen3.8-27b"), "qwen fresh install: explore renders the bare model id");
+    check(!/executor:/.test(explore), "qwen fresh install: the direct profile has no executor block");
+    const review = await readFile(join(t, "agents", "agenticale-review.md"), "utf8");
+    check(/executor:/.test(review), "qwen fresh install: review renders the codex executor");
+    check(review.includes('model=\\"gpt-6.2-sol\\"'), "qwen fresh install: review pins the bare codex model");
+    check(review.includes('model_reasoning_effort=\\"high\\"'), "qwen fresh install: review pins the codex effort");
+    check(!/^model: /m.test(review), "qwen fresh install: the codex profile carries no model line");
+    check(!/maxTurns:/.test(review), "qwen fresh install: the codex profile carries no maxTurns");
+    check(!/disallowedTools:/.test(review), "qwen fresh install: the codex profile carries no disallowedTools");
+
+    // Idempotent rerun: up to date.
+    const r2 = run("install.mjs", ["qwen-install", "--target", t]);
+    check(r2.exit === 0, "qwen up-to-date: exits 0");
+    check(r2.out.includes("Already up to date."), "qwen up-to-date: reports up to date");
+
+    // The example config routes its coordinator through the Codex executor:
+    // the install refuses it (a silent skip would misreport the coordinator
+    // as omitted) and writes nothing to the target.
+    const tex = join(scratch, "q-example");
+    const rex = run("install.mjs", ["qwen-install", "--target", tex, "--models", "example"]);
+    check(rex.exit !== 0, "qwen example install: a codex-routed coordinator is refused");
+    check(rex.err.includes("Qwen Code install rejected"), "qwen example install: names the rejection");
+    check(rex.err.includes("coordinator"), "qwen example install: the message names the coordinator");
+    check(!await exists(join(tex, STATE)), "qwen example install: no state is written");
+    check((await relFiles(tex)).length === 0, "qwen example install: nothing is written to the target");
+
+    // Reinstall with the local preset (no coordinator, no optional routes):
+    // the owned coordinator and optional files retire and their entries drop.
+    const r3 = run("install.mjs", ["qwen-install", "--target", t, "--models", "local"]);
+    check(r3.exit === 0, "qwen local reinstall: exits 0");
+    check(r3.out.includes("migrate-remove: agents/agenticale-coordinator.md"), "qwen local reinstall: the coordinator file retires");
+    check(r3.out.includes("migrate-remove: agents/agenticale-implement-easy.md"), "qwen local reinstall: the optional implement-easy retires");
+    check(r3.out.includes("migrate-remove: agents/agenticale-consult-hard.md"), "qwen local reinstall: the optional consult-hard retires");
+    const state3 = await readQwenState(t);
+    check(state3.entries.length === 51, "qwen local reinstall: 51 entries (7 profiles + 44 skills)");
+    check(!qwenAgents(state3).includes("agenticale-coordinator.md"), "qwen local reinstall: no coordinator entry in the state");
+    check(!(await exists(join(t, "agents", "agenticale-coordinator.md"))), "qwen local reinstall: the coordinator file is gone");
+
+    // --no-model: every role inherits; the configured optional routes retire.
+    const r4 = run("install.mjs", ["qwen-install", "--target", t, "--no-model"]);
+    check(r4.exit === 0, "qwen no-model install: exits 0");
+    const state4 = await readQwenState(t);
+    check(state4.entries.length === 51, "qwen no-model install: 51 entries (7 profiles + 44 skills)");
+    const agents4 = qwenAgents(state4);
+    check(agents4.length === 7 && agents4.every((a) => PROFILES.includes(a.slice("agenticale-".length, -3))), "qwen no-model install: the seven base profiles only");
+    const explore4 = await readFile(join(t, "agents", "agenticale-explore.md"), "utf8");
+    check(!/^model: /m.test(explore4) && !/executor:/.test(explore4), "qwen no-model install: every profile inherits (no model line, no executor)");
+
+    // A modified owned file refuses the install without --replace and is
+    // left in place; --replace backs it up and replaces it.
+    const modified = join(t, "agents", "agenticale-fix.md");
+    await writeFile(modified, "user-modified\n", "utf8");
+    const r5 = run("install.mjs", ["qwen-install", "--target", t]);
+    check(r5.exit !== 0, "qwen collision: a modified file refuses the install without --replace");
+    check(r5.err.includes("Differing content already exists at:"), "qwen collision: names the collision");
+    check((await readFile(modified, "utf8")) === "user-modified\n", "qwen collision: the modified file is left in place");
+    const r6 = run("install.mjs", ["qwen-install", "--target", t, "--replace"]);
+    check(r6.exit === 0, "qwen replace: --replace exits 0");
+    check(r6.out.includes("backup created"), "qwen replace: backs up before replacing");
+    check((await readFile(modified, "utf8")) !== "user-modified\n", "qwen replace: the modified file is replaced");
+
+    // Uninstall removes owned, unmodified files and the state; a modified
+    // owned file and user files survive.
+    await writeFile(modified, "user-modified again\n", "utf8");
+    const userAgent = join(t, "agents", "my-own-agent.md");
+    await writeFile(userAgent, "mine\n", "utf8");
+    const r7 = run("install.mjs", ["qwen-uninstall", "--target", t, "--dry-run"]);
+    check(r7.exit === 0, "qwen uninstall dry-run: exits 0");
+    check(r7.out.includes("preserve-modified: agents/agenticale-fix.md"), "qwen uninstall dry-run: reports the modified file");
+    check(await exists(join(t, STATE)), "qwen uninstall dry-run: changes nothing");
+    const r8 = run("install.mjs", ["qwen-uninstall", "--target", t]);
+    check(r8.exit === 0, "qwen uninstall: exits 0");
+    check(!await exists(join(t, STATE)), "qwen uninstall: removes the state");
+    check(!await exists(join(t, "agents", "agenticale-explore.md")), "qwen uninstall: removes owned agent files");
+    check((await readFile(modified, "utf8")) === "user-modified again\n", "qwen uninstall: preserves the modified file");
+    check((await readFile(userAgent, "utf8")) === "mine\n", "qwen uninstall: leaves user agents untouched");
+    check(!await exists(join(t, "skills", "work", "SKILL.md")), "qwen uninstall: removes owned skill files");
+
+    // Uninstall with no (or foreign, or malformed) state refuses.
+    const r9 = run("install.mjs", ["qwen-uninstall", "--target", t]);
+    check(r9.exit !== 0, "qwen uninstall without state: refuses");
+    const foreign = join(scratch, "q-foreign");
+    await mkdir(join(foreign, "agents"), { recursive: true });
+    await writeFile(join(foreign, STATE), JSON.stringify({ schema: 7, package: PACKAGE, mode: "copy", installedAt: new Date().toISOString(), entries: [] }, null, 2));
+    const rf1 = run("install.mjs", ["qwen-install", "--target", foreign]);
+    check(rf1.exit !== 0, "qwen foreign state: install refuses another package's state");
+    const rf2 = run("install.mjs", ["qwen-uninstall", "--target", foreign]);
+    check(rf2.exit !== 0, "qwen foreign state: uninstall refuses another package's state");
+    const malformed = join(scratch, "q-malformed");
+    await mkdir(malformed, { recursive: true });
+    await writeFile(join(malformed, STATE), "{ not json", "utf8");
+    const rm1 = run("install.mjs", ["qwen-uninstall", "--target", malformed]);
+    check(rm1.exit !== 0, "qwen malformed state: uninstall refuses");
+
+    // A qwen state carrying an unexpected agent entry is refused.
+    const bad = join(scratch, "q-bad-entry");
+    const rb0 = run("install.mjs", ["qwen-install", "--target", bad, "--no-model"]);
+    check(rb0.exit === 0, "qwen bad-entry fixture: the fresh install exits 0");
+    const badState = await readQwenState(bad);
+    badState.entries.push({ path: "agents/agenticale-rogue.md", kind: "file", digest: digest(Buffer.from("x")) });
+    await writeFile(join(bad, STATE), JSON.stringify(badState, null, 2), "utf8");
+    const rb1 = run("install.mjs", ["qwen-install", "--target", bad]);
+    check(rb1.exit !== 0, "qwen state with an unexpected profile: refused");
+
+    // State hardening: a duplicate path and a missing skill SKILL.md entry
+    // are both refused.
+    const tdup = join(scratch, "q-dup");
+    const rd0 = run("install.mjs", ["qwen-install", "--target", tdup, "--no-model"]);
+    check(rd0.exit === 0, "qwen duplicate fixture: the fresh install exits 0");
+    const dupState = await readQwenState(tdup);
+    dupState.entries.push({ path: "skills/work/SKILL.md", kind: "file", digest: digest(Buffer.from("x")) });
+    await writeFile(join(tdup, STATE), JSON.stringify(dupState, null, 2), "utf8");
+    const rd1 = run("install.mjs", ["qwen-uninstall", "--target", tdup]);
+    check(rd1.exit !== 0, "qwen state with a duplicate path: uninstall refuses");
+    const tsk = join(scratch, "q-noskill");
+    const rs0 = run("install.mjs", ["qwen-install", "--target", tsk, "--no-model"]);
+    check(rs0.exit === 0, "qwen SKILL.md fixture: the fresh install exits 0");
+    const skillState = await readQwenState(tsk);
+    skillState.entries = skillState.entries.filter((e) => e.path !== "skills/work/SKILL.md");
+    await writeFile(join(tsk, STATE), JSON.stringify(skillState, null, 2), "utf8");
+    const rs1 = run("install.mjs", ["qwen-uninstall", "--target", tsk]);
+    check(rs1.exit !== 0, "qwen state missing a skill SKILL.md: uninstall refuses");
+
+    // A symlinked agents root is refused even by a dry run: a kept or
+    // planned file under a linked ancestor would be recorded as owned.
+    const tlink = join(scratch, "q-link");
+    const linkTarget = join(scratch, "q-link-ext");
+    await mkdir(linkTarget, { recursive: true });
+    await mkdir(tlink, { recursive: true });
+    await symlink(linkTarget, join(tlink, "agents"), "dir");
+    const rl1 = run("install.mjs", ["qwen-install", "--target", tlink, "--dry-run", "--no-model"]);
+    check(rl1.exit !== 0, "qwen symlinked agents root: the dry run refuses");
+    check(rl1.err.includes("linked ancestor"), "qwen symlinked agents root: names the linked ancestor");
+
+    // A target inside this checkout is refused (no files are created).
+    const rIn = run("install.mjs", ["qwen-install", "--target", join(repo, ".qwen")]);
+    check(rIn.exit !== 0, "qwen target inside the checkout: refused");
   }
 
   console.log(`Installer tests passed: ${assertions} assertions.`);

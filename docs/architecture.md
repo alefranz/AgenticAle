@@ -27,7 +27,7 @@ Four concerns are separated so each can change independently:
 | Task contracts | `skills/work/references/tasks/<role>.md` (six: `explore`, `implement`, `fix`, `review`, `review-deep`, `consult`) |
 | Flat model config | `adapters/opencode/models.json` (role → `"provider/model[#variant]"`, plus the optional top-level `coordinator` session key; unlisted roles inherit) |
 | Plugin preference fragment | `adapters/plugin/model-configuration.md` (appended to the workflow skills in plugin and standalone outputs) |
-| Runtime bindings | `skills/work/references/runtimes/<host>.md` (five: `copilot`, `copilot-local`, `codex`, `opencode`, `antigravity`) |
+| Runtime bindings | `skills/work/references/runtimes/<host>.md` (six: `copilot`, `copilot-local`, `codex`, `opencode`, `qwen-code`, `antigravity`) |
 | Outcome-evaluation protocol (opt-in) | `skills/work/references/outcome-evaluation.md` (Work only; loaded only when a task is invoked with `--outcome`) |
 
 The three workflow skills and the `configure` setup skill are explicit-only:
@@ -152,8 +152,9 @@ silently replaced.
 routing and the Work worker-round allowance: it detects the actual runtime
 surface, discovers capabilities through a degradation ladder (live native
 listing → user-supplied names → safe session-model inheritance), proposes
-exact preference-file content — or a flat `--models` JSON plus an installer
-rerun on OpenCode — and writes only on explicit confirmation of the exact
+exact preference-file content — or a flat `--models` JSON plus an install
+refresh on OpenCode and Qwen Code — and writes only on explicit confirmation
+of the exact
 path and content, re-reading the target before the write. Every proposed
 model name comes from live host evidence or the user; no packaged inventory
 of names ships. Its per-host discovery notes live in
@@ -342,13 +343,14 @@ boundaries.
 The authored source-of-truth layout is what `scripts/validate.mjs` asserts
 exists: the three workflow skills plus their `agents/openai.yaml`, the shared
 `rounds.md`, the `outcome-evaluation.md` outcome-protocol reference, the shared
-`session-stats.mjs` helper, the five runtime bindings, the six task contracts,
+`session-stats.mjs` helper, the six runtime bindings, the six task contracts,
 the `adapters/opencode/` metadata (adapter, four command templates, flat model
-config, coordinator body, and README), the plugin preference fragment
-(`adapters/plugin/model-configuration.md`), and the three supporting skills —
-including `configure` with its `agents/openai.yaml` and five discovery
-references — plus the authored root preferences starter
-(`examples/preferences.example.md`), for 39 source-of-truth files. The retired
+config, coordinator body, and README), the `adapters/qwen-code/` metadata
+(adapter, flat model config, coordinator body, and README), the plugin
+preference fragment (`adapters/plugin/model-configuration.md`), and the
+three supporting skills — including `configure` with its `agents/openai.yaml`
+and six discovery references — plus the authored root preferences starter
+(`examples/preferences.example.md`), for 57 source-of-truth files. The retired
 layout (`commands/`, `agents/autonomous/`, `skills/work-mode`,
 `skills/autonomous-mode`) and the retired routing paths (`ROUTING.md`,
 `routing.json`, `preferences.example.md`, and `scripts/routing.mjs` under
@@ -510,19 +512,22 @@ catalogs; `--check` verifies all artifacts are current.
 
 ## Build output
 
-`scripts/build.mjs` reads the authored core and the OpenCode adapter and writes
-three output roots beneath `--output` (default `dist`):
+`scripts/build.mjs` reads the authored core and the OpenCode and Qwen Code
+adapters and writes four output roots beneath `--output` (default `dist`):
 
 | Output root | Contents |
 | --- | --- |
-| `<output>/plugin/agenticale` | Agent Plugins 1.0 package (31 files: `plugin.json` + the six skills and their resources, with the preference fragment appended to the workflow skills) |
-| `<output>/standalone/.agents/skills` | the six standalone skills (30 files), no plugin dependency, with the preference fragment appended to the workflow skills |
-| `<output>/opencode` | the seven base worker profiles (plus the optional `implement-easy`/`consult-hard` and `coordinator` profiles when configured), the same skills, and the four command entries (41 files by default, up to 44) |
+| `<output>/plugin/agenticale` | Agent Plugins 1.0 package (45 files: `plugin.json` + the six skills and their resources, with the preference fragment appended to the workflow skills) |
+| `<output>/standalone/.agents/skills` | the six standalone skills (44 files), no plugin dependency, with the preference fragment appended to the workflow skills |
+| `<output>/opencode` | the seven base worker profiles (plus the optional `implement-easy`/`consult-hard` and `coordinator` profiles when configured), the same skills, and the four command entries (55 files by default, up to 58) |
+| `<output>/qwen-code` | the flat `agents/agenticale-<role>.md` worker profiles (the same seven base roles, plus the optional roles and the flat coordinator when configured), the same six skills (51 files by default, up to 54); codex-routed model values render a pinned codex executor block instead of a model line |
 
-The build writes `.agenticale-build.json` (schemaVersion 2) describing the
-package, the model config source, the no-model flag, and the rendered
-profiles. Build output must not target the repository root or a source
-directory. Disposable `dist/` artifacts are ignored and never edited by hand.
+The build writes `.agenticale-build.json` (schemaVersion 3) describing the
+package, the model config source, the no-model flag, the rendered profiles,
+and the Qwen Code render modes (including a `coordinatorSkipped` record when
+the coordinator value is codex-routed). Build output must not target the
+repository root or a source directory. Disposable `dist/` artifacts are
+ignored and never edited by hand.
 
 ## Installers
 
@@ -535,7 +540,8 @@ reported; replacements are backed up.
 | `scripts/install-copilot.mjs` | the modern shared plugin, via `copilot plugin install` | managed by the Copilot plugin store |
 | `codex plugin marketplace add` + `codex plugin add` | the shared plugin from `.agents/plugins/marketplace.json` | managed by the Codex plugin store |
 | `scripts/install-standalone.mjs` | the six standalone skills to project scope (`<cwd>/.agents/skills`, default) or user scope (`~/.agents/skills`) | `.agenticale-standalone-install.json` (schema 1) |
-| `scripts/install.mjs` | the generated OpenCode output (skills + seven base worker profiles + optional profiles + four command entries) | `.autonomous-mode-install.json` (schema 7, 41-file inventory by default, up to 44) |
+| `scripts/install.mjs` | the generated OpenCode output (skills + seven base worker profiles + optional profiles + four command entries) | `.autonomous-mode-install.json` (schema 7, 55-file inventory by default, up to 58) |
+| `scripts/install.mjs qwen-install` | the generated Qwen Code output (skills + flat `agenticale-*` agent profiles) | `.autonomous-mode-install.json` (schema 1, package `qwen-code-autonomous-mode`, 54 files with all roles and the coordinator) |
 
 The OpenCode installer is copy-only. It builds to a temporary root and copies the
 generated output into the OpenCode configuration directory; it does not link to
@@ -549,6 +555,10 @@ entries) validates and gains the configure skill and command entry without
 five-skill `sourceLayout` the same way.
 The standalone installer provides an alternative local skill install for Codex
 CLI, the VS Code extension, and Codex in the ChatGPT desktop app.
+The Qwen Code installer is copy-only with no legacy migrations. It reuses the
+OpenCode ownership, backup, and rollback mechanics but records its own package
+identifier in the shared state file name, so it refuses to manage a state file
+written by a different AgenticAle package.
 
 ## Safety and state boundaries
 

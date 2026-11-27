@@ -64,6 +64,7 @@ const requiredPaths = [
   "skills/work/references/runtimes/copilot-local.md",
   "skills/work/references/runtimes/codex.md",
   "skills/work/references/runtimes/opencode.md",
+  "skills/work/references/runtimes/qwen-code.md",
   "skills/work/references/runtimes/antigravity.md",
   ...taskContracts.map((name) => `skills/work/references/tasks/${name}.md`),
   "skills/work/scripts/session-stats.mjs",
@@ -87,6 +88,7 @@ const requiredPaths = [
   "skills/configure/SKILL.md",
   "skills/configure/agents/openai.yaml",
   "skills/configure/references/discovery/opencode.md",
+  "skills/configure/references/discovery/qwen-code.md",
   "skills/configure/references/discovery/copilot.md",
   "skills/configure/references/discovery/copilot-local.md",
   "skills/configure/references/discovery/codex.md",
@@ -100,6 +102,10 @@ const requiredPaths = [
   "adapters/opencode/commands/review.md",
   "adapters/opencode/commands/work.md",
   "adapters/opencode/models.json",
+  "adapters/qwen-code/adapter.json",
+  "adapters/qwen-code/coordinator.md",
+  "adapters/qwen-code/models.json",
+  "adapters/qwen-code/README.md",
   "adapters/plugin/model-configuration.md",
 ].sort();
 
@@ -357,7 +363,7 @@ function validateSkillConfigure() {
     fail(path, "disable-model-invocation must be true (explicit-only)", "set disable-model-invocation: true");
   }
   requireMetadataFlags(path, metadata);
-  for (const host of ["opencode", "copilot", "copilot-local", "codex", "antigravity"]) {
+  for (const host of ["opencode", "qwen-code", "copilot", "copilot-local", "codex", "antigravity"]) {
     if (!body.includes(`](references/discovery/${host}.md)`)) {
       fail(path, `body must link the ${host} discovery reference`, "keep the per-host discovery links");
     }
@@ -370,14 +376,16 @@ function validateSkillConfigure() {
   }
 }
 
-// The flat model configs: the packaged default (adapters/opencode/models.json)
-// plus every bundled examples/*.json preset. Each is loaded through the shared
-// flat-config loader so the exact schema the build and installers enforce is
-// asserted here; every failure names the offending role and value. Missing
-// roles are legal (they inherit the session model), so coverage is not
-// required.
+// The flat model configs: the two packaged per-adapter defaults
+// (adapters/opencode/models.json for the shared build default,
+// adapters/qwen-code/models.json for the Qwen Code install) plus every bundled
+// examples/*.json preset. Each is loaded through the shared flat-config loader
+// so the exact schema the build and installers enforce is asserted here; every
+// failure names the offending role and value. Missing roles are legal (they
+// inherit the session model), so coverage is not required.
 async function validateModelConfigs() {
   const defaultPath = "adapters/opencode/models.json";
+  const qwenDefaultPath = "adapters/qwen-code/models.json";
   const examplesRoot = "examples";
   let exampleFiles = [];
   if (existsSync(join(repositoryRoot, examplesRoot)) && statSync(join(repositoryRoot, examplesRoot)).isDirectory()) {
@@ -386,7 +394,7 @@ async function validateModelConfigs() {
   if (exampleFiles.length === 0) {
     fail(examplesRoot, "no bundled model config presets found", "restore the examples/*.json presets");
   }
-  for (const path of [defaultPath, ...exampleFiles.map((file) => `${examplesRoot}/${file}`)]) {
+  for (const path of [defaultPath, qwenDefaultPath, ...exampleFiles.map((file) => `${examplesRoot}/${file}`)]) {
     try {
       await loadModelConfig(join(repositoryRoot, path));
     } catch (error) {
@@ -535,6 +543,171 @@ function validateAdapter() {
       if (command.name === "configure" && command.bindCoordinator !== false) {
         fail(commandPath, "the configure command must stay a caller-session launcher", "set bindCoordinator: false (setup is a user conversation, not a workflow round)");
       }
+    }
+  }
+  const adapterText = readText(path);
+  if (/task contract/i.test(adapterText)) {
+    fail(path, "adapter must not contain task-contract body text", "keep the adapter metadata-only; bodies come from skills/work/references/tasks");
+  }
+}
+
+// The Qwen Code adapter declares the flat agents/ output layout (Qwen Code
+// 0.28.6 scans only the Markdown files directly inside .qwen/agents/), the
+// maxTurns ceilings in place of OpenCode steps, the permission-to-tool-name
+// mapping that renders disallowedTools, the pinned codex executor binding for
+// openai/-routed values, and the skill roots that get copied alongside the
+// agent files. Like the OpenCode adapter it carries no model, effort, or body
+// text: the flat model config chooses routing at build time.
+function validateQwenCodeAdapter() {
+  const path = "adapters/qwen-code/adapter.json";
+  let adapter;
+  try {
+    adapter = JSON.parse(readText(path));
+  } catch (error) {
+    fail(path, `adapter is not valid JSON (${error.message})`, "restore a parseable adapter");
+    return;
+  }
+  if (adapter.runtime !== "qwen-code") {
+    fail(path, "adapter runtime must be 'qwen-code'", "restore runtime: qwen-code");
+  }
+  const keyByRoute = adapter.keyByRoute;
+  if (!keyByRoute || typeof keyByRoute !== "object" || Array.isArray(keyByRoute)) {
+    fail(path, "adapter must include a keyByRoute map", "add the keyByRoute map");
+  } else {
+    if (JSON.stringify(Object.keys(keyByRoute).sort()) !== JSON.stringify([...routes].sort())) {
+      fail(path, "keyByRoute must map exactly the nine worker routes", `map exactly: ${routes.join(", ")}`);
+    }
+    for (const route of routes) {
+      if (keyByRoute[route] !== route) {
+        fail(path, `keyByRoute["${route}"] must be "${route}" (each route maps 1:1 to its own profile)`, `set keyByRoute["${route}"] = "${route}"`);
+      }
+    }
+  }
+  if (!Array.isArray(adapter.profiles)) {
+    fail(path, "adapter must include a profiles array", "add the profiles array");
+    return;
+  }
+  const names = adapter.profiles.map((profile) => profile.name).sort();
+  if (JSON.stringify(names) !== JSON.stringify([...profileNames].sort())) {
+    fail(path, `profiles must be exactly ${profileNames.join(", ")} (the coordinator is the separate conditional entry)`, "remove any extra worker profile");
+  }
+  const expectedMaxTurns = { explore: 24, implement: 64, "implement-easy": 64, "implement-hard": 64, fix: 48, review: 56, "review-deep": 72, consult: 20, "consult-hard": 20 };
+  const readOnlyDeny = ["edit", "question", "subagent"];
+  const standardDeny = ["question", "subagent"];
+  for (const profile of adapter.profiles) {
+    const profilePath = `${path}#profiles.${profile && profile.name}`;
+    if (!profile || typeof profile.name !== "string" || !profileNames.includes(profile.name)) {
+      fail(path, "every profile must be one of the nine worker route names", "use the documented profile names");
+      continue;
+    }
+    const expectedKeys = ["description", "maxTurns", "name", "outputPath", "permissions"];
+    if (optionalProfileNames.has(profile.name)) expectedKeys.push("optional");
+    const profileKeys = Object.keys(profile).sort();
+    if (JSON.stringify(profileKeys) !== JSON.stringify(expectedKeys.sort())) {
+      fail(profilePath, "profile must carry only metadata (no model/effort/body)", "remove model, effort, and body text; keep metadata only");
+    }
+    if (optionalProfileNames.has(profile.name) && profile.optional !== true) {
+      fail(profilePath, "optional worker profiles must declare optional: true", "add optional: true so the profile renders only when configured");
+    }
+    if (profile.outputPath !== `agents/agenticale-${profile.name}.md`) {
+      fail(profilePath, `profile outputPath must be agents/agenticale-${profile.name}.md (flat: the host scans only the top level of .qwen/agents/)`, `restore outputPath: agents/agenticale-${profile.name}.md`);
+    }
+    if (typeof profile.maxTurns !== "number") {
+      fail(profilePath, "profile maxTurns must be a number", "restore a numeric maxTurns value");
+    } else if (profile.maxTurns !== expectedMaxTurns[profile.name]) {
+      fail(profilePath, `profile maxTurns must be ${expectedMaxTurns[profile.name]}`, `restore maxTurns: ${expectedMaxTurns[profile.name]}`);
+    }
+    if (typeof profile.description !== "string" || profile.description.length === 0) {
+      fail(profilePath, "profile description must be non-empty", "describe the profile in one line");
+    }
+    if (!Array.isArray(profile.permissions)) {
+      fail(profilePath, "profile must have a permissions array", "add the permission list");
+      continue;
+    }
+    for (const permission of profile.permissions) {
+      if (!permission || permission.resource !== "*" || permission.effect !== "deny") {
+        fail(profilePath, "every permission must deny resource '*'", "use effect: deny with resource: *");
+      }
+    }
+    const expectedDeny = profile.name === "explore" || profile.name === "consult" || profile.name === "consult-hard" ? readOnlyDeny : standardDeny;
+    if (JSON.stringify(denyActions(profile.permissions)) !== JSON.stringify(expectedDeny)) {
+      fail(profilePath, `profile must deny exactly ${expectedDeny.join(", ")}`, "restore the exact deny permission set");
+    }
+  }
+  // The conditional session coordinator: rendered only when the model config
+  // assigns the coordinator key, as a flat agent file carrying the posture
+  // body. The coordinating session adopts the body per the runtime binding;
+  // the assigned value must be Qwen-direct (the build skips a codex-routed
+  // coordinator value with a note).
+  const coordinator = adapter.coordinator;
+  const coordinatorPath = `${path}#coordinator`;
+  if (!coordinator || typeof coordinator !== "object" || Array.isArray(coordinator)) {
+    fail(path, "adapter must include a coordinator entry", "add the conditional coordinator profile metadata");
+  } else {
+    const coordinatorKeys = Object.keys(coordinator).sort();
+    if (JSON.stringify(coordinatorKeys) !== JSON.stringify(["body", "description", "name", "outputPath"])) {
+      fail(coordinatorPath, "coordinator must carry only name, outputPath, description, and body", "remove the extra coordinator keys; keep metadata only");
+    }
+    if (coordinator.name !== "coordinator") fail(coordinatorPath, "coordinator name must be 'coordinator'", "set name: coordinator");
+    if (coordinator.outputPath !== "agents/agenticale-coordinator.md") fail(coordinatorPath, "coordinator outputPath must be agents/agenticale-coordinator.md (flat)", "restore the coordinator output path");
+    if (typeof coordinator.description !== "string" || coordinator.description.length === 0) {
+      fail(coordinatorPath, "coordinator description must be non-empty", "describe the coordinator in one line");
+    }
+    if (coordinator.body !== "coordinator.md") fail(coordinatorPath, "coordinator body must reference the adapter-owned coordinator.md", "set body: coordinator.md");
+  }
+  // The codex executor binding is pinned: the build refuses to render a
+  // different kind, command, or base args, so the validator holds the same
+  // line (including the exact key set, so no stray key survives).
+  const codex = adapter.codex;
+  const codexPath = `${path}#codex`;
+  if (!codex || typeof codex !== "object" || Array.isArray(codex)) {
+    fail(path, "adapter must include a codex executor binding", "add the codex binding (kind, providerPrefix, command, baseArgs)");
+  } else {
+    if (JSON.stringify(Object.keys(codex).sort()) !== JSON.stringify(["baseArgs", "command", "kind", "providerPrefix"])) {
+      fail(codexPath, "codex binding must carry exactly kind, providerPrefix, command, and baseArgs", "remove the extra keys; keep the pinned binding");
+    }
+    if (codex.kind !== "codex") fail(codexPath, "codex kind must be 'codex'", "restore kind: codex");
+    if (codex.providerPrefix !== "openai") fail(codexPath, "codex providerPrefix must be 'openai'", "restore providerPrefix: openai");
+    if (codex.command !== "codex") fail(codexPath, "codex command must be 'codex'", "restore command: codex");
+    if (JSON.stringify(codex.baseArgs) !== JSON.stringify(["app-server", "--stdio"])) fail(codexPath, "codex baseArgs must be [\"app-server\", \"--stdio\"]", "restore baseArgs: [\"app-server\", \"--stdio\"]");
+  }
+  // permissionToolNames maps a deny action to the host tool names rendered
+  // into disallowedTools; the build reads these values verbatim.
+  const permissionToolNames = adapter.permissionToolNames;
+  const permissionNamesPath = `${path}#permissionToolNames`;
+  if (!permissionToolNames || typeof permissionToolNames !== "object" || Array.isArray(permissionToolNames)) {
+    fail(path, "adapter must include a permissionToolNames map", "add the permissionToolNames map");
+  } else {
+    if (JSON.stringify(Object.keys(permissionToolNames).sort()) !== JSON.stringify(["edit", "question", "subagent"])) {
+      fail(permissionNamesPath, "permissionToolNames must carry exactly edit, question, and subagent", "restore the three deny actions");
+    }
+    for (const [action, expected] of [["subagent", ["agent"]], ["edit", ["write_file", "edit", "notebook_edit"]], ["question", []]]) {
+      if (JSON.stringify(permissionToolNames[action]) !== JSON.stringify(expected)) {
+        fail(permissionNamesPath, `permissionToolNames.${action} must be ${JSON.stringify(expected)}`, `restore ${action}: ${JSON.stringify(expected)}`);
+      }
+    }
+  }
+  // skillDiscovery lists the skill roots copied next to the agent files; the
+  // two support skills are explicitly flagged for the installer's discovery
+  // notes.
+  const skillDiscovery = adapter.skillDiscovery;
+  const skillDiscoveryPath = `${path}#skillDiscovery`;
+  if (!skillDiscovery || typeof skillDiscovery !== "object" || Array.isArray(skillDiscovery)) {
+    fail(path, "adapter must include a skillDiscovery entry", "add the skillDiscovery entry");
+  } else {
+    if (skillDiscovery.outputSkillsRoot !== "skills") fail(skillDiscoveryPath, "skillDiscovery outputSkillsRoot must be 'skills'", "restore outputSkillsRoot: skills");
+    // The build copies its own fixed six-skill list, so the declared inventory
+    // must match it exactly, kind flags and all.
+    const expectedSkills = [
+      { name: "work", source: "skills/work" },
+      { name: "autonomous", source: "skills/autonomous" },
+      { name: "review", source: "skills/review" },
+      { name: "configure", source: "skills/configure" },
+      { name: "pull-request-description", source: "skills/pull-request-description", kind: "support" },
+      { name: "source-code-lookup", source: "skills/source-code-lookup", kind: "support" },
+    ];
+    if (JSON.stringify(skillDiscovery.skills) !== JSON.stringify(expectedSkills)) {
+      fail(skillDiscoveryPath, "skillDiscovery must list exactly the six skills the build copies (work, autonomous, review, configure, and the two support skills with kind: support)", "restore the exact six skill entries");
     }
   }
   const adapterText = readText(path);
@@ -1190,6 +1363,7 @@ validateSkillConfigure();
 validateSharedRoundsContract();
 await validateModelConfigs();
 validateAdapter();
+validateQwenCodeAdapter();
 validateCommandTemplates();
 validateNeutralContracts();
 validateSanitation();
@@ -1201,5 +1375,5 @@ if (failures.length > 0) {
   for (const failure of failures) console.error(`- ${failure}`);
   process.exitCode = 1;
 } else {
-  console.log(`Validation passed: ${requiredPaths.length} source-of-truth files, ${taskContracts.length} neutral task contracts, flat model configs, ${profileNames.length} adapter profiles, ${commandNames.length} adapter command templates, ${skillReadBudgetCount} skill files within the 45 KiB read budget, ${skillLinkCount} skill links resolving, ${pluginBandCount} committed plugin files under the 50 KiB host band, and sanitation.`);
+  console.log(`Validation passed: ${requiredPaths.length} source-of-truth files, ${taskContracts.length} neutral task contracts, flat model configs, ${profileNames.length} OpenCode adapter profiles, the Qwen Code adapter, ${commandNames.length} adapter command templates, ${skillReadBudgetCount} skill files within the 45 KiB read budget, ${skillLinkCount} skill links resolving, ${pluginBandCount} committed plugin files under the 50 KiB host band, and sanitation.`);
 }

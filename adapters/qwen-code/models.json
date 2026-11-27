@@ -1,0 +1,12 @@
+{
+  "coordinator": "alibaba-token-plan/qwen4-max-preview#medium",
+  "explore": "local-llama/qwen3.8-27b#medium",
+  "implement-easy": "local-llama/qwen3.8-27b#medium",
+  "implement": "alibaba-token-plan/qwen4-max-preview#medium",
+  "implement-hard": "alibaba-token-plan/qwen4-max-preview#xhigh",
+  "fix": "alibaba-token-plan/qwen4-max-preview#medium",
+  "review": "openai/gpt-6.2-sol#high",
+  "review-deep": "openai/gpt-6.2-astra#high",
+  "consult-hard": "openai/gpt-6.2-astra#high",
+  "consult": "openai/gpt-6.2-sol#high"
+}

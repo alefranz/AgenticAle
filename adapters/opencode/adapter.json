@@ -122,7 +122,7 @@
     "name": "coordinator",
     "outputPath": "agents/agenticale/coordinator.md",
     "mode": "primary",
-    "description": "Workflow coordinator session: plans bounded slices, dispatches worker children, and integrates their reports.",
+    "description": "Workflow coordinator session that plans bounded slices, dispatches worker children, and integrates their reports.",
     "body": "coordinator.md",
     "permissions": []
   },

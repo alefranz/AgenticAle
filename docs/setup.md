@@ -274,8 +274,8 @@ This installer is copy-only: it no longer offers a link mode. On install it
 migrates older copy installs (state schema 1-4), older link installs
 (schema 1-4), and older generated installs (schema 5-6, including the
 pre-rename `deep-review` profile) to the current generated copy layout
-(state `.autonomous-mode-install.json`, schema 7, a 41-file inventory by
-default and up to 44 files when the config lists both optional workers and
+(state `.autonomous-mode-install.json`, schema 7, a 55-file inventory by
+default and up to 58 files when the config lists all nine worker roles and
 the coordinator). A pre-configure schema-7 state (five skills, three command
 entries) validates and gains the configure skill and command entry on the
 next install. The manifest is also the workflow's read-only evidence
@@ -289,6 +289,56 @@ standalone `.agenticale-standalone-install.json`), the installer surfaces a
 non-blocking `notice: another AgenticAle install appears present (<path>)`
 line instead of failing. Review it and remove the duplicate layout if the
 two installs were meant to be a single one.
+
+### Qwen Code (flat agent profiles)
+
+Installs the *generated* Qwen Code binding: the six skills, plus the flat
+`agents/agenticale-<role>.md` worker profiles — the seven base roles, the
+optional `implement-easy`/`consult-hard` roles, and a flat
+`agents/agenticale-coordinator.md` agent file when your model config assigns
+a Qwen-direct `coordinator` value. Qwen Code exposes the installed skills as
+the slash commands `/work`, `/review`, `/autonomous`, and `/configure`
+directly, so no separate command entries are installed.
+
+From a clone or your current checkout, run the installer from the repository
+root:
+
+```sh
+node scripts/install.mjs qwen-install --no-model
+# or, with a flat per-role model config:
+node scripts/install.mjs qwen-install --models example
+```
+
+`--target PATH` selects the Qwen Code configuration directory (default
+`~/.qwen`; a project `.qwen` directory is a valid target for a
+project-scoped install). With neither `--models` nor `--no-model`, the
+packaged Qwen Code install default (`adapters/qwen-code/models.json`) is
+used. The install owns only the `agenticale-*` agent files and the AgenticAle
+skill files: other agents, skills, or settings in the directory are never
+touched, and the install state (`.autonomous-mode-install.json`, Qwen
+package) is the workflow's read-only evidence for configured-route intent.
+`qwen-uninstall` removes only owned, unmodified files; a modified owned file
+is preserved and reported.
+
+Model values render in one of two forms by the value's provider:
+
+- **Direct providers** — the profile carries one `model:` line with the bare
+  model id, resolved against the providers registered in your Qwen Code
+  `settings.json` (for example a local llama OpenAI-compatible endpoint or
+  the Qwen Code / Alibaba token plan). Register the provider first; an
+  unresolvable model id silently falls back to the session model.
+- **`openai/` values** — the profile carries a Codex executor block that pins
+  the model (and the `#effort` level) through `codex -c` overrides.
+  Prerequisites: the `codex` executable on `PATH`, the working folder
+  trusted in Codex's configuration, and the workspace trusted by Qwen Code
+  itself.
+
+A `coordinator` value must be Qwen-direct: a codex-routed coordinator value
+is skipped, so the install carries no coordinator file and the coordinating
+session runs on its own model. After installing, start a fresh Qwen Code
+session and paste the verification prompt the installer prints. See the
+[model configuration guide](guides/model-routing.md) for the flat-config
+contract.
 
 ### Google Antigravity (App and CLI)
 
@@ -410,10 +460,14 @@ branches.
 
 ## Preview, update, and uninstall
 
-Preview an OpenCode or standalone install without touching the filesystem:
+Preview an install without touching the install target. The dry runs report
+the planned changes; the Qwen Code dry run additionally builds the bundle in
+a temporary tree (removed again afterwards) because it validates the same
+generated content a real install would copy:
 
 ```sh
 node scripts/install.mjs --dry-run --no-model
+node scripts/install.mjs qwen-install --dry-run --no-model
 node scripts/install-standalone.mjs --dry-run --no-model
 ```
 
@@ -422,6 +476,10 @@ Update an existing install after fetching a newer version:
 ```sh
 # OpenCode (explicit session-model inheritance shown here)
 node scripts/install.mjs --replace --no-model
+
+# Qwen Code (without --models or --no-model the packaged default model
+# config applies; pass one only to change the model routing)
+node scripts/install.mjs qwen-install --replace
 
 # Antigravity (re-run install from the updated local checkout)
 git pull
@@ -433,6 +491,7 @@ file:
 
 ```sh
 node scripts/install.mjs uninstall
+node scripts/install.mjs qwen-uninstall
 node scripts/install-standalone.mjs uninstall
 copilot plugin uninstall agenticale
 agy plugin uninstall agenticale
