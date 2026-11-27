@@ -53,6 +53,10 @@ and whole-file reads at 50 KiB — and the installed skill file (entry plus
 appended preference fragment) stays under that band; `scripts/validate.mjs`
 enforces the budget and the skills' link and anchor integrity.
 
+Backward compatibility (such as legacy state layouts, deprecated config formats,
+or retired paths) does not need to be preserved in this project unless
+explicitly requested.
+
 ## Public and repository-only documentation
 
 Public documentation is the explicit allowlist in

@@ -73,17 +73,9 @@ const requiredPaths = [
   "skills/review/agents/openai.yaml",
   "skills/autonomous/SKILL.md",
   "skills/autonomous/agents/openai.yaml",
-  "skills/autonomous/references/anti-patterns.md",
-  "skills/autonomous/references/budgets.md",
-  "skills/autonomous/references/consultation.md",
-  "skills/autonomous/references/dispatch.md",
-  "skills/autonomous/references/gates.md",
+  "skills/autonomous/references/escalation.md",
   "skills/autonomous/references/persistence.md",
-  "skills/autonomous/references/prompts.md",
   "skills/autonomous/references/recovery.md",
-  "skills/autonomous/references/state-protocol.md",
-  "skills/autonomous/references/steering.md",
-  "skills/autonomous/references/stops.md",
   "skills/pull-request-description/SKILL.md",
   "skills/source-code-lookup/SKILL.md",
   "skills/configure/SKILL.md",
@@ -278,18 +270,6 @@ function validateSkillAutonomous() {
   }
   if (!body.includes("Asking the user (anti-ask gate)")) {
     fail(path, "body must keep the anti-ask gate section", "restore the Asking the user (anti-ask gate) heading");
-  }
-  for (const marker of [
-    "STANDARD: <target>: <class>: blocking (bar: <the class's precision bar>)",
-    "STANDARD: <target>: <class>: nit (residual) @R<N> (<consult-adopted|user>)",
-    "CONVERGENCE: <target>: R<N> <n>fix/<n>new[<classes>]",
-    "saturation R<N>|none",
-    "DECLARED: <target>: R<N> <outcome>; continue-x2 used|unused; remaining:",
-    "SLICE-RES: <slice> <spent>/<reserved>",
-  ]) {
-    if (!body.includes(marker)) {
-      fail(path, `body must keep the snapshot state line marker \`${marker}\``, "restore the shared-contract snapshot state lines");
-    }
   }
 }
 

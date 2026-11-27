@@ -611,10 +611,7 @@ try {
     check(rounds.includes("when unavailable or ambiguous, the binding's conservative limitation handling applies"), "intent lookup: the shared policy defers unavailable/ambiguous evidence to the binding");
 
     for (const skill of ["work", "autonomous"]) {
-      let text = await prose(join(repository, "skills", skill, "SKILL.md"));
-      if (skill === "autonomous") {
-        text += " " + await prose(join(repository, "skills", "autonomous", "references", "dispatch.md"));
-      }
+      const text = await prose(join(repository, "skills", skill, "SKILL.md"));
       check(text.includes("install-ownership manifest"), `intent lookup: the ${skill} skill permits the binding-documented install-ownership manifest`);
       check(text.includes("read-only") && text.includes("once at activation"), `intent lookup: the ${skill} skill's manifest read is read-only and activation-fixed`);
       check(text.includes("optional route") || text.includes("optional-route"), `intent lookup: the ${skill} skill scopes the manifest read to optional routes`);

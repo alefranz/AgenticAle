@@ -35,11 +35,15 @@ Goal: reduce eager context footprint, eliminate cross-file duplication and over-
 - [x] Updated `configure/SKILL.md` default note (24 worker rounds), temporary `autonomous/` anchors, `scripts/validate.mjs`, and `scripts/test-models.mjs`
 - [x] Verified with `node scripts/validate.mjs`, `node scripts/test-models.mjs` (458 assertions), and `git diff --check`
 
-### Step 3 — `autonomous` + its references (`pending`)
-- [ ] Restructure `autonomous/SKILL.md` into a lean happy-path coordinator loop
-- [ ] Convert `autonomous/references/*` into true cold-path on-demand references
-- [ ] Fold non-obvious `anti-patterns.md` traps into positive rules and drop `anti-patterns.md`
-- [ ] Simplify gate/persistence/stop rules and legacy migration ceremony
+### Step 3 — `autonomous` + its references (`done`)
+- [x] Added backward-compatibility policy to `AGENTS.md`
+- [x] `skills/autonomous/SKILL.md`: 46,026 B (636 L) → 11,014 B (78 L) (−76%); lean happy-path loop with on-demand reference loads
+- [x] `skills/autonomous/references/*`: 135,941 B (1,916 L across 11 files) → 11,612 B (100 L across 3 cold-path files: `escalation.md` 3,621 B, `persistence.md` 4,605 B, `recovery.md` 3,386 B) (−91%)
+- [x] Removed 9 superseded/redundant files (`anti-patterns.md`, `budgets.md`, `consultation.md`, `dispatch.md`, `gates.md`, `prompts.md`, `state-protocol.md`, `steering.md`, `stops.md`) and legacy handoff migration prose
+- [x] Total `skills/autonomous/`: 181,967 B (2,552 L) → 22,626 B (178 L) (−88%); typical happy-path startup dropped from ~200–235 KiB → ~24–27 KiB
+- [x] Total `skills/` tree (all 6 skills + refs): **411,890 B (6,466 L) → 112,805 B (1,141 L) (−73%)**
+- [x] Updated `scripts/validate.mjs` and `scripts/test-models.mjs`
+- [x] Verified with `node scripts/validate.mjs`, `node scripts/test-models.mjs` (458 assertions), and `git diff --check`
 
 ### Step 4 — Convergence & PR (`pending`)
 - [ ] Update affected public and repository docs (`npm run docs:check`)
