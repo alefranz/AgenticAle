@@ -3,14 +3,14 @@
 This skill runs unattended, so the escape hatch for a decision the loop cannot settle is not
 a question to the user: it is one foreground round with the consult contract — an
 independent second opinion. On the two standard-setting paths — a standard unsettled by
-the shared [Standard settlement](../../work/references/rounds.md#standard-settlement)
+the shared [Standard settlement](../../work/references/rounds.md#budgets-and-loop-continuation)
 trigger, and a [convergence
-declaration](../../work/references/rounds.md#convergence-declaration) that requires a
+declaration](../../work/references/rounds.md#budgets-and-loop-continuation) that requires a
 closure decision — the consult is mandatory before any user question, within the
 unchanged caps (one per decision, two per session); the one decision the loop then owes
 — the settlement's proposed-standard decision, or the declaration's one decision —
 proceeds through the [anti-ask gate](../SKILL.md#asking-the-user-anti-ask-gate), per the shared
-contract's [Decision order](../../work/references/rounds.md#convergence-declaration).
+contract's [Decision order](../../work/references/rounds.md#budgets-and-loop-continuation).
 Everywhere else the consult
 remains the available alternative to asking: when a [stop condition](stops.md) would end
 in "ask the user a question" about a reversible judgement decision (a blocked task,
@@ -36,17 +36,17 @@ trigger fires on its own, no saturation declaration pending — the consult inst
 loop never settles the standard on the consult's authority alone: it owes the user exactly
 one decision — ratify, an alternative, or close now — offered through the
 [anti-ask gate](../SKILL.md#asking-the-user-anti-ask-gate); the shared [Standard
-settlement](../../work/references/rounds.md#standard-settlement) is the single authority for
+settlement](../../work/references/rounds.md#budgets-and-loop-continuation) is the single authority for
 that path. On the declaration closure path — a saturation declaration pending — the
 settlement question is not a separate ratification question: per the shared contract's
-[Decision order](../../work/references/rounds.md#convergence-declaration), the unsettled
+[Decision order](../../work/references/rounds.md#budgets-and-loop-continuation), the unsettled
 classes' settlement question joins the single combined declaration decision (its consult
 order and closure options are the shared contract's); where every open class is already
 settled, the declaration stands alone with its closure options. On either path the
 consult never reopens an already-settled
 class: the settlement trigger fires only for classes with no recorded settlement, and a
 recorded class unsets only under the reopening conditions stated in the shared [Standard
-settlement](../../work/references/rounds.md#standard-settlement). Any other consult adoption
+settlement](../../work/references/rounds.md#budgets-and-loop-continuation). Any other consult adoption
 is recorded like any other decision: a consult
 outcome plus a state note citing the consult round and its report, marked as an
 **independently advised decision the user can veto later**.

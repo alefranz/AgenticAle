@@ -149,7 +149,7 @@ dispatch — it stops at that boundary report-only, and the eligible `cap`-flavo
 increment on that limit is a separate question-eligible situation through the
 [anti-ask gate](../SKILL.md#asking-the-user-anti-ask-gate) — the
 budget-exhaustion entry, per the shared
-[Grant flavours](../../work/references/rounds.md#grant-flavours) rule: an
+[Grant flavours](../../work/references/rounds.md#budgets-and-loop-continuation) rule: an
 explicit review limit is cap-only, and reporting the stop is not
 asking; that boundary stop defeats the anti-ask gate's third check — when it
 fires, continuation is not covered, and the loop dispatches neither the
@@ -260,12 +260,12 @@ autonomy envelope below govern stuck decisions.
 ### Fix continuation and review justification
 
 The shared contract's
-[progress-aware continuation](../../work/references/rounds.md#progress-aware-budgets-and-continuation)
+[progress-aware continuation](../../work/references/rounds.md#budgets-and-loop-continuation)
 and [review/fix gate](../../work/references/rounds.md#review-and-fix-gate) bind this workflow
 unchanged: per-target fix/review cycle counts — including the historical two-fix/three-review
 and two-re-audit defaults — are not authorization gates; the effective worker budget,
 verified progress, the stall safeguards, and the review-limit headroom condition
-([Fix continuation and review justification](../../work/references/rounds.md#fix-continuation-and-review-justification))
+([Fix continuation and review justification](../../work/references/rounds.md#budgets-and-loop-continuation))
 bound the fix → verify → re-review loop, which continues unattended (a fourth or later
 productive fix needs no permission ask); every review needs changed evidence, a required
 integration gate, bounded interrupted-review recovery, or
@@ -283,7 +283,7 @@ boundary of a named grant — remains binding and stops the loop when reached: a
 `cap`-flavoured boundary never auto-extends, and a `progress`-flavoured boundary —
 always a task-allowance grant — auto-extends only under the verified-progress rule, up
 to the progress ceiling, and continuation under it is subject to the review-limit
-headroom condition ([Fix continuation and review justification](../../work/references/rounds.md#fix-continuation-and-review-justification)).
+headroom condition ([Fix continuation and review justification](../../work/references/rounds.md#budgets-and-loop-continuation)).
 
 **Safeguards and exhaustion.** The shared stall safeguards stop the loop regardless of
 remaining budget: two consecutive unproductive worker rounds, the same blocker two rounds in a
@@ -306,11 +306,11 @@ consultation](consultation.md#decision-consultation-independent-second-opinion))
 **proposed** standard, not a binding adoption, and the loop owes the user exactly one
 decision — ratify, an alternative, or close now — offered through the
 [anti-ask gate](../SKILL.md#asking-the-user-anti-ask-gate), with the shared
-[Standard settlement](../../work/references/rounds.md#standard-settlement) as the
+[Standard settlement](../../work/references/rounds.md#budgets-and-loop-continuation) as the
 single authority for that path — and stop iterating against the drift. The
 standalone question is owed only
 when no saturation declaration is pending: when one is, per the shared contract's
-[Decision order](../../work/references/rounds.md#convergence-declaration), the settlement
+[Decision order](../../work/references/rounds.md#budgets-and-loop-continuation), the settlement
 question is the declaration's single combined decision, and this instruction owes no
 separate question. Neither path resets counters or weakens scope.
 
@@ -326,14 +326,14 @@ fix (including any justified extension), no safeguard or explicit user limit
 has fired, and the next cycle — the next fix and its required re-review —
 leaves at least one review available under each applicable explicit review
 limit (the review-limit headroom condition in
-[Fix continuation and review justification](../../work/references/rounds.md#fix-continuation-and-review-justification));
+[Fix continuation and review justification](../../work/references/rounds.md#budgets-and-loop-continuation));
 and no irreversible action is required. When the next cycle would exceed an
 explicit review limit or consume the last permitted review under one, the loop
 stops at that boundary report-only, and the eligible `cap`-flavoured increment
 on that review limit is a separate question-eligible situation through the
 [anti-ask gate](../SKILL.md#asking-the-user-anti-ask-gate) — the
 budget-exhaustion entry, per the shared
-[Grant flavours](../../work/references/rounds.md#grant-flavours) rule: an
+[Grant flavours](../../work/references/rounds.md#budgets-and-loop-continuation) rule: an
 explicit review limit is cap-only, and reporting the stop is not
 asking. Both worker budgets gate worker dispatch only: an
 exhausted task allowance defers that task, not the run, and an exhausted run ceiling stops

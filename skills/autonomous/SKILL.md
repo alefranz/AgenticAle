@@ -354,7 +354,7 @@ in force divided by the slices remaining, minimum one — in the snapshot
 (`SLICE-RES: S1 5/5`). A slice spending past its reservation does not stop: it records the
 reason (standard loop, replan, …) and surfaces the remaining slices' reduced margin in the
 next dispatch packet. The shared
-[Convergence declaration](../work/references/rounds.md#convergence-declaration) is the
+[Convergence declaration](../work/references/rounds.md#budgets-and-loop-continuation) is the
 single authority for the threshold: its two-round saturation trigger applies once the
 slice has spent more than half its recorded reservation, and a slice that has overspent
 has necessarily spent more than half of it, so the same single trigger applies — no
@@ -430,7 +430,7 @@ For each current slice or discovery assignment:
    `cap`-flavoured increment on that limit is a separate question-eligible situation
    through the [anti-ask gate](#asking-the-user-anti-ask-gate) — the
    budget-exhaustion entry, per the shared
-   [Grant flavours](../work/references/rounds.md#grant-flavours) rule: an
+   [Grant flavours](../work/references/rounds.md#budgets-and-loop-continuation) rule: an
    explicit review limit is cap-only, and reporting the stop is not asking; that
    boundary stop defeats the anti-ask
    gate's third check — when it fires, continuation is not covered, and the
@@ -440,7 +440,7 @@ For each current slice or discovery assignment:
    in-loop diagnostic audit is not dispatched — the pending decision is itself the
    resolution the audit would be ordered to end in (settlement proposal, replan, or
    declaration), and the shared
-   [Decision order](../work/references/rounds.md#convergence-declaration) forbids
+   [Decision order](../work/references/rounds.md#budgets-and-loop-continuation) forbids
    further rounds on the target while it is pending — and the trigger is re-checked on
    the next loop iteration once the decision is recorded. After the applicable gate
    closes — passing cleanly or closing `accepted-with-residuals` under a recorded
@@ -468,7 +468,7 @@ passes those checks; a question that fails them is a guard breach of the
 autonomy envelope, not a courtesy: it stops, is reported as such, and does
 not go to the user. An exact-cap (or ceiling) stop is report-only unless an
 interactive grant offer is eligible under the
-[Grant flavours](../work/references/rounds.md#grant-flavours) rule: reporting the stop is not asking.
+[Grant flavours](../work/references/rounds.md#budgets-and-loop-continuation) rule: reporting the stop is not asking.
 
 Decisions the autonomy envelope governs are made under the [autonomy
 envelope](references/gates.md) rules: read them before such a
@@ -478,28 +478,25 @@ The closed list of question-eligible situations: an
 autonomy-envelope guard breach; an irreversible or user-reserved action
 (or anything `AGENTS.md` reserves);
 a user preference over scope, acceptance, or goal text; a budget exhaustion
-stop with its increment offer — the one leading-option rule keyed to the
-exhausted budget, per the shared
-[Grant flavours](../work/references/rounds.md#grant-flavours) rule: `progress`
+stop with its increment offer — per the shared
+[Grant flavours](../work/references/rounds.md#budgets-and-loop-continuation) rule: `progress`
 leads only while the task worker allowance is below its progress ceiling,
-otherwise at most a `cap`-flavoured named increment — that rule, read before
-dispatching, is the full one, and below the ceiling an exact `cap`-flavoured
-boundary is not progress-eligible (a cap boundary offers at most a
-`cap`-flavoured named increment); never lead with an auto-extension that
+otherwise at most a `cap`-flavoured named increment;
+never lead with an auto-extension that
 cannot take effect; the run ceiling and the limits
 never auto-grow, a run-level stop keeps its INCOMPLETE safety-stop character,
 and verified progress does not override a cap; a standalone
-[standard settlement](../work/references/rounds.md#standard-settlement) —
+[standard settlement](../work/references/rounds.md#budgets-and-loop-continuation) —
 ratify, an alternative including the
 reviewer's original bar, or close now — its options and consult/degraded-path
 order are the shared contract's, read before dispatching; the decision is owed
 either way, the consult is not; a one-time grant-flavour clarification when a
-free-text grant is ambiguous ([Grant flavours](../work/references/rounds.md#grant-flavours)); a
+free-text grant is ambiguous ([Grant flavours](../work/references/rounds.md#budgets-and-loop-continuation)); a
 persistence-recovery question — a destination or commit-attribution
 question when persistence is blocked, declared question-eligible in the
 [bounded persistence sequence](references/persistence.md#the-bounded-persistence-sequence) — which
 passes the gate's three checks like any other candidate question; a
-[convergence declaration](../work/references/rounds.md#convergence-declaration)
+[convergence declaration](../work/references/rounds.md#budgets-and-loop-continuation)
 that requires a closure decision; or the same blocker two rounds running with
 no materially different path (consult first). Read
 [references/consultation.md](references/consultation.md) at every settlement or declaration
@@ -523,7 +520,7 @@ checks, in order, and the outcome is recorded in state:
    the consult is owed, permitted, or warranted — before dispatching one.
    On the two standard-setting paths the mandatory consult runs first, then
    the one decision proceeds through this gate per the shared contract's
-   [Decision order](../work/references/rounds.md#convergence-declaration); on
+   [Decision order](../work/references/rounds.md#budgets-and-loop-continuation); on
    a standard-setting path whose consult allowance is exhausted, no consult is
    owed — the one decision proceeds directly, recorded.
 3. **Continuation covered?** The effective worker budget covers the next
@@ -536,7 +533,7 @@ checks, in order, and the outcome is recorded in state:
    review under one, continuation is not covered: the loop stops report-only,
    and the eligible `cap`-flavoured increment on that review limit is a
    separate question-eligible situation through this gate — per the shared
-   [Grant flavours](../work/references/rounds.md#grant-flavours) rule: an
+   [Grant flavours](../work/references/rounds.md#budgets-and-loop-continuation) rule: an
    explicit review limit is cap-only, and reporting the stop is not asking.
    When an in-loop diagnostic dispatch
    is pending and dispatching it would exceed an applicable explicit review
@@ -545,7 +542,7 @@ checks, in order, and the outcome is recorded in state:
    loop stops report-only and dispatches neither the in-loop diagnostic nor
    the next fix, and the eligible `cap`-flavoured increment on that limit is
    a separate question-eligible situation through this gate (per the shared
-   [Grant flavours](../work/references/rounds.md#grant-flavours) rule: an
+   [Grant flavours](../work/references/rounds.md#budgets-and-loop-continuation) rule: an
    explicit review limit is cap-only, and reporting the stop is not asking).
 
 "The review blocked again" is not on the closed list while the gate's third

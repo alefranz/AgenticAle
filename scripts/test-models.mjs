@@ -588,55 +588,38 @@ try {
     const binding = await prose(join(repository, "skills", "work", "references", "runtimes", "opencode.md"));
     check(binding.includes(".autonomous-mode-install.json"), "intent lookup: the binding names the installer ownership manifest");
     check(binding.includes("Establishing configured-route intent from install evidence"), "intent lookup: the binding carries the intent-lookup procedure section");
-    check(binding.includes("the profile catalog alone cannot decide"), "intent lookup: the binding states the profile catalog alone cannot distinguish omitted from configured-deleted");
     check(binding.includes("<root>/skills/work/references/runtimes/opencode.md"), "intent lookup: the binding anchors the install root at its own installed path");
     check(binding.includes("<root>/.autonomous-mode-install.json") && binding.includes("<root>/agents/agenticale/"), "intent lookup: the manifest and profiles are install-relative to the same root");
-    check(binding.includes("The effective install root"), "intent lookup: the binding documents effective-install-root selection");
-    check(binding.includes(".opencode/agents/") && binding.includes("takes precedence over the global one"), "intent lookup: the binding documents project/global profile precedence");
-    check(binding.includes("Never borrow a manifest from a different install root"), "intent lookup: the manifest must match the effective install root");
+    check(binding.includes("Effective install root"), "intent lookup: the binding documents effective-install-root selection");
+    check(binding.includes(".opencode/agents/") && binding.includes("takes precedence over global"), "intent lookup: the binding documents project/global profile precedence");
+    check(binding.includes("Never borrow a manifest from another root"), "intent lookup: the manifest must match the effective install root");
     check(binding.includes("agents/agenticale/implement-easy.md") && binding.includes("agents/agenticale/consult-hard.md"), "intent lookup: the binding names the optional profile entries");
-    check(binding.includes("not from digest matches or current file content"), "intent lookup: intent is entry presence, not digest or content");
-    check(binding.includes("Entry presence means the role is in the latest successful installed inventory"), "intent lookup: entry presence is the latest successful installed inventory, not history or a preservation guarantee");
-    check(binding.includes("a present profile file cannot decide it either"), "intent lookup: a present optional profile file alone never establishes intent");
     check(binding.includes("whether its profile is missing, unreadable, or present"), "intent lookup: the lookup triggers for a needed optional assignment even when the profile is present");
-    check(binding.includes("preserve-modified") && binding.includes("but drops its entry"), "intent lookup: a successful omitting reinstall preserves a modified file but drops its manifest entry");
-    check(binding.includes("a deleted profile keeps its entry too"), "intent lookup: a deleted configured profile stays configured-but-missing");
     check(binding.includes("Entry absent from a valid current (schema 7) state"), "intent lookup: a valid schema-7 state without the entry establishes omission");
     check(binding.includes("even when a preserved leftover profile file still exists"), "intent lookup: omission holds even with a preserved leftover file");
-    check(binding.includes("The leftover is unowned") && binding.includes("the leftover is never dispatched and never automatically assigned"), "intent lookup: the preserved leftover is unowned and never dispatches");
-    check(binding.includes("generated schemas 5-6, copy/link schemas 1-4") && binding.includes("their absence there logically means omitted"), "intent lookup: legacy schema absence logically means omitted");
-    check(binding.includes("Manifest absent") && binding.includes("not valid JSON") && binding.includes("ambiguous in ownership"), "intent lookup: missing, unreadable, and ambiguous evidence leave intent unestablished");
-    check(binding.includes("read-only, at most once per activation"), "intent lookup: the manifest read is read-only and activation-fixed");
-    check(binding.includes("The result stays fixed for the activation"), "intent lookup: the evidence result stays fixed for the activation");
-    check(binding.includes("never writes the manifest or any other configuration file"), "intent lookup: the workflow never writes the manifest");
-    check(binding.includes("The omission fallback applies only to the two optional routes"), "intent lookup: the omission fallback is limited to the optional routes");
-    check(binding.includes("fail conservatively") && binding.includes("Do not dispatch the optional route — even when a profile file is present — and do not claim the omission fallback"), "intent lookup: unestablished intent fails conservatively without dispatching a present file or claiming the fallback");
-    check(binding.includes("an explicit request for that route is never honoured by silently substituting a weaker one"), "intent lookup: an explicitly requested route is never silently substituted");
-    check(binding.includes("Unrelated base roles are unaffected"), "intent lookup: unestablished intent does not block unrelated base roles");
-    check(binding.includes("it is not a broad cleanup"), "intent lookup: --replace replaces only generated files, not unowned leftovers");
-    check(binding.includes("no model assignments") && binding.includes("never resolve a model from it"), "intent lookup: the manifest never resolves models");
+    check(binding.includes("the leftover is never dispatched and never automatically assigned"), "intent lookup: the preserved leftover is unowned and never dispatches");
+    check(binding.includes("legacy schemas 1–6"), "intent lookup: legacy schema absence logically means omitted");
+    check(binding.includes("Manifest absent, invalid JSON, failing validation, or ambiguous ownership"), "intent lookup: missing, unreadable, and ambiguous evidence leave intent unestablished");
+    check(binding.includes("Read-only, once at activation"), "intent lookup: the manifest read is read-only and activation-fixed");
+    check(binding.includes("never write the manifest or resolve models from it"), "intent lookup: the workflow never writes or resolves models from the manifest");
+    check(binding.includes("fail conservatively"), "intent lookup: unestablished intent fails conservatively");
+    check(binding.includes("`--replace` never deletes unowned leftovers"), "intent lookup: --replace replaces only generated files, not unowned leftovers");
 
     const rounds = await prose(join(repository, "skills", "work", "references", "rounds.md"));
     check(rounds.includes("authoritative install evidence as the active binding documents"), "intent lookup: the shared routing policy defers configured intent to binding-documented install evidence");
-    check(rounds.includes("not from the presence or absence of profile files alone"), "intent lookup: the shared policy forbids deciding intent from the profile catalog alone");
-    check(rounds.includes("when that evidence is unavailable or ambiguous, the binding's conservative limitation handling applies"), "intent lookup: the shared policy defers unavailable/ambiguous evidence to the binding");
+    check(rounds.includes("not from profile files alone"), "intent lookup: the shared policy forbids deciding intent from the profile catalog alone");
+    check(rounds.includes("when unavailable or ambiguous, the binding's conservative limitation handling applies"), "intent lookup: the shared policy defers unavailable/ambiguous evidence to the binding");
 
-    // Standalone /review dispatches only review / review-deep (never optional
-    // routes), so it intentionally does not carry the optional-route manifest
-    // lookup rules checked for work and autonomous below.
     for (const skill of ["work", "autonomous"]) {
       let text = await prose(join(repository, "skills", skill, "SKILL.md"));
-      // The split moved the autonomous dispatch paragraph (including the
-      // manifest-read permission) from the entry to its mandatory pre-dispatch
-      // reference; check the entry together with that reference.
       if (skill === "autonomous") {
         text += " " + await prose(join(repository, "skills", "autonomous", "references", "dispatch.md"));
       }
-      check(text.includes("install-ownership manifest the active runtime binding documents"), `intent lookup: the ${skill} skill permits the binding-documented install-ownership manifest`);
-      check(text.includes("read-only at most once at activation"), `intent lookup: the ${skill} skill's manifest read is read-only and activation-fixed`);
-      check(text.includes("solely to establish whether a needed optional route was configured in the current install inventory"), `intent lookup: the ${skill} skill limits the manifest read to configured-intent evidence for a needed optional route`);
-      check(text.includes("including when a leftover profile file is present"), `intent lookup: the ${skill} skill's manifest read covers present leftover profiles, not only missing ones`);
-      check(text.includes("never resolves models from that manifest"), `intent lookup: the ${skill} skill forbids model resolution from the manifest`);
+      check(text.includes("install-ownership manifest"), `intent lookup: the ${skill} skill permits the binding-documented install-ownership manifest`);
+      check(text.includes("read-only") && text.includes("once at activation"), `intent lookup: the ${skill} skill's manifest read is read-only and activation-fixed`);
+      check(text.includes("optional route") || text.includes("optional-route"), `intent lookup: the ${skill} skill scopes the manifest read to optional routes`);
+      check(text.includes("leftover profile"), `intent lookup: the ${skill} skill's manifest read covers present leftover profiles`);
+      check(text.includes("never resolving models from it") || text.includes("never resolves models from that manifest"), `intent lookup: the ${skill} skill forbids model resolution from the manifest`);
     }
   }
 } finally {

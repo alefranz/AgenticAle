@@ -11,13 +11,13 @@ bounds how many tasks one run may finish:
 - **Task allowance** — each genuine task's own worker-round budget, default 12, with the
   shared
   [progress-aware
-  contract](../../work/references/rounds.md#normal-allowance-progress-ceiling-and-auto-continuation)'s
+  contract](../../work/references/rounds.md#budgets-and-loop-continuation)'s
   progress-based hard ceiling of 24: when the normal allowance is reached with verified
   progress evidence, the coordinator records a bounded extension up to that ceiling before
   dispatching further worker rounds — automatically, without a permission ask, and never on
   code churn. It is independent of the run ceiling and of the Work preference file's
   `## Work` allowance, which never sets an autonomous budget. Flavour-eligibility follows
-  the shared [Grant flavours](../../work/references/rounds.md#grant-flavours) rule, and
+  the shared [Grant flavours](../../work/references/rounds.md#budgets-and-loop-continuation) rule, and
   only a user grant extends a specific task's allowance beyond its ceiling, as a named
   increment.
 - **Completed-task limit** — default 20 completed tasks per run, separate from both worker
@@ -32,10 +32,10 @@ it adds exactly the rounds it names — worker rounds (fix rounds are worker rou
 named budget (run ceiling or task allowance), and review rounds only against an explicit user
 review limit. A grant never resets counters and grants no scope, review, or Git rights beyond
 what it names; the resulting boundary is an exact cap that does not auto-extend, except
-per the shared [Grant flavours](../../work/references/rounds.md#grant-flavours) rule for
+per the shared [Grant flavours](../../work/references/rounds.md#budgets-and-loop-continuation) rule for
 a progress-flavoured task-allowance grant. A consult cannot grant any increment.
 
-**Grant flavours.** Per the shared [Grant flavours](../../work/references/rounds.md#grant-flavours)
+**Grant flavours.** Per the shared [Grant flavours](../../work/references/rounds.md#budgets-and-loop-continuation)
 rule, a named grant states a flavour recorded in the snapshot's budget line
 (`M0-03: 15 (progress @R57) 9 consumed`): `cap` for the exact boundary that
 does not auto-extend — the named default — and `progress` for the

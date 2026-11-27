@@ -25,11 +25,15 @@ Goal: reduce eager context footprint, eliminate cross-file duplication and over-
 - [x] Updated `scripts/validate.mjs` and `scripts/test-models.mjs` for standalone `review` decoupling
 - [x] Verified with `node scripts/validate.mjs`, `node scripts/test-models.mjs` (469 assertions), and `git diff --check`
 
-### Step 2 — `work` + shared `rounds.md` / `tasks/` / `runtimes/` + budget/stop rework (`pending`)
-- [ ] Split `work/references/rounds.md` into lean hot path + conditional references
-- [ ] Simplify budget/stop rules (remove `cap`/`progress` grant-flavour parser and unnecessary ceremony)
-- [ ] Deduplicate `work/SKILL.md`, move cold paths (`--pr`, non-convergence, decomposition) to conditional references
-- [ ] Review `work/references/tasks/*.md` and `work/references/runtimes/*.md` for redundancies
+### Step 2 — `work` + shared `rounds.md` / `tasks/` / `runtimes/` + budget/stop rework (`done`)
+- [x] `skills/work/references/rounds.md`: 46,076 B (750 L) → 11,136 B (85 L) (−76%); replaced 12→24 dual-threshold + `cap`/`progress` grant flavours + 3-round stop with a single 24-round allowance, explicit continuation of productive fix loops, and real non-convergence stops (stall, oscillation, 4+ review style drift after green checks, repeated root-cause failure)
+- [x] Conditional references: created `pr-delivery.md` (3,106 B, 32 L) and `decomposition.md` (3,973 B, 35 L, replacing 4,890 B `rounds-examples.md`); trimmed `outcome-evaluation.md` from 11,129 B (195 L) → 4,345 B (46 L) (−61%)
+- [x] `skills/work/SKILL.md`: 39,725 B (629 L) → 9,892 B (74 L) (−75%)
+- [x] `skills/work/references/tasks/*.md` (6 files): 16,880 B (340 L) → 9,765 B (157 L) (−42%)
+- [x] `skills/work/references/runtimes/*.md` (6 files): 54,675 B (967 L) → 16,194 B (165 L) (−70%)
+- [x] Total `skills/work/`: 173,375 B (2,722 L) → 58,411 B (594 L) (−66%); hot-path startup load dropped from ~90–105 KiB → ~23–26 KiB
+- [x] Updated `configure/SKILL.md` default note (24 worker rounds), temporary `autonomous/` anchors, `scripts/validate.mjs`, and `scripts/test-models.mjs`
+- [x] Verified with `node scripts/validate.mjs`, `node scripts/test-models.mjs` (458 assertions), and `git diff --check`
 
 ### Step 3 — `autonomous` + its references (`pending`)
 - [ ] Restructure `autonomous/SKILL.md` into a lean happy-path coordinator loop

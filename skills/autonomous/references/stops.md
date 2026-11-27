@@ -46,7 +46,7 @@ that proceeds through the [anti-ask gate](../SKILL.md#asking-the-user-anti-ask-g
   review of its completed changes still run. When the budget question offers the named
   increment a continuation needs, it applies the one leading-option rule keyed to the
   exhausted budget, per the shared
-  [Grant flavours](../../work/references/rounds.md#grant-flavours) rule:
+  [Grant flavours](../../work/references/rounds.md#budgets-and-loop-continuation) rule:
   `progress` leads only while the task worker allowance is below its progress
   ceiling, otherwise at most a `cap`-flavoured named increment — that rule, read
   before dispatching, is the full one, and below the ceiling an exact
@@ -92,19 +92,19 @@ that proceeds through the [anti-ask gate](../SKILL.md#asking-the-user-anti-ask-g
   eligible `cap`-flavoured increment on that review limit is a separate
   question-eligible situation
   through the gate — the budget-exhaustion entry, per the shared
-  [Grant flavours](../../work/references/rounds.md#grant-flavours) rule: an
+  [Grant flavours](../../work/references/rounds.md#budgets-and-loop-continuation) rule: an
   explicit review limit is cap-only, and reporting the stop is not asking. The
   only exits from the loop are a clean review, a settlement-bounded close, a
   [convergence
-  declaration](../../work/references/rounds.md#convergence-declaration), a
+  declaration](../../work/references/rounds.md#budgets-and-loop-continuation), a
   safeguard, or the budget. This stop condition replaces any practice of
   re-asking gate closure between rounds.
 - **Convergence saturation** — the shared [convergence
-  declaration](../../work/references/rounds.md#convergence-declaration) detector
+  declaration](../../work/references/rounds.md#budgets-and-loop-continuation) detector
   fires on the active target. The declaration is the stop report: run it
   before any further round on that target and dispatch no further fix or
   re-review before it resolves, under the shared
-  [Decision order](../../work/references/rounds.md#convergence-declaration):
+  [Decision order](../../work/references/rounds.md#budgets-and-loop-continuation):
   the unsettled classes' settlement question joins the declaration as the
   single combined decision (its consult order and closure options are the shared
   contract's); where every open class is already settled, the declaration
@@ -141,7 +141,7 @@ that proceeds through the [anti-ask gate](../SKILL.md#asking-the-user-anti-ask-g
   reporting the stop is not asking. An explicit user limit reached is not a guard
   breach: it is the report-only budget-exhaustion stop above, with its
   `cap`-flavoured grant offer — the shared
-  [Grant flavours](../../work/references/rounds.md#grant-flavours) rule: an
+  [Grant flavours](../../work/references/rounds.md#budgets-and-loop-continuation) rule: an
   explicit review limit is cap-only — as a separate question-eligible situation
   through the [anti-ask gate](../SKILL.md#asking-the-user-anti-ask-gate), where
   it applies.

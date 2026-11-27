@@ -60,7 +60,7 @@ Follow the host discovery reference ([OpenCode](references/discovery/opencode.md
 
 ## The Work worker-round allowance (all hosts)
 
-Under a top-level `## Work` section in the selected preference file, `- worker rounds: N` (a positive integer) sets an exact cap for Work tasks (default is 12 with progress-based auto-extension up to 24; an explicit entry never auto-extends). It changes only the available Work worker rounds (not consultation, scope, permissions, or Autonomous Mode).
+Under a top-level `## Work` section in the selected preference file, `- worker rounds: N` (a positive integer) sets an exact cap for Work tasks (default is 24 worker rounds). It changes only the available Work worker rounds (not consultation, scope, permissions, or Autonomous Mode).
 
 A Work-only allowance edit needs no model evidence and skips discovery. Apply the same Safety rules (exact path, full content or minimal diff, explicit confirmation, re-read before write, preserve routing lines). Reject invalid values with an actionable error instead of clamping or defaulting. Editing the file applies to future invocations only; it does not alter an active Work run.
 

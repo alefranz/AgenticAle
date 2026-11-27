@@ -57,7 +57,8 @@ const SKILL_READ_BUDGET_BYTES = 45 * 1024;
 const requiredPaths = [
   "skills/work/SKILL.md",
   "skills/work/agents/openai.yaml",
-  "skills/work/references/rounds-examples.md",
+  "skills/work/references/decomposition.md",
+  "skills/work/references/pr-delivery.md",
   "skills/work/references/rounds.md",
   "skills/work/references/outcome-evaluation.md",
   "skills/work/references/runtimes/copilot.md",
@@ -299,7 +300,7 @@ function validateSkillAutonomous() {
 function validateSharedRoundsContract() {
   const path = "skills/work/references/rounds.md";
   const text = readText(path);
-  for (const marker of ["### Standard settlement", "### Convergence declaration", "### Grant flavours"]) {
+  for (const marker of ["## Budgets and loop continuation", "## Routing policy", "## Review and fix gate"]) {
     if (!text.includes(marker)) {
       fail(path, `body must keep the shared mechanism section '${marker}'`, "restore the section; both workflows and the docs link to its anchor");
     }
