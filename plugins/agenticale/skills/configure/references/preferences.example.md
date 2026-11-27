@@ -66,17 +66,15 @@ honor surfaces a limitation — it is never silently substituted.
 ## Work
 
 <!--
-The Work worker-round allowance: a positive integer, default 12 when
-absent. The default auto-extends on verified progress evidence up to a
-hard ceiling of 24; an explicit entry here is an exact cap that never
-auto-extends, whatever its size. It is how many worker rounds are
-available to a Work task, not how many must run. Work-only: Autonomous
-Mode keeps its own budgets. An invalid value is an actionable error,
+The Work worker-round allowance: a positive integer, default 24 when
+absent. An explicit entry here overrides the default. It is how many worker
+rounds are available to a Work task, not how many must run. Work-only:
+Autonomous Mode keeps its own budgets. An invalid value is an actionable error,
 never silently defaulted or clamped. A change applies to new Work
 invocations; an active invocation keeps the allowance it read at
 activation.
 -->
-<!-- - worker rounds: 12 -->
+<!-- - worker rounds: 24 -->
 
 <!--
 Packaging: this authored root copy is the canonical starter. The build

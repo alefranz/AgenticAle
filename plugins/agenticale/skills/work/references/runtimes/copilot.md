@@ -1,100 +1,19 @@
 # Copilot runtime binding
 
-## Surface and direct child dispatch
+Covers Copilot CLI, Copilot Agent Host (VS Code), and the standalone GitHub Copilot app (for VS Code Local harness, see `copilot-local.md`). Detect from the tool surface (child dispatch with native per-call model and effort fields; confirm exact field names against the live tool schema), never the session model name.
 
-This binding is the single Copilot adapter used for the Copilot CLI, the Copilot
-Agent Host (VS Code), and the standalone GitHub Copilot app. Those surfaces share
-the Copilot SDK direction, so they are one binding here rather than one per
-client. The exact bundled runtime and version must be verified per surface with a
-versioned smoke test; discovery of a tool in one client does not prove the others
-expose the same tool.
+## Child dispatch and model selection
 
-A "direct child dispatch" on this surface means the coordinator invokes a fresh
-general-purpose child subagent and passes the model and reasoning effort as
-native per-call fields on that child invocation. The child is started fresh (the
-workflow itself controls child isolation, so the top-level coordinator is not a
-forked context). The child receives the bounded task packet for its role,
-not the parent's full transcript.
+Invoke fresh general-purpose children with native per-call model and effort fields:
 
-- Model field: the per-call model selection on the child dispatch. Copilot's CLI
-  reference documents an explicit per-call model and a per-call effort, each with
-  a defined precedence. The exact native field name is an adapter concern and
-  must be confirmed against the raw child-tool schema live; do not assume a fixed
-  property name across clients.
-- Effort field: the per-call reasoning/effort selection, drawn from the
-  documented set `low`, `medium`, `high`, `xhigh`, `max`. Whether every effort
-  level is accepted on a given surface/version is an adapter concern to confirm
-  live.
+- **Model & effort:** pass the role's assignment from the active preference file (when documented by an appended "Model configuration" section); otherwise omit model fields (session default). Effort levels `low`, `medium`, `high`, `xhigh`, `max` are documented (confirm per-client acceptance live).
+- **Optional routes:** unlisted `implement-easy`/`consult-hard` fall back to `implement`/`consult`; unhonorable listed choices are surfaced as limitations without silent substitution.
+- **`inherit`:** omit model/effort fields so the child runs on the session's model and effort.
+- **Overrides:** explicit invocation choices stay in session and rewrite no preference file.
 
-Because the exact field names and the set of supported effort levels are
-adapter concerns, this binding describes them generically. Live verification of
-the schema is documentation-only for this pass and is not tested here.
+## Limitations and effective settings
 
-## Model selection on this surface
-
-This host exposes per-call model and effort fields on the child dispatch. When
-a preference file is present, pass the role's assignment from the active
-preference file; the preference file is documented in the "Model
-configuration (this installation)" section the installation appends to the
-skills. If that section is absent from the loaded skill, there is no preference
-file and no model selection. When no assignment exists for a role, spawn
-without a model field (the session default).
-
-The preference file's nine worker keys include the two optional routes,
-`implement-easy` and `consult-hard`. When neither is assigned, the shared
-routing policy dispatches the base route (`implement` or `consult`) with its
-existing assignment — a defined fallback, not an error. When an optional
-route IS assigned but the host cannot honor the requested selection, surface
-the limitation rather than silently substituting a weaker one.
-
-## Requested versus effective settings
-
-The per-call fields carry the requested selection; because this surface
-documents fallback to the session model when a requested selection cannot be
-honored, a successful dispatch is not proof the request was honored. Keep an
-unknown effective setting unknown.
-
-## How `inherit` is realized
-
-When the role's assignment is `inherit`, the coordinator omits the model/effort
-field on the child dispatch. With the field omitted, the child runs on the
-session's current model and effort rather than a forced one. `inherit` is an
-explicit, intentional choice; it is not a fallback and not a missing value.
-
-## Caller and session overrides
-
-An explicit invocation choice wins for the entries it names and stays within
-the session; it rewrites no preference file.
-
-## Limitations (stated honestly)
-
-- Fallback to the session model is possible. Copilot documents fallback to the
-  session model when a requested model or effort cannot be honored. A successful
-  dispatch is not proof the child ran on the requested model. Distinguish
-  requested settings from effective settings using runtime metadata or local
-  traces; do not rely on a child's self-reported model name.
-- Strict enforcement is not guaranteed. If a requested selection cannot be
-  honored and the host falls back, the host's fallback behavior is not something
-  the skill can prevent on its own. Do not advertise strict model selection on
-  a mode/version where the host silently substitutes with no reliable detection
-  or control.
-- `modelPolicy: required` is a compatibility exception, not a default. A thin
-  Copilot agent profile that requests `modelPolicy: required` (rejecting model
-  substitution) is a tested compatibility exception only if a particular version
-  actually needs it to prevent fallback. Do not assert that such a profile is
-  present, and do not require one to claim a model-file-free package. If it is
-  needed on a specific version, record it as a tested exception or restrict the
-  supported mode/version.
-- Per-surface parity is unconfirmed. The CLI, Agent Host, and standalone app are
-  expected to align, but each must be smoke-tested on its own; a capability seen
-  in one is not proof it is present in another.
-- Effort-level support is unconfirmed per version. Support only verified effort
-  levels on a target; surface an unsupported level before dispatch and report it
-  as a limitation instead of assuming it is honored or silently substituting
-  another selection.
-
-The skill selects this binding from the actual runtime/tool surface, not from the
-chosen language model. A surface that is not the Copilot CLI, Copilot Agent Host,
-or standalone app does not use this binding; an unknown surface reports a
-limitation instead of inventing tools. The VS Code Local harness uses the
-separate `copilot-local.md` compatibility binding, not this one.
+- **Silent fallback:** Copilot falls back to the session model when a requested model or effort cannot be honored; a successful dispatch does not prove the request ran. Keep unknown effective models unknown unless runtime metadata/traces establish them (ignore child self-reports).
+- **`modelPolicy: required`:** a tested version-specific compatibility exception only, never required or assumed by default.
+- **Unconfirmed parity & effort:** CLI, Agent Host, and standalone app parity and per-version effort acceptance are unconfirmed; surface unsupported levels instead of silently substituting.
+- `--stats` is not supported on this surface.

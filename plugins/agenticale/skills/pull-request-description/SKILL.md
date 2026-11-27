@@ -5,27 +5,15 @@ description: Draft or revise a pull request body that explains the change's purp
 
 # Pull Request Description
 
-Write a concise PR narrative for reviewers and future maintainers. Ground it
-in the available issue, backlog, instructions, commits, code, and deployment
-context. Distinguish established facts from inferences; do not invent a goal,
-risk, or validation result.
+Write a concise PR narrative for reviewers and future maintainers, grounded in the available issue, backlog, instructions, commits, code, and deployment context. Distinguish established facts from inferences; never invent a goal, risk, or validation result.
 
-Lead with a short summary of the behavior or outcome. Focus the remaining body
-on why the change is needed, the goal it advances, and context a code diff will
-not make clear. Include only reviewer-relevant operational notes: rollout or
-deployment concerns, compatibility or migration effects, feature flags,
-monitoring, dependencies, or practical gotchas. Call out unresolved problems,
-known limitations, and follow-up work plainly when they exist.
+Lead with a short summary of the behavior or outcome. Focus the rest on why the change is needed, the goal it advances, and context the diff does not show:
 
-Do not narrate routine implementation details or restate each changed file or
-line; reviewers can read the diff. Keep the description proportionate to the
-change and omit empty sections.
+- Reviewer-relevant operational notes: rollout or deployment concerns, compatibility or migration effects, feature flags, monitoring, dependencies, or practical gotchas.
+- Unresolved problems, known limitations, and follow-up work, stated plainly when they exist.
 
-Validation is selective. Do not list ordinary automated test commands, broad
-pass counts, or generic "tests pass" claims. Mention validation only when a
-manual check, special setup, unusual fixture, environment-specific observation,
-or other non-obvious evidence helps a reviewer understand confidence or
-remaining uncertainty.
+Skip file-by-file or line-by-line diff narration; reviewers can read the diff. Keep the description proportionate to the change and omit empty sections.
 
-This skill defines PR content only. It does not authorize creating a branch,
-committing, pushing, opening a pull request, or using a Git-hosting service.
+Validation is selective: omit ordinary automated test commands, pass counts, and generic "tests pass" claims. Include validation only when a manual check, special setup, unusual fixture, or environment-specific observation helps reviewers judge confidence or remaining uncertainty.
+
+This skill defines PR text only — it does not authorize creating a branch, committing, pushing, opening a PR, or using a Git-hosting service.

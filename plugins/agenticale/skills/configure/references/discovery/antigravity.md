@@ -1,59 +1,23 @@
 # Antigravity model discovery (configure)
 
-Model-discovery notes for the `configure` skill on the Google Antigravity
-desktop IDE (observed 2.23.1) and the Antigravity CLI `agy` (observed
-1.3.5). Dispatch rules live in the work skill's
-[Antigravity runtime binding](../../../work/references/runtimes/antigravity.md);
-this reference covers only what configure may read, propose, and verify.
+Covers Google Antigravity desktop IDE and `agy` CLI. Dispatch rules live in [the Antigravity runtime binding](../../../work/references/runtimes/antigravity.md).
 
 ## Detection
 
-Detect Antigravity from the actual tool surface — specifically the presence
-of the `invoke_subagent` tool — never from the session's model name.
+Detect from the tool surface (never the session model name): presence of the `invoke_subagent` tool.
 
-## Model selection surface — fixed enum, no enumeration needed
+## Model selection surface — fixed enum
 
-The `Model` parameter on `invoke_subagent` accepts only the fixed enum
-`inherit`, `flash_lite`, `flash`, and `pro`. These are the only valid
-selection tokens configure may propose on this host; they are documented
-native field values, not concrete model names. The host does not accept
-arbitrary concrete model IDs or external model strings: proposing one for
-any role — including an optional route — is proposing a selection the host
-cannot honor, and must be surfaced as a limitation, never written as if it
-would work.
+`invoke_subagent`'s `Model` parameter accepts **only** `inherit`, `flash_lite`, `flash`, or `pro`. No enumeration is needed, and arbitrary concrete model IDs or external provider strings cannot be honored — treat user-supplied concrete IDs only as a limitation discussion and offer `inherit` or an enum token instead.
 
-Antigravity provides no reasoning-effort parameter for child subagents.
-Never propose a `#variant` suffix or a comma-effort value on this host.
+Antigravity has no reasoning-effort parameter for subagents: never propose `#variant` or comma-effort values here.
 
-The enum's tier names suggest a capability ordering (lighter tiers for
-cheap slots, `pro` for strong slots); that mapping is a labelled proposal,
-not a verified capability or cost ranking — enumeration alone establishes
-no ranking. Let the user tune it.
-
-`inherit` is an explicit, intentional choice: the child runs on the
-session's active model. It is the path to models outside the enum — the
-user selects the session model in the Antigravity UI or CLI and assigns
-`inherit` to the roles that should use it. Session-model-everywhere (no
-preference file, or `inherit` throughout) is a valid configuration.
+Enum tier names suggest a capability ordering, which is a labelled heuristic proposal, not a verified capability or cost ranking. `inherit` runs children on the active UI/CLI session model (session-model-everywhere or `inherit` throughout is valid and is the way to use models outside the enum).
 
 ## What configure proposes here
 
-Preference-file role lines whose values are only the enum tokens above,
-for example `- explore: flash_lite` or `- review: pro`, with no variant.
-Names outside the enum come from the user only as a limitation discussion:
-explain that the host cannot honor them and offer the enum or `inherit`
-alternatives; never silently substitute.
+Preference-file role lines using only the enum tokens above (e.g., `- explore: flash_lite`, `- review: pro`), with no variant.
 
 ## Verification
 
-No binding documents a `--stats` procedure on this surface: state that the
-option is unsupported rather than promising it. Antigravity does not report
-the effective underlying model via host metadata or subagent completion
-events, and host-level substitution is undetectable from runtime responses:
-the requested enum selection is all that can be recorded, and the effective
-underlying model stays unconfirmed. Never trust a child's self-reported
-model name.
-
-This reference is selected from the actual runtime/tool surface, not from
-the session's model name. A surface that is not Antigravity does not use it;
-an unknown surface reports a limitation instead of inventing tools.
+`--stats` is **not** supported here; state that explicitly. Antigravity does not expose the effective underlying model in host metadata or completion events (host substitution is undetectable), so only the requested enum selection can be recorded and the effective model stays unconfirmed. Never trust a child's self-reported model name.

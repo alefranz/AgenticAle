@@ -96,8 +96,8 @@ changed — the changed result is not claimed covered.
 ## Implementation source
 
 This guide explains the user-facing workflow. The authoritative
-instructions are the [review skill source](https://github.com/alefranz/AgenticAle/blob/main/skills/review/SKILL.md),
-the [shared round contract](https://github.com/alefranz/AgenticAle/blob/main/skills/work/references/rounds.md),
+instructions are the [review skill source](https://github.com/alefranz/AgenticAle/blob/main/skills/review/SKILL.md)
+(which is self-contained and loads only the matching task contract and runtime binding),
 the [review task contract](https://github.com/alefranz/AgenticAle/blob/main/skills/work/references/tasks/review.md),
 and the [review-deep task contract](https://github.com/alefranz/AgenticAle/blob/main/skills/work/references/tasks/review-deep.md).
 Installation remains in the [setup guide](../../setup.md);

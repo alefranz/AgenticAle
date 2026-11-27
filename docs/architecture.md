@@ -28,7 +28,9 @@ Four concerns are separated so each can change independently:
 | Flat model config | `adapters/opencode/models.json` (role → `"provider/model[#variant]"`, plus the optional top-level `coordinator` session key; unlisted roles inherit) |
 | Plugin preference fragment | `adapters/plugin/model-configuration.md` (appended to the workflow skills in plugin and standalone outputs) |
 | Runtime bindings | `skills/work/references/runtimes/<host>.md` (six: `copilot`, `copilot-local`, `codex`, `opencode`, `qwen-code`, `antigravity`) |
-| Outcome-evaluation protocol (opt-in) | `skills/work/references/outcome-evaluation.md` (Work only; loaded only when a task is invoked with `--outcome`) |
+| Outcome-evaluation protocol (opt-in) | `skills/work/references/outcome-evaluation.md` (Work only; loaded only when invoked with `--outcome`) |
+| Work conditional references | `skills/work/references/pr-delivery.md` (`--pr`), `skills/work/references/decomposition.md` (multi-slice/experiment) |
+| Autonomous cold-path references | `skills/autonomous/references/{persistence,escalation,recovery}.md` (loaded only when triggered) |
 
 The three workflow skills and the `configure` setup skill are explicit-only:
 each sets `disable-model-invocation: true` and `opencode/autoinvoke: false`,
@@ -51,79 +53,27 @@ load points because OpenCode truncates skill loads and whole-file reads at
 45 KiB (46,080-byte) authored budget; `scripts/validate.mjs` enforces the
 budget and the skills' link and anchor integrity.
 
-The standalone review skill covers the current branch's net changes from the
-merge base to the current working-tree result — the committed branch review on
-a clean tree — and returns findings without fixing. Work can start from a
-requested outcome, existing changes, or a same-session preceding review's
-findings, entering at the first necessary step.
+The standalone review skill (`skills/review/SKILL.md`) is self-contained and
+reviews the current branch's net changes from the merge base to the current
+working-tree result — the committed branch review on a clean tree — without
+loading the multi-round `rounds.md` contract, returning findings without fixing.
+Work can start from a requested outcome, existing changes, or a same-session
+preceding review's findings, entering at the first necessary step.
 
-`skills/work/references/rounds.md` is the shared round contract: the child task
-packet, compact reports, reset criteria, the shared routing policy, and the
-review/fix gate. Both workflows
-load it, and every build and install includes it. Its routing policy binds
-Work and Autonomous identically: `implement` is the default;
-`implement-easy` (explicitly prescribed, bounded, mechanically verifiable
-work) and `consult-hard` (conflicting evidence, interacting constraints, or
-costly reversal) are opt-in routes that exist only where configured, falling
-back to their base routes when omitted; `implement-hard` is dispatched
-directly when a slice's correctness risk is visible, assessed per slice with
-no category exemptions; a hard fix keeps the fix contract and counters; and
-`consult-hard` consumes the same consultation allowance as `consult`. For
-complex bounded goals, the contract
-also defines sequential decomposition: the coordinator can outline provisional
-outcomes, complete and review one slice at a time, then reassess based on the
-evidence — including the next slice's route, which is never locked by an
-earlier assignment. Replanning does not reset the task's budgets or failure limits, and
-the accumulated changes receive combined acceptance checks before delivery.
-It also defines checkpoints after substantive rounds and visible progress
-narration before substantive assignments: the result, next action, and reason
-in a short paragraph. Detailed model-dispatch records and budget counters
-remain in workflow state; the coordinator surfaces them when they affect a
-decision or the user asks. This keeps the main conversation understandable even when a
-host collapses child activity, without relying on any particular host layout.
-The contract also defines review-closure rules for re-reviews and the
-self-contained continuation prompt that every incomplete stop carries. It
-defines the two shared loop-settling mechanisms: standard settlement — a
-finding class's blocking-or-nit status is settled once per target: the
-invoking workflow's decision policy (a consult in Autonomous Mode; a
-user-presented question in Work) names a proposed standard, not a binding
-adoption, and the user's single recorded decision — ratify, an alternative
-including the reviewer's original bar, or close now when every open finding is
-a nit — is recorded in the workflow's state, always evidencing a user
-decision, even when the user ratifies the consult's proposed standard, and
-bound into every later dispatch packet for the target, so a verdict that
-blocks on a nit-class finding is malformed — recovered without a re-review:
-the coordinator records the malformation and the gate proceeds on the
-corrected classification under
-the recorded settlement — and the convergence declaration, where a
-deterministic saturation trigger fires one structured declaration (finding
-trajectory, verified evidence, cost so far, exactly one decision) before any
-further round on a non-converging target, the only user-visible form of that
-state, closing the target `accepted-with-residuals` without asking when the
-settled standard classifies every open finding as a nit. Its
-progress-aware budget contract binds both workflows identically: each task
-starts with a normal worker-round allowance (default twelve) and a
-progress-based hard ceiling (default twenty-four); reaching the allowance
-with verified progress evidence — passing acceptance, a verified correction,
-a resolved blocker, or a material new finding — extends it automatically in
-recorded increments up to the ceiling, never on code churn, while an explicit
-invocation or preference allowance is an exact cap that never auto-extends; a
-named grant is recorded with a flavour, and the `cap` flavour (the default
-when the wording names a total) ends in an exact boundary that never
-auto-extends while the `progress` flavour is an auto-extend authority under
-the verified-progress rule up to the progress ceiling — a grant on the task
-worker allowance only: the run ceiling and an explicit user review limit
-never auto-grow, and a grant on one of them is recorded `cap`-flavoured. Two consecutive
-unproductive worker rounds, a repeated blocker,
-or the repeated-interruption limit stop dispatch regardless of remaining
-budget. Per-target fix/review cycle counts are not authorization gates:
-productive fix continuation is bounded by the effective worker budget,
-verified progress, the stall safeguards, and the review-limit headroom
-condition, every review needs changed evidence, a required integration
-gate, bounded interrupted-review recovery, or an explicit user request (one
-bounded audit over the range the user names), and the required review of
-the last allowed fix still runs at zero worker budget. A limit reached with eligible work remaining is an incomplete
-safety stop, never a successful completion.
+`skills/work/references/rounds.md` is the shared round contract loaded by
+`work` and `autonomous`: the child task packet, compact reports, reset criteria,
+the shared routing policy, the review/fix gate, and the simplified **24-round**
+task worker budget. Both workflows continue productive fix → verify → re-review
+loops unattended while worker budget remains, stopping or escalating only on
+genuine non-convergence: two consecutive no-progress rounds or repeated
+identical blockers (stall), two-cycle oscillation, four or more consecutive
+reviews opening only stylistic/wording blockers after functional checks pass
+(standard drift), or repeated root-cause invariant failure. Every review needs
+changed evidence, a required integration gate, bounded interrupted-review
+recovery, or an explicit user request (never a review-only loop over unchanged
+code), and the required review of the last allowed worker still runs at zero
+worker budget. A limit or safeguard stop with remaining work is always an
+incomplete stop carrying a self-contained continuation prompt.
 The six task contracts are capability-neutral: they carry only the role's
 instructions, with no host-specific protocol. `implement`, `implement-easy`,
 and `implement-hard` share the same `implement` contract, and `consult` and
@@ -164,164 +114,32 @@ at `examples/preferences.example.md`. Configure adds no scaffold command, no
 profile management, and no persistent state; the workflows never invoke it
 and never write preference files themselves.
 
-`skills/autonomous/SKILL.md` adds durable backlog, compact-snapshot, and
-continuation policies. The target project owns `BACKLOG.md` and the
-`.agenticale/` directory: the coordinator-only `active.md` snapshot — a
-compact checkpoint, not a journal, which per active target also carries the
-recorded shared-contract lines (settled standard, convergence history,
-declaration, and slice reservation) that fold into the backlog's result
-records when the target closes — and the optional human-owned
-`steering.md`. There is no default archive, round ledger, or counter mirror;
-legacy `.agenticale/handoffs/` layouts are recognized with safe precedence
-and preserved untouched as history.
-Two durable worker-round budgets and a separate completed-task limit bound a
-run: a run ceiling (default 240 — a generous emergency safety limit, not a
-work target — or the invocation's numeric override), a per-task allowance
-(default 12, independent of the Work preference) with the shared
-progress-based hard ceiling of 24, and a completed-task limit (default 20).
-The default task allowance extends automatically in recorded, evidence-backed
-increments up to its progress ceiling; an explicit ceiling or user task limit
-is an exact cap that never auto-extends, as is a grant boundary recorded with
-the `cap` flavour, while a `progress`-flavoured grant is a grant on the task
-worker allowance only — an auto-extend authority under the verified-progress
-rule up to the progress ceiling — and the run ceiling, the completed-task
-limit, and any explicit user review limit never auto-grow, a grant on one of
-them recorded `cap`-flavoured. Every explore/implement/fix round is
-charged once to both worker budgets — the effective remaining budget is the
-smaller — under stable run and task identities whose consumed counters and
-pending-dispatch evidence survive crashes, resumes, and quota-only launch
-rejections. A numeric resume changes the ceiling without resetting
-consumption; an exhausted task is deferred unfinished and resumable, not a
-run stop, while truly independent ready tasks may still be selected. A task
-counts toward the completed-task limit only after its full persistence gate
-is confirmed, and reaching the run ceiling or the completed-task limit with
-eligible work remaining is an INCOMPLETE safety stop, never a completed run.
-Productive fix continuation follows the shared progress-aware contract rather
-than per-target cycle counts (the historical two-fix/three-review and
-two-re-audit defaults are not authorization gates in either workflow):
-each further fix is charged once to both budgets, every review needs changed
-evidence, a required integration gate, bounded interrupted-review recovery,
-or an explicit user request (one bounded audit over the range the user
-names), and the loop continues unattended while budget, progress, and the
-autonomy envelope allow — continuation is the default under the main loop's
-anti-ask gate, which asks the user only for a closed list of situations and
-treats a question that fails it as a guard breach, reported, not sent — with
-no repeated cycle-authorization prompts and no review-only loops over
-unchanged evidence. The budgets gate fix dispatch, not review: the
-required review of the last allowed fix — including a deep re-review — runs
-at zero worker budget, and surviving blockers keep an exhausted task
-incomplete and review-open, deferred rather than stopping the run while
-truly independent ready work remains. Historical fix/review counters persist as
-evidence without reset or re-identification on resume or rename; the legacy
-default caps never re-gate a resumed run, while explicit user limits stay
-binding. The no-progress, same-blocker, and repeated-interruption safeguards,
-the one-opportunistic-escalation-per-session guard (it counts additional
-escalations — the struggle trigger at two or more fix rounds made in response
-to a review round's findings, fired whether or not the slice's gate later
-closed, post-gate as a deep review for a closed gate and, inside the fix
-loop, checked before the next fix round and dispatched in diagnostic mode
-when it fires while the slice's gate is still open (its verdict advisory,
-never the slice gate, deferred while a settlement decision or a saturation
-declaration is pending for the target, and withheld when dispatching it would
-consume the last review available under an explicit limit that covers deep
-reviews — at that boundary the run stops and offers the `cap`-flavoured
-increment instead), and explicit user requests; a deep
-review standing in for a slice's own gate is a required gate
-review outside the cap, and the user may explicitly direct an additional
-escalation), and the consult caps are unchanged. A human-owned
-optional `.agenticale/steering.md` file provides deterministic pause/continue
-and ready-task priority controls, re-read before every round and never
-agent-written; a pause persists across resumes until the human releases it.
-A legacy run's human-owned `## Steering` section in `BACKLOG.md` keeps the
-same controls when the new file is absent, with pause-wins precedence when
-both exist. Invocation goal text supplied during an active run is
-steering, not a conflict: the coordinator reconciles it with the backlog —
-decomposing explicit new outcomes into tasks and adjusting continuation —
-while preserving identities, counters, budgets, and review gates; an
-ambiguous destructive replacement asks the user, and the invocation text
-never enters the steering surface. A new run's default persistence policy
-commits and pushes each completed task: after its required checks, review
-gates, and applicable deep gates, the coordinator makes coherent task
-commits, confirms an ordinary push to the resolved upstream, and persists
-the completion record in one bounded state-only finalization commit —
-pushed and confirmed under the same policy, never recording its own hash —
-before the next task is selected. Each task is in exactly one lifecycle
-state — review-open, accepted, accepted-with-residuals, persistence-pending,
-complete, or unfinished (deferred, blocked, exhausted) — and the state, not a
-worker report or a clean review, governs selection and accounting: only a
-confirmed complete gate permits the next selection and counts the task
-exactly once; `accepted` and `accepted-with-residuals` are both terminal
-task states, entered only when every required task gate — every required
-check, review gate, and applicable deep gate — has closed and acceptance is
-verified, the difference being whether at least one slice gate closed with
-residuals (every open finding a nit under the target's recorded settled
-standard, under a recorded settlement or declaration) — only a slice-gate
-closure is terminal at the gate level: while any later slice or required
-gate is open the task stays `review-open` — and task persistence
-(`persistence-pending → complete`) remains outstanding in both; the merged
-residual list rides the gate and the final report, and an
-accepted-with-residuals task is never WIP-checkpointed or deferred as
-incomplete. Counter
-and state-transition bookkeeping is consolidated in one instruction-level
-state protocol — five events (charge, settle, switch, reconcile, finalize)
-over the two existing state files, with a single counter authority (the
-snapshot's budget line; the backlog never mirrors consumed counters),
-targeted writes on fresh re-reads with read-back, and validation of the
-whole snapshot before any counter is trusted — a torn or missing snapshot
-rebuilds only from verified prior Git and host evidence, or stops. It adds
-no state file, helper script, or runtime capability; the targeted writes and
-replay-safe reconciliation are what keep the bookkeeping consistent across
-crashes, torn writes, and interrupted switches. The same policy governs the
-run's other persistence boundaries: a significant backlog reconciliation — added or
-removed tasks, rewritten acceptance, reordered upcoming tasks, changed
-deferred packets, or a replaced basis of the active next action — is persisted
-as an immediate state-only checkpoint commit before further dispatch; a
-significant reorder is a plan change even when no task's text changes, while
-a bare human `priority` hint is only a selection hint and needs no
-checkpoint. A stop with attributable unfinished product changes checkpoints
-them as
-explicit WIP commits, pushed under the same policy, recording their
-verification/review status and exact continuation without completing the
-task or bypassing its gates. Routine state and counter writes create no
-checkpoint commits; the task gate reuses recorded WIP commits instead of
-duplicating them, and the coordinator's own reviews of the task use a range
-that starts at or before the recorded pre-WIP base — preserved across
-resumes — so the WIP commits are inside the diff, never excluded by a resumed
-session boundary. Checkpoint
-pushes follow the same destination, scope, failure, and recovery rules as
-task pushes; checkpointing dispatches no workers and consumes no budget.
-Reviews precede the gate and inspect the result at its phase — the
-uncommitted working tree or recorded WIP checkpoint commits; the coordinator
-owns final persistence verification. The invocation itself is the explicit
-authorization that satisfies a conditional "do not commit unless explicitly
-asked" repository guard; only
-an actual user or repository prohibition selects a restricted policy, cited
-concretely — never Work's uncommitted default, the children's no-commit role
-boundary, or the coordinator role. The chosen policy and its basis are stated
-visibly at start and every fresh resume, with an explicit warning when
-accepted work stays uncommitted or unpushed; a legacy handoff with no recorded
-policy resumes as working tree with that warning. Explicit restrictions win,
-resumes keep the recorded policy, and an explicit user change to commit or
-commit-and-push reconciles outstanding persistence under the new policy
-before further dispatch: completed tasks are re-evaluated even when already
-finalized under the former policy, reopening persistence only —
-reviews, counters, and recorded evidence preserved, existing commits reused,
-and checkpoint state already carried by a task finalization never committed
-twice. Failed or interrupted persistence is
-reconciled against the actual local and remote state before any next-task
-work. When the last task completes, the consolidated final close carries the
-run-close record in the same completion commit, keeping the snapshot as the
-recovery checkpoint until that commit's persistence is confirmed; only then
-does a separate bounded cleanup fold the remaining state into the backlog's
-result records and remove the snapshot, recoverable from git history. An
-incomplete stop keeps the snapshot as its resume state. Blocked
-persistence at any boundary — including a failed or uncertain checkpoint
-push — goes directly to the terminal local-only close: the local records are
-saved first, no further commits or pushes follow (a descendant push would
-implicitly retry the uncertain one), and all further persistence is deferred
-to a reconciling resume, never reported as completed. This repository's
-handoff records describe its own development. Everyday `work` uses session
-state for task coordination.
+`skills/autonomous/SKILL.md` adds durable backlog (`BACKLOG.md`), compact
+checkpoint (`.agenticale/active.md`), optional human-owned steering
+(`.agenticale/steering.md`), and three on-demand cold-path references
+(`persistence.md`, `escalation.md`, `recovery.md`), composing round prompts
+directly from `rounds.md` and `tasks/<role>.md`.
+
+Two durable worker-round budgets and a completed-task limit bound a run: a
+run ceiling (default **240**), a per-task allowance (default **24**, independent
+of Work's preference file), and a completed-task limit (default **20**). Every
+explore/implement/fix round is charged once to both worker budgets before
+launch; an exhausted task is deferred resumable while truly independent ready
+tasks may be selected, and reaching the run ceiling or completed-task limit
+with remaining work is an incomplete safety stop.
+
+Productive fix loops continue unattended while budget remains, bounded by the
+shared non-convergence safeguards, one opportunistic deep-review escalation per
+session (separate from required slice-gate or periodic deep reviews), and
+consults capped at 1 per decision / 2 per session. The anti-ask gate limits
+user questions to irreversible/reserved actions, ambiguous preferences,
+exhausted run limits or blocked persistence, and unresolved non-convergence.
+The default Git persistence policy commits and pushes each completed task
+through coherent task commits and one bounded state-only finalization commit
+before the next task is selected, keeping `.agenticale/active.md` as recovery
+checkpoint until final close cleanup is confirmed. Blocked or failed pushes
+stop local-only for a reconciling resume. Everyday `work` uses session state
+for task coordination.
 
 The flat model config is a flat per-role inventory: a role with no entry
 inherits the session model, and the packaged config is an inventory, not a
@@ -342,19 +160,18 @@ boundaries.
 
 The authored source-of-truth layout is what `scripts/validate.mjs` asserts
 exists: the three workflow skills plus their `agents/openai.yaml`, the shared
-`rounds.md`, the `outcome-evaluation.md` outcome-protocol reference, the shared
-`session-stats.mjs` helper, the six runtime bindings, the six task contracts,
-the `adapters/opencode/` metadata (adapter, four command templates, flat model
-config, coordinator body, and README), the `adapters/qwen-code/` metadata
-(adapter, flat model config, coordinator body, and README), the plugin
-preference fragment (`adapters/plugin/model-configuration.md`), and the
-three supporting skills — including `configure` with its `agents/openai.yaml`
-and six discovery references — plus the authored root preferences starter
-(`examples/preferences.example.md`), for 57 source-of-truth files. The retired
-layout (`commands/`, `agents/autonomous/`, `skills/work-mode`,
-`skills/autonomous-mode`) and the retired routing paths (`ROUTING.md`,
-`routing.json`, `preferences.example.md`, and `scripts/routing.mjs` under
-`skills/work/`) must be absent.
+`rounds.md`, `pr-delivery.md`, `decomposition.md`, and `outcome-evaluation.md`
+references, the three on-demand autonomous references (`persistence.md`,
+`escalation.md`, `recovery.md`), the shared `session-stats.mjs` helper, the six
+runtime bindings, the six task contracts, the `adapters/opencode/` metadata, the
+`adapters/qwen-code/` metadata, the plugin preference fragment
+(`adapters/plugin/model-configuration.md`), the three supporting skills
+(including `configure` with its `agents/openai.yaml` and six discovery
+references), and `examples/preferences.example.md`, for 50 source-of-truth
+files. The retired layout (`commands/`, `agents/autonomous/`,
+`skills/work-mode`, `skills/autonomous-mode`) and the retired routing paths
+(`ROUTING.md`, `routing.json`, `preferences.example.md`, and
+`scripts/routing.mjs` under `skills/work/`) must be absent.
 
 ## Model configuration
 
