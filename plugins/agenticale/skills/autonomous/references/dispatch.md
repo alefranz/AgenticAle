@@ -5,13 +5,17 @@ Before dispatching any round, select the actual runtime binding from
 exposes; never infer the runtime from a selected model name. Do this at start and on
 every fresh resume.
 
-The workflow never selects a model: on OpenCode the model and effort are baked into the
-installed `agenticale/<role>` profiles at install time; on other surfaces the binding's
-native fields carry a role assignment only where the host supports it and the
-installation's preference file provides one. When the installation configures a
+The workflow never selects a model: on OpenCode and Qwen Code the model is
+baked into the installed agent profile for the role at install time; on
+other surfaces the binding's native fields carry a role assignment only
+where the host supports it and the installation's preference file provides
+one. When the installation configures a
 coordinator, the OpenCode command entry runs this workflow in the current session on the
-`agenticale/coordinator` profile from the first turn, including on a fresh resume;
-without one, the caller session's own model coordinates. A role whose installed profile
+`agenticale/coordinator` profile from the first turn, including on a fresh resume; on
+Qwen Code the workflow instead reads the flat `agenticale-coordinator` agent file
+(read-only, at most once at activation), adopts its posture for the caller session, and
+records the requested model line against the session's effective model; without one, the
+caller session's own model coordinates. A role whose installed profile
 is missing or unreadable blocks only that role's dispatch, reported with the binding's
 refresh procedure; an unavailable role never blocks unrelated work. The workflow creates
 or modifies no configuration file; a missing preference file is normal. The only other
@@ -19,7 +23,10 @@ configuration evidence it may read is the install-ownership manifest the active 
 binding documents, read-only at most once at activation and solely to establish whether a
 needed optional route was configured in the current install inventory, including when a
 leftover profile file is present; it never resolves models from that manifest and never
-modifies it. The selected preference file is read at most
+modifies it. Where the active runtime binding documents a flat coordinator agent file,
+the workflow may also read that file read-only at most once at activation to adopt the
+coordinating posture; it never writes it or dispatches it. The selected preference file
+is read at most
 once at activation and stays fixed for the activation; a fresh resume starts fresh, and
 the prior state's model choices are diagnostic history that never override the current
 installation — report a material change to a role's installed model selection. The
