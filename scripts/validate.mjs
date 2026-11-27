@@ -57,7 +57,8 @@ const SKILL_READ_BUDGET_BYTES = 45 * 1024;
 const requiredPaths = [
   "skills/work/SKILL.md",
   "skills/work/agents/openai.yaml",
-  "skills/work/references/rounds-examples.md",
+  "skills/work/references/decomposition.md",
+  "skills/work/references/pr-delivery.md",
   "skills/work/references/rounds.md",
   "skills/work/references/outcome-evaluation.md",
   "skills/work/references/runtimes/copilot.md",
@@ -72,17 +73,9 @@ const requiredPaths = [
   "skills/review/agents/openai.yaml",
   "skills/autonomous/SKILL.md",
   "skills/autonomous/agents/openai.yaml",
-  "skills/autonomous/references/anti-patterns.md",
-  "skills/autonomous/references/budgets.md",
-  "skills/autonomous/references/consultation.md",
-  "skills/autonomous/references/dispatch.md",
-  "skills/autonomous/references/gates.md",
+  "skills/autonomous/references/escalation.md",
   "skills/autonomous/references/persistence.md",
-  "skills/autonomous/references/prompts.md",
   "skills/autonomous/references/recovery.md",
-  "skills/autonomous/references/state-protocol.md",
-  "skills/autonomous/references/steering.md",
-  "skills/autonomous/references/stops.md",
   "skills/pull-request-description/SKILL.md",
   "skills/source-code-lookup/SKILL.md",
   "skills/configure/SKILL.md",
@@ -278,18 +271,6 @@ function validateSkillAutonomous() {
   if (!body.includes("Asking the user (anti-ask gate)")) {
     fail(path, "body must keep the anti-ask gate section", "restore the Asking the user (anti-ask gate) heading");
   }
-  for (const marker of [
-    "STANDARD: <target>: <class>: blocking (bar: <the class's precision bar>)",
-    "STANDARD: <target>: <class>: nit (residual) @R<N> (<consult-adopted|user>)",
-    "CONVERGENCE: <target>: R<N> <n>fix/<n>new[<classes>]",
-    "saturation R<N>|none",
-    "DECLARED: <target>: R<N> <outcome>; continue-x2 used|unused; remaining:",
-    "SLICE-RES: <slice> <spent>/<reserved>",
-  ]) {
-    if (!body.includes(marker)) {
-      fail(path, `body must keep the snapshot state line marker \`${marker}\``, "restore the shared-contract snapshot state lines");
-    }
-  }
 }
 
 // The shared round contract is a plain reference (no frontmatter), loaded by
@@ -299,7 +280,7 @@ function validateSkillAutonomous() {
 function validateSharedRoundsContract() {
   const path = "skills/work/references/rounds.md";
   const text = readText(path);
-  for (const marker of ["### Standard settlement", "### Convergence declaration", "### Grant flavours"]) {
+  for (const marker of ["## Budgets and loop continuation", "## Routing policy", "## Review and fix gate"]) {
     if (!text.includes(marker)) {
       fail(path, `body must keep the shared mechanism section '${marker}'`, "restore the section; both workflows and the docs link to its anchor");
     }
@@ -318,9 +299,8 @@ function validateSkillReview() {
     fail(path, "disable-model-invocation must be true (explicit-only)", "set disable-model-invocation: true");
   }
   requireMetadataFlags(path, metadata);
-  if (!body.includes("](../work/references/rounds.md)")) {
-    fail(path, "body must link the shared round contract ../work/references/rounds.md", "link the shared round contract");
-  }
+  // Standalone /review is self-contained and intentionally does not load
+  // work/references/rounds.md (multi-round loop, settlement, and budgets).
   if (!body.includes("../work/references/tasks/")) {
     fail(path, "body must reference the shared task contracts ../work/references/tasks/", "keep the task-contract routing reference");
   }

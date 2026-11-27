@@ -70,4 +70,4 @@ content before anything is written.
     - consult-hard: <provider/model#variant>
 
     ## Work
-    - worker rounds: 12
+    - worker rounds: 24

@@ -133,8 +133,7 @@ installation)" section documents the one optional preference file —
 [model configuration](../../guides/model-routing.md).
 
 The preference file's top-level `## Work` section can set Work's
-worker-round allowance (default twelve; an explicit entry is an exact cap
-that never auto-extends); see
+worker-round allowance (default 24); see
 [Work worker-round allowance](../../guides/model-routing.md#work-worker-round-allowance).
 
 ## How a change request moves through Work
@@ -234,122 +233,41 @@ including the interruption boundary around its external side effects — not
 internal method tests alone. Targeted checks bound each slice; full-suite and
 publishing checks belong to the integration boundary.
 
-Work gives each task a default allowance of twelve worker rounds for
-exploration, implementation, and fixes across the task. It is available
-budget, not a work target: Work finishes as soon as your requested outcome is
-complete, and leftover allowance is not spent on extra rounds. When the
-default allowance is reached with verified progress — passing acceptance
-checks, a confirmed fix, a resolved blocker, or a material new finding — it
-extends automatically in recorded increments up to a hard ceiling of
-twenty-four, without a permission ask; code churn never earns an extension.
-An explicit allowance — set at invocation or through the `## Work` section of
-the preference file
-([Work worker-round allowance](../../guides/model-routing.md#work-worker-round-allowance))
-— is an exact cap that never auto-extends, whatever its size. A named grant
-you give at a stop states a flavour: `cap` — the added rounds end in an
-exact boundary that does not auto-extend, the default when your wording names
-a total ("10 more rounds" ⇒ +10, cap) — or `progress` — the boundary
-auto-extends under the verified-progress rule up to the progress ceiling, the
-flavour for "keep going while it's making progress" rather than a specific
-number. A `progress` flavour is a grant on the task worker allowance only —
-an explicit user review limit never auto-grows and is not flavour-eligible;
-a grant on it is recorded `cap`-flavoured. A free-text grant matching neither
-flavour exactly is parsed once,
-gets one clarifying question when ambiguous, and the parsed flavour is
-recorded in session state. Either way the
-allowance changes only what is available, never what is required. Splitting
-or replanning the plan never replenishes it or its recorded extensions, and
-when a limit will constrain the next useful step, Work says so briefly.
+Work gives each task a default allowance of **24 worker rounds** for
+exploration, implementation, and fixes across the task (overridable via an
+explicit invocation instruction or the `## Work` section of the preference file).
+It is available budget, not a work target: Work finishes as soon as your
+requested outcome is complete, and leftover allowance is not spent on extra
+rounds. Splitting or replanning never replenishes consumed counts.
 
-Productive fixes continue without a fixed per-target cycle count: while
-worker budget remains, the latest fix made verified progress, no safeguard
-has fired, and the next cycle leaves at least one review available under each
-explicit review limit you set, Work continues the fix → verify → re-review
-loop without asking you to authorize another cycle. Two consecutive worker rounds with no
-verified progress stop the loop regardless of remaining budget, as does a
-repeated blocker. Every review must be justified by changed evidence, a
-required integration gate, bounded interrupted-review recovery, or an
-explicit user request — which authorizes one bounded audit over the range
-you name: the request is itself the justification, so it authorizes that
-audit, not a review-only loop. A review-only loop over unchanged evidence
-is prohibited. The worker budget
-gates fixes, not review: the required independent review of the last allowed
-fix still runs at zero worker budget, and surviving blockers keep the work
-incomplete and review-open.
+Productive fix loops continue unattended while worker budget remains: Work
+never stops a fix → verify → re-review loop merely because it reached a fixed
+round count. It stops or escalates only on genuine non-convergence:
+1. **Stall:** two consecutive worker rounds make no verified progress or hit
+   the same blocker twice.
+2. **Oscillation:** fixing one finding reintroduces another across two cycles.
+3. **Reviewer standard drift:** all functional checks pass, yet 4+ consecutive
+   reviews keep opening purely stylistic or wording blockers on unchanged
+   behavior — Work stops chasing them and classifies style/wording as nits
+   (confirming once if ambiguous).
+4. **Repeated root-cause invariant failure:** consecutive rounds fail the same
+   core invariant, signalling a design replan rather than another local patch.
 
-When the allowance in force is exhausted — at the progress ceiling or an
-exact explicit cap — Work stops without another worker round and reports
-which allowance is exhausted, what is completed and what is blocked, and the
-recent verified progress. It recommends a bounded correction, a bounded
-replan, or a stop that preserves the current work; where your host offers
-choices, it offers the situation-appropriate ones, such as one additional
-fix-and-review cycle. A stop report that offers a budget grant offers the
-`progress` flavour as the leading option only when the exhausted budget is
-the task worker allowance accepting a `progress`-flavoured grant (the default
-allowance, or a `progress`-flavoured grant in force below its progress
-ceiling) — the progress-leading named increment applies only while the task
-worker allowance is below its progress ceiling; at or past the ceiling the
-offered increment is the `cap` increment; otherwise the offered increment is
-the `cap` increment. A granted extension adds exactly the named rounds —
-it never resets counters and grants no extra scope, review, or Git rights —
-and declining or not answering ends the stop. The stop report carries a
-copy-pasteable continuation prompt so a fresh session can pick up where it
-left off: the outcome and blockers, what exists and must be preserved, the
-recorded decision state for the affected targets — settlements, declarations,
-and residual lists, the convergence history with its per-round facts and
-acceptance-failure flags, the per-slice reservation spend where one is
-recorded, and the remaining bounded-continuation authority — and the checks
-and review still required before delivery.
+Every review must be justified by changed evidence, a required integration
+gate, bounded interrupted-review recovery, or an explicit user request — never
+a review-only loop over unchanged code. The worker budget gates worker dispatch
+only: the required independent review of the last allowed fix still runs at
+zero worker budget.
 
-Repeated findings on the same invariant are classified before another round:
-a genuinely unmet invariant is a real design issue — the plan is reopened with
-the original acceptance and counters intact — while reviewer standard drift is
-settled once, not chased as a defect. When the drift is detected, Work
-settles the standard once: because you are present, the coordinator presents
-the proposed standard — which finding classes block and which are nits for
-that target — alongside the reviewer's original bar, and you ratify it at most
-once per target per class: the one decision is per class, so ratifying a
-class's standard does not preclude a later one-decision for a different class
-that was never settled and later qualifies as standard drift. The settled
-standard is recorded in session state and bound
-into every later review of the target: the standard binds only its settled
-classes — a finding in a settled nit class is a nit that never blocks the
-verdict, and a finding of a class that has never appeared in the loop is a new
-finding assessed against your original acceptance criteria, and it can block;
-a finding of a class that has recurred but was never settled is likewise
-assessed against your original acceptance criteria, but, being already seen,
-it is the kind of standard drift that can trigger the one-time settlement
-question — and a verdict that blocks on a nit-class finding is malformed:
-the coordinator
-records the malformation — the original verdict and the correction — in
-session state,
-and the gate proceeds on the corrected classification under the recorded
-settlement, with no re-review over the same range. A settlement reopens only on changed acceptance, a genuinely unmet
-invariant of a blocking class, or your instruction — never on a later
-reviewer tightening the same class.
+When the allowance is exhausted or a non-convergence safeguard fires, Work stops
+without another worker round, reports what is completed and blocked, offers
+next options (e.g., `+N` extra rounds, replan, or stop preserving work), and
+carries a self-contained copyable continuation prompt (including exact delivery
+target when `--pr` is active).
 
-If a target's loop stops converging, Work makes a single convergence
-declaration before any further round on it: the finding trajectory, what is
-verified and green, the cost so far, and exactly one decision — close the
-target with its recorded residuals, continue for at most two bounded
-fix-and-review rounds, stop it incomplete, or review it yourself. The shared
-decision order applies: when the declaration runs and any open finding is in
-a class not yet settled for the target — whether or not the standalone
-settlement trigger fired — the settlement question for those classes is
-carried inside the declaration as the single combined decision, and the
-coordinator presents it directly with the proposed standard — no consult on
-this path; "continue, bounded" is offered
-only when all of these hold — the same recorded decision leaves at least one
-open finding in a settled blocking class, or no settlement is recorded yet;
-the worker budget permits the next fix; the review limits permit; and no
-safeguard has fired; and residual closure is offered only when the same
-recorded decision contains the nit-only settlement outcome. When the settled standard
-already classifies every open finding as a nit, the declaration simply
-notifies you and the target closes `accepted-with-residuals`
-without a question; its residual list is recorded and surfaced in the final
-report as known limitations. The declaration — not a repeated gate-closure
-question — is the only user-visible form of a non-converging loop: a target
-with a recorded declaration is never asked the same question twice.
+Cold-path capabilities — PR delivery (`pr-delivery.md`), multi-slice
+decomposition (`decomposition.md`), and measurable optimization (`--outcome` →
+`outcome-evaluation.md`) — are loaded on demand only when used.
 
 Each slice passes review before Work moves to the next one — a clearly
 mechanical change closes by its deterministic check, with independent review

@@ -1,36 +1,12 @@
 # Implementation task contract
 
-Implement one bounded, verifiable slice in a fresh child context; the easy/routine-versus-hard distinction is a dispatch choice, not a separate contract.
+Implement one bounded, verifiable slice in a fresh child context. Easy/routine/hard is a dispatch choice — this same contract governs all of them.
 
-## Mission and scope
+## Scope and permitted actions
 
-Implement exactly the assigned slice. Follow the project's AGENTS.md when
-present and the supplied task packet and reset rules. Verify, follow the
-supplied git persistence policy, and report only in the requested format. Do
-not absorb adjacent work.
+Implement only the assigned slice, following `AGENTS.md` (when present), the task packet, and reset rules. Preserve supplied prior invariants and stop at this slice's acceptance boundary without absorbing adjacent work. If evidence invalidates the boundary or approach, return it with a proposed next action instead of implementing further slices. For an experiment, report its result against the decision criterion and any changes needing retention or cleanup.
 
-The overall goal and later slices are context only. Preserve supplied prior
-invariants and stop at this slice's acceptance boundary. If evidence invalidates
-the boundary or approach, return it with a proposed next action for the
-coordinator; do not implement the rest of the sequence. For an assigned
-experiment, report its result against the decision criterion and identify any
-changes requiring retention or cleanup. A rejected hypothesis is not feature
-completion.
-
-This one contract serves easy, routine, and genuinely reasoning-heavy
-slices — concurrency/async/cancellation/timing behaviour, cross-repository
-contract surfaces, subtle shared-state behaviour, or security-relevant code
-paths. An easy or difficult slice is assigned to this same contract with the
-matching dispatch context; the instructions here do not change with the
-assignment.
-
-## Permitted actions
-
-May edit product code within the assigned slice scope. May commit or push ONLY
-if the task packet explicitly authorizes it — otherwise follow the supplied git
-persistence policy and leave changes uncommitted. With session state, report
-only; do not write handoffs, backlogs, archives, or other operational files.
-Do not expand into adjacent work.
+May edit product code within the assigned slice. Leave changes uncommitted per the supplied Git policy unless the packet explicitly authorizes commits/pushes. With session state, report only and write no handoffs, backlogs, archives, or operational files.
 
 ## Report format
 
@@ -45,8 +21,4 @@ BLOCKER: only if blocked — what is missing and what decision is needed
 
 ## Child-session rules
 
-You run unattended; the user is unreachable. Never ask the user or wait for
-input — make a reasonable, reversible assumption and record it, or return a
-BLOCKER. Do not delegate to another child. Run commands non-interactively (no
-TTY prompts). If a tool call is denied, do not retry it — work around it or
-report the denial.
+You run unattended (the user is unreachable). Never ask the user or wait for input — make a reasonable reversible assumption and record it, or return `BLOCKER`. Never spawn nested children. Run commands non-interactively (no TTY prompts). Do not retry denied tool calls — work around them or report the denial.

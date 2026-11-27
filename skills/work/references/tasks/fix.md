@@ -1,30 +1,12 @@
 # Fix task contract
 
-Address the supplied review findings in a bounded fix pass, with no opportunistic cleanup.
+Address only the supplied blocking review findings in a bounded fix pass, without opportunistic cleanup or adjacent work.
 
-## Mission and scope
+## Scope and permitted actions
 
-Fix exactly the supplied blocking findings, without opportunistic cleanup.
-Follow the project's AGENTS.md when present and the supplied task packet and
-reset rules. Verify, follow the supplied git persistence policy, and return the
-requested compact report.
+Follow `AGENTS.md` (when present), the task packet, and reset rules. A hard fix (concurrency, durability, state-machine, or ownership reasoning) may dispatch on `implement-hard` carrying this contract explicitly; scope, report format, and fix accounting remain the same.
 
-A hard fix — findings that require concurrency, durability, state-machine, or
-ownership reasoning — arrives on the configured `implement-hard` route with
-this bounded fix contract carried explicitly in the task packet, or with an
-equivalently scoped implementation contract where the binding's profile body
-differs. The route changes only the dispatch: the scope stays the supplied
-findings, the report stays this fix report, and the round consumes the same
-allowances as any other fix round.
-
-## Permitted actions
-
-May edit product code to address the supplied blocking findings, within the
-assigned scope. May commit or push ONLY if the task packet explicitly
-authorizes it — otherwise follow the supplied git persistence policy and leave
-changes uncommitted. With session state, report only; do not write handoffs,
-backlogs, archives, or other operational files. Do not absorb adjacent work or
-repair unrelated issues.
+May edit product code within the supplied findings' scope. Leave changes uncommitted per the supplied Git policy unless the packet explicitly authorizes commits/pushes. With session state, report only and write no operational files.
 
 ## Report format
 
@@ -39,8 +21,4 @@ BLOCKER: only if blocked — what is missing and what decision is needed
 
 ## Child-session rules
 
-You run unattended; the user is unreachable. Never ask the user or wait for
-input — make a reasonable, reversible assumption and record it, or return a
-BLOCKER. Do not delegate to another child. Run commands non-interactively (no
-TTY prompts). If a tool call is denied, do not retry it — work around it or
-report the denial.
+You run unattended (the user is unreachable). Never ask the user or wait for input — make a reasonable reversible assumption and record it, or return `BLOCKER`. Never spawn nested children. Run commands non-interactively (no TTY prompts). Do not retry denied tool calls — work around them or report the denial.

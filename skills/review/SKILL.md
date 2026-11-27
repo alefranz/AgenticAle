@@ -10,152 +10,46 @@ metadata:
 
 # Standalone branch review
 
-Give the current branch's net changes an independent review against a local
-base: from the merge base to the current working-tree result, including
-relevant untracked files. On a clean tree this is the existing committed
-branch review. The session coordinates; one fresh reviewer inspects the
-recorded comparison and returns its findings. This skill reviews — it does
-not implement, fix, or publish. Read [the shared round contract](../work/references/rounds.md)
-before dispatching, including its task-packet and report rules. The review and
-review-deep task contracts are shared with the work and autonomous workflows;
-invoking this skill does not activate either of them.
+Give the current branch's net changes an independent review against a local base using one fresh reviewer. This skill only reviews — it never implements, fixes, commits, or publishes, and does not activate `work` or `autonomous`.
 
 ## Entry and arguments
 
-Consume the invoking user's text directly; do not treat a placeholder
-arguments token as the request. Interpret the complete arguments as:
+Consume the invoking user's text directly (never treat a placeholder arguments token as input):
 
-- Leading options: an optional `--deep` option selects the review-deep
-  contract for the review round. `--` is an explicit option delimiter; option
-  parsing stops at the first non-option token, and everything after the
-  options is the review context: a focus, acceptance criteria, an explicit
-  scope (for example "only my uncommitted changes"), or a named local base.
-  There is no base or scope flag; a base or scope is always named in the
-  remaining text.
-- With no arguments at all, use the local default base and no extra criteria.
+- Optional leading `--deep` selects [review-deep](../work/references/tasks/review-deep.md) instead of [review](../work/references/tasks/review.md).
+- `--` explicitly ends options; option parsing also stops at the first non-option token. Remaining text is review context: a focus, acceptance criteria, an explicit natural-language scope (e.g., "only my uncommitted changes"), or a named local base. There is no base or scope flag.
+- Empty arguments use the local default base with no extra criteria.
 
-## Comparison scope
+## Comparison scope and base
 
-The default comparison is the merge base of the current branch and the
-resolved base to the current working-tree result, including relevant untracked
-files. A dirty tree never narrows the review to uncommitted changes alone;
-that would omit the branch's own commits. An explicit natural-language scope
-in the review context (for example "only my uncommitted changes") selects the
-local changes relative to `HEAD` instead; there is no scope flag. Existing
-base selection, focus, and `--deep` behavior are preserved,
-and genuinely conflicting scope instructions are clarified with the user or
-rejected.
+- **Default scope:** merge base of the current branch and resolved base to the current working-tree result, including relevant untracked files (on a clean tree this is the committed branch diff; on a dirty tree working-tree contents override staged contents, and uncommitted edits never narrow away branch commits).
+- **Explicit HEAD-relative scope** (e.g., "only my uncommitted changes"): changes relative to `HEAD` through the same working-tree result. Ask or reject if scope instructions conflict.
+- **Resolve the base:** use the named local branch/tag/commit when given, or the local default branch from local Git metadata (e.g., remote HEAD ref) and repo conventions. If a named base is missing locally or ambiguous, or no base can be determined, ask the user — never substitute another base.
+- **Read-only:** never fetch, switch branches, check out, stash, commit, merge, rebase, or reset.
 
-The final working-tree result is the reviewed content: a file whose staged and
-working-tree contents differ is reviewed at its working-tree content, not the
-intermediate staged version, and untracked files are included where relevant.
-Never stash, commit, or discard the user's work. State the actual comparison
-and included changes before dispatching.
+Record the exact comparison in session context: base name, `HEAD` commit, merge base, baseline (merge base or `HEAD`), endpoint (working-tree result), and included untracked files, with enough content evidence to detect changes during review (a status line or filename list alone is insufficient).
 
-## Resolve the base
-
-- When the review context names no base, use the repository's default branch
-  established from local Git metadata (for example the remote's HEAD
-  reference) and applicable repository conventions.
-- When the review context names a base that exists locally — a branch, tag,
-  or commit — use it.
-- When a named base is unavailable locally or is ambiguous, ask the user for
-  the intended local base; do not review against a different target such as
-  the default branch.
-- When no base can be determined at all (for example none is named and no
-  default-branch reference exists), ask the user which base to review against.
-- Never fetch from a remote, and never switch branches, check out, merge,
-  rebase, or reset: the comparison is read-only against the current checkout.
-
-## Record the comparison range
-
-Compute the merge base of the current branch and the resolved base, and record
-the exact comparison in session context: the base name, the HEAD commit, the
-merge base, the comparison baseline — the merge base for the default scope,
-`HEAD` for the explicit HEAD-relative scope — the comparison endpoint, which
-is the working-tree result in both scopes, and the untracked files included
-in the review. The recorded comparison carries content evidence sufficient to
-identify what is reviewed; a status line or an unchanged filename list alone
-is insufficient.
-
-Establish whether there is anything to review from the actual net comparison
-between the recorded baseline and the working-tree result, including the
-relevant untracked files — not from the commit-range diff and the local diff
-considered separately: each part can be non-empty while the net result is
-empty, when a local edit cancels a branch commit or an unstaged edit cancels
-a staged change. When the net comparison is empty, report that there is
-nothing to review and stop; do not dispatch a reviewer.
+Check the actual **net comparison** between the baseline and working-tree result (branch commits and local edits can cancel each other out). If the net comparison is empty, report nothing to review and stop without dispatching.
 
 ## Dispatch
 
-Select the runtime binding from the host's tool surface — never from a
-selected model name — under `../work/references/runtimes/`; on OpenCode
-dispatch the installed `agenticale/review` profile, or
-`agenticale/review-deep` when `--deep` was selected. The workflow never
-selects a model. Where the installation appends a "Model configuration
-(this installation)" section, the preference file it documents is the only
-preference file the workflow reads — at most once, at activation. The only
-other configuration evidence it may read is the install-ownership manifest
-the active runtime binding documents, read-only at most once at activation
-and solely to establish whether a needed optional route was configured in
-the current install inventory, including when a leftover profile file is
-present; it never resolves models from that manifest. Otherwise the workflow
-reads, creates, or modifies no configuration file, and it never modifies the
-manifest. A missing or unreadable profile blocks the dispatch and is
-reported with the binding's refresh procedure. Where the installation
-documents a preference file, the selected file stays fixed for the
-activation.
+Select the runtime binding from the host's tool surface — never from a model name — under `../work/references/runtimes/` (on OpenCode, dispatch `agenticale/review` or `agenticale/review-deep`). The workflow never selects a model. Where an installation appends a "Model configuration (this installation)" section, read only its documented preference file read-only at most once at activation (kept fixed for the activation); otherwise read, create, or modify no configuration file. A missing or unreadable profile blocks dispatch and is reported with the binding's refresh procedure.
 
-## Dispatch exactly one reviewer
+State the actual comparison and included changes, then dispatch **one** fresh child subagent carrying the [review contract](../work/references/tasks/review.md) (or [review-deep contract](../work/references/tasks/review-deep.md) with `--deep`) and a concise, self-contained task packet:
 
-Dispatch one fresh child subagent carrying the
-[review contract](../work/references/tasks/review.md) — or the
-[review-deep contract](../work/references/tasks/review-deep.md) when `--deep`
-was selected — with the task packet the shared round contract defines. The
-packet supplies:
-
-- the repository path, the current branch, and applicable repository
-  instructions (the project's `AGENTS.md` when present);
-- the recorded comparison: base name, merge base, HEAD commit, the comparison
-  endpoint, and the included untracked files. State the actual comparison and
-  included changes before dispatch; the reviewer inspects that comparison and
-  verifies its evidence independently, and never expands into a
-  repository-wide audit;
-- the user's focus, criteria, and context, clearly labelled as user-supplied;
-- verification commands the user named, or the repository's obvious targeted
-  checks, stated as checks the reviewer may run;
+- Repository path, current branch, and applicable repository instructions (`AGENTS.md` when present).
+- Recorded comparison (base name, merge base, `HEAD`, baseline/endpoint, included untracked files) — the reviewer verifies independently without expanding into a repository-wide audit.
+- User-supplied focus, criteria, and context (clearly labelled as user-supplied).
+- Checks the user named or obvious targeted repository checks the reviewer may run.
+- Bundled skill instruction: if external dependency/service code matters, read [source-code-lookup](../source-code-lookup/SKILL.md) before inspecting it.
 - `State policy: session; report only; no operational files`.
 
-No worker report, accepted-slice summary, or implementation history is
-supplied, and none is invented: this is a review of the recorded comparison,
-not of a completed worker slice. Do not dispatch a second reviewer, a fix
-round, or any other child; the shared fix-and-review loop does not run from
-this invocation.
+Do not invent worker history or accepted-slice summaries. Never dispatch a second reviewer, a fix round, or any other child.
 
 ## Finish
 
-Before returning the report, recheck the checkout: the current branch, `HEAD`,
-and the working-tree result. When the checkout or the working-tree result
-changed during the review, state that the verdict covers only the recorded
-comparison and what changed; never assert the checkout stayed unchanged
-without that evidence, and never claim the changed result is covered.
+Before reporting, re-check the current branch, `HEAD`, and working-tree result read-only. If anything changed during the review, state that the verdict covers only the recorded comparison and list what changed; never claim the changed result is covered.
 
-Return the reviewer's report as the outcome: a verdict (clean or blocking
-findings), each finding with its location, impact, and required action,
-optional nits, and the commands the reviewer ran with results.
+Return the reviewer's report naming the reviewed branch, base, and recorded comparison: verdict (clean or blocking findings), each finding's location, impact, and required action, optional nits, commands run with results, and any unrun checks or missing evidence (never claim a clean verdict when evidence is missing).
 
-- Identify the reviewed branch, the base, and the recorded comparison in the
-  final report.
-- Disclose checks the reviewer could not run, unavailable criteria, or
-  evidence it could not establish; never claim a clean verdict when the
-  evidence is missing.
-- Findings are returned to the user, not dispatched: there is no fix round, no
-  re-review, no hosted review, and no approval or merge. Addressing the
-  findings is a separate request; a `/work` invocation in the same session
-  uses the findings and scope directly.
-- State stays in the session: the base, the recorded comparison, the dispatch
-  record, and the report are retained in session context. No handoff, backlog,
-  archive, round ledger, or other operational file is created.
-- Make no product-code changes and no Git changes of any kind: no commits, no
-  pushes, no stashing, no remote fetch, no branch or remote changes; the
-  pre-report recheck is read-only.
+Findings go only to the user — no fix loop, re-review, PR, or merge. Addressing findings is a separate request (a `/work` invocation in the same session uses them directly). Keep all state in session context with no operational files, product edits, or Git changes.
