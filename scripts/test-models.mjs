@@ -621,7 +621,10 @@ try {
     check(rounds.includes("not from the presence or absence of profile files alone"), "intent lookup: the shared policy forbids deciding intent from the profile catalog alone");
     check(rounds.includes("when that evidence is unavailable or ambiguous, the binding's conservative limitation handling applies"), "intent lookup: the shared policy defers unavailable/ambiguous evidence to the binding");
 
-    for (const skill of ["work", "review", "autonomous"]) {
+    // Standalone /review dispatches only review / review-deep (never optional
+    // routes), so it intentionally does not carry the optional-route manifest
+    // lookup rules checked for work and autonomous below.
+    for (const skill of ["work", "autonomous"]) {
       let text = await prose(join(repository, "skills", skill, "SKILL.md"));
       // The split moved the autonomous dispatch paragraph (including the
       // manifest-read permission) from the entry to its mandatory pre-dispatch
@@ -635,9 +638,6 @@ try {
       check(text.includes("including when a leftover profile file is present"), `intent lookup: the ${skill} skill's manifest read covers present leftover profiles, not only missing ones`);
       check(text.includes("never resolves models from that manifest"), `intent lookup: the ${skill} skill forbids model resolution from the manifest`);
     }
-    const review = await prose(join(repository, "skills", "review", "SKILL.md"));
-    check(review.includes("only preference file the workflow reads"), "intent lookup: the review skill's preference-file exclusivity is narrowed to preference files");
-    check(review.includes("never modifies the manifest"), "intent lookup: the review skill never modifies the manifest");
   }
 } finally {
   await rm(scratch, { recursive: true, force: true });

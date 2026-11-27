@@ -318,9 +318,8 @@ function validateSkillReview() {
     fail(path, "disable-model-invocation must be true (explicit-only)", "set disable-model-invocation: true");
   }
   requireMetadataFlags(path, metadata);
-  if (!body.includes("](../work/references/rounds.md)")) {
-    fail(path, "body must link the shared round contract ../work/references/rounds.md", "link the shared round contract");
-  }
+  // Standalone /review is self-contained and intentionally does not load
+  // work/references/rounds.md (multi-round loop, settlement, and budgets).
   if (!body.includes("../work/references/tasks/")) {
     fail(path, "body must reference the shared task contracts ../work/references/tasks/", "keep the task-contract routing reference");
   }
