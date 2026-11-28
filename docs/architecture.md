@@ -62,18 +62,24 @@ preceding review's findings, entering at the first necessary step.
 
 `skills/work/references/rounds.md` is the shared round contract loaded by
 `work` and `autonomous`: the child task packet, compact reports, reset criteria,
-the shared routing policy, the review/fix gate, and the simplified **24-round**
-task worker budget. Both workflows continue productive fix → verify → re-review
-loops unattended while worker budget remains, stopping or escalating only on
-genuine non-convergence: two consecutive no-progress rounds or repeated
-identical blockers (stall), two-cycle oscillation, four or more consecutive
-reviews opening only stylistic/wording blockers after functional checks pass
-(standard drift), or repeated root-cause invariant failure. Every review needs
-changed evidence, a required integration gate, bounded interrupted-review
-recovery, or an explicit user request (never a review-only loop over unchanged
-code), and the required review of the last allowed worker still runs at zero
-worker budget. A limit or safeguard stop with remaining work is always an
-incomplete stop carrying a self-contained continuation prompt.
+the shared routing policy, the review/fix gate with progressive independent
+assurance, and the simplified **24-round** task worker budget. Slices converge
+at the lowest sufficient tier (Tier 0 deterministic check, Tier 1 `review`, or
+Tier 2 `review-deep` standing in for high-risk slices), and before delivery any
+code/config/test/behavior changeset passes a fresh-context acceptance review
+stepped up one tier above implementation (never past `review-deep`, and reused
+if an un-invalidated review already covers the complete changeset at that
+tier). Both workflows continue productive fix → verify → re-review loops
+unattended while worker budget remains, running a periodic reassessment every 4
+worker rounds (or sooner on stall/oscillation) to evaluate progress, route or
+complexity upgrades, strategy shifts or `consult`, and style-drift settlement,
+stopping only on genuine unresolved non-convergence or repeated child
+interruption. Every review needs changed evidence, a required slice or
+progressive acceptance review, bounded interrupted-review recovery, or an
+explicit user request (never a review-only loop over unchanged code), and any
+pending required slice or acceptance review of the last allowed worker still
+runs at zero worker budget. A limit or safeguard stop with remaining work is
+always an incomplete stop carrying a self-contained continuation prompt.
 The six task contracts are capability-neutral: they carry only the role's
 instructions, with no host-specific protocol. `implement`, `implement-easy`,
 and `implement-hard` share the same `implement` contract, and `consult` and
@@ -132,10 +138,11 @@ launch; an exhausted task is deferred resumable while truly independent ready
 tasks may be selected, and reaching the run ceiling or completed-task limit
 with remaining work is an incomplete safety stop.
 
-Productive fix loops continue unattended while budget remains, bounded by the
-shared non-convergence safeguards, one opportunistic deep-review escalation per
-session (separate from required slice-gate or periodic deep reviews), and
-consults capped at 1 per decision / 2 per session. The anti-ask gate limits
+Productive fix loops continue unattended while budget remains, guided by the
+shared every-4-rounds periodic reassessment, one opportunistic diagnostic
+deep-review escalation per session (separate from standing-in slice gates or
+progressive acceptance reviews at milestone / run-close delivery boundaries),
+and consults capped at 1 per decision / 2 per session. The anti-ask gate limits
 user questions to irreversible/reserved actions, ambiguous preferences,
 exhausted run limits or blocked persistence, and unresolved non-convergence.
 The default Git persistence policy commits and pushes each completed task

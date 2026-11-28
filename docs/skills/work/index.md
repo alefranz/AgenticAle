@@ -6,13 +6,15 @@ when you request it. It can start from a requested outcome, from existing
 branch changes (committed or uncommitted), or from a preceding
 [Review](../review/index.md)'s findings in the same session.
 
-An independent review is the default before a result is called done — a
-clearly mechanical change instead closes by its deterministic check, with an
-independent review only when risk warrants it — and routine rounds can run on
-a capable lower-cost or local model that may still cost less overall than
-using the strongest model throughout. Added rounds
-count toward total effort, and savings and quality depend on the task, models,
-provider, and account.
+Work uses progressive independent assurance: slices converge using the lowest
+sufficient tier — a clearly mechanical change closes by its deterministic
+check, routine slices use `review`, and high-risk slices can stand in with
+`review-deep` — and before delivery, any code, config, test, or behavior
+change passes a fresh-context acceptance review stepped up one tier above
+implementation. Routine rounds can run on a capable lower-cost or local model
+that may still cost less overall than using the strongest model throughout.
+Added rounds count toward total effort, and savings and quality depend on the
+task, models, provider, and account.
 
 Work starts only when explicitly invoked, and the invoking session
 coordinates the task. Throughout the task, concise progress narration keeps
@@ -28,11 +30,11 @@ Invoke the installed skill for a bounded task and describe the outcome you want:
 - `/work Investigate why export is slow and recommend a fix`
 
 Add `--pr` when you want Work to deliver the finished task as a pull request:
-it completes the implementation and its checks, runs the independent review —
-a clearly mechanical change instead closes by its deterministic check, with
-an independent review only when risk warrants it — makes coherent commits,
-pushes, and opens the pull request, or updates the task branch's existing open
-PR when one already exists. Leading options —
+it completes the implementation and its checks, converges each slice at the
+lowest sufficient tier, passes a stepped-up fresh-context acceptance review over
+the complete changeset, makes coherent commits, pushes, and opens the pull
+request, or updates the task branch's existing open PR when one already exists.
+Leading options —
 `--pr` (or `--pr=<PR URL>`), `--consult`, `--outcome`, `--stats`, and the
 `--` delimiter — may appear in any order, with everything after the options as
 the task text:
@@ -146,16 +148,18 @@ uncertainty requires — a small question is answered with a direct read, and a
 focused exploration round runs only when the question needs its own context,
 with one question and a stop condition. No discovery round is mandatory, and a
 question about subtle semantics is not automatically a fit for the `explore`
-role. It then sends a compact task packet to an implementation agent. Each
-implemented slice then passes its review gate: a clearly mechanical change
-closes by its deterministic check, with a reviewer only when risk warrants
-one — a failing deterministic check is repaired and the same check is re-run,
-not a review finding and no review trigger; otherwise the slice's review runs:
-for a high-risk slice whose risk warrants an integration-level audit, one deep
-review stands in as the slice's gate, and every other slice gets the ordinary
-review. The coordinator assigns
-a focused fix when a review finds a defect, then verifies the result and
-delivers it according to your request.
+role. It then sends a compact task packet to an implementation agent. Each implemented slice converges at the lowest sufficient tier: a clearly
+mechanical change closes by its deterministic check (Tier 0), routine slices get
+an independent `review` (Tier 1), and high-risk slices warranting an
+integration-level audit use one `review-deep` standing in as the slice gate
+(Tier 2). Before finishing or PR delivery with product changes (skipping
+investigation-only or zero-change runs), the complete changeset passes a
+fresh-context acceptance review assessing merge readiness, stepped up one tier
+above the highest tier required during implementation (`Tier 0 → review`,
+`Tier 1 → review-deep`, `Tier 2 → review-deep` — already satisfied if an
+un-invalidated review at that tier already covers the full changeset). The
+coordinator assigns a focused fix when a review finds a defect, verifies the
+result, and delivers it according to your request.
 
 ```mermaid
 flowchart TD
@@ -166,10 +170,10 @@ flowchart TD
     ExploreNeeded -->|No| Implement[Routine implementation · implement role]
     Explore --> Implement
     Implement --> Mechanical{Clearly mechanical?}
-    Mechanical -->|Yes| DeterministicCheck[Deterministic check]
+    Mechanical -->|Yes| DeterministicCheck[Deterministic check · Tier 0]
     Mechanical -->|No| Level{High risk warranting an integration-level audit?}
-    Level -->|Yes| DeepSlice[One deep review stands in for the slice's review · review-deep role]
-    Level -->|No| Review[Independent review · review role]
+    Level -->|Yes| DeepSlice[Deep review stands in for slice · Tier 2 review-deep]
+    Level -->|No| Review[Independent review · Tier 1 review]
     DeterministicCheck -->|pass| RiskWarrants{Risk warrants a review?}
     DeterministicCheck -->|fail| FixCheck[Focused fix · fix role]
     FixCheck --> DeterministicCheck
@@ -179,10 +183,12 @@ flowchart TD
     Review -->|gate passed| SliceAccepted
     SliceAccepted --> MoreSlices{More slices useful?}
     MoreSlices -->|Yes| Implement
-    MoreSlices -->|No| DeepReviewNeeded{Uncovered integration scope?}
-    DeepReviewNeeded -->|Yes| DeepReview[Deep review of combined work · review-deep role]
-    DeepReviewNeeded -->|No| Checks[Acceptance checks and report]
-    DeepReview --> Checks
+    MoreSlices -->|No| AcceptanceGate{Stepped-up acceptance satisfied?}
+    AcceptanceGate -->|Tier 0 only| AcceptReview[Acceptance review · Tier 1 review]
+    AcceptanceGate -->|Tier 1 used| AcceptDeep[Acceptance review · Tier 2 review-deep]
+    AcceptanceGate -->|Already covered at Tier 2| Checks[Acceptance checks and report]
+    AcceptReview -->|passed| Checks
+    AcceptDeep -->|passed| Checks
 ```
 
 Focused fixes use the `fix` role; hard implementation and hard fixes use the
@@ -242,24 +248,28 @@ rounds. Splitting or replanning never replenishes consumed counts.
 
 Productive fix loops continue unattended while worker budget remains: Work
 never stops a fix → verify → re-review loop merely because it reached a fixed
-round count. It stops or escalates only on genuine non-convergence:
-1. **Stall:** two consecutive worker rounds make no verified progress or hit
-   the same blocker twice.
-2. **Oscillation:** fixing one finding reintroduces another across two cycles.
-3. **Reviewer standard drift:** all functional checks pass, yet 4+ consecutive
-   reviews keep opening purely stylistic or wording blockers on unchanged
-   behavior — Work stops chasing them and classifies style/wording as nits
-   (confirming once if ambiguous).
-4. **Repeated root-cause invariant failure:** consecutive rounds fail the same
-   core invariant, signalling a design replan rather than another local patch.
+round count. Instead, every 4 worker rounds on the same task or slice (and
+sooner on clear stall or oscillation), the coordinator reassesses:
+1. **Progress:** whether cycles are converging, or stalling, oscillating across
+   fixes, or hitting **reviewer style drift** (all functional checks pass, yet
+   reviews keep opening purely stylistic or wording blockers).
+2. **Complexity and routing:** whether to upgrade the route (`implement-easy` →
+   `implement` → `implement-hard`, or dispatch a hard fix on `implement-hard`)
+   or downgrade when only mechanical work remains.
+3. **Strategy and consultation:** whether repeated root-cause invariant
+   failures need a strategy shift, re-slicing, or a bounded read-only `consult` /
+   `consult-hard` instead of another local patch.
+4. **Settlement or stop:** purely stylistic drift after functional checks pass
+   is classified as non-blocking nits (confirmed once if ambiguous); Work stops
+   incomplete and asks you only when reassessment cannot restore progress.
 
-Every review must be justified by changed evidence, a required integration
-gate, bounded interrupted-review recovery, or an explicit user request — never
-a review-only loop over unchanged code. The worker budget gates worker dispatch
-only: the required independent review of the last allowed fix still runs at
-zero worker budget.
+Every review must be justified by changed evidence, a required slice or
+progressive acceptance review, bounded interrupted-review recovery, or an
+explicit user request — never a review-only loop over unchanged code. The worker
+budget gates worker dispatch only: any pending required slice or acceptance
+review of the last allowed worker still runs at zero worker budget.
 
-When the allowance is exhausted or a non-convergence safeguard fires, Work stops
+When the allowance is exhausted or unresolved non-convergence stops the loop, Work stops
 without another worker round, reports what is completed and blocked, offers
 next options (e.g., `+N` extra rounds, replan, or stop preserving work), and
 carries a self-contained copyable continuation prompt (including exact delivery
@@ -269,28 +279,23 @@ Cold-path capabilities — PR delivery (`pr-delivery.md`), multi-slice
 decomposition (`decomposition.md`), and measurable optimization (`--outcome` →
 `outcome-evaluation.md`) — are loaded on demand only when used.
 
-Each slice passes review before Work moves to the next one — a clearly
-mechanical change closes by its deterministic check, with independent review
-only when risk warrants it. Deep review of the combined work is an
-additional gate for uncovered integration scope — substantial
-interactions or a high-risk shared invariant that the single-slice reviews
-(including any standing-in deep review) did not cover — while an explicit
-user request authorizes a separate bounded audit of the range it names — for
-the initial audit of existing changes, that request defaults to the
-merge-base-to-working-tree comparison when no range is named; changed
-evidence and interrupted-review recovery justify
-continuing or recovering an already-warranted review, not starting a new
-combined-boundary audit. Where a single slice's
-risk warranted a standing-in deep review, that review already covers the
-slice's risk, so the combined-boundary audit fires for integration scope the
-single-slice reviews have not covered, and an explicit request fires for
-its named range — never both over the same changes redundantly: a same-range deep review is
-unjustified without changed evidence, a required integration gate, bounded
-interrupted-review recovery, or an explicit user request. Any
-blocking findings return through the fix and review loop. An
-investigation-only request ends after exploration with findings and a
+Each slice converges at its lowest sufficient tier before Work moves to the
+next one. Before delivery or finish with product changes, progressive
+independent assurance runs a fresh-context acceptance review over the complete
+changeset stepped up one tier above the highest tier required during
+implementation (`Tier 0 → review`, `Tier 1 → review-deep`, `Tier 2 → review-deep`,
+with no escalation beyond the highest configured tier). An earlier review
+already satisfies acceptance if it covered the complete changeset at the
+required tier and was not invalidated by subsequent edits — for instance, a
+single high-risk slice whose standing-in `review-deep` passed clean with no later
+edits, or an initial explicit `review-deep` request that stayed clean. Purely
+mechanical findings from acceptance review close by their deterministic check;
+judgemental findings return through normal fix routing (converging cheaply first
+if substantial) and must re-pass at the changeset's required acceptance tier.
+An investigation-only request ends after exploration with findings and a
 recommended next step. Work opens a pull request only when you explicitly
-request PR delivery; otherwise it reports what it checked and any limitations.
+request PR delivery (committing cleanly only after acceptance passes); otherwise
+it reports what it checked and any limitations.
 
 ## Progress narration
 
