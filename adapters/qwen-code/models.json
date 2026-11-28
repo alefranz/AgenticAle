@@ -1,12 +1,12 @@
 {
-  "coordinator": "alibaba-token-plan/qwen4-max#medium",
-  "explore": "local-llama/qwen3.8-27b#medium",
+  "coordinator": "alibaba-token-plan/qwen4-max#high",
+  "explore": "local-llama/qwen3.8-27b#low",
   "implement-easy": "local-llama/qwen3.8-27b#medium",
-  "implement": "alibaba-token-plan/qwen4-max#medium",
+  "implement": "local-llama/qwen3.8-27b#xhigh",
   "implement-hard": "alibaba-token-plan/qwen4-max#xhigh",
-  "fix": "alibaba-token-plan/qwen4-max#medium",
-  "review": "openai/gpt-6.2-sol#high",
-  "review-deep": "openai/gpt-6.2-astra#high",
-  "consult-hard": "openai/gpt-6.2-astra#high",
-  "consult": "openai/gpt-6.2-sol#high"
+  "fix": "alibaba-token-plan/qwen4-max#high",
+  "review": "alibaba-token-plan/qwen4-max#high",
+  "review-deep": "openai/gpt-6.2-sol#high",
+  "consult-hard": "openai/gpt-6.2-sol#high",
+  "consult": "alibaba-token-plan/qwen4-max#high"
 }
