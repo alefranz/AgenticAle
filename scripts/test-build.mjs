@@ -71,9 +71,9 @@ const EXAMPLE_ASSIGNMENTS = {
   coordinator: "openai/gpt-6.2-sol#medium",
   explore: "local-llama/qwen3.8-27b#medium",
   "implement-easy": "local-llama/qwen3.8-27b#medium",
-  implement: "alibaba-token-plan/qwen4-max-preview#medium",
-  "implement-hard": "alibaba-token-plan/qwen4-max-preview#xhigh",
-  fix: "alibaba-token-plan/qwen4-max-preview#medium",
+  implement: "alibaba-token-plan/qwen4-max#medium",
+  "implement-hard": "alibaba-token-plan/qwen4-max#xhigh",
+  fix: "alibaba-token-plan/qwen4-max#medium",
   review: "openai/gpt-6.2-sol#high",
   "review-deep": "openai/gpt-6.2-astra#high",
   "consult-hard": "openai/gpt-6.2-astra#high",
@@ -354,7 +354,7 @@ try {
     check(exampleQwenModes.explore === "explicit" && exampleQwenModes["implement-easy"] === "explicit" && exampleQwenModes.implement === "explicit" && exampleQwenModes["implement-hard"] === "explicit" && exampleQwenModes.fix === "explicit", "example preset qwenCode non-openai workers are explicit");
     check(exampleState.qwenCode.coordinator === null && typeof exampleState.qwenCode.coordinatorSkipped === "string" && exampleState.qwenCode.coordinatorSkipped.length > 0, "example preset build state records the qwenCode coordinator skip");
     const exampleQwenImplement = await readText(join(exampleFixture.qwenCodeRoot, "agents", "agenticale-implement.md"));
-    check(exampleQwenImplement.includes("model: qwen4-max-preview"), "example preset Qwen implement profile renders the bare alibaba-token-plan model id");
+    check(exampleQwenImplement.includes("model: qwen4-max"), "example preset Qwen implement profile renders the bare alibaba-token-plan model id");
     // The plugin and standalone outputs are model-agnostic: identical file
     // sets with and without the coordinator config.
     check(JSON.stringify(await listRelative(exampleFixture.pluginRoot)) === JSON.stringify(pluginRel), "example preset plugin bundle file set matches the default build");
@@ -372,9 +372,9 @@ try {
     check(qwenDefaultRel.length === 47, "qwen-code default config bundle has 47 files (10 flat profiles + 37 skills)");
     check(qwenDefaultRel.includes("agents/agenticale-coordinator.md"), "qwen-code default config renders the flat coordinator agent");
     const qwenCoordinator = await readText(join(qwenDefaultFixture.qwenCodeRoot, "agents", "agenticale-coordinator.md"));
-    check(qwenCoordinator.includes("name: agenticale-coordinator") && qwenCoordinator.includes("model: qwen4-max-preview"), "qwen-code coordinator renders the bare alibaba-token-plan model id");
+    check(qwenCoordinator.includes("name: agenticale-coordinator") && qwenCoordinator.includes("model: qwen4-max"), "qwen-code coordinator renders the bare alibaba-token-plan model id");
     check(!/^maxTurns:/m.test(qwenCoordinator) && !qwenCoordinator.includes("disallowedTools:") && !qwenCoordinator.includes("executor:"), "qwen-code coordinator carries the posture body without worker ceilings or an executor");
-    check(qwenDefaultState.qwenCode.coordinator !== null && qwenDefaultState.qwenCode.coordinator.model === "alibaba-token-plan/qwen4-max-preview#medium", "qwen-code default config build state records the qwenCode coordinator");
+    check(qwenDefaultState.qwenCode.coordinator !== null && qwenDefaultState.qwenCode.coordinator.model === "alibaba-token-plan/qwen4-max#medium", "qwen-code default config build state records the qwenCode coordinator");
     check(qwenDefaultState.qwenCode.coordinatorSkipped === null, "qwen-code default config build state records no qwenCode coordinator skip");
     check(qwenDefaultState.profiles.every((p) => p.mode === "explicit"), "qwen-code default config renders every OpenCode worker explicitly as well");
   }
