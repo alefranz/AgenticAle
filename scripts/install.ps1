@@ -70,8 +70,11 @@ function Show-Usage {
     '  --models PATH|PRESET  --source-root PATH  --target PATH  --replace',
     '  --no-model  --dry-run',
     '',
-    'If no model selection (--models or --no-model) is given, the wrapper appends',
-    '--no-model so every role inherits the session model.',
+    'With no model selection (--models or --no-model), the wrapper passes the',
+    'packaged default model config (adapters/opencode/models.json) from the',
+    'downloaded release to the installer explicitly, so release installers that',
+    'require an explicit model choice work too. Releases that predate the packaged',
+    'config fall back to --no-model (every role inherits the session model).',
     '',
     'After a successful non-dry-run install the wrapper offers the consented setup',
     'step (create ~/.agenticale/preferences.md as a minimal scaffold only if',
@@ -469,10 +472,22 @@ try {
   if ($replace) { $installerArgs = $installerArgs + '--replace' }
   if ($noModel) { $installerArgs = $installerArgs + '--no-model' }
   if ($dryRun) { $installerArgs = $installerArgs + '--dry-run' }
-  # Default model selection: with no --models or --no-model given,
-  # append --no-model so every role inherits the session model.
+  # Default model selection: with no --models or --no-model given, pass the
+  # downloaded release's packaged config explicitly, so release installers
+  # that still require an explicit model choice accept the flagless install
+  # too. Releases that predate the packaged flat config carry no such file;
+  # they keep the historical default of --no-model (session-model
+  # inheritance), in the same argv position the wrapper always used for it.
+  # Mirrors scripts/install.sh; every injected element is non-empty, so the
+  # 5.1 native-boundary drop of empty-string arguments cannot lose or shift
+  # anything.
   if (-not $modelsGiven -and -not $noModel) {
-    $installerArgs = $installerArgs + '--no-model'
+    $packagedModels = Join-Path (Join-Path (Join-Path $topEntry.FullName 'adapters') 'opencode') 'models.json'
+    if (Test-Path -LiteralPath $packagedModels -PathType Leaf) {
+      $installerArgs = $installerArgs + @('--models', $packagedModels)
+    } else {
+      $installerArgs = $installerArgs + '--no-model'
+    }
   }
 
   # --- Run the installer ----------------------------------------------------------

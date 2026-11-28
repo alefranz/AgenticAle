@@ -75,6 +75,9 @@ the seven base worker profiles always render, `implement-easy` and
 `coordinator` key. The model flags are:
 
 ```sh
+# No model selection: the packaged default config is used
+node scripts/install.mjs
+
 # A flat per-role model config: a JSON file or a bundled preset
 node scripts/install.mjs --models examples/local.json
 node scripts/install.mjs --models openai
@@ -86,7 +89,8 @@ node scripts/install.mjs --no-model
 The `--models` value is a JSON object mapping role names to
 `"provider/model[#variant]"` strings; a role you omit inherits the session
 model. The bundled presets are `example`, `local`, `openai`, `gpt`, and `zen`
-(the example files live in `examples/`). The packaged default is
+(the example files live in `examples/`). A flagless install (no `--models`
+and no `--no-model`) uses the packaged default,
 `adapters/opencode/models.json`. The `example` preset is a mixed-provider
 inventory — it assumes every named provider, model, and variant is configured
 on your account; it is an example, not a verified account mapping.

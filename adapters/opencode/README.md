@@ -64,7 +64,8 @@ skill; it becomes a profile only when explicitly configured, and it is never a
 
 This adapter is **metadata only**. It contains no model values (those come
 from the flat model config, `adapters/opencode/models.json` by default or the
-`--models PATH|PRESET` / `--no-model` option, at build time) and no neutral
+`--models PATH|PRESET` / `--no-model` option, at build and install time) and
+no neutral
 task-contract body text (the build copies the body from the neutral task
 contracts; the coordinator body is the adapter-owned `coordinator.md`).
 
@@ -123,8 +124,9 @@ the normal ability to dispatch children and to interact with the user.
 ## 5. How the model is applied at render time
 
 The adapter carries **no** model values; the build reads them from the flat
-model config (`adapters/opencode/models.json` by default, or the
-`--models PATH|PRESET` / `--no-model` option) for the role being rendered:
+model config (`adapters/opencode/models.json` by default, at build and
+install time, or the `--models PATH|PRESET` / `--no-model` option) for the
+role being rendered:
 
 - **Listed role**: the build writes one `model:` line into the rendered
   profile's frontmatter, in provider-qualified `provider/model[#variant]`

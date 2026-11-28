@@ -184,10 +184,32 @@ try {
   // A. install.mjs — generated copy install, arg validation, and state.
   // ---------------------------------------------------------------------
   {
-    const t = join(scratch, "a-model-choice");
+    // Flagless install: with no --models and no --no-model, the packaged
+    // default model config (adapters/opencode/models.json) applies — all nine
+    // worker roles plus the coordinator render their baked model lines.
+    const t = join(scratch, "a-default");
     const r = run("install.mjs", ["install", "--target", t]);
-    check(r.exit === 1, "install: no model choice exits 1");
-    check(r.err.includes("Install requires --models PATH|PRESET or --no-model."), "install: no-model-choice message");
+    check(r.exit === 0, "install flagless: exits 0");
+    check(r.out.includes("Installation complete."), "install flagless: Installation complete");
+    const state = await readState(t);
+    check(state.schema === STATE_VERSION, "install flagless: state schema 7");
+    check(state.mode === "copy", "install flagless: state mode copy");
+    check(state.package === PACKAGE, "install flagless: state package");
+    check(state.entries.length === 51, "install flagless: 51 entries (10 profiles + 4 commands + 37 skills)");
+    const profiles = state.entries.filter((e) => e.path.startsWith("agents/agenticale/")).map((e) => e.path.split("/").pop().replace(/\.md$/, ""));
+    check(JSON.stringify(profiles.sort()) === JSON.stringify([...PROFILES, ...OPTIONAL_PROFILES].sort()), "install flagless: all nine worker profiles plus the coordinator");
+    const packaged = JSON.parse(await readFile(join(repo, "adapters", "opencode", "models.json"), "utf8"));
+    for (const [role, value] of Object.entries(packaged)) {
+      const text = await readFile(join(t, "agents", "agenticale", `${role}.md`), "utf8");
+      // Compare the complete frontmatter line, not a substring: a wrong
+      // suffix or a duplicated field must not pass.
+      const escapedValue = value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      check(new RegExp(`^model: ${escapedValue}$`, "m").test(text), `install flagless: ${role} renders the packaged model line ${value}`);
+      check(!/^reasoningEffort:/m.test(text), `install flagless: ${role} has no separate reasoningEffort line`);
+    }
+    check((await readFile(join(t, "agents", "agenticale", "coordinator.md"), "utf8")).includes("mode: primary"), "install flagless: the coordinator is a primary agent");
+    const files = (await relFiles(t)).filter((f) => f !== STATE);
+    check(files.length === 51, "install flagless: 51 files on disk");
   }
   {
     // The retired --routing option is now an unknown argument.
