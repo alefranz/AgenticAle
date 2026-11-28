@@ -75,13 +75,15 @@ what was learned, what happens next, and why. When your client collapses subagen
 activity, these updates let you follow the work without opening every subtask.
 
 You provide the goal, constraints, and any acceptance examples. The workflow
-records durable progress in the target project's `BACKLOG.md` and
-`.agenticale/active.md` — a compact snapshot of the current state and the
-evidence recovery needs, not a growing round journal. Each task carries a
-stable ID — assigned when it enters the backlog, before selection — and its
-worker-round counters; a task deferred unfinished keeps a compact resumable
-packet in the backlog — with its findings, current state, and one next
-action — instead of being recorded as completed. It reports the completed
+records durable progress with a single-source-of-truth split between the
+target project's `BACKLOG.md` (remaining plan, 1-line `[x]` completed receipts,
+and deferred packets) and `.agenticale/active.md` — a live working checkpoint
+of the active task and its currently open findings, overwritten in place on
+every round settle rather than kept as a growing round journal. Each task
+carries a stable ID — assigned when it enters the backlog, before selection —
+and its worker-round counters; a task deferred unfinished keeps a compact
+resumable packet in the backlog — with its still-open items, counters, and one
+next action — instead of being recorded as completed. It reports the completed
 work, verification, and remaining limitations. An investigation-only goal
 returns findings and a next step without manufacturing product commits.
 
@@ -173,12 +175,19 @@ A blocked close stops with the persistence deferred
 and reported as unconfirmed — never completed — until a resume reconciles
 and confirms it.
 
-Completed task detail lives in the backlog's compact result records — date,
-outcome, product commit hashes, and the confirmed push destination when
-pushing applies. The run creates no default archive and no round journal, and
-historical material stays untouched. For runs that need to resume from a fresh
-clone, track `BACKLOG.md` and `.agenticale/` in Git with the matching product
-changes or submodule pin.
+When a task finishes, its working notes, scope notes, and fix specs are
+deleted and the entry collapses to a 1-line `[x]` confirmed receipt — date,
+outcome, product commit hashes, and the confirmed push destination when pushing
+applies (plus any accepted known limitations). The run creates no default
+archive, no append-only log file, and no round journal: Git history of
+state-only commits is the audit trail, historical material stays untouched, and
+completed prior-milestone receipts can be pruned or collapsed to a 1-line
+summary at run or milestone close. State stays cleanly under host read
+truncation via byte-based soft targets (~2–4 KiB for `.agenticale/active.md`,
+compacting around ~6–8 KiB; ≤ 15–20 KiB for `BACKLOG.md`, compacting or
+splitting future milestones around ~25–30 KiB) rather than hard line caps.
+For runs that need to resume from a fresh clone, track `BACKLOG.md` and
+`.agenticale/` in Git with the matching product changes or submodule pin.
 
 ## Prepare a backlog for Autonomous
 
@@ -269,9 +278,10 @@ to define a round goes to a focused exploration round with one question and a
 stop condition, not into the main loop. Before each substantive assignment,
 including the first, it explains the next step and its purpose. After a result,
 the next update connects the evidence to the next decision; a finished task ends
-with the delivery report. The compact state stays in the active snapshot —
-a checkpoint, not a journal: settled results fold into the backlog's task
-records, and the snapshot keeps only what the next round and recovery need.
+with the delivery report. Live state stays in the active snapshot —
+overwritten in place and pruned on every round settle so closed findings and
+applied fix instructions are deleted immediately while open leftovers remain
+intact, and completed tasks collapse to 1-line receipts in the backlog.
 
 The narration follows the [same guidance as Work](../work/index.md#progress-narration):
 short updates about outcomes, trade-offs, and verification, with model details

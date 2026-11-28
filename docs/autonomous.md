@@ -236,30 +236,37 @@ The invocation text never enters the human-owned steering surface.
 Autonomous Mode manages a small operational backlog for you, but it deliberately
 advances only one concrete slice at a time:
 
-- `BACKLOG.md` is the compact operational board. It holds the run identity
-  and its limits (run ceiling, default task allowance and progress ceiling,
-  completed-task limit) in a short header, open items, decisions that still
-  apply, each task's stable ID, title, dependencies, and acceptance,
-  compact resumable packets for deferred unfinished tasks — carrying the
-  task's own counters — compact result records for completed tasks (date,
-  outcome, product commit hashes, confirmed push destination when pushing
-  applies), from which the completed-task count is derived, and exactly one
-  active next action. It never mirrors the active task's or the run's
-  consumed counters — those live once in the snapshot.
-- `.agenticale/active.md` is the compact snapshot — at most ~2 KB — the
-  working memory for the current slice. It records the goal, established
-  facts, current state (including the single budget line: run identity,
-  ceiling, consumed; active task, allowance in force, consumed; the open
-  target's fix/review counters — plus the pending-dispatch evidence while a
-  charged child is in flight), acceptance checks, and exactly one `NEXT`
-  action for a fresh agent. It is a checkpoint, not a journal: settled
-  rounds fold into the backlog tasks' compact result/progress notes.
-- Completed task detail lives in the backlog's compact result records; the
-  run creates no default archive and no round journal, and historical
-  material — legacy handoffs and existing archives — stays untouched.
-  Unresolved findings become open backlog items. A deferred unfinished task
-  keeps its resumable packet in the backlog and is never recorded as
-  completed.
+- `BACKLOG.md` is the durable operational board (soft target ≤ 15–20 KiB;
+  compact or split future unstarted milestones around ~25–30 KiB so it stays
+  well below host read truncation, using clean multi-line Markdown rather than
+  packing history onto single lines). It holds the run identity and limits in
+  a short header (overwritten in place, never a chronological stop/resume
+  diary), open tasks with dependencies and concise acceptance, compact
+  resumable packets for deferred unfinished tasks (carrying each deferred
+  task's own counters, still-open items, and next step — deleted on resume or
+  close), 1-line `[x]` confirmed result receipts for completed tasks (date,
+  outcome, commit hashes, push destination, and any accepted known
+  limitations), from which the completed-task count is derived, and a 1-line
+  `NEXT` pointer naming the active task ID. It never mirrors the active task's
+  counters or working state — those live once in the snapshot.
+- `.agenticale/active.md` is the live working checkpoint for the active task
+  only (soft target ~2–4 KiB, expanding temporarily when a complex slice has
+  many open findings and compacting around ~6–8 KiB). It records the goal,
+  established facts, current state (including the single budget line: run
+  identity, ceiling, consumed; active task, allowance in force, consumed;
+  pending-dispatch note while a charged child is in flight; tree/WIP/gate
+  state), currently open findings/blockers (location, defect, required outcome),
+  acceptance checks, `TRIED` on reset, and one `NEXT` action. It is overwritten
+  in place on every round settle so closed findings and applied or superseded
+  fix instructions are deleted immediately.
+- Completed tasks collapse to 1-line `[x]` receipts on close (all in-flight
+  working notes, scope notes, and fix specs are deleted); prior completed
+  milestones may be pruned or collapsed to a 1-line summary at run or milestone
+  close. The run creates no default archive, no append-only log file, and no
+  round journal — Git history of state-only commits is the audit trail, and
+  historical material stays untouched. Unresolved findings become open backlog
+  items. A deferred unfinished task keeps its resumable packet in the backlog
+  and is never recorded as completed.
 - `.agenticale/steering.md` is the optional human-owned steering file (see
   [Live steering](#live-steering)); it is absent by default, and the
   coordinator reads it but never writes it.
@@ -527,8 +534,9 @@ session coordinates. Start:
 Independent review remains the default for changes. The existing standard mode
 is retained for investigation-only work or explicitly accepted mechanical work
 without an independent review. Accepted slices, open findings, and session
-closure remain durable in the compact state: settled results fold into the
-backlog's task records, and no default archive is created.
+closure remain durable in the compact state: settled tasks collapse to 1-line
+receipts in the backlog, `.agenticale/active.md` is pruned on every round
+settle, and no default archive or append-only log is created.
 
 A new run defaults to commit and push per completed task. Slices and tasks
 are different units: each slice passes its own gate, and the task's
