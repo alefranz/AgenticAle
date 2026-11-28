@@ -26,6 +26,9 @@ const wrapperPath = join(scriptsDir, "install.sh");
 const SH = "/bin/sh";
 const OWNER_REPO = "/alefranz/AgenticAle";
 const TAG = "v9.9.9";
+// A pre-flat-config release tag: its archive carries no packaged
+// adapters/opencode/models.json, so the wrapper must fall back to --no-model.
+const LEGACY_TAG = "v0.17.0";
 
 const scratch = await mkdtemp(join(tmpdir(), "install-wrappers-test-"));
 let assertions = 0;
@@ -74,16 +77,34 @@ const STUB_INSTALLER = [
   "",
 ].join("\n");
 
-// Build the fixture archive: a single top-level AgenticAle-<tag> directory
-// (the layout GitHub produces) containing only the stub installer.
-async function buildFixtureArchive(dir) {
-  const top = join(dir, `AgenticAle-${TAG}`);
+// Build a fixture archive: a single top-level AgenticAle-<tag> directory (the
+// layout GitHub produces) containing the stub installer and, unless packaged
+// is false, the packaged default model config. A flagless install must pass
+// that file from the EXTRACTED release explicitly; a legacy archive without
+// it must get the historical --no-model fallback.
+async function buildFixtureArchive(dir, tag, { packaged = true } = {}) {
+  const top = join(dir, `AgenticAle-${tag}`);
   await mkdir(join(top, "scripts"), { recursive: true });
   await writeFile(join(top, "scripts", "install.mjs"), STUB_INSTALLER, "utf8");
-  const archivePath = join(dir, `${TAG}.tar.gz`);
-  const r = await run("tar", ["-czf", archivePath, "-C", dir, `AgenticAle-${TAG}`], { cwd: dir });
+  if (packaged) {
+    await mkdir(join(top, "adapters", "opencode"), { recursive: true });
+    const packagedConfig = await readFile(join(repo, "adapters", "opencode", "models.json"), "utf8");
+    await writeFile(join(top, "adapters", "opencode", "models.json"), packagedConfig, "utf8");
+  }
+  const archivePath = join(dir, `${tag}.tar.gz`);
+  const r = await run("tar", ["-czf", archivePath, "-C", dir, `AgenticAle-${tag}`], { cwd: dir });
   if (r.exit !== 0) throw new Error(`fixture tarball creation failed: ${r.stderr}`);
   return readFile(archivePath);
+}
+
+// On a flagless install the wrapper injects the extracted release's packaged
+// config. The extraction root is a mktemp directory under the case's isolated
+// TMPDIR (cleaned up after the run), so assert the path's shape: it must live
+// under this case's temp root and end at the fixture's extracted layout.
+function isExtractedPackagedPath(value, caseName, tag) {
+  return typeof value === "string"
+    && value.startsWith(join(scratch, caseName, "tmp") + "/")
+    && value.endsWith(join(`AgenticAle-${tag}`, "adapters", "opencode", "models.json"));
 }
 
 // Emulate the GitHub surface under a base url: /releases/latest redirects to
@@ -229,6 +250,9 @@ try {
     const r = await run(SH, [wrapperPath, "--help"]);
     check(r.exit === 0, "--help: exits 0");
     check(r.stdout.includes("Usage:"), "--help: prints usage");
+    check(r.stdout.includes("packaged default model config (adapters/opencode/models.json)"), "--help: documents the packaged default model config when no model selection is given");
+    check(r.stdout.includes("fall back to --no-model"), "--help: documents the older-release fallback to session-model inheritance");
+    check(!r.stdout.includes("wrapper appends"), "--help: does not carry the obsolete claim that the wrapper appends --no-model by default");
     const h = await run(SH, [wrapperPath, "-h"]);
     check(h.exit === 0 && h.stdout.includes("Usage:"), "-h: aliases --help");
   }
@@ -236,9 +260,10 @@ try {
   // --- Fixture ----------------------------------------------------------------
   const archiveSrc = join(scratch, "archive-src");
   await mkdir(archiveSrc, { recursive: true });
-  const archive = await buildFixtureArchive(archiveSrc);
+  const archive = await buildFixtureArchive(archiveSrc, TAG);
+  const legacyArchive = await buildFixtureArchive(archiveSrc, LEGACY_TAG, { packaged: false });
   const requests = [];
-  const fixture = await startFixtureServer({ latestTag: TAG, archives: { [TAG]: archive }, requests });
+  const fixture = await startFixtureServer({ latestTag: TAG, archives: { [TAG]: archive, [LEGACY_TAG]: legacyArchive }, requests });
   fixtures.push(fixture);
   const baseArgs = ["--base-url", fixture.baseUrl];
 
@@ -251,7 +276,10 @@ try {
     check(r.stdout.includes(`AgenticAle ${TAG} (latest release)`), "latest: the resolved tag is printed before the download");
     check(delta.some((q) => q.includes(`${OWNER_REPO}/releases/latest`)), "latest: /releases/latest was requested");
     check(delta.some((q) => q === `GET ${OWNER_REPO}/archive/refs/tags/${TAG}.tar.gz`), "latest: the tag archive was downloaded");
-    check(r.record.length === 1 && JSON.stringify(r.record[0]) === JSON.stringify(["--target", join(scratch, "t-latest"), "--dry-run", "--no-model"]), "latest: the stub received the forwarded args with the default --no-model appended");
+    check(r.record.length === 1, "latest: one installer invocation");
+    const latestArgs = r.record[0] ?? [];
+    check(latestArgs.length === 5 && latestArgs[3] === "--models" && isExtractedPackagedPath(latestArgs[4], "latest", TAG), "latest: the packaged config from the extracted release is passed explicitly as --models");
+    check(JSON.stringify(latestArgs.slice(0, 3)) === JSON.stringify(["--target", join(scratch, "t-latest"), "--dry-run"]), "latest: the user's forwarded args are unchanged");
     check(!r.record.some((line) => line[0] === "setup"), "latest: the setup step did not run");
     check(r.cwdEntries.length === 1 && r.cwdEntries[0] === "tmp", "latest: nothing was left in the caller's working directory");
     check(r.tmpEntries.length === 0, "latest: the isolated temp root is empty after the run");
@@ -334,6 +362,22 @@ try {
     check(r.stdout.includes(`AgenticAle ${TAG} (pinned release)`), "pinned: the pinned tag is printed");
     check(!delta.some((q) => q.includes("/releases/latest")), "pinned: latest-tag resolution was skipped");
     check(r.record.length === 1 && JSON.stringify(r.record[0]) === JSON.stringify(["--target", join(scratch, "t-pinned"), "--no-model"]), "pinned: the stub received the forwarded args");
+  }
+
+  // --- Legacy release without the packaged config: --no-model fallback ----------
+  {
+    // A pre-flat-config release carries no adapters/opencode/models.json. A
+    // flagless install against it must keep the historical behavior: forward
+    // --no-model (those installers support it), never a --models path into a
+    // file the archive does not contain.
+    const before = requests.length;
+    const r = await runCase("legacy-fallback", { args: [...baseArgs, "--version", LEGACY_TAG, "--target", join(scratch, "t-legacy")] });
+    const delta = requests.slice(before);
+    check(r.exit === 0 && !r.timedOut, "legacy fallback: the wrapper exits 0");
+    check(r.stdout.includes(`AgenticAle ${LEGACY_TAG} (pinned release)`), "legacy fallback: the pinned legacy tag is printed");
+    check(delta.some((q) => q === `GET ${OWNER_REPO}/archive/refs/tags/${LEGACY_TAG}.tar.gz`), "legacy fallback: the legacy archive was downloaded");
+    check(r.record.length === 1 && JSON.stringify(r.record[0]) === JSON.stringify(["--target", join(scratch, "t-legacy"), "--no-model"]), "legacy fallback: an archive without the packaged config gets the historical --no-model default");
+    check(r.tmpEntries.length === 0, "legacy fallback: the isolated temp root is empty after the run");
   }
 
   // --- Documented pinning one-liner: wrapper from stdin, pin after `--` ---------

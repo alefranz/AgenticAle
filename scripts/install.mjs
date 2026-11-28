@@ -25,6 +25,7 @@ import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, posix, relative, resolve, win32 } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildBundles } from "./build.mjs";
+import { DEFAULT_MODEL_CONFIG } from "./model-config.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(scriptDirectory, "..");
@@ -118,8 +119,7 @@ const legacyLinkPaths = versionTwoLinkPaths.filter((path) => path !== "skills/so
 function usage() {
   return `Usage:
   node scripts/install.mjs [install] [--target PATH] [--source-root PATH]
-                           (--models PATH|PRESET | --no-model)
-                           [--replace] [--dry-run]
+                           [--models PATH|PRESET | --no-model] [--replace] [--dry-run]
   node scripts/install.mjs uninstall [--target PATH] [--dry-run]
   node scripts/install.mjs setup [--target PATH] [--personal-path PATH] [--dry-run]
   node scripts/install.mjs qwen-install [--target PATH] [--source-root PATH]
@@ -129,7 +129,9 @@ function usage() {
 Installs the GENERATED OpenCode bundle (built to a temp root, then copied) into
 the OpenCode configuration directory. It does not link or point at the authored
 repository source. Older copy installs (schema 1-4) and link installs are
-migrated to the generated copy layout on install.
+migrated to the generated copy layout on install. When neither --models nor
+--no-model is given, the packaged default model config (adapters/opencode/
+models.json) is used.
 
 qwen-install copies the GENERATED Qwen Code bundle (flat agents/agenticale-<role>.md
 worker profiles plus the six skills) into a Qwen Code configuration directory
@@ -255,9 +257,6 @@ function parseArguments(argv) {
   if (models !== undefined && noModel) {
     throw new Error("--models and --no-model cannot be used together.");
   }
-  if (command === "install" && models === undefined && !noModel) {
-    throw new Error("Install requires --models PATH|PRESET or --no-model.");
-  }
 
   const defaultTarget = command === "qwen-install" || command === "qwen-uninstall"
     ? join(homedir(), ".qwen")
@@ -296,7 +295,10 @@ async function buildOpenCodeEntries(options) {
   try {
     await buildBundles({
       output: tempRoot,
-      models: options.models ?? null,
+      // The OpenCode install default model config: the packaged flat config
+      // (adapters/opencode/models.json), the same file the build defaults to;
+      // the Qwen Code install carries its own separate default.
+      models: options.models ?? join(repositoryRoot, DEFAULT_MODEL_CONFIG),
       noModel: options.noModel,
       sourceRoot: options.sourceRoot,
     });

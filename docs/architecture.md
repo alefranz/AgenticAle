@@ -368,7 +368,7 @@ reported; replacements are backed up.
 | `scripts/install-copilot.mjs` | the modern shared plugin, via `copilot plugin install` | managed by the Copilot plugin store |
 | `codex plugin marketplace add` + `codex plugin add` | the shared plugin from `.agents/plugins/marketplace.json` | managed by the Codex plugin store |
 | `scripts/install-standalone.mjs` | the six standalone skills to project scope (`<cwd>/.agents/skills`, default) or user scope (`~/.agents/skills`) | `.agenticale-standalone-install.json` (schema 1) |
-| `scripts/install.mjs` | the generated OpenCode output (skills + seven base worker profiles + optional profiles + four command entries) | `.autonomous-mode-install.json` (schema 7, 55-file inventory by default, up to 58) |
+| `scripts/install.mjs` | the generated OpenCode output (skills + seven base worker profiles + optional profiles + four command entries) | `.autonomous-mode-install.json` (schema 7, a 48-file inventory under `--no-model` and a 51-file inventory with the packaged default) |
 | `scripts/install.mjs qwen-install` | the generated Qwen Code output (skills + flat `agenticale-*` agent profiles) | `.autonomous-mode-install.json` (schema 1, package `qwen-code-autonomous-mode`, 54 files with all roles and the coordinator) |
 
 The OpenCode installer is copy-only. It builds to a temporary root and copies the

@@ -215,12 +215,15 @@ wrapper itself to that release. In either case the wrapper prints the release
 tag, downloads that release's source archive, and runs the installer from the
 extracted archive; it never launches an AI session and cleans up its temporary
 directory. Prerequisites: Node.js 20 or later plus `curl` and `tar` (Windows
-10 or later provides `curl.exe` and `tar`). With no model selection it
-installs session-model inheritance (the wrapper appends `--no-model`).
+10 or later provides `curl.exe` and `tar`). With no model selection the
+wrapper passes the downloaded release's packaged default model config
+(`adapters/opencode/models.json`) to the installer explicitly; releases that
+predate the packaged config fall back to session-model inheritance
+(`--no-model`).
 
 | Option | Effect |
 | --- | --- |
-| *(none)* | Every role inherits the session model (`--no-model` is appended). |
+| *(none)* | The downloaded release's packaged default model config (`adapters/opencode/models.json`) is used; releases without it fall back to session-model inheritance (`--no-model`). |
 | `--version TAG` | Install that release tag instead of resolving the latest. |
 | `--models PATH\|PRESET` | Flat per-role model config: a JSON file mapping roles to `"provider/model[#effort]"`, or a bundled preset (`example`, `local`, `openai`, `gpt`, `zen`); a missing role inherits the session model. |
 | `--no-model` | Every role inherits the session model. |
@@ -266,17 +269,18 @@ From a clone or your current checkout (offline or local use), run the
 installer from the repository root:
 
 ```sh
-node scripts/install.mjs --no-model
+node scripts/install.mjs
 ```
 
-The install command requires either `--models PATH|PRESET` or `--no-model`.
-This installer is copy-only: it no longer offers a link mode. On install it
-migrates older copy installs (state schema 1-4), older link installs
-(schema 1-4), and older generated installs (schema 5-6, including the
-pre-rename `deep-review` profile) to the current generated copy layout
-(state `.autonomous-mode-install.json`, schema 7, a 55-file inventory by
-default and up to 58 files when the config lists all nine worker roles and
-the coordinator). A pre-configure schema-7 state (five skills, three command
+With no model selection the installer uses the packaged default model config
+(`adapters/opencode/models.json`); pass `--no-model` to make every role
+inherit the session model instead. This installer is copy-only: it no longer
+offers a link mode. On install it migrates older copy installs (state schema
+1-4), older link installs (schema 1-4), and older generated installs
+(schema 5-6, including the pre-rename `deep-review` profile) to the current
+generated copy layout (state `.autonomous-mode-install.json`, schema 7, a
+48-file inventory under `--no-model` and a 51-file inventory with the
+packaged default, which lists all nine worker roles and the coordinator). A pre-configure schema-7 state (five skills, three command
 entries) validates and gains the configure skill and command entry on the
 next install. The manifest is also the workflow's read-only evidence
 for configured-route intent: its current inventory distinguishes an optional

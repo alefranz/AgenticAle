@@ -47,8 +47,11 @@ Forwarded installer options (see: node scripts/install.mjs --help):
   --models PATH|PRESET  --source-root PATH  --target PATH  --replace
   --no-model  --dry-run
 
-If no model selection (--models or --no-model) is given, the wrapper appends
---no-model so every role inherits the session model.
+With no model selection (--models or --no-model), the wrapper passes the
+packaged default model config (adapters/opencode/models.json) from the
+downloaded release to the installer explicitly, so release installers that
+require an explicit model choice work too. Releases that predate the packaged
+config fall back to --no-model (every role inherits the session model).
 
 After a successful non-dry-run install the wrapper offers the consented setup
 step (create ~/.agenticale/preferences.md as a minimal scaffold only if
@@ -320,10 +323,19 @@ if [ "$target_given" -eq 1 ]; then set -- "$@" "--target" "$target"; fi
 if [ "$replace" -eq 1 ]; then set -- "$@" "--replace"; fi
 if [ "$no_model" -eq 1 ]; then set -- "$@" "--no-model"; fi
 if [ "$dry_run" -eq 1 ]; then set -- "$@" "--dry-run"; fi
-# Default model selection: with no --models or --no-model given,
-# append --no-model so every role inherits the session model.
+# Default model selection: with no --models or --no-model given, pass the
+# downloaded release's packaged config explicitly, so release installers that
+# still require an explicit model choice accept the flagless install too.
+# Releases that predate the packaged flat config carry no such file; they keep
+# the historical default of --no-model (session-model inheritance), in the
+# same argv position the wrapper always used for it.
 if [ "$models_given" -eq 0 ] && [ "$no_model" -eq 0 ]; then
-  set -- "$@" "--no-model"
+  packaged_models="$top_dir/adapters/opencode/models.json"
+  if [ -f "$packaged_models" ]; then
+    set -- "$@" "--models" "$packaged_models"
+  else
+    set -- "$@" "--no-model"
+  fi
 fi
 
 # --- Run the installer --------------------------------------------------------
