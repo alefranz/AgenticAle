@@ -36,13 +36,23 @@ For a new goal:
 
 ## State files and write discipline
 
-Keep `.agenticale/` at the project root. Only the coordinator writes these files:
+Keep `.agenticale/` at the project root. Only the coordinator writes these files, enforcing a strict single-source-of-truth split with transition pruning rather than hard line caps:
 
-- **`BACKLOG.md`** (~150 lines max): run identity and limits header; tasks (`T1`, `T2`, …) with dependencies and acceptance; deferred resumable packets carrying only each deferred task's own counters (never run counters); 1–2 line confirmed result records (date, outcome, commit hashes, push destination — completed-task count derives from confirmed records); and one active next action. No default archive.
-- **`.agenticale/active.md`** (~2 KiB max checkpoint, never a round journal): `GOAL`, `ESTABLISHED` (including natively exposed role model selections), `CURRENT STATE` (one budget line with run ID/ceiling/consumed + active task ID/allowance/consumed + pending-dispatch note while a worker is in flight + current slice/persistence state), `ACCEPTANCE`, `TRIED` (on reset), and one `NEXT` action.
+- **`BACKLOG.md`** (durable plan and outcomes — never a round journal or active-slice scratchpad):
+  - Short run header (run ID, limits, persistence policy — overwrite in place when changed; never append a chronological resume/stop diary).
+  - Open tasks (`T1`, `T2`, …) with dependencies and concise acceptance.
+  - **Completed tasks:** on completion, delete acceptance prose, scope notes, progress logs, and fix specs, collapsing the entry to a **1-line `[x]` confirmed result receipt** (date, outcome, commit hashes, push destination, plus a short clause only for accepted known limitations; completed-task count derives from confirmed receipts). Lasting architectural decisions belong in repo docs or `AGENTS.md`, not `BACKLOG.md`.
+  - **Deferred tasks only:** one compact resumable packet (each deferred task's own counters, still-open items, and next step — never run counters or settled history); delete the packet when the task resumes or closes.
+  - **One-line `NEXT` pointer** naming the active task ID (all active-slice detail lives only in `.agenticale/active.md`, never mirrored in `BACKLOG.md`).
+  - **No archive or append-only log file:** Git history of state-only commits is the audit trail. At run or milestone close, prune or collapse completed prior-milestone `[x]` lines to a 1-line milestone summary.
+  - **Byte-based hygiene:** write clean multi-line Markdown (never pack history onto single lines to game line counts). Soft target ≤ 15–20 KiB; if it exceeds ~25–30 KiB (well below 50 KiB host read truncation), compact stale prose or move future unstarted milestones into a separate roadmap doc.
+- **`.agenticale/active.md`** (live working checkpoint for the active task only — overwrite in place, never a round journal):
+  - Sections: `GOAL`, `ESTABLISHED` (concise invariants + natively exposed role model selections), `CURRENT STATE` (one budget line with run ID/ceiling/consumed + active task ID/allowance/consumed + pending-dispatch note while a worker is in flight + current tree/WIP/pre-WIP base and gate state), open findings/blockers for the active slice (location, defect, and required outcome — never verbatim paragraph diffs), `ACCEPTANCE` (concise criteria or pointer — never duplicate budget counters), `TRIED` (on reset; cleared once resolved), and one `NEXT` action.
+  - **Prune on every round settle:** immediately delete closed findings, applied or superseded fix instructions, and settled round narration so the checkpoint reflects *now*, not prior rounds.
+  - **Byte-based soft target:** ~2–4 KiB normally; may grow temporarily when a complex active slice legitimately carries many open findings or leftovers (never by retaining settled history); compact/deduplicate if it exceeds ~6–8 KiB.
 - **`.agenticale/steering.md`** (optional, human-owned — coordinator reads, never writes): supports `- mode: continue | pause` and `- priority: T3, T2`. Re-read before every round dispatch. `pause` stops cleanly after any running child settles and persists across resumes; `priority` reorders ready tasks at the next selection boundary only without bypassing dependencies, gates, or exhausted tasks.
 
-Apply targeted edits on fresh re-reads (never overwrite `BACKLOG.md` from a stale copy). Write and read back the incremented worker charge + pending-dispatch note in `.agenticale/active.md` before launching each worker child, and settle it on return (productive/reset keeps the single charge; confirmed quota-only or never-launched removes it). On a task switch `A → B`, write `A`'s deferred packet to `BACKLOG.md` before overwriting `.agenticale/active.md`.
+Apply targeted edits on fresh re-reads (never overwrite `BACKLOG.md` from a stale copy). Write and read back the incremented worker charge + pending-dispatch note in `.agenticale/active.md` before launching each worker child, and settle it on return (productive/reset keeps the single charge; confirmed quota-only or never-launched removes it). On a task switch `A → B`, move only `A`'s still-open packet and task counters to `BACKLOG.md` before overwriting `.agenticale/active.md`; delete a deferred task's packet from `BACKLOG.md` when it resumes.
 
 ## Budgets and task selection
 

@@ -118,7 +118,11 @@ and never write preference files themselves.
 checkpoint (`.agenticale/active.md`), optional human-owned steering
 (`.agenticale/steering.md`), and three on-demand cold-path references
 (`persistence.md`, `escalation.md`, `recovery.md`), composing round prompts
-directly from `rounds.md` and `tasks/<role>.md`.
+directly from `rounds.md` and `tasks/<role>.md`. Durable state stays bounded via
+single-source-of-truth ownership and transition pruning — 1-line completed
+receipts in `BACKLOG.md`, live open state overwritten in place in
+`.agenticale/active.md`, Git history as the audit trail, and byte-based soft
+targets.
 
 Two durable worker-round budgets and a completed-task limit bound a run: a
 run ceiling (default **240**), a per-task allowance (default **24**, independent
