@@ -9,11 +9,10 @@ and sessions.
 
 The workflow is designed to lower model cost by using fast, inexpensive, or
 local models for routine high-volume work, and stronger models for difficult
-implementation and independent review. Successful delivery, including a
-requested pull request, includes independent review, acceptance checks, and
-fixes for blocking findings — a clearly mechanical change closes by its
-deterministic check instead, with an independent review only when risk
-warrants it — so your attention goes to completed work.
+implementation and independent review. Slices converge at the lowest sufficient
+tier — clearly mechanical changes close by deterministic checks, routine work
+uses independent review — and before delivery, changes pass a stepped-up
+fresh-context acceptance review so your attention goes to merge-ready work.
 
 Describe the outcome you want and invoke a workflow explicitly. The session
 where you invoke it coordinates the work. On OpenCode you can optionally
@@ -104,13 +103,14 @@ See [Antigravity installation](https://alefranz.github.io/AgenticAle/setup.html#
 
 ## What happens when you use it
 
-Work completes a bounded task through implementation, independent review,
-focused fixes for blocking findings, and acceptance checks — a clearly
-mechanical change closes by its deterministic check instead, with an
-independent review only when risk warrants it. When
-investigation is needed, it gathers evidence first. Autonomous applies the same review gates
-to long goals and saves a durable next action for a later session. Each
-workflow reports its checks and remaining limitations.
+Work completes a bounded task through focused implementation, lowest-sufficient-tier
+verification (deterministic checks for clearly mechanical slices, independent
+review for routine slices), focused fixes for blocking findings, and a stepped-up
+fresh-context acceptance review before delivery. When investigation is needed, it
+gathers evidence first. Autonomous applies the same progressive assurance and
+periodic every-4-rounds reassessment to long goals and saves a durable next
+action for a later session. Each workflow reports its checks and remaining
+limitations.
 
 Before dispatching implementation, the coordinator briefly assesses what the
 request would touch — which sources other actors can also mutate, which side
@@ -166,18 +166,17 @@ actions remain separate requests. See the
 Use [Autonomous](https://alefranz.github.io/AgenticAle/skills/autonomous/) for
 a goal that spans multiple rounds or sessions. A run has a worker-round
 ceiling — default 240, a generous emergency safety limit rather than a work
-target, or the number you pass — and each genuine task its own allowance of
-12 worker rounds that extends automatically on verified progress up to a
-hard ceiling of 24; an explicit budget is an exact cap that never
-auto-extends. Every exploration, implementation, and fix round counts
-against both budgets, and the counters survive resumes. A separate
-completed-task limit (default 20) counts only tasks whose checks, reviews,
-and persistence are fully confirmed. While worker budget and real progress
-remain, productive fixes and independent re-review continue unattended —
-Autonomous does not ask you to authorize each extra fix cycle; the fix loop
-stops at exhausted budgets, repeated no-progress, or a guard breach, and the
-required review of the last allowed worker still runs. Reaching a limit with
-eligible work remaining is an incomplete safety stop, never a completed run.
+target, or the number you pass — and each genuine task has a default allowance of
+24 worker rounds (an explicit budget is an exact cap). Every exploration,
+implementation, and fix round counts against both budgets, and the counters
+survive resumes. A separate completed-task limit (default 20) counts only tasks
+whose checks, reviews, and persistence are fully confirmed. While worker budget
+and real progress remain, productive fixes and independent re-review continue
+unattended — Autonomous reassesses progress, route complexity, and strategy every
+4 worker rounds instead of stopping on arbitrary fix counts, and runs any
+pending required slice or acceptance review even at zero worker budget. Reaching
+a limit with eligible work remaining is an incomplete safety stop, never a
+completed run.
 An exhausted task allowance defers that task, not the run, while another
 truly independent ready task can be selected safely. Goal text
 supplied while a run is active steers it: explicit new outcomes become

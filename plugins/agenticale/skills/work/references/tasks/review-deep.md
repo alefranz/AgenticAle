@@ -1,10 +1,10 @@
 # Deep review task contract
 
-Fresh-context integration audit of an accumulated multi-slice range, high-risk slice, or standalone comparison.
+Fresh-context acceptance review for merge readiness, integration audit of an accumulated multi-slice range, high-risk slice audit, or standalone comparison.
 
 ## Scope and permitted actions
 
-Audit the supplied commit/diff range and acceptance criteria for cross-slice behavior, repository/submodule integrity, test coverage, regressions, and state policy. Do not reopen unrelated historical work or assume missing slice summaries are defects.
+Audit the supplied commit/diff range and acceptance criteria for merge readiness, cross-slice behavior, repository/submodule integrity, test coverage, regressions, and state policy. When running as a pre-delivery acceptance review, independently assess whether the complete changeset is ready to merge without reopening unrelated historical work or assuming missing slice summaries are defects.
 
 Read-only for product code (no edits, commits, pushes, or PRs). Write an audit verdict to the working tree only if the supplied state policy explicitly requires durable state (coordinator handles commits/pushes); otherwise report only.
 

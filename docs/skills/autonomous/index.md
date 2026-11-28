@@ -35,10 +35,11 @@ and proceeds in sequential, bounded rounds. On OpenCode, when the installation
 configures a coordinator model, the `/autonomous` command entry — including a
 fresh resume — runs in the current session on the generated
 `agenticale/coordinator` profile from the first turn; without one, the
-invoking session coordinates on its own model. Code and configuration changes
-receive independent review by default, with focused fixes for blocking
-findings; in strict mode a clearly mechanical slice closes by its deterministic
-check instead, with an independent review only when risk warrants one. Cold-path
+invoking session coordinates on its own model. Code and configuration changes converge at the lowest sufficient tier per slice
+— in strict mode a clearly mechanical slice closes by its deterministic check,
+routine slices use `review`, and high-risk slices use `review-deep` — with
+focused fixes for blocking findings, and milestones / run-close delivery
+boundaries pass a stepped-up fresh-context acceptance review. Cold-path
 procedures (`persistence.md`, `escalation.md`, `recovery.md`) load on demand
 only when triggered, and round packets compose directly from the shared round
 contract and role task contracts.
@@ -88,9 +89,9 @@ work, verification, and remaining limitations. An investigation-only goal
 returns findings and a next step without manufacturing product commits.
 
 A new run commits and pushes each completed task by default: after the
-task's required checks and reviews — including applicable deep review
-gates — the coordinator makes coherent task commits and confirms an
-ordinary push before the next task starts. The completion record itself —
+task's required checks and reviews — including applicable progressive acceptance
+and deep review gates — the coordinator makes coherent task commits and confirms
+an ordinary push before the next task starts. The completion record itself —
 the backlog result line and the updated snapshot — is then persisted in one
 bounded state-only commit, pushed and confirmed under the same policy, so
 the pushed state is never left open and no endless chain of confirmation
@@ -322,22 +323,27 @@ fresh allowance (stopping only when no safe ready work remains).
 
 Productive fix loops continue unattended while worker budget remains —
 Autonomous never stops merely because a fix/review loop reached a fixed round
-count. It stops or escalates only on genuine non-convergence (2 consecutive
-no-progress worker rounds or repeated identical blocker; oscillation where
-fixing A reopens B across 2 cycles; 4+ reviews opening only stylistic/wording
-blockers after functional checks pass; or repeated root-cause invariant
-failure). `review-deep` runs at periodic integration boundaries (milestone/release/2+
-slices, API/contract/submodule changes, or 2+ repos / ~12+ files), as a
-standing-in gate for high-risk slices, or once per session as an advisory
-non-convergence diagnostic. `consult` (at most 1 per decision, 2 per session)
-handles reversible technical deadlocks and style-drift second opinions.
+count. Every 4 worker rounds on the same task or slice (and sooner on clear
+stall or oscillation), the coordinator reassesses progress, whether to upgrade
+complexity/routing (`implement` → `implement-hard`), whether repeated invariant
+failures call for a strategy shift or `consult`, and whether purely stylistic
+review drift after functional checks pass can be settled as non-blocking nits.
+At milestone, API/contract/multi-repo/large-scope, or run-close delivery
+boundaries with product changes, progressive independent assurance runs one
+stepped-up fresh-context acceptance review over the accumulated changeset since
+the last accepted delivery baseline (`Tier 0 → review`, `Tier 1 → review-deep`,
+`Tier 2 → review-deep` if not already covered); standing-in `review-deep` handles
+high-risk slices, and one advisory `review-deep` per session can diagnose stuck
+loops. `consult` (at most 1 per decision, 2 per session) handles strategy
+deadlocks and style-drift second opinions.
 
 The main loop runs unattended under the **anti-ask gate** and asks the user
 only for: irreversible or `AGENTS.md`-reserved actions (force-push, deleting
 branches, opening PRs/releases); ambiguous goal/scope/acceptance or destructive
 replacement; exhausted run limits or blocked persistence destination/attribution;
-or genuine non-convergence that a read-only `consult` could not settle. Surviving
-blocking findings are never a permission ask while budget and progress hold.
+or genuine non-convergence that periodic reassessment and a read-only `consult`
+could not settle. Surviving blocking findings are never a permission ask while
+budget and progress hold.
 
 When the host reports provider quota exhaustion, the coordinator records the
 evidence, affected role, retry time, inspected partial progress, remaining work,

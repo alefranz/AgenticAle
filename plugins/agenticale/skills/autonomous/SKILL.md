@@ -11,7 +11,7 @@ metadata:
 
 Read [the shared round contract](../work/references/rounds.md) before dispatching. Work a long goal in strictly sequential foreground child rounds (never parallel or background). The main loop coordinates, maintains durable state, and handles Git persistence; children do the implementation and independent verification.
 
-Default to **strict** mode: every slice changing code, config, tests, or behavior passes an independent review round before the next slice starts, except clearly mechanical slices closed by their coordinator-run deterministic check per [Review and fix gate](../work/references/rounds.md#review-and-fix-gate). Use **standard** mode (coordinator verification only, no review round) only for investigation-only goals or when the user explicitly accepts skipping review for low-risk mechanical work.
+Default to **strict** mode: every slice changing code, config, tests, or behavior converges using the lowest sufficient tier under [Review and fix gate](../work/references/rounds.md#review-and-fix-gate) (coordinator-run deterministic check for clearly mechanical slices, `review` for routine slices, `review-deep` standing in for high-risk slices), and milestones / run-close delivery boundaries pass a stepped-up fresh-context acceptance review per [escalation.md](references/escalation.md). Use **standard** mode (coordinator verification only, no review round) only for investigation-only goals or when the user explicitly accepts skipping review for low-risk mechanical work.
 
 ## On-demand references (load ONLY when triggered)
 
@@ -58,7 +58,7 @@ Apply targeted edits on fresh re-reads (never overwrite `BACKLOG.md` from a stal
 
 - **Budgets:** default **24 worker rounds** per task, **240** per run, and **20 completed tasks** per run (a task counts only once its persistence gate is confirmed). Worker rounds (`explore`, `implement`, `implement-easy`, `implement-hard`, `fix`, including resets/corrections) charge both task and run counters; `review`, `review-deep`, and `consult` do not. Only a genuinely new task gets a fresh 24-round allowance.
 - **Task exhaustion is not a run stop:** when a task hits its allowance, run any pending review on its completed changes, defer the task with its resumable packet in `BACKLOG.md`, and select another truly independent ready task (fresh allowance). Never bypass gates/dependencies or manufacture work.
-- **Loop continuation:** follow [Budgets and loop continuation](../work/references/rounds.md#budgets-and-loop-continuation). Continue productive fix loops unattended (never stop on a review-round count); stop/escalate only on stall (2 no-progress rounds or same blocker twice), oscillation (2 cycles), reviewer style drift (4+ reviews after functional checks pass), or repeated root-cause invariant failure.
+- **Loop continuation:** follow [Budgets and loop continuation](../work/references/rounds.md#budgets-and-loop-continuation). Continue productive fix loops unattended (never stop on a review-round count); run a **periodic reassessment every 4 worker rounds** on the task/slice (or sooner on stall/oscillation) to evaluate progress, route/complexity upgrades, strategy shifts or `consult`, and style-drift settlement; stop/escalate only on unresolved non-convergence.
 
 ## Dispatch and task loop
 
@@ -70,8 +70,8 @@ Route rounds per [Routing policy](../work/references/rounds.md#routing-policy) t
 For each slice (giving 1–3 sentence progress narration before each substantive dispatch):
 1. Re-read `.agenticale/steering.md` and `.agenticale/active.md`'s budget line; charge worker round; launch one fresh foreground child; verify result with `git status` / `git log -1`. If quota-exhausted or interrupted, load [recovery.md](references/recovery.md); otherwise if missing/malformed, send one correction round.
 2. If the worker hit a reset trigger, persist `TRIED` and `NEXT` and start a fresh child (counts as a worker round; never review unfinished work).
-3. In strict mode, gate each changed slice via [Review and fix gate](../work/references/rounds.md#review-and-fix-gate) (clearly mechanical slices close via deterministic check; judgemental findings loop fix → verify → re-review unattended while making progress). Load [escalation.md](references/escalation.md) if a `review-deep` gate, `consult`, or reset applies.
-4. When a task's final slice and gates close, complete the task persistence gate in [persistence.md](references/persistence.md) before selecting the next task.
+3. In strict mode, converge each changed slice via [Review and fix gate](../work/references/rounds.md#review-and-fix-gate) (lowest sufficient tier; judgemental findings loop fix → verify → re-review unattended while making progress). Load [escalation.md](references/escalation.md) when periodic reassessment triggers `consult`/diagnostic `review-deep`, for a standing-in `review-deep`, or for a progressive acceptance review at milestone / run-close delivery.
+4. When a task's final slice and gates close, complete the task persistence gate in [persistence.md](references/persistence.md) (and at milestone / run-close delivery, pass the progressive acceptance review before final run close) before selecting the next task or finishing.
 
 ## Asking the user (anti-ask gate)
 
@@ -79,7 +79,7 @@ Run unattended. Stop and ask the user **only** when one of these occurs:
 1. An irreversible or `AGENTS.md`-reserved action (force-push, deleting branches, opening PRs, publishing releases).
 2. An ambiguous user preference over goal, scope, acceptance, or destructive replacement ("start over").
 3. An exhausted run ceiling / completed-task limit (offer `+N` increment or stop preserving work), or blocked persistence destination / ambiguous commit attribution.
-4. Genuine non-convergence (stall, oscillation, repeated root-cause blocker, or 4+ review style drift) that a read-only `consult` (per [escalation.md](references/escalation.md)) could not settle.
+4. Genuine non-convergence that periodic reassessment and a read-only `consult` (per [escalation.md](references/escalation.md)) could not settle.
 
 Never ask to authorize routine continuation, the next slice, or another productive fix/review cycle while budget and progress hold.
 

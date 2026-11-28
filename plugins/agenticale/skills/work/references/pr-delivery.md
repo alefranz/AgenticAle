@@ -14,7 +14,7 @@ PR delivery is one combined endpoint (coherent task commits, push, create/update
 ## 2. Commit cleanly after review
 
 - Keep worker rounds uncommitted unless repo instructions require otherwise.
-- Complete the independent review (or deterministic check for clearly mechanical changes under [Review and fix gate](rounds.md#review-and-fix-gate)) before committing.
+- Complete implementation convergence and pass the required progressive acceptance review over the complete changeset (per [Review and fix gate](rounds.md#review-and-fix-gate)) before committing.
 - Make coherent task commits (not one commit per agent round), staging only task changes and preserving unrelated staged and unstaged work.
 
 ## 3. Verify outgoing diff and push
