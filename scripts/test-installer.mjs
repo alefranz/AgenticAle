@@ -1801,34 +1801,53 @@ try {
     check(files.length === 47, "qwen fresh install: 47 files on disk");
     check(files.every((f) => f.startsWith("agents/") || f.startsWith("skills/")), "qwen fresh install: only the agents and skills roots");
 
-    // Profile shapes: the direct role carries the bare model id; the codex
-    // role carries the pinned executor and none of the rejected keys.
+    // Profile shapes: the direct role carries the bare model id and the
+    // direct-form keys; the codex-routed role carries the pinned executor
+    // and none of the rejected keys.
     const explore = await readFile(join(t, "agents", "agenticale-explore.md"), "utf8");
     check(explore.includes("model: qwen3.8-27b"), "qwen fresh install: explore renders the bare model id");
     check(!/executor:/.test(explore), "qwen fresh install: the direct profile has no executor block");
     const review = await readFile(join(t, "agents", "agenticale-review.md"), "utf8");
-    check(/executor:/.test(review), "qwen fresh install: review renders the codex executor");
-    check(review.includes('model=\\"gpt-6.2-sol\\"'), "qwen fresh install: review pins the bare codex model");
-    check(review.includes('model_reasoning_effort=\\"high\\"'), "qwen fresh install: review pins the codex effort");
-    check(!/^model: /m.test(review), "qwen fresh install: the codex profile carries no model line");
-    check(!/maxTurns:/.test(review), "qwen fresh install: the codex profile carries no maxTurns");
-    check(!/disallowedTools:/.test(review), "qwen fresh install: the codex profile carries no disallowedTools");
+    check(/^model: qwen4-max$/m.test(review), "qwen fresh install: the alibaba-token-plan review role renders the bare model id");
+    check(!/executor:/.test(review), "qwen fresh install: the direct review profile has no executor block");
+    check(/maxTurns:/.test(review) && review.includes("disallowedTools:"), "qwen fresh install: the direct review profile keeps the direct-form shape");
+    const reviewDeep = await readFile(join(t, "agents", "agenticale-review-deep.md"), "utf8");
+    check(/executor:/.test(reviewDeep), "qwen fresh install: review-deep renders the codex executor");
+    check(reviewDeep.includes('model=\\"gpt-6.2-sol\\"'), "qwen fresh install: review-deep pins the bare codex model");
+    check(reviewDeep.includes('model_reasoning_effort=\\"high\\"'), "qwen fresh install: review-deep pins the codex effort");
+    check(!/^model: /m.test(reviewDeep), "qwen fresh install: the codex profile carries no model line");
+    check(!/maxTurns:/.test(reviewDeep), "qwen fresh install: the codex profile carries no maxTurns");
+    check(!/disallowedTools:/.test(reviewDeep), "qwen fresh install: the codex profile carries no disallowedTools");
 
     // Idempotent rerun: up to date.
     const r2 = run("install.mjs", ["qwen-install", "--target", t]);
     check(r2.exit === 0, "qwen up-to-date: exits 0");
     check(r2.out.includes("Already up to date."), "qwen up-to-date: reports up to date");
 
-    // The example config routes its coordinator through the Codex executor:
-    // the install refuses it (a silent skip would misreport the coordinator
-    // as omitted) and writes nothing to the target.
+    // A codex-routed coordinator value is refused outright (a silent skip
+    // would misreport the coordinator as omitted) and writes nothing to the
+    // target.
+    const codexCoordinatorMap = join(scratch, "q-codex-coordinator.json");
+    await writeFile(codexCoordinatorMap, JSON.stringify({ coordinator: "openai/gpt-6.2-sol#high", explore: "local-llama/qwen3.8-27b#medium" }), "utf8");
+    const tcodex = join(scratch, "q-codex-coordinator");
+    const rcodex = run("install.mjs", ["qwen-install", "--target", tcodex, "--models", codexCoordinatorMap]);
+    check(rcodex.exit !== 0, "qwen codex-coordinator install: a codex-routed coordinator is refused");
+    check(rcodex.err.includes("Qwen Code install rejected"), "qwen codex-coordinator install: names the rejection");
+    check(rcodex.err.includes("coordinator"), "qwen codex-coordinator install: the message names the coordinator");
+    check(!await exists(join(tcodex, STATE)), "qwen codex-coordinator install: no state is written");
+    check((await relFiles(tcodex)).length === 0, "qwen codex-coordinator install: nothing is written to the target");
+
+    // The example preset assigns a Qwen-direct coordinator: the install
+    // renders it alongside the nine worker roles.
     const tex = join(scratch, "q-example");
     const rex = run("install.mjs", ["qwen-install", "--target", tex, "--models", "example"]);
-    check(rex.exit !== 0, "qwen example install: a codex-routed coordinator is refused");
-    check(rex.err.includes("Qwen Code install rejected"), "qwen example install: names the rejection");
-    check(rex.err.includes("coordinator"), "qwen example install: the message names the coordinator");
-    check(!await exists(join(tex, STATE)), "qwen example install: no state is written");
-    check((await relFiles(tex)).length === 0, "qwen example install: nothing is written to the target");
+    check(rex.exit === 0, "qwen example install: exits 0");
+    const stateEx = await readQwenState(tex);
+    check(stateEx.entries.length === 47, "qwen example install: 47 entries (10 profiles + 37 skills)");
+    const agentsEx = qwenAgents(stateEx);
+    check(agentsEx.length === 10 && agentsEx.includes("agenticale-coordinator.md"), "qwen example install: the Qwen-direct coordinator renders");
+    const exampleCoordinator = await readFile(join(tex, "agents", "agenticale-coordinator.md"), "utf8");
+    check(/^model: qwen4-max$/m.test(exampleCoordinator) && !exampleCoordinator.includes("executor:"), "qwen example install: the coordinator renders the bare model id without an executor");
 
     // Reinstall with the local preset (no coordinator, no optional routes):
     // the owned coordinator and optional files retire and their entries drop.

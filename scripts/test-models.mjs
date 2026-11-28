@@ -150,16 +150,16 @@ const ALL_ROLES = ["explore", "implement", "implement-easy", "implement-hard", "
 // The exact example preset acceptance: one primary coordinator plus nine
 // workers, each with its exact provider/model#variant value.
 const EXAMPLE_ASSIGNMENTS = {
-  coordinator: "openai/gpt-6.2-sol#medium",
-  explore: "local-llama/qwen3.8-27b#medium",
+  coordinator: "alibaba-token-plan/qwen4-max#high",
+  explore: "local-llama/qwen3.8-27b#low",
   "implement-easy": "local-llama/qwen3.8-27b#medium",
-  implement: "alibaba-token-plan/qwen4-max#medium",
+  implement: "local-llama/qwen3.8-27b#xhigh",
   "implement-hard": "alibaba-token-plan/qwen4-max#xhigh",
-  fix: "alibaba-token-plan/qwen4-max#medium",
-  review: "openai/gpt-6.2-sol#high",
-  "review-deep": "openai/gpt-6.2-astra#high",
-  "consult-hard": "openai/gpt-6.2-astra#high",
-  consult: "openai/gpt-6.2-sol#high",
+  fix: "alibaba-token-plan/qwen4-max#high",
+  review: "alibaba-token-plan/qwen4-max#high",
+  "review-deep": "openai/gpt-6.2-sol#high",
+  "consult-hard": "openai/gpt-6.2-sol#high",
+  consult: "alibaba-token-plan/qwen4-max#high",
 };
 
 const stripFrontmatter = (text) => text.replace(/^---\n[\s\S]*?\n---\n/, "");
@@ -323,26 +323,36 @@ try {
     const state = JSON.parse(await readText(fixture.buildState));
     check(state.modelsSource === "adapters/opencode/models.json", "default build: build state modelsSource is the packaged flat model config");
     check(state.noModel === false, "default build: build state noModel is false");
-    check(JSON.stringify(state.profiles.map((p) => p.name).sort()) === JSON.stringify(BASE_ROLES.sort()), "default build: build state records the seven base profiles");
-    check(state.coordinator === null, "default build: build state records no coordinator");
+    check(JSON.stringify(state.profiles.map((p) => p.name).sort()) === JSON.stringify(ALL_ROLES.sort()), "default build: build state records the nine worker profiles");
+    check(state.coordinator !== null && state.coordinator.name === "coordinator" && state.coordinator.model === defaultModels.coordinator, "default build: build state records the packaged coordinator assignment");
 
     const agentsRel = await listRelative(join(fixture.openCodeRoot, "agents", "agenticale"));
-    check(JSON.stringify(agentsRel) === JSON.stringify(BASE_ROLES.map((role) => `${role}.md`).sort()), "default build: exactly the seven base profiles render (no optional workers, no coordinator)");
+    check(JSON.stringify(agentsRel) === JSON.stringify([...ALL_ROLES, "coordinator"].map((role) => `${role}.md`).sort()), "default build: exactly ten profiles render (nine workers plus the packaged coordinator)");
 
-    for (const role of BASE_ROLES) {
+    for (const role of ALL_ROLES) {
       const text = await readText(join(fixture.openCodeRoot, "agents", "agenticale", `${role}.md`));
       check(text.includes(`model: ${defaultModels[role]}`), `default build: ${role} profile renders the flat config model line ${defaultModels[role]}`);
       check(!/^reasoningEffort:/m.test(text), `default build: ${role} profile has no separate reasoningEffort line`);
       check((text.match(/^model:/gm) ?? []).length === 1, `default build: ${role} profile renders exactly one model line`);
     }
 
-    // Without a configured coordinator the commands stay caller-session
-    // launchers: description-only frontmatter, exact skill load, $ARGUMENTS.
-    for (const name of ["work", "review", "autonomous", "configure"]) {
+    // The packaged default config assigns the coordinator: the primary
+    // profile renders its exact model line in the current session.
+    const packagedCoordinator = await readText(join(fixture.openCodeRoot, "agents", "agenticale", "coordinator.md"));
+    check(packagedCoordinator.includes(`model: ${defaultModels.coordinator}`), "default build: the coordinator renders the packaged model line");
+    check(packagedCoordinator.includes("mode: primary"), "default build: the coordinator is a visible primary agent");
+
+    // With the packaged coordinator the three workflow commands bind it in
+    // the current session; the configure command stays a caller-session
+    // launcher.
+    for (const name of ["work", "review", "autonomous"]) {
       const text = await readText(join(fixture.openCodeRoot, "commands", `${name}.md`));
-      check(!/^agent:/m.test(text) && !/^subagent:/m.test(text), `default build: ${name} command has no agent/subagent binding`);
+      check(/^agent: agenticale\/coordinator$/m.test(text) && /^subagent: false$/m.test(text), `default build: ${name} command binds agenticale/coordinator with subagent: false`);
       check(text.includes(`\`${name}\``) && text.includes("$ARGUMENTS"), `default build: ${name} command keeps the exact skill load and $ARGUMENTS`);
     }
+    const packagedConfigure = await readText(join(fixture.openCodeRoot, "commands", "configure.md"));
+    check(!/^agent:/m.test(packagedConfigure) && !/^subagent:/m.test(packagedConfigure), "default build: the configure command stays a caller-session launcher despite the packaged coordinator");
+    check(packagedConfigure.includes("`configure`") && packagedConfigure.includes("$ARGUMENTS"), "default build: configure command keeps the exact skill load and $ARGUMENTS");
 
     // The packaged configure skill reaches the starter install-relative in
     // every output; the authored skill keeps the source-checkout link.
@@ -537,12 +547,13 @@ try {
   {
     // Regression: the packaged default must resolve against the repository
     // root, not the caller's CWD — a build from a different CWD with no
-    // --models succeeds and renders the packaged default into all seven profiles.
+    // --models succeeds and renders the packaged default into all nine worker
+    // profiles.
     const otherCwd = join(scratch, "build-other-cwd");
     const result = spawnSync(process.execPath, [build, "--output", otherCwd], { cwd: scratchRoot, encoding: "utf8" });
     check(result.status === 0, `other-cwd build exits 0${result.status === 0 ? "" : ` (stderr: ${result.stderr.trim()})`}`);
     if (result.status !== 0) console.error(result.stdout, result.stderr);
-    for (const role of BASE_ROLES) {
+    for (const role of ALL_ROLES) {
       const text = await readText(join(otherCwd, "opencode", "agents", "agenticale", `${role}.md`));
       check(text.includes(`model: ${defaultModels[role]}`), `other-cwd build: ${role} profile renders the packaged default (${defaultModels[role]})`);
     }
