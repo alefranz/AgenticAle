@@ -347,8 +347,8 @@ adapters and writes four output roots beneath `--output` (default `dist`):
 | --- | --- |
 | `<output>/plugin/agenticale` | Agent Plugins 1.0 package (45 files: `plugin.json` + the six skills and their resources, with the preference fragment appended to the workflow skills) |
 | `<output>/standalone/.agents/skills` | the six standalone skills (44 files), no plugin dependency, with the preference fragment appended to the workflow skills |
-| `<output>/opencode` | the seven base worker profiles (plus the optional `implement-easy`/`consult-hard` and `coordinator` profiles when configured), the same skills, and the four command entries (55 files by default, up to 58) |
-| `<output>/qwen-code` | the flat `agents/agenticale-<role>.md` worker profiles (the same seven base roles, plus the optional roles and the flat coordinator when configured), the same six skills (51 files by default, up to 54); codex-routed model values render a pinned codex executor block instead of a model line |
+| `<output>/opencode` | the seven base worker profiles (plus the optional `implement-easy`/`consult-hard` and `coordinator` profiles when configured — all ten with the packaged default), the same skills, and the four command entries (51 files with the packaged default) |
+| `<output>/qwen-code` | the flat `agents/agenticale-<role>.md` worker profiles (the same seven base roles, plus the optional roles and the flat coordinator when configured — all ten with the packaged default), the same six skills (47 files with the packaged default); codex-routed model values render a pinned codex executor block instead of a model line |
 
 The build writes `.agenticale-build.json` (schemaVersion 3) describing the
 package, the model config source, the no-model flag, the rendered profiles,
